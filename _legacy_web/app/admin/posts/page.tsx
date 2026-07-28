@@ -7,6 +7,7 @@ import { Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { pickAdminPostDisplay } from "./_lib/adminPostDisplayTitle";
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+import { formatVideoDuration } from "../_lib/videoDuration";
 
 const PAGE_SIZE = 20;
 
@@ -16,6 +17,7 @@ type PostListRow = {
   cover_url: string | null;
   is_published: boolean;
   published_at: string | null;
+  duration_seconds?: number | null;
   created_at: string;
   comment_count: number;
   title_i18n?: Record<string, string>;
@@ -29,6 +31,17 @@ function hasPostTranslations(post: PostListRow): boolean {
   if (post.translations_updated_at) return true;
   const titles = post.title_i18n ?? {};
   return Object.values(titles).some((value) => typeof value === "string" && value.trim().length > 0);
+}
+
+/** Черновик / Планируется (дата в будущем) / Опубликовано. */
+function postPublishBadge(post: PostListRow): { label: string; className: string } {
+  if (!post.is_published) {
+    return { label: "Черновик", className: "bg-zinc-100 text-zinc-400" };
+  }
+  if (post.published_at && new Date(post.published_at).getTime() > Date.now()) {
+    return { label: "Планируется", className: "bg-sky-50 text-sky-700" };
+  }
+  return { label: "Опубликовано", className: "bg-emerald-50 text-emerald-700" };
 }
 
 export default function AdminPostsPage() {
@@ -159,6 +172,7 @@ export default function AdminPostsPage() {
       <div className="flex flex-col gap-3">
         {posts?.map((post) => {
           const display = pickAdminPostDisplay(post);
+          const badge = postPublishBadge(post);
           return (
             <div
               key={post.id}
@@ -168,24 +182,21 @@ export default function AdminPostsPage() {
                 href={`/admin/posts/${post.id}?tab=${display.locale}`}
                 className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
               >
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-200">
+                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-200">
                   {display.coverUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={display.coverUrl} alt="" className="h-full w-full object-contain" />
+                  ) : null}
+                  {post.duration_seconds != null && post.duration_seconds > 0 ? (
+                    <span className="pointer-events-none absolute bottom-0.5 right-0.5 rounded bg-black/80 px-1 py-px text-[9px] font-semibold tabular-nums leading-none text-white">
+                      {formatVideoDuration(post.duration_seconds)}
+                    </span>
                   ) : null}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-zinc-900">{display.title}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                    <span
-                      className={`rounded-full px-2 py-0.5 ${
-                        post.is_published
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-zinc-100 text-zinc-400"
-                      }`}
-                    >
-                      {post.is_published ? "Опубликовано" : "Черновик"}
-                    </span>
+                    <span className={`rounded-full px-2 py-0.5 ${badge.className}`}>{badge.label}</span>
                     <span className="rounded-full bg-zinc-100 px-2 py-0.5 uppercase text-zinc-400">
                       {display.locale}
                     </span>

@@ -23,6 +23,8 @@ export type PostItem = PostContentSource & {
   id: string;
   publishedAt: string | null;
   commentCount: number;
+  /** Locale-agnostic length in seconds; null when unknown. */
+  durationSeconds: number | null;
 };
 
 /** @deprecated Prefer resolvePostContentForLocale — returns null when locale has no authored content. */
@@ -108,7 +110,13 @@ function normalizePostRow(row: {
   cover_url_i18n?: unknown;
   published_at: string | null;
   comment_count?: number | null;
+  duration_seconds?: number | null;
 }): PostItem {
+  const durationRaw = row.duration_seconds;
+  const durationSeconds =
+    typeof durationRaw === "number" && Number.isFinite(durationRaw) && durationRaw > 0
+      ? Math.floor(durationRaw)
+      : null;
   return {
     id: row.id,
     title: row.title,
@@ -119,6 +127,7 @@ function normalizePostRow(row: {
     coverUrlI18n: parseStringRecord(row.cover_url_i18n),
     publishedAt: row.published_at ?? null,
     commentCount: Number(row.comment_count ?? 0),
+    durationSeconds,
   };
 }
 
@@ -217,7 +226,9 @@ export async function fetchPostById(id: string): Promise<PostItem | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
     .from("posts")
-    .select("id, title, body, cover_url, title_i18n, body_i18n, cover_url_i18n, published_at")
+    .select(
+      "id, title, body, cover_url, title_i18n, body_i18n, cover_url_i18n, published_at, duration_seconds",
+    )
     .eq("id", id)
     .eq("is_published", true)
     .lte("published_at", new Date().toISOString())
@@ -236,6 +247,7 @@ export async function fetchPostById(id: string): Promise<PostItem | null> {
     body_i18n: data.body_i18n,
     cover_url_i18n: data.cover_url_i18n,
     published_at: data.published_at,
+    duration_seconds: data.duration_seconds,
     comment_count: 0,
   });
 }

@@ -21,24 +21,15 @@ import {
   markPostViewed,
   resolvePostContentForLocale,
   type CommentItem,
+  type PostItem,
 } from "@/modules/posts/core/postsClient";
+import { formatVideoDuration } from "@/modules/posts/core/videoDuration";
 import { CommentComposer, CommentsSection } from "@/modules/posts/ui/CommentsSection";
 import { LinkifiedBody } from "@/modules/posts/ui/LinkifiedBody";
 import { AppText } from "@/modules/ui/AppText";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { StateCard } from "@/modules/ui/StateCard";
 import { useTheme } from "@/modules/ui/theme";
-
-type PostRow = {
-  id: string;
-  title: string;
-  body: string;
-  coverUrl: string | null;
-  titleI18n: Record<string, string>;
-  bodyI18n: Record<string, string>;
-  coverUrlI18n: Record<string, string>;
-  publishedAt: string | null;
-};
 
 export function PostScreen() {
   const theme = useTheme();
@@ -50,26 +41,13 @@ export function PostScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const scrollToCommentsAfterSubmit = useRef(false);
 
-  const [post, setPost] = useState<PostRow | null | undefined>(undefined);
+  const [post, setPost] = useState<PostItem | null | undefined>(undefined);
   const [comments, setComments] = useState<CommentItem[] | null>(null);
 
   useEffect(() => {
     if (!id) return;
     void fetchPostById(id).then((item) => {
-      if (!item) {
-        setPost(null);
-        return;
-      }
-      setPost({
-        id: item.id,
-        title: item.title,
-        body: item.body,
-        coverUrl: item.coverUrl,
-        titleI18n: item.titleI18n,
-        bodyI18n: item.bodyI18n,
-        coverUrlI18n: item.coverUrlI18n,
-        publishedAt: item.publishedAt,
-      });
+      setPost(item);
     });
   }, [id]);
 
@@ -134,7 +112,20 @@ export function PostScreen() {
               }}
             >
               {localizedPost.coverUrl ? (
-                <Image source={{ uri: localizedPost.coverUrl }} style={styles.cover} resizeMode="cover" />
+                <View style={styles.coverWrap}>
+                  <Image
+                    source={{ uri: localizedPost.coverUrl }}
+                    style={styles.cover}
+                    resizeMode="cover"
+                  />
+                  {post.durationSeconds != null && post.durationSeconds > 0 ? (
+                    <View style={styles.durationBadge} pointerEvents="none">
+                      <AppText style={styles.durationText}>
+                        {formatVideoDuration(post.durationSeconds)}
+                      </AppText>
+                    </View>
+                  ) : null}
+                </View>
               ) : null}
               <AppText variant="screenTitle" accessibilityRole="header">
                 {localizedPost.title}
@@ -200,10 +191,32 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
   },
-  cover: {
+  coverWrap: {
     aspectRatio: 16 / 9,
     borderRadius: 18,
+    overflow: "hidden",
+    position: "relative",
     width: "100%",
+  },
+  cover: {
+    height: "100%",
+    width: "100%",
+  },
+  durationBadge: {
+    backgroundColor: "rgba(0,0,0,0.82)",
+    borderRadius: 4,
+    bottom: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    position: "absolute",
+    right: 8,
+  },
+  durationText: {
+    color: "#fff",
+    fontSize: 12,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+    lineHeight: 16,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

@@ -6,6 +6,8 @@ export type AdminPostPayload = {
   cover_url?: string | null;
   is_published?: boolean;
   published_at?: string | null;
+  /** Locale-agnostic length in seconds; null clears. */
+  duration_seconds?: number | null;
   /** Translated titles keyed by locale (en/de/fr/it/es/pt/nl). */
   title_i18n?: Record<string, string>;
   /** Translated bodies keyed by locale. */
@@ -13,6 +15,15 @@ export type AdminPostPayload = {
   /** Per-locale cover URLs. */
   cover_url_i18n?: Record<string, string | null>;
 };
+
+function parseDurationSeconds(raw: number | null | undefined): number | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (!Number.isFinite(raw) || raw < 0) {
+    throw new Response(JSON.stringify({ error: "Некорректная длительность видео" }), { status: 400 });
+  }
+  return Math.floor(raw);
+}
 
 function trimmedRecord(input: Record<string, string> | undefined): Record<string, string> {
   const out: Record<string, string> = {};
@@ -42,6 +53,7 @@ export function postRowFromPayload(payload: AdminPostPayload) {
   if (publishedAt && Number.isNaN(publishedAt.getTime())) {
     throw new Response(JSON.stringify({ error: "Некорректная дата публикации" }), { status: 400 });
   }
+  const durationSeconds = parseDurationSeconds(payload.duration_seconds);
   const coverUrlI18n = payload.cover_url_i18n ?? {};
   const hasI18n =
     Object.keys(titleI18n).length > 0 ||
@@ -54,6 +66,7 @@ export function postRowFromPayload(payload: AdminPostPayload) {
     cover_url: payload.cover_url?.trim() || null,
     is_published: isPublished,
     published_at: publishedAt ? publishedAt.toISOString() : null,
+    duration_seconds: durationSeconds === undefined ? null : durationSeconds,
     title_i18n: titleI18n,
     body_i18n: bodyI18n,
     cover_url_i18n: coverUrlI18n,
@@ -80,11 +93,23 @@ export function postUpdateFromPayload(payload: AdminPostPayload, current: { publ
   if (payload.title !== undefined) update.title = nextTitle;
   if (payload.body !== undefined) update.body = payload.body;
   if (payload.cover_url !== undefined) update.cover_url = payload.cover_url?.trim() || null;
+  if (payload.duration_seconds !== undefined) {
+    update.duration_seconds = parseDurationSeconds(payload.duration_seconds) ?? null;
+  }
   if (payload.published_at !== undefined) {
-    update.published_at = payload.published_at ? new Date(payload.published_at).toISOString() : null;
+    if (payload.published_at) {
+      const at = new Date(payload.published_at);
+      if (Number.isNaN(at.getTime())) {
+        throw new Response(JSON.stringify({ error: "Некорректная дата публикации" }), { status: 400 });
+      }
+      update.published_at = at.toISOString();
+    } else {
+      update.published_at = null;
+    }
   }
   if (payload.is_published !== undefined) {
     update.is_published = payload.is_published;
+    // First publish without explicit date → now (editor always sends published_at).
     if (payload.is_published && !current.published_at && payload.published_at === undefined) {
       update.published_at = new Date().toISOString();
     }

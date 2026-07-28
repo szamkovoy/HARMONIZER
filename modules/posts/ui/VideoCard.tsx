@@ -7,6 +7,7 @@ import {
   truncatePostPreview,
   type PostItem,
 } from "@/modules/posts/core/postsClient";
+import { formatVideoDuration } from "@/modules/posts/core/videoDuration";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
@@ -50,7 +51,14 @@ export function VideoCard({
       ]}
     >
       {content.coverUrl ? (
-        <Image source={{ uri: content.coverUrl }} style={styles.cover} resizeMode="cover" />
+        <View style={styles.coverWrap}>
+          <Image source={{ uri: content.coverUrl }} style={styles.cover} resizeMode="cover" />
+          {post.durationSeconds != null && post.durationSeconds > 0 ? (
+            <View style={styles.durationBadge} pointerEvents="none">
+              <AppText style={styles.durationText}>{formatVideoDuration(post.durationSeconds)}</AppText>
+            </View>
+          ) : null}
+        </View>
       ) : null}
       <View style={styles.cardBody}>
         <AppText variant="sectionTitle">{content.title}</AppText>
@@ -81,9 +89,30 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     width: "100%",
   },
-  cover: {
+  coverWrap: {
     aspectRatio: 16 / 9,
+    position: "relative",
     width: "100%",
+  },
+  cover: {
+    height: "100%",
+    width: "100%",
+  },
+  durationBadge: {
+    backgroundColor: "rgba(0,0,0,0.82)",
+    borderRadius: 4,
+    bottom: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    position: "absolute",
+    right: 8,
+  },
+  durationText: {
+    color: "#fff",
+    fontSize: 12,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+    lineHeight: 16,
   },
   cardBody: {
     gap: CARD_SECTION_GAP,

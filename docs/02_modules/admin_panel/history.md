@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-29 (video duration):** В `PostEditor` поля длительности ЧЧ/ММ/СС → `duration_seconds`; превью бейджа на обложке.
+
+- **2026-07-29 (video publish date):** В `PostEditor` дата публикации + статусы Черновик/Планируется/Опубликовано; кнопка «Запланировать» без галочки.
+
 - **2026-07-28 (Auth 522 hang):** Все разделы крутили «Загрузка» — Supabase Auth `/auth/v1/user` отдавал 522/504, а `requireUser` ждал без лимита. Перешли на PostgREST-проверку JWT + hard timeout 8s → 503 вместо бесконечного спиннера.
 
 - **2026-07-28 (list cards + payments timeout):** Канон списков — карточка на запись (`AdminListCard`); уведомления/рассылки/шаги переведены с `divide-y`. Удаление из списка где безопасно. Платежи: `buyer_email` first, Auth email только для пробелов; limit 50 — фикс таймаута при Auth 504.

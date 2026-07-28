@@ -27,10 +27,47 @@ export function formatAdminDateTime(value: string | null | undefined): string {
   return dateTimeFmt.format(d);
 }
 
-/** YYYY-MM-DD для `<input type="date">` из ISO. */
+/** YYYY-MM-DD для `<input type="date">` из ISO (UTC-срез; для локальной даты см. localDateInputValue). */
 export function dateInputValue(value: string | null | undefined): string {
   if (!value) return "";
   return value.slice(0, 10);
+}
+
+/** YYYY-MM-DD в локальной таймзоне браузера (сегодня, если value пуст). */
+export function localDateInputValue(value?: string | Date | null): string {
+  const d =
+    value instanceof Date
+      ? value
+      : typeof value === "string" && value.trim()
+        ? new Date(value)
+        : new Date();
+  if (Number.isNaN(d.getTime())) {
+    const now = new Date();
+    return formatLocalYmd(now);
+  }
+  return formatLocalYmd(d);
+}
+
+function formatLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Дата публикации из `<input type="date">`.
+ * Сегодня → текущий момент (сразу видно в ленте); иначе — локальная полночь выбранного дня.
+ */
+export function publishedAtIsoFromDateInput(dateStr: string): string {
+  const trimmed = dateStr.trim();
+  const [y, m, d] = trimmed.split("-").map(Number);
+  if (!y || !m || !d) return new Date().toISOString();
+  const now = new Date();
+  const isToday =
+    now.getFullYear() === y && now.getMonth() === m - 1 && now.getDate() === d;
+  if (isToday) return now.toISOString();
+  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
 }
 
 /**

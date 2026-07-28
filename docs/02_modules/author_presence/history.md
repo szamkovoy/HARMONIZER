@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-29 (video duration):** `posts.duration_seconds` + feed RPC; админка ЧЧ/ММ/СС; бейдж длительности на обложке (YouTube-style) в админке и `VideoCard`/`PostScreen`.
+
+- **2026-07-29 (video publish date):** `PostEditor` — поле даты публикации (default сегодня); `published_at` уходит в API; список — статус «Планируется» для будущих дат; лента уже фильтрует `published_at <= now()`.
+
 - **2026-07-14 (6):** Home `LatestPostBanner` double-checks `postAvailableInLocale` (exact UI locale).
 
 - **2026-07-14 (5):** Videos/webinar recordings: exact UI-locale title only (reverted preferred→en→ru for feed). Soft fallback stays for notifications.

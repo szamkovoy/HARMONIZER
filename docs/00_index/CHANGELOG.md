@@ -1,3 +1,5 @@
+- 2026-07-29 (320): Video duration_seconds (HH/MM/SS in admin); YouTube-style badge on covers in app + admin.
+- 2026-07-29 (319): Admin video editor: publish date field; list status Планируется for future published_at.
 - 2026-07-28 (318): requireUser validates JWT via PostgREST + 8s timeout (avoids Auth 522 hanging all admin lists).
 - 2026-07-28 (317): Admin lists unified to per-item cards; safe delete on lists; payments ledger avoids Auth 504 timeout.
 - 2026-07-28 (316): Campaign/step «Редактировать» confirms and saves dirty title before opening editor.

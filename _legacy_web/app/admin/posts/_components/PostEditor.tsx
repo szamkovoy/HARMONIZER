@@ -7,8 +7,18 @@ import { Eye, EyeOff, ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react
 
 import { ALL_CONTENT_LOCALES, type AppContentLocale } from "../../../../modules/i18n/localeCodes";
 import { adminFetch } from "../../_lib/adminApi";
-import { formatAdminDateTime } from "../../_lib/adminDates";
+import {
+  formatAdminDateTime,
+  localDateInputValue,
+  publishedAtIsoFromDateInput,
+} from "../../_lib/adminDates";
 import { getBrowserSupabase } from "../../_lib/supabaseBrowser";
+import {
+  formatVideoDuration,
+  parseDurationParts,
+  sanitizeDurationDigits,
+  splitDurationParts,
+} from "../../_lib/videoDuration";
 import { compressPostCoverFile } from "../_lib/compressPostCover";
 import { pickAdminPostDisplay } from "../_lib/adminPostDisplayTitle";
 
@@ -50,11 +60,58 @@ export type AdminPost = {
   cover_url: string | null;
   is_published: boolean;
   published_at: string | null;
+  duration_seconds?: number | null;
   title_i18n?: Record<string, string>;
   body_i18n?: Record<string, string>;
   cover_url_i18n?: Record<string, string | null>;
   translations_updated_at?: string | null;
 };
+
+function CoverPreview({
+  src,
+  durationLabel,
+}: {
+  src: string;
+  durationLabel: string | null;
+}) {
+  return (
+    <div className="relative mb-1.5 h-40 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="Обложка" className="h-full w-full object-contain" />
+      {durationLabel ? (
+        <span className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+          {durationLabel}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function DurationDigitInput({
+  value,
+  placeholder,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (next: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      maxLength={2}
+      value={value}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      onChange={(e) => onChange(sanitizeDurationDigits(e.target.value))}
+      className="w-10 rounded-lg border border-zinc-200 bg-white px-1 py-1.5 text-center text-sm tabular-nums text-zinc-900 outline-none placeholder:text-[10px] placeholder:uppercase placeholder:text-zinc-400 focus:border-emerald-500"
+    />
+  );
+}
 
 export type AdminComment = {
   id: string;
@@ -178,6 +235,13 @@ export function PostEditor({
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(post?.is_published ?? true);
+  const [publishDate, setPublishDate] = useState(() =>
+    localDateInputValue(post?.published_at ?? null),
+  );
+  const initialDuration = splitDurationParts(post?.duration_seconds ?? null);
+  const [durationHours, setDurationHours] = useState(initialDuration.hours);
+  const [durationMinutes, setDurationMinutes] = useState(initialDuration.minutes);
+  const [durationSeconds, setDurationSeconds] = useState(initialDuration.seconds);
 
   const [activeTab, setActiveTab] = useState<ContentLocale>(() => {
     const fromQuery = parseInitialTab(initialTab);
@@ -386,11 +450,24 @@ export function PostEditor({
       }
 
       setBusy("Сохраняю…");
+      const durationTotal = parseDurationParts(durationHours, durationMinutes, durationSeconds);
+      if (
+        durationHours.trim() ||
+        durationMinutes.trim() ||
+        durationSeconds.trim()
+      ) {
+        if (durationTotal == null) {
+          setError("Длительность: минуты и секунды — от 0 до 59");
+          return;
+        }
+      }
       const payload = {
         title,
         body,
         cover_url: nextCover,
         is_published: isPublished,
+        published_at: publishedAtIsoFromDateInput(publishDate || localDateInputValue()),
+        duration_seconds: durationTotal,
         title_i18n: titleI18n,
         body_i18n: bodyI18n,
         cover_url_i18n: coverUrlI18n,
@@ -427,6 +504,13 @@ export function PostEditor({
 
   const ruCoverShown = coverPreview ?? coverUrl;
   const ruHasContent = Boolean(title.trim() || body.trim());
+  const durationPreviewSeconds = parseDurationParts(
+    durationHours,
+    durationMinutes,
+    durationSeconds,
+  );
+  const durationLabel =
+    durationPreviewSeconds != null ? formatVideoDuration(durationPreviewSeconds) : null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -487,12 +571,7 @@ export function PostEditor({
           <>
             <div className="mb-4">
               {ruCoverShown ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={ruCoverShown}
-                  alt="Обложка"
-                  className="mb-1.5 h-40 w-full rounded-xl border border-zinc-200 bg-white object-contain"
-                />
+                <CoverPreview src={ruCoverShown} durationLabel={durationLabel} />
               ) : (
                 <button
                   type="button"
@@ -550,6 +629,7 @@ export function PostEditor({
               key={locale}
               locale={locale}
               data={localeTabs[locale]}
+              durationLabel={durationLabel}
               onChange={(patch) => updateLocaleTab(locale, patch)}
               onClearCover={clearActiveCover}
               fileInputRef={(el) => {
@@ -569,6 +649,38 @@ export function PostEditor({
             />
             {isEditing ? "Опубликовано" : "Опубликовать"}
           </label>
+          <label className="flex items-center gap-2">
+            <span className="text-zinc-500">Дата</span>
+            <input
+              type="date"
+              value={publishDate}
+              onChange={(e) => setPublishDate(e.target.value || localDateInputValue())}
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-900 outline-none focus:border-emerald-500"
+            />
+          </label>
+          <div className="flex items-center gap-1.5">
+            <span className="text-zinc-500">Длительность</span>
+            <DurationDigitInput
+              value={durationHours}
+              placeholder="чч"
+              ariaLabel="Часы"
+              onChange={setDurationHours}
+            />
+            <span className="text-zinc-400">:</span>
+            <DurationDigitInput
+              value={durationMinutes}
+              placeholder="мм"
+              ariaLabel="Минуты"
+              onChange={setDurationMinutes}
+            />
+            <span className="text-zinc-400">:</span>
+            <DurationDigitInput
+              value={durationSeconds}
+              placeholder="сс"
+              ariaLabel="Секунды"
+              onChange={setDurationSeconds}
+            />
+          </div>
           {activeHasTranslation ? (
             <button
               type="button"
@@ -589,7 +701,8 @@ export function PostEditor({
             disabled={busy !== null}
             className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
           >
-            {busy ?? (isEditing ? "Сохранить" : "Опубликовать")}
+            {busy ??
+              (isEditing ? "Сохранить" : isPublished ? "Опубликовать" : "Запланировать")}
           </button>
           {post ? (
             <button
@@ -612,12 +725,14 @@ export function PostEditor({
 function LocaleTabFields({
   locale,
   data,
+  durationLabel,
   onChange,
   onClearCover,
   fileInputRef,
 }: {
   locale: TargetLocale;
   data: LocaleTabData;
+  durationLabel: string | null;
   onChange: (patch: Partial<LocaleTabData>) => void;
   onClearCover: () => void;
   fileInputRef: (el: HTMLInputElement | null) => void;
@@ -636,12 +751,7 @@ function LocaleTabFields({
     <>
       <div className="mb-4">
         {coverShown ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverShown}
-            alt="Обложка"
-            className="mb-1.5 h-40 w-full rounded-xl border border-zinc-200 bg-white object-contain"
-          />
+          <CoverPreview src={coverShown} durationLabel={durationLabel} />
         ) : (
           <button
             type="button"
