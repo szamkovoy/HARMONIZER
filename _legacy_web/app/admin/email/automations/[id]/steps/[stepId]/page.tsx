@@ -18,6 +18,7 @@ import {
   blocksToHtml,
   ensureBlocksFromHtml,
   parseBlocksI18n,
+  sanitizeEmailBlocks,
   type BlocksByLocale,
   type EmailBlock,
 } from "../../../../_lib/blocks";
@@ -135,8 +136,9 @@ export default function AdminEmailAutomationStepPage() {
     nextSubject: string,
     nextBlocks: EmailBlock[],
   ) {
-    const nextBlocksI18n = { ...blocksI18n, [locale]: nextBlocks };
-    const rendered = blocksToHtml(nextBlocks);
+    const cleaned = sanitizeEmailBlocks(nextBlocks);
+    const nextBlocksI18n = { ...blocksI18n, [locale]: cleaned };
+    const rendered = blocksToHtml(cleaned);
     let nextSubjectRu = subject;
     let nextSubjectI18n = { ...subjectI18n };
     let nextHtmlRu = htmlBody;

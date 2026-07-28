@@ -24,6 +24,7 @@ import {
 } from "../_components/EmailMessageWorkspace";
 import {
   blocksToHtml,
+  sanitizeEmailBlocks,
   ensureBlocksFromHtml,
   parseBlocksI18n,
   type BlocksByLocale,
@@ -267,8 +268,9 @@ export default function AdminEmailCampaignPage() {
     nextSubject: string,
     nextBlocks: EmailBlock[],
   ) {
-    const nextBlocksI18n = { ...blocksI18n, [locale]: nextBlocks };
-    const rendered = blocksToHtml(nextBlocks);
+    const cleaned = sanitizeEmailBlocks(nextBlocks);
+    const nextBlocksI18n = { ...blocksI18n, [locale]: cleaned };
+    const rendered = blocksToHtml(cleaned);
     let nextSubjectRu = subject;
     let nextSubjectI18n = { ...subjectI18n };
     let nextHtmlRu = htmlBody;

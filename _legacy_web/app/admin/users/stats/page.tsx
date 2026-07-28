@@ -19,10 +19,33 @@ type Stats = {
   by_access: Record<string, number>;
   addon_buyers: { webinar: number; book: number };
   by_country: Array<{ code: string; count: number }>;
+  by_locale: Array<{ locale: string; count: number }>;
   registrations_in_period: number;
   registration_series: Array<{ date: string; count: number }>;
   active_users: { last_24h: number | null; last_72h: number | null; last_168h: number | null };
 };
+
+/** Одна сетка для полос: подпись / бар / число — выравнивание между блоками. */
+const BAR_ROW = "grid grid-cols-[96px_1fr_40px] items-center gap-3";
+
+/** ~10 строк, дальше scrollbar — как на дашборде / payments stats. */
+const SCROLL_LIST_CLASS =
+  "admin-scroll flex max-h-[11.5rem] flex-col gap-2 overflow-y-auto pr-1";
+
+const LOCALE_LABEL_RU: Record<string, string> = {
+  ru: "Русский",
+  en: "English",
+  de: "Deutsch",
+  fr: "Français",
+  it: "Italiano",
+  es: "Español",
+  pt: "Português",
+  nl: "Nederlands",
+};
+
+function localeLabelRu(code: string): string {
+  return LOCALE_LABEL_RU[code] ?? code;
+}
 
 const PERIODS: Period[] = [7, 30, 90, "all"];
 
@@ -110,12 +133,20 @@ export default function AdminUserStatsPage() {
 
   const maxReg = Math.max(...(stats?.registration_series.map((x) => x.count) ?? [1]), 1);
   const maxCountry = Math.max(...(stats?.by_country.map((x) => x.count) ?? [1]), 1);
+  const maxLocale = Math.max(...(stats?.by_locale?.map((x) => x.count) ?? [1]), 1);
   const period: Period = stats?.range_all_time
     ? "all"
     : ((stats?.period_days as Period) ?? days);
   const periodText = periodLabel(period);
   const periodFrom = period === "all" ? "2000-01-01" : ymdDaysAgo(period);
   const periodTo = todayYmd();
+  const periodOnboarded =
+    period === "all"
+      ? { onboarded_from: "2000-01-01" as string | undefined }
+      : {
+          onboarded_from: periodFrom,
+          onboarded_to: periodTo,
+        };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -132,8 +163,8 @@ export default function AdminUserStatsPage() {
             Статистика использования Гармонизатора
           </h1>
           <p className="text-sm text-zinc-500">
-            Пользователи с регистрацией в Гармонизаторе (onboarded_at), доступ, допы, активность и
-            страны. Ненулевые цифры — ссылки на список.
+            Пользователи с регистрацией в Гармонизаторе (onboarded_at), доступ, допы, активность,
+            страны и языки за выбранный период. Ненулевые цифры — ссылки на список.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -298,7 +329,7 @@ export default function AdminUserStatsPage() {
             <h2 className="mb-3 text-sm font-bold text-zinc-900">
               Динамика регистраций в Гармонизаторе
             </h2>
-            <div className="flex max-h-96 flex-col gap-2 overflow-y-auto">
+            <div className={SCROLL_LIST_CLASS}>
               {stats.registration_series.length === 0 ? (
                 <p className="text-sm text-zinc-500">
                   За выбранный период регистраций в Гарм не было.
@@ -310,11 +341,8 @@ export default function AdminUserStatsPage() {
                     ? addDaysYmd(item.date, 6)
                     : item.date;
                 return (
-                  <div
-                    key={item.date}
-                    className="grid grid-cols-[96px_1fr_40px] items-center gap-3"
-                  >
-                    <div className="text-xs text-zinc-400">
+                  <div key={item.date} className={BAR_ROW}>
+                    <div className="truncate text-xs text-zinc-400">
                       {item.date.split("-").reverse().join(".")}
                     </div>
                     <div className="h-2 rounded-full bg-zinc-100">
@@ -345,45 +373,96 @@ export default function AdminUserStatsPage() {
           </section>
 
           <section className="rounded-xl border border-zinc-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-bold text-zinc-900">Страны</h2>
+            <h2 className="mb-3 text-sm font-bold text-zinc-900">
+              Страны за {periodText}
+            </h2>
             {stats.by_country.length === 0 ? (
               <p className="text-sm text-zinc-500">
-                Пока нет country_code у пользователей — появится после обновления геолокации в
-                приложении.
+                За выбранный период нет пользователей с country_code — появится после
+                геолокации в приложении.
+              </p>
+            ) : (
+              <div className={SCROLL_LIST_CLASS}>
+                {stats.by_country.map((item) => {
+                  const name = countryNameRu(item.code);
+                  return (
+                    <div key={item.code} className={BAR_ROW}>
+                      <div className="truncate text-xs text-zinc-400" title={name}>
+                        {name}
+                      </div>
+                      <div className="h-2 rounded-full bg-zinc-100">
+                        <div
+                          className="h-2 rounded-full bg-emerald-400/80"
+                          style={{
+                            width: `${Math.max(6, (item.count / maxCountry) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="text-right">
+                        {item.count > 0 ? (
+                          <Link
+                            href={usersHref({
+                              country_code: item.code,
+                              ...periodOnboarded,
+                            })}
+                            className="text-xs font-semibold text-emerald-700 hover:underline"
+                          >
+                            {item.count}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-zinc-700">{item.count}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <h2 className="mb-3 text-sm font-bold text-zinc-900">
+              Языки за {periodText}
+            </h2>
+            {(stats.by_locale?.length ?? 0) === 0 ? (
+              <p className="text-sm text-zinc-500">
+                За выбранный период нет пользователей с locale.
               </p>
             ) : (
               <div className="flex flex-col gap-2">
-                {stats.by_country.map((item) => (
-                  <div
-                    key={item.code}
-                    className="grid grid-cols-[140px_1fr_40px] items-center gap-3"
-                  >
-                    <div className="text-xs text-zinc-400">{countryNameRu(item.code)}</div>
-                    <div className="h-2 rounded-full bg-zinc-100">
-                      <div
-                        className="h-2 rounded-full bg-emerald-400/80"
-                        style={{
-                          width: `${Math.max(6, (item.count / maxCountry) * 100)}%`,
-                        }}
-                      />
+                {(stats.by_locale ?? []).map((item) => {
+                  const name = localeLabelRu(item.locale);
+                  return (
+                    <div key={item.locale} className={BAR_ROW}>
+                      <div className="truncate text-xs text-zinc-400" title={name}>
+                        {name}
+                      </div>
+                      <div className="h-2 rounded-full bg-zinc-100">
+                        <div
+                          className="h-2 rounded-full bg-emerald-400/80"
+                          style={{
+                            width: `${Math.max(6, (item.count / maxLocale) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="text-right">
+                        {item.count > 0 ? (
+                          <Link
+                            href={usersHref({
+                              locale: item.locale,
+                              ...periodOnboarded,
+                            })}
+                            className="text-xs font-semibold text-emerald-700 hover:underline"
+                          >
+                            {item.count}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-zinc-700">{item.count}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {item.count > 0 ? (
-                        <Link
-                          href={usersHref({
-                            country_code: item.code,
-                            onboarded_from: "2000-01-01",
-                          })}
-                          className="text-xs font-semibold text-emerald-700 hover:underline"
-                        >
-                          {item.count}
-                        </Link>
-                      ) : (
-                        <span className="text-xs text-zinc-700">{item.count}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>

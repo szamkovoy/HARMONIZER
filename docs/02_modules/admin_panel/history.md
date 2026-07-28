@@ -9,6 +9,12 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-28 (users stats geo/locale):** Страны и языки на `/admin/users/stats` — по `onboarded_at` выбранного периода; заголовки с периодом; единая сетка полос с динамикой регистраций; API `by_locale` (только ненулевые).
+
+- **2026-07-28 (letter deep-link + KPI):** Клик по письму цепочки → страница шага; KPI доставляемости компактные («Недоставлено», без «Ошибки»/подписей).
+
+- **2026-07-28 (user card chains):** Блок «Автоцепочка» — активные enrollments + «Отменить». История «Письма»: цепочка · название цепочки · название письма; рассылка · название рассылки.
+
 - **2026-07-28 (wipe + reattach ledger):** Admin delete → `wipeUserAccount` (как Profile). Reattach orphan-платежей по `buyer_email` при signup/backfill (`account_web`). Список платежей: fallback имени на email local-part.
 
 - **2026-07-28 (payments list + revenue all-time):** `/admin/payments` — плоский список как пользователи (без карточки «История платежей»). `/admin/payments/stats` — период «Всё время» + разделитель перед Дни/Недели; API `days=all`.

@@ -1,5 +1,8 @@
 import { parseStringRecord } from "../../../../_utils/contentLocaleFallback";
-import { enrollContactManual } from "../../../../_utils/emailAutomationRunner";
+import {
+  cancelEnrollmentForContact,
+  enrollContactManual,
+} from "../../../../_utils/emailAutomationRunner";
 import { resolveExactEmailCopy } from "../../../../_utils/emailCopy";
 import {
   newEmailTrackId,
@@ -22,6 +25,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 type Body =
   | { action: "launch_chain"; automation_id: string }
+  | { action: "cancel_chain"; enrollment_id: string }
   | { action: "send_campaign"; campaign_id: string };
 
 /**
@@ -52,6 +56,27 @@ export async function POST(req: Request, ctx: Ctx) {
       );
       const due = await processDueAutomationSteps(db);
       return json({ ok: true, enrolled: true, ...due });
+    }
+
+    if (body.action === "cancel_chain") {
+      const enrollmentId = String(body.enrollment_id ?? "").trim();
+      if (!enrollmentId) {
+        return json({ error: "enrollment_id обязателен" }, { status: 400 });
+      }
+      const { data: contact } = await db
+        .from("email_contacts")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!contact) {
+        return json({ error: "Нет email-контакта" }, { status: 400 });
+      }
+      const result = await cancelEnrollmentForContact(db, {
+        enrollmentId,
+        contactId: contact.id,
+      });
+      if (!result.ok) return json({ error: result.error }, { status: 400 });
+      return json({ ok: true, cancelled: true });
     }
 
     if (body.action === "send_campaign") {

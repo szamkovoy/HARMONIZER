@@ -367,6 +367,28 @@ export async function enrollInactive(db: SupabaseClient): Promise<number> {
   return enrolled;
 }
 
+/** Cancel active enrollment for a contact (user card «Отменить цепочку»). */
+export async function cancelEnrollmentForContact(
+  db: SupabaseClient,
+  params: { enrollmentId: string; contactId: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await db
+    .from("email_automation_enrollments")
+    .update({
+      status: "cancelled",
+      next_step_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", params.enrollmentId)
+    .eq("contact_id", params.contactId)
+    .eq("status", "active")
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { ok: false, error: "Активная цепочка не найдена" };
+  return { ok: true };
+}
+
 /** Manual enroll from admin user card (allows re-run even if prior completed). */
 export async function enrollContactManual(
   db: SupabaseClient,
@@ -424,6 +446,9 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
   failed: number;
 }> {
   const nowIso = new Date().toISOString();
+  // Fresh locales before send — user may have switched language mid-chain.
+  await db.rpc("sync_email_contacts_from_users");
+
   const { data: due, error } = await db
     .from("email_automation_enrollments")
     .select("id, automation_id, contact_id, current_position, next_step_at, status, cycle_key")
@@ -485,10 +510,12 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
     }
 
     let displayName: string | null = null;
+    /** Prefer live app locale so mid-chain language switch takes effect immediately. */
+    let sendLocale = contact.locale as string | null;
     if (contact.user_id) {
       const { data: user } = await db
         .from("users")
-        .select("display_name, skip_email_automations")
+        .select("display_name, skip_email_automations, locale")
         .eq("id", contact.user_id)
         .maybeSingle();
       if (user?.skip_email_automations) {
@@ -500,9 +527,11 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
         continue;
       }
       displayName = user?.display_name ?? null;
+      const userLocale = typeof user?.locale === "string" ? user.locale.trim() : "";
+      if (userLocale) sendLocale = userLocale;
     }
 
-    const copy = resolveExactEmailCopy(contact.locale, {
+    const copy = resolveExactEmailCopy(sendLocale, {
       subject: step.subject,
       htmlBody: step.html_body,
       subjectI18n: parseStringRecord(step.subject_i18n),
@@ -510,6 +539,17 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
     });
 
     if (!copy) {
+      // No exact translation for current locale — skip this letter, keep the drip schedule.
+      await db.from("email_automation_sends").insert({
+        enrollment_id: enrollment.id,
+        automation_id: enrollment.automation_id,
+        step_id: step.id,
+        contact_id: contact.id,
+        resend_id: null,
+        status: "skipped",
+        subject: "",
+        error_detail: `skipped_locale:${sendLocale || "ru"}`,
+      });
       await advanceEnrollment(db, enrollment, ordered, nowIso);
       skipped += 1;
       continue;
@@ -542,7 +582,7 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
       html,
       text: htmlToPlaintext(html),
       unsubscribeUrl,
-      locale: contact.locale,
+      locale: copy.locale,
       tags: [
         { name: "automation_id", value: enrollment.automation_id },
         { name: "step", value: String(step.position) },

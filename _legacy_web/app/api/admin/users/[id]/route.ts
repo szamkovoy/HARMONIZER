@@ -132,37 +132,60 @@ export async function GET(req: Request, ctx: RouteContext) {
 
     let emailHistory: {
       kind: string;
+      /** Campaign name, or fallback label for automation. */
       subject: string;
+      chain_name: string | null;
+      letter_name: string | null;
       status: string;
       created_at: string;
       campaign_id: string | null;
       automation_id: string | null;
+      step_id: string | null;
     }[] = [];
     let emailHistoryTotal = 0;
+    let activeEnrollments: {
+      id: string;
+      automation_id: string;
+      automation_name: string;
+      current_position: number;
+      steps_total: number;
+      next_step_at: string | null;
+    }[] = [];
     if (contactRes.data?.id) {
       const contactId = contactRes.data.id;
-      const [campaignSends, autoSends, campCount, autoCount] = await Promise.all([
-        db
-          .from("email_campaign_sends")
-          .select("status, created_at, campaign_id, email_campaigns(name, subject)")
-          .eq("contact_id", contactId)
-          .order("created_at", { ascending: false })
-          .limit(HISTORY_LIMIT),
-        db
-          .from("email_automation_sends")
-          .select("status, subject, created_at, automation_id, email_automations(name)")
-          .eq("contact_id", contactId)
-          .order("created_at", { ascending: false })
-          .limit(HISTORY_LIMIT),
-        db
-          .from("email_campaign_sends")
-          .select("id", { count: "exact", head: true })
-          .eq("contact_id", contactId),
-        db
-          .from("email_automation_sends")
-          .select("id", { count: "exact", head: true })
-          .eq("contact_id", contactId),
-      ]);
+      const [campaignSends, autoSends, campCount, autoCount, enrollmentsRes] =
+        await Promise.all([
+          db
+            .from("email_campaign_sends")
+            .select("status, created_at, campaign_id, email_campaigns(name, subject)")
+            .eq("contact_id", contactId)
+            .order("created_at", { ascending: false })
+            .limit(HISTORY_LIMIT),
+          db
+            .from("email_automation_sends")
+            .select(
+              "status, subject, created_at, automation_id, step_id, email_automations(name), email_automation_steps(name, subject)",
+            )
+            .eq("contact_id", contactId)
+            .order("created_at", { ascending: false })
+            .limit(HISTORY_LIMIT),
+          db
+            .from("email_campaign_sends")
+            .select("id", { count: "exact", head: true })
+            .eq("contact_id", contactId),
+          db
+            .from("email_automation_sends")
+            .select("id", { count: "exact", head: true })
+            .eq("contact_id", contactId),
+          db
+            .from("email_automation_enrollments")
+            .select(
+              "id, automation_id, current_position, next_step_at, email_automations(name)",
+            )
+            .eq("contact_id", contactId)
+            .eq("status", "active")
+            .order("created_at", { ascending: false }),
+        ]);
       emailHistoryTotal = (campCount.count ?? 0) + (autoCount.count ?? 0);
       for (const row of campaignSends.data ?? []) {
         const raw = row.email_campaigns as
@@ -172,32 +195,80 @@ export async function GET(req: Request, ctx: RouteContext) {
         const camp = Array.isArray(raw) ? raw[0] : raw;
         emailHistory.push({
           kind: "campaign",
-          subject: camp?.name || camp?.subject || "Рассылка",
+          subject: (camp?.name || "").trim() || (camp?.subject || "").trim() || "Рассылка",
+          chain_name: null,
+          letter_name: null,
           status: row.status,
           created_at: row.created_at,
           campaign_id: row.campaign_id ?? null,
           automation_id: null,
+          step_id: null,
         });
       }
       for (const row of autoSends.data ?? []) {
-        const raw = row.email_automations as
+        const rawAuto = row.email_automations as
           | { name?: string }
           | { name?: string }[]
           | null;
-        const auto = Array.isArray(raw) ? raw[0] : raw;
+        const auto = Array.isArray(rawAuto) ? rawAuto[0] : rawAuto;
+        const rawStep = row.email_automation_steps as
+          | { name?: string; subject?: string }
+          | { name?: string; subject?: string }[]
+          | null;
+        const step = Array.isArray(rawStep) ? rawStep[0] : rawStep;
+        const chainName = (auto?.name || "").trim() || "Цепочка";
+        const letterName =
+          (step?.name || "").trim() ||
+          (step?.subject || "").trim() ||
+          (row.subject || "").trim() ||
+          "Письмо";
         emailHistory.push({
           kind: "automation",
-          subject: row.subject || auto?.name || "Цепочка",
+          subject: letterName,
+          chain_name: chainName,
+          letter_name: letterName,
           status: row.status,
           created_at: row.created_at,
           campaign_id: null,
           automation_id: row.automation_id ?? null,
+          step_id: (row.step_id as string | null) ?? null,
         });
       }
       emailHistory.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
       emailHistory = emailHistory.slice(0, HISTORY_LIMIT);
+
+      if (enrollmentsRes.error) throw enrollmentsRes.error;
+      const enrollRows = enrollmentsRes.data ?? [];
+      const autoIds = [...new Set(enrollRows.map((e) => e.automation_id as string))];
+      const stepCountByAuto = new Map<string, number>();
+      if (autoIds.length > 0) {
+        const { data: stepRows, error: stepCountError } = await db
+          .from("email_automation_steps")
+          .select("automation_id")
+          .in("automation_id", autoIds);
+        if (stepCountError) throw stepCountError;
+        for (const s of stepRows ?? []) {
+          const aid = s.automation_id as string;
+          stepCountByAuto.set(aid, (stepCountByAuto.get(aid) ?? 0) + 1);
+        }
+      }
+      activeEnrollments = enrollRows.map((row) => {
+        const raw = row.email_automations as
+          | { name?: string }
+          | { name?: string }[]
+          | null;
+        const auto = Array.isArray(raw) ? raw[0] : raw;
+        return {
+          id: row.id as string,
+          automation_id: row.automation_id as string,
+          automation_name: (auto?.name || "").trim() || "Цепочка",
+          current_position: Number(row.current_position) || 0,
+          steps_total: stepCountByAuto.get(row.automation_id as string) ?? 0,
+          next_step_at: (row.next_step_at as string | null) ?? null,
+        };
+      });
     }
 
     const { count: notifTotal } = await db
@@ -246,6 +317,7 @@ export async function GET(req: Request, ctx: RouteContext) {
       subscription,
       email_history: emailHistory,
       email_history_total: emailHistoryTotal,
+      active_enrollments: activeEnrollments,
       notifications,
       notifications_total: notifTotal ?? notifications.length,
     });

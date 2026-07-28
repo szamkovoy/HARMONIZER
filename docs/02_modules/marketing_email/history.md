@@ -13,6 +13,14 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-28 (locale exact mid-chain):** Подтверждено: кампании/цепочки без locale-fallback. Harden: sync + `users.locale` перед due-step; skip без перевода → `status=skipped` + advance (цепочка не стопорится).
+
+- **2026-07-28 (letter links + compact KPI):** История на карточке → страница шага цепочки (`…/steps/[stepId]`). `EmailDeliveryStats` компактный как deliverability (без подписей; «Недоставлено»; без «Ошибки»).
+
+- **2026-07-28 (user card enrollments):** Карточка пользователя: список active `email_automation_enrollments` + `cancel_chain`; история sends — имена цепочки/письма/рассылки, не темы.
+
+- **2026-07-28 (HTML sanitize + chain names):** Paste из Pages/Word раздувал `html_body` (~37KB на «Письмо 1»). `sanitizeEmailRichHtml` на Save/paste/blur; backfill `scripts/email-optimize-stored-html.mjs`. Список `/admin/email/automations` показывает `name` шага (`emailListTitle`).
+
 - **2026-07-28 (фаза F + list pagination):** Уведомления как рассылки (list-first / draft). `GET campaigns` — `page`/`limit`/`user_id`. Карточка пользователя: ссылки «Все рассылки/уведомления».
 
 - **2026-07-28 (contacts drill-down):** Доставляемость: убрана подсказка про opens/clicks; статусы подписки (>0) ведут на `/admin/email/contacts?status=`.

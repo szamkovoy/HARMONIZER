@@ -1,4 +1,5 @@
 import { MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX } from "../../../api/_utils/emailChrome";
+import { sanitizeEmailRichHtml } from "../../../api/_utils/emailRichHtml";
 
 export type BlockAlign = "left" | "center" | "right";
 /** Web-safe stacks only — email clients ignore arbitrary fonts. */
@@ -241,10 +242,20 @@ export async function enrichImageBlockDimensions(
   );
 }
 
-/** Render blocks to HTML body fragment (no brand chrome). */
+/** Clean paste bloat inside text/heading blocks (also used before persist). */
+export function sanitizeEmailBlocks(blocks: EmailBlock[]): EmailBlock[] {
+  return blocks.map((block) => {
+    if (block.type === "text" || block.type === "heading") {
+      return { ...block, html: sanitizeEmailRichHtml(block.html || "") };
+    }
+    return block;
+  });
+}
+
+/** Render blocks to HTML body fragment (no brand chrome). Sanitizes rich text. */
 export function blocksToHtml(blocks: EmailBlock[] | null | undefined): string {
   if (!blocks?.length) return "";
-  return blocks.map(blockToHtml).filter(Boolean).join("\n");
+  return sanitizeEmailBlocks(blocks).map(blockToHtml).filter(Boolean).join("\n");
 }
 
 export function parseBlocksI18n(raw: unknown): BlocksByLocale {

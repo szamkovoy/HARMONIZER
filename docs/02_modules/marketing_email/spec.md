@@ -27,6 +27,8 @@ code_refs:
     _legacy_web/app/api/_utils/emailDeliverability.ts,
     _legacy_web/app/api/_utils/resendMarketingApi.ts,
     _legacy_web/app/api/_utils/emailTemplate.ts,
+    _legacy_web/app/api/_utils/emailRichHtml.ts,
+    scripts/email-optimize-stored-html.mjs,
     _legacy_web/app/unsubscribe/email/route.ts,
     supabase/migrations/20260724200000_marketing_email.sql,
     supabase/migrations/20260727150000_email_automations_b2_c1_c2.sql,
@@ -53,11 +55,14 @@ OTP на `zamkovoi.yoga` изолирован и **не** использует �
 
 - Кампании / сегмент / assets / automations / steps — как ранее
 - `GET /api/admin/email/campaigns?page=&limit=50&user_id=` — пагинация; `user_id` → кампании с send на контакт пользователя (`email_campaign_sends`)
+- **Locale exact-match (рассылки + автоцепочки):** `resolveExactEmailCopy` — только авторский перевод на `contact`/`users.locale`, без fallback на EN/RU. Нет перевода → получатель пропускается (`skipped_locale` у кампании; у шага цепочки — `email_automation_sends.status=skipped` + `advanceEnrollment`, drip продолжается). Перед due-send — `sync_email_contacts_from_users` + приоритет `users.locale` (смена языка mid-chain).
+- Карточка пользователя: `active_enrollments` + `POST …/messaging` `cancel_chain` (enrollment → `cancelled`); история sends — имена цепочки/письма/рассылки
 - Карточка кампании `/admin/email/[id]`: заголовок «Рассылка»; статус RU (`черновик` / `отправлено · дата`); после send — KPI-карточки, read-only имя/сегмент/контент, без блока «Отправка»; копирование доступно
 - Общий UI-фундамент: `EmailListRow`, `EmailDeliveryStats`, `EmailMessageWorkspace`; названия/копии — `emailNaming` (`emailListTitle`, `emailCopyName`) для рассылок и шагов. Письмо цепочки: `name` в GET steps; «Копировать» → `POST …/steps/[stepId]/copy` → редирект на копию (`… (копия)`); delay; `POST …/send` `{test_to}`
 - Сегмент JSON дополнительно: `account_created_on_or_after|before` (`users.created_at`), `onboarded_on_or_after|before` (`users.onboarded_at`) — границы включительно (≥ / ≤)
 - From display name: RU «Сергей Замковой», иначе «Sergei Zamkovoi» (`marketingSenderName`, как OTP); footer unsubscribe 12.5px; block fonts web-safe (system/arial/verdana/georgia/times); блоки: heading/text/image/button (legacy `logo` → `image` при parse)
-- Preview (`EmailInlinePreview`) = iframe с тем же `wrapMarketingEmailHtml` (колонка 560px), что уходит в Resend. Высота iframe = высота контента (collapse → measure outer table); не сохраняет высоту от предыдущего/длинного письма. `normalizeEmailBodyHtml`: у `<p>` margin 0; пустой абзац = одна пустая строка; `<br>` без доп. интервала. Новое изображение по умолчанию `240px`, не `100%`. У `<img>` — integer `width`/`height` (из `naturalWidth`/`naturalHeight` блока или probe при `prepareMarketingEmailHtml` на send), чтобы клиент резервировал место до загрузки картинки (без прыжка текста).
+- Preview (`EmailInlinePreview`) = iframe с тем же `wrapMarketingEmailHtml` (колонка 560px), что уходит в Resend. Высота iframe = высота контента (collapse → measure outer table); не сохраняет высоту от предыдущего/длинного письма. `normalizeEmailBodyHtml`: у `<p>` margin 0; пустой абзац = одна пустая строка; `<br>` без доп. интервала. **Save:** `sanitizeEmailRichHtml` / `sanitizeEmailBlocks` чистят paste-bloat (class, Apple/Word font longhands) в `blocks_i18n` + `html_body` — preview ≈ send. Новое изображение по умолчанию `240px`, не `100%`. У `<img>` — integer `width`/`height` (из `naturalWidth`/`naturalHeight` блока или probe при `prepareMarketingEmailHtml` на send).
+- Список `/admin/email/automations`: в карточке цепочки шаги показывают **`name`** (`emailListTitle`), не тему.
 - `GET /api/admin/email/deliverability?days=7|30|90` — KPI, series, recent problems (с `user_id` / `display_name`), Resend suppressions, статус tracking домена; KPI bounce подписан «Не доставлено»
 - `POST /api/admin/email/deliverability` — `{action:"suppress"|"unsuppress", email?}`
 - UI: `/admin/email/deliverability` (метрики + просмотр Resend list; без sync на GET); цифры статусов подписки (>0) → `/admin/email/contacts?status=`

@@ -12,12 +12,14 @@ import {
 } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
+import { sanitizeEmailRichHtml } from "../../../api/_utils/emailRichHtml";
 import {
   createEmptyBlock,
   enrichImageBlockDimensions,
   FONT_FAMILY_OPTIONS,
   loadImageNaturalSize,
   newBlockId,
+  sanitizeEmailBlocks,
   type BlockAlign,
   type BlockFontFamily,
   type BlockFontSize,
@@ -116,7 +118,9 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
       await new Promise<void>((resolve) => {
         setTimeout(resolve, 0);
       });
-      const blocks = await enrichImageBlockDimensions(localBlocksRef.current);
+      const blocks = sanitizeEmailBlocks(
+        await enrichImageBlockDimensions(localBlocksRef.current),
+      );
       localBlocksRef.current = blocks;
       setLocalBlocks(blocks);
       await onSave({
@@ -468,7 +472,21 @@ function BlockSettingsModal({
                 contentEditable
                 suppressContentEditableWarning
                 dangerouslySetInnerHTML={{ __html: block.html }}
-                onBlur={(e) => onChange({ html: e.currentTarget.innerHTML } as Partial<EmailBlock>)}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const raw =
+                    e.clipboardData.getData("text/html") ||
+                    e.clipboardData.getData("text/plain");
+                  const clean = sanitizeEmailRichHtml(
+                    raw.includes("<") ? raw : `<p>${raw.replace(/\n/g, "<br>")}</p>`,
+                  );
+                  document.execCommand("insertHTML", false, clean);
+                }}
+                onBlur={(e) =>
+                  onChange({
+                    html: sanitizeEmailRichHtml(e.currentTarget.innerHTML),
+                  } as Partial<EmailBlock>)
+                }
               />
               <p className="text-[11px] text-zinc-400">
                 Enter — новый абзац без лишнего зазора; пустая строка (два Enter) — пустая строка в

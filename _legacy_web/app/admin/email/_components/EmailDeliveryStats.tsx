@@ -17,51 +17,48 @@ type Props = {
 };
 
 /**
- * KPI grid shared by campaign detail and automation step detail.
+ * Compact KPI row for campaign / automation step detail (no % hints).
+ * Labels aligned with /admin/email/deliverability.
  */
 export function EmailDeliveryStats({ counts, showUnsubscribed }: Props) {
-  const errors = counts.error_count ?? counts.failed_count ?? 0;
   const showUnsub =
     showUnsubscribed ?? counts.unsubscribed_count !== undefined;
 
-  const cards: Array<[string, number, string]> = [
-    ["Отправлено", counts.sent_count, "Сколько писем ушло"],
-    ["Доставлено", counts.delivered_count, "Принял почтовый сервер"],
-    ["Открыто", counts.opened_count, "Открыли письмо"],
-    ["Клики", counts.clicked_count, "Кликнули по ссылке"],
-    ["Отказ", counts.bounced_count, "Не удалось доставить"],
-    ["Спам", counts.complained_count, "Пометили как спам"],
+  const cards: Array<[string, number]> = [
+    ["Отправлено", counts.sent_count],
+    ["Доставлено", counts.delivered_count],
+    ["Открыто", counts.opened_count],
+    ["Клики", counts.clicked_count],
+    ["Недоставлено", counts.bounced_count],
+    ["Спам", counts.complained_count],
   ];
   if (showUnsub) {
-    cards.push([
-      "Отписались",
-      counts.unsubscribed_count ?? 0,
-      "По ссылке в письме",
-    ]);
+    cards.push(["Отписались", counts.unsubscribed_count ?? 0]);
   }
-  cards.push(["Ошибки", errors, "Ошибки при отправке"]);
+
+  const cols =
+    cards.length <= 6
+      ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+      : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7";
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {cards.map(([label, value, hint]) => (
+    <div className={`grid gap-2 ${cols}`}>
+      {cards.map(([label, value]) => (
         <div
           key={label}
-          className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5"
+          className="rounded-xl border border-zinc-200 bg-white px-3 py-3"
         >
-          <div className="text-lg font-semibold text-zinc-900">{value}</div>
-          <div className="text-xs font-medium text-zinc-700">{label}</div>
-          <p className="mt-0.5 text-[11px] text-zinc-400">{hint}</p>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+            {label}
+          </div>
+          <div className="mt-1 text-2xl font-bold text-zinc-900">{value}</div>
         </div>
       ))}
     </div>
   );
 }
 
-/** Whether to show the stats grid (any activity). */
+/** Whether to show the stats grid (any send activity). */
 export function hasDeliveryActivity(counts: DeliveryStatCounts): boolean {
-  return (
-    counts.sent_count > 0 ||
-    (counts.error_count ?? 0) > 0 ||
-    (counts.failed_count ?? 0) > 0
-  );
+  return counts.sent_count > 0;
 }

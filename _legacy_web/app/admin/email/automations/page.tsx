@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Plus, Workflow } from "lucide-react";
 
 import { adminFetch } from "../../_lib/adminApi";
+import { emailListTitle } from "../../../api/_utils/emailNaming";
 
 type Automation = {
   id: string;
@@ -13,7 +14,13 @@ type Automation = {
   name: string;
   trigger_type: string;
   is_active: boolean;
-  steps: { id: string; position: number; delay_hours: number; subject: string }[];
+  steps: {
+    id: string;
+    position: number;
+    delay_hours: number;
+    name?: string | null;
+    subject: string;
+  }[];
 };
 
 const TRIGGER_RU: Record<string, string> = {
@@ -132,7 +139,7 @@ export default function AdminEmailAutomationsPage() {
                   <ol className="mt-3 list-decimal space-y-1 border-t border-zinc-100 pl-5 pt-3 text-sm text-zinc-600">
                     {a.steps.map((s) => (
                       <li key={s.id}>
-                        +{s.delay_hours}ч · {s.subject.trim() || "без темы"}
+                        +{s.delay_hours}ч · {emailListTitle(s.name, s.subject)}
                       </li>
                     ))}
                   </ol>

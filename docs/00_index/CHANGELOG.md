@@ -1,3 +1,8 @@
+- 2026-07-28 (313): Users stats: countries/languages by selected period; aligned bars; API `by_locale`.
+- 2026-07-28 (312): Email locale exact-match harden: sync + users.locale on automation due-send; skip missing translation, continue drip.
+- 2026-07-28 (311): User-card chain sends link to step page; compact delivery KPI (Недоставлено, no Errors/hints).
+- 2026-07-28 (310): User card: active email enrollments + cancel; letter history shows chain/letter/campaign names.
+- 2026-07-28 (309): Marketing email HTML sanitize on save (paste bloat); automations list shows step names; backfill welcome chain.
 - 2026-07-28 (308): Account wipe shared helper; reattach payment ledger by email on signup (migration `20260728144628`); membership restore from contracts.
 - 2026-07-28 (307): Payments list flat (no nested History card); revenue stats «Всё время» + gap before Дни/Недели.
 - 2026-07-28 (306): Stats activity 24/72/168h dig-down links (`active_hours` → user_event_log).

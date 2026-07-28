@@ -70,7 +70,7 @@ async function countAddonBuyers(
   return { webinar: webinar.size, book: book.size };
 }
 
-/** Статистика Гармонизатора: onboarded, доступ, допы, активность, страны. */
+/** Статистика Гармонизатора: onboarded, доступ, допы, активность, страны/языки. */
 export async function GET(req: Request) {
   try {
     await requireAdmin(req);
@@ -90,7 +90,14 @@ export async function GET(req: Request) {
       .order("onboarded_at", { ascending: true });
     if (since) regQuery = regQuery.gte("onboarded_at", since);
 
-    const [onboardedCountRes, profileRes, regRes, dau1, dau3, dau7, addons] =
+    /** Страны/языки — те же пользователи, что и регистрации: onboarded в периоде. */
+    let geoQuery = db
+      .from("users")
+      .select("country_code, locale, onboarded_at")
+      .not("onboarded_at", "is", null);
+    if (since) geoQuery = geoQuery.gte("onboarded_at", since);
+
+    const [onboardedCountRes, profileRes, geoRes, regRes, dau1, dau3, dau7, addons] =
       await Promise.all([
         db
           .from("users")
@@ -99,9 +106,10 @@ export async function GET(req: Request) {
         db
           .from("users")
           .select(
-            "membership_tier, membership_expires_at, trial_expires_at, country_code, onboarded_at",
+            "membership_tier, membership_expires_at, trial_expires_at, onboarded_at",
           )
           .not("onboarded_at", "is", null),
+        geoQuery,
         regQuery,
         db.rpc("admin_active_users_count", { p_hours: 24 }),
         db.rpc("admin_active_users_count", { p_hours: 72 }),
@@ -110,6 +118,7 @@ export async function GET(req: Request) {
       ]);
     if (onboardedCountRes.error) throw onboardedCountRes.error;
     if (profileRes.error) throw profileRes.error;
+    if (geoRes.error) throw geoRes.error;
     if (regRes.error) throw regRes.error;
 
     const byAccess: Record<string, number> = {
@@ -118,12 +127,21 @@ export async function GET(req: Request) {
       oracle: 0,
       master: 0,
     };
-    const byCountry: Record<string, number> = {};
     for (const row of profileRes.data ?? []) {
       const seg = accessSegment(row);
       byAccess[seg] = (byAccess[seg] ?? 0) + 1;
+    }
+
+    const byCountry: Record<string, number> = {};
+    const byLocale: Record<string, number> = {};
+    for (const row of geoRes.data ?? []) {
       if (row.country_code) {
         byCountry[row.country_code] = (byCountry[row.country_code] ?? 0) + 1;
+      }
+      const locale =
+        typeof row.locale === "string" ? row.locale.trim().toLowerCase() : "";
+      if (locale) {
+        byLocale[locale] = (byLocale[locale] ?? 0) + 1;
       }
     }
 
@@ -142,6 +160,10 @@ export async function GET(req: Request) {
       .sort((a, b) => b[1] - a[1])
       .map(([code, count]) => ({ code, count }));
 
+    const localeSeries = Object.entries(byLocale)
+      .sort((a, b) => b[1] - a[1])
+      .map(([locale, count]) => ({ locale, count }));
+
     return json({
       generated_at: new Date().toISOString(),
       period_days: periodDays,
@@ -151,6 +173,7 @@ export async function GET(req: Request) {
       by_access: byAccess,
       addon_buyers: addons,
       by_country: countrySeries,
+      by_locale: localeSeries,
       registrations_in_period: registrationSeries.reduce((s, x) => s + x.count, 0),
       registration_series: registrationSeries,
       active_users: {

@@ -48,10 +48,22 @@ type SubscriptionInfo = {
 type EmailHist = {
   kind: string;
   subject: string;
+  chain_name?: string | null;
+  letter_name?: string | null;
   status: string;
   created_at: string;
   campaign_id: string | null;
   automation_id: string | null;
+  step_id?: string | null;
+};
+
+type ActiveEnrollment = {
+  id: string;
+  automation_id: string;
+  automation_name: string;
+  current_position: number;
+  steps_total: number;
+  next_step_at: string | null;
 };
 
 type NotifHist = {
@@ -115,6 +127,7 @@ export default function AdminUserCardPage() {
   const [payments, setPayments] = useState<AdminPaymentRow[]>([]);
   const [emailHistory, setEmailHistory] = useState<EmailHist[]>([]);
   const [emailHistoryTotal, setEmailHistoryTotal] = useState(0);
+  const [activeEnrollments, setActiveEnrollments] = useState<ActiveEnrollment[]>([]);
   const [notifications, setNotifications] = useState<NotifHist[]>([]);
   const [notificationsTotal, setNotificationsTotal] = useState(0);
   const [campaigns, setCampaigns] = useState<CampaignOpt[]>([]);
@@ -138,6 +151,7 @@ export default function AdminUserCardPage() {
         subscription?: SubscriptionInfo;
         email_history?: EmailHist[];
         email_history_total?: number;
+        active_enrollments?: ActiveEnrollment[];
         notifications?: NotifHist[];
         notifications_total?: number;
       }>(`/api/admin/users/${params.id}`);
@@ -147,6 +161,7 @@ export default function AdminUserCardPage() {
       setPayments(data.payments);
       setEmailHistory(data.email_history ?? []);
       setEmailHistoryTotal(data.email_history_total ?? data.email_history?.length ?? 0);
+      setActiveEnrollments(data.active_enrollments ?? []);
       setNotifications(data.notifications ?? []);
       setNotificationsTotal(
         data.notifications_total ?? data.notifications?.length ?? 0,
@@ -270,6 +285,44 @@ export default function AdminUserCardPage() {
     }
   }
 
+  async function cancelChain(enrollment: ActiveEnrollment) {
+    if (!user) return;
+    if (
+      !window.confirm(
+        `Отменить цепочку «${enrollment.automation_name}» для этого пользователя? Дальнейшие письма из неё отправляться не будут.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setInfo(null);
+    try {
+      await adminFetch(`/api/admin/users/${user.id}/messaging`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "cancel_chain",
+          enrollment_id: enrollment.id,
+        }),
+      });
+      setInfo("Цепочка отменена");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отменить цепочку");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function emailHistoryLabel(e: EmailHist): string {
+    if (e.kind === "automation") {
+      const chain = (e.chain_name || "").trim() || "Цепочка";
+      const letter = (e.letter_name || e.subject || "").trim() || "Письмо";
+      const base = `${chain} · ${letter}`;
+      return e.status === "skipped" ? `${base} · нет языка` : base;
+    }
+    return (e.subject || "").trim() || "Рассылка";
+  }
+
   async function sendCampaign() {
     if (!user || !campaignId) return;
     const camp = campaigns.find((c) => c.id === campaignId);
@@ -326,6 +379,9 @@ export default function AdminUserCardPage() {
 
   function emailHref(e: EmailHist): string | null {
     if (e.kind === "campaign" && e.campaign_id) return `/admin/email/${e.campaign_id}`;
+    if (e.kind === "automation" && e.automation_id && e.step_id) {
+      return `/admin/email/automations/${e.automation_id}/steps/${e.step_id}`;
+    }
     if (e.kind === "automation" && e.automation_id) {
       return `/admin/email/automations/${e.automation_id}`;
     }
@@ -459,7 +515,49 @@ export default function AdminUserCardPage() {
 
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-zinc-800">Автоцепочка</h2>
-        <div className="flex flex-wrap items-end gap-2">
+        {activeEnrollments.length > 0 ? (
+          <ul className="divide-y divide-zinc-100 text-sm">
+            {activeEnrollments.map((en) => {
+              const stepHuman = en.current_position + 1;
+              const progress =
+                en.steps_total > 0
+                  ? `шаг ${Math.min(stepHuman, en.steps_total)} из ${en.steps_total}`
+                  : `позиция ${en.current_position}`;
+              return (
+                <li
+                  key={en.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2"
+                >
+                  <div className="min-w-0">
+                    <Link
+                      href={`/admin/email/automations/${en.automation_id}`}
+                      className="font-medium text-zinc-900 hover:text-emerald-700 hover:underline"
+                    >
+                      {en.automation_name}
+                    </Link>
+                    <div className="mt-0.5 text-xs text-zinc-500">
+                      {progress}
+                      {en.next_step_at
+                        ? ` · следующее: ${formatAdminDateTime(en.next_step_at)}`
+                        : null}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void cancelChain(en)}
+                    className="shrink-0 text-xs font-medium text-rose-600 hover:underline disabled:opacity-50"
+                  >
+                    Отменить
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-zinc-400">Нет активных цепочек</p>
+        )}
+        <div className="flex flex-wrap items-end gap-2 border-t border-zinc-100 pt-3">
           <label className="min-w-[200px] flex-1 text-xs text-zinc-500">
             Запустить цепочку
             <select
@@ -538,7 +636,7 @@ export default function AdminUserCardPage() {
                     <span className="text-xs text-zinc-400">
                       {e.kind === "automation" ? "цепочка" : "рассылка"} ·{" "}
                     </span>
-                    {e.subject}
+                    {emailHistoryLabel(e)}
                   </span>
                   <span className="shrink-0 text-xs text-zinc-400">
                     {formatAdminDateTime(e.created_at)}
