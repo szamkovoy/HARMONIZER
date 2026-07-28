@@ -58,7 +58,14 @@ export default function AdminPaymentsPage() {
           <Loader2 size={16} className="animate-spin" /> Загружаю…
         </p>
       ) : null}
-      {payments ? <PaymentHistorySection payments={payments} includeUserLink onChanged={load} /> : null}
+      {payments ? (
+        <PaymentHistorySection
+          payments={payments}
+          variant="list"
+          includeUserLink
+          onChanged={load}
+        />
+      ) : null}
     </div>
   );
 }

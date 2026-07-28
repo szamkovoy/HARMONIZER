@@ -1,294 +1,103 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
-import { CheckCircle2, Loader2, RefreshCw, Send, Trash2 } from "lucide-react";
-
-import { PRODUCT_TIERS, TIER_LABELS_RU } from "@/modules/access/core/tiers";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Bell, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
-
-const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
-type TargetLocale = (typeof TARGET_LOCALES)[number];
-type ContentLocale = "ru" | TargetLocale;
-
-const LOCALE_LABELS: Record<ContentLocale, string> = {
-  ru: "RU",
-  en: "EN",
-  de: "DE",
-  fr: "FR",
-  it: "IT",
-  es: "ES",
-  pt: "PT",
-  nl: "NL",
-};
-
-const LOCALE_FULL_NAMES: Record<ContentLocale, string> = {
-  ru: "Русский",
-  en: "English",
-  de: "Deutsch",
-  fr: "Français",
-  it: "Italiano",
-  es: "Español",
-  pt: "Português",
-  nl: "Nederlands",
-};
-
-type LocaleTab = { title: string; body: string };
-
-function emptyTab(): LocaleTab {
-  return { title: "", body: "" };
-}
-
-function emptyTabs(): Record<TargetLocale, LocaleTab> {
-  return {
-    en: emptyTab(),
-    de: emptyTab(),
-    fr: emptyTab(),
-    it: emptyTab(),
-    es: emptyTab(),
-    pt: emptyTab(),
-    nl: emptyTab(),
-  };
-}
 
 type NotificationRow = {
   id: string;
   title: string;
   body: string;
-  title_i18n?: Record<string, string> | null;
-  body_i18n?: Record<string, string> | null;
-  link_url: string | null;
   segment_label: string;
   recipient_count: number;
   push_sent_count: number;
   push_error_count: number;
-  sent_at?: string | null;
+  sent_at: string | null;
   created_at: string;
 };
 
-type WebinarOption = { id: string; title: string; starts_at: string };
+const PAGE_SIZE = 50;
 
-const TIER_OPTIONS = PRODUCT_TIERS.map((tier) => ({
-  value: `tier:${tier}`,
-  label: `Тариф «${TIER_LABELS_RU[tier]}»`,
-}));
-
-const inputCls =
-  "w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500";
-
-export default function AdminNotificationsPage() {
-  const [history, setHistory] = useState<NotificationRow[] | null>(null);
-  const [webinars, setWebinars] = useState<WebinarOption[]>([]);
+function NotificationsList() {
+  const searchParams = useSearchParams();
+  const userId = (searchParams.get("user_id") ?? "").trim();
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<NotificationRow[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  const [activeTab, setActiveTab] = useState<ContentLocale>("ru");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [localeTabs, setLocaleTabs] = useState(emptyTabs);
-  const [linkUrl, setLinkUrl] = useState("");
-  const [segment, setSegment] = useState("all");
-  const [sending, setSending] = useState(false);
-  const [translating, setTranslating] = useState(false);
-  const [translateError, setTranslateError] = useState<string | null>(null);
-  const [sentInfo, setSentInfo] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const loadHistory = async (): Promise<NotificationRow[]> => {
+  const load = useCallback(async () => {
     try {
-      const { notifications } = await adminFetch<{ notifications: NotificationRow[] }>(
-        "/api/admin/notifications",
-      );
-      setHistory(notifications);
-      return notifications;
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(PAGE_SIZE),
+      });
+      if (userId) params.set("user_id", userId);
+      const data = await adminFetch<{
+        notifications: NotificationRow[];
+        total: number;
+      }>(`/api/admin/notifications?${params}`);
+      setRows(data.notifications);
+      setTotal(data.total ?? 0);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить историю");
-      return [];
+      setError(err instanceof Error ? err.message : "Не удалось загрузить");
+      setRows([]);
     }
-  };
+  }, [page, userId]);
 
   useEffect(() => {
-    void loadHistory();
-    adminFetch<{ webinars: WebinarOption[] }>("/api/admin/webinars")
-      .then(({ webinars }) => setWebinars(webinars))
-      .catch(() => setWebinars([]));
-  }, []);
+    void load();
+  }, [load]);
 
-  function clearSentInfo() {
-    if (sentInfo) setSentInfo(null);
-  }
+  useEffect(() => {
+    setPage(1);
+  }, [userId]);
 
-  function updateLocaleTab(locale: TargetLocale, patch: Partial<LocaleTab>) {
-    clearSentInfo();
-    setLocaleTabs((prev) => ({ ...prev, [locale]: { ...prev[locale], ...patch } }));
-  }
-
-  function pickTranslateSource(): {
-    locale: ContentLocale;
-    title: string;
-    body: string;
-  } | null {
-    if (title.trim()) return { locale: "ru", title: title.trim(), body };
-    for (const locale of TARGET_LOCALES) {
-      if (localeTabs[locale].title.trim()) {
-        return {
-          locale,
-          title: localeTabs[locale].title.trim(),
-          body: localeTabs[locale].body,
-        };
-      }
-    }
-    return null;
-  }
-
-  async function runTranslate() {
-    const source = pickTranslateSource();
-    if (!source) {
-      setTranslateError("Сначала заполните заголовок хотя бы на одном языке");
-      return;
-    }
-    const fillLocales = (["ru", ...TARGET_LOCALES] as ContentLocale[]).filter((locale) => {
-      if (locale === source.locale) return false;
-      if (locale === "ru") return !title.trim();
-      return !localeTabs[locale].title.trim();
-    });
-    if (fillLocales.length === 0) {
-      setTranslateError("Все языки уже заполнены");
-      return;
-    }
-    setTranslating(true);
-    setTranslateError(null);
-    clearSentInfo();
+  async function createDraft() {
+    setCreating(true);
     try {
-      const { translations } = await adminFetch<{
-        translations: Record<string, { title: string; body: string }>;
-      }>("/api/admin/translate", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "post",
-          source_locale: source.locale,
-          source_title: source.title,
-          source_body: source.body,
-          fill_locales: fillLocales,
-        }),
-      });
-      if (translations.ru) {
-        if (!title.trim() && translations.ru.title.trim()) setTitle(translations.ru.title);
-        if (!body.trim() && translations.ru.body) setBody(translations.ru.body);
-      }
-      setLocaleTabs((prev) => {
-        const next = { ...prev };
-        for (const locale of TARGET_LOCALES) {
-          const t = translations[locale];
-          if (!t || prev[locale].title.trim()) continue;
-          next[locale] = { title: t.title, body: t.body };
-        }
-        return next;
-      });
-    } catch (err) {
-      setTranslateError(err instanceof Error ? err.message : "Не удалось перевести");
-    } finally {
-      setTranslating(false);
-    }
-  }
-
-  function clearActiveTranslation() {
-    if (activeTab === "ru") {
-      if (!window.confirm("Очистить русский заголовок и текст?")) return;
-      clearSentInfo();
-      setTitle("");
-      setBody("");
-      return;
-    }
-    if (
-      !window.confirm(
-        `Удалить перевод для ${LOCALE_FULL_NAMES[activeTab]}? Заголовок и текст этой вкладки будут очищены.`,
-      )
-    ) {
-      return;
-    }
-    updateLocaleTab(activeTab, emptyTab());
-  }
-
-  async function handleSend(e: FormEvent) {
-    e.preventDefault();
-    if (!window.confirm("Отправить уведомление выбранному сегменту?")) return;
-    setSending(true);
-    setError(null);
-    setSentInfo(null);
-    try {
-      const title_i18n: Record<string, string> = {};
-      const body_i18n: Record<string, string> = {};
-      for (const locale of TARGET_LOCALES) {
-        if (localeTabs[locale].title.trim()) title_i18n[locale] = localeTabs[locale].title.trim();
-        if (localeTabs[locale].body.trim()) body_i18n[locale] = localeTabs[locale].body;
-      }
-      const { notification, skipped_no_locale_copy } = await adminFetch<{
-        notification: NotificationRow;
-        skipped_no_locale_copy?: number;
-      }>("/api/admin/notifications", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          body,
-          title_i18n,
-          body_i18n,
-          link_url: linkUrl || null,
-          segment,
-        }),
-      });
-      const skipped =
-        typeof skipped_no_locale_copy === "number" && skipped_no_locale_copy > 0
-          ? `, без перевода языка профиля пропущено ${skipped_no_locale_copy}`
-          : "";
-      setSentInfo(
-        `Отправлено: получателей ${notification.recipient_count}, push ушло ${notification.push_sent_count}, ошибок ${notification.push_error_count}${skipped}.`,
+      const { notification } = await adminFetch<{ notification: { id: string } }>(
+        "/api/admin/notifications",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            draft: true,
+            title: "Новое уведомление",
+            body: "",
+            segment: "all",
+          }),
+        },
       );
-      setTitle("");
-      setBody("");
-      setLocaleTabs(emptyTabs());
-      setLinkUrl("");
-      setActiveTab("ru");
-      await loadHistory();
+      window.location.href = `/admin/notifications/${notification.id}`;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Не удалось отправить";
-      // Undici/Vercel may abort the browser response after Expo already accepted the push.
-      if (/terminated|aborted|failed to fetch/i.test(message)) {
-        const list = await loadHistory();
-        const latest = list[0];
-        if (latest && latest.title === title.trim() && latest.sent_at) {
-          setSentInfo(
-            `Рассылка сохранена (получателей ${latest.recipient_count}, push ${latest.push_sent_count}). Ответ сети оборвался после отправки — это безопасно, можно не дублировать.`,
-          );
-          setTitle("");
-          setBody("");
-          setLocaleTabs(emptyTabs());
-          setLinkUrl("");
-          setActiveTab("ru");
-          setError(null);
-          return;
-        }
-      }
-      setError(message);
-    } finally {
-      setSending(false);
+      setError(err instanceof Error ? err.message : "Не удалось создать");
+      setCreating(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Удалить эту рассылку? Она исчезнет у всех получателей в «Мои уведомления».")) {
+    if (
+      !window.confirm(
+        "Удалить это уведомление? Оно исчезнет у всех получателей в «Мои уведомления».",
+      )
+    ) {
       return;
     }
     setDeletingId(id);
     setError(null);
     try {
-      // POST с телом — надёжнее bodyless DELETE (прокси / Content-Type / refresh race).
       await adminFetch(`/api/admin/notifications/${id}`, {
         method: "POST",
         body: JSON.stringify({ action: "delete" }),
       });
-      await loadHistory();
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить");
     } finally {
@@ -296,228 +105,140 @@ export default function AdminNotificationsPage() {
     }
   }
 
-  /** Green dot / eligibility = authored title (matches server exact-copy gate). */
-  const ruHasContent = Boolean(title.trim());
-  const activeHasTranslation =
-    activeTab === "ru" ? Boolean(title.trim() || body.trim()) : Boolean(
-      localeTabs[activeTab].title.trim() || localeTabs[activeTab].body.trim(),
-    );
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="text-xl font-bold text-zinc-900">Уведомления</h1>
-      <p className="mb-5 text-sm text-zinc-500">
-        Push + копия в «Мои уведомления». Текст строго на языке профиля (`users.locale`):
-        без перевода на вкладке языка получатель пропускается (нет fallback EN→RU). Зелёная
-        точка = есть заголовок на этом языке.
-      </p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-zinc-900">Уведомления</h1>
+          {userId ? (
+            <p className="mt-1 text-sm text-zinc-500">
+              Фильтр по пользователю{" "}
+              <code className="text-xs">{userId.slice(0, 8)}…</code>
+              {" · "}
+              <Link href="/admin/notifications" className="text-emerald-700 hover:underline">
+                сбросить
+              </Link>
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-zinc-500">
+              Push + копия в «Мои уведомления». Черновик → редактор → Отправить.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void createDraft()}
+          disabled={creating}
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+        >
+          {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+          Новое
+        </button>
+      </div>
 
-      <form onSubmit={handleSend} className="mb-6 rounded-2xl border border-zinc-200 bg-white p-4">
-        <div className="mb-4">
-          <div className="flex items-center gap-0.5 overflow-x-auto rounded-xl bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab("ru")}
-              className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeTab === "ru" ? "bg-emerald-500 text-white" : "text-zinc-400 hover:text-zinc-800"
-              }`}
-            >
-              RU
-              {ruHasContent ? (
-                <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              ) : null}
-            </button>
-            {TARGET_LOCALES.map((locale) => {
-              const hasContent = Boolean(localeTabs[locale].title.trim());
+      {error ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      {rows === null ? (
+        <div className="flex items-center gap-2 text-sm text-zinc-500">
+          <Loader2 size={16} className="animate-spin" /> Загрузка…
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-6 py-16 text-center">
+          <Bell size={28} className="text-zinc-400" />
+          <p className="text-sm text-zinc-500">Пока нет уведомлений — создайте первое.</p>
+        </div>
+      ) : (
+        <>
+          <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-200 bg-white">
+            {rows.map((item) => {
+              const isDraft = !item.sent_at;
               return (
-                <button
-                  key={locale}
-                  type="button"
-                  onClick={() => setActiveTab(locale)}
-                  className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    activeTab === locale ? "bg-white/10 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
-                  }`}
-                  title={LOCALE_FULL_NAMES[locale]}
-                >
-                  {LOCALE_LABELS[locale]}
-                  {hasContent ? (
-                    <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  ) : null}
-                </button>
+                <li key={item.id} className="flex items-stretch gap-2 px-3 py-3">
+                  <Link
+                    href={`/admin/notifications/${item.id}`}
+                    className="min-w-0 flex-1 hover:opacity-90"
+                  >
+                    <div className="truncate text-sm font-semibold text-zinc-900">
+                      {item.title.trim() || "Без заголовка"}
+                    </div>
+                    <div className="mt-0.5 text-xs text-zinc-500">
+                      {[
+                        isDraft ? "Черновик" : "Отправлено",
+                        item.segment_label,
+                        formatAdminDateTime(item.sent_at || item.created_at),
+                        !isDraft
+                          ? `получателей ${item.recipient_count} · push ${item.push_sent_count}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={deletingId === item.id}
+                    onClick={() => void handleDelete(item.id)}
+                    className="shrink-0 self-center p-2 text-zinc-400 hover:text-rose-500 disabled:opacity-50"
+                    title="Удалить"
+                  >
+                    {deletingId === item.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                  </button>
+                </li>
               );
             })}
-            <div className="ml-auto flex items-center">
-              <button
-                type="button"
-                onClick={() => void runTranslate()}
-                disabled={translating || sending}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-60"
-                title="Перевести пустые языки (RU → EN → …)"
-              >
-                {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Перевести
-              </button>
-            </div>
-          </div>
-          {translateError ? <p className="mt-1 text-xs text-red-400">{translateError}</p> : null}
-        </div>
+          </ul>
 
-        {activeTab === "ru" ? (
-          <>
-            <label className="mb-3 block">
-              <span className="mb-1 block text-xs text-zinc-400">Заголовок (Русский)</span>
-              <input
-                value={title}
-                onChange={(e) => {
-                  clearSentInfo();
-                  setTitle(e.target.value);
-                }}
-                className={inputCls}
-              />
-            </label>
-            <label className="mb-4 block">
-              <span className="mb-1 block text-xs text-zinc-400">Текст (Русский)</span>
-              <textarea
-                value={body}
-                onChange={(e) => {
-                  clearSentInfo();
-                  setBody(e.target.value);
-                }}
-                rows={3}
-                className={`${inputCls} resize-y`}
-              />
-            </label>
-          </>
-        ) : (
-          <>
-            <label className="mb-3 block">
-              <span className="mb-1 block text-xs text-zinc-400">
-                Заголовок ({LOCALE_FULL_NAMES[activeTab]})
+          {totalPages > 1 ? (
+            <div className="flex items-center justify-between text-sm text-zinc-600">
+              <span>
+                Стр. {page} из {totalPages} · всего {total}
               </span>
-              <input
-                value={localeTabs[activeTab].title}
-                onChange={(e) => updateLocaleTab(activeTab, { title: e.target.value })}
-                className={inputCls}
-              />
-            </label>
-            <label className="mb-4 block">
-              <span className="mb-1 block text-xs text-zinc-400">Текст ({LOCALE_FULL_NAMES[activeTab]})</span>
-              <textarea
-                value={localeTabs[activeTab].body}
-                onChange={(e) => updateLocaleTab(activeTab, { body: e.target.value })}
-                rows={3}
-                className={`${inputCls} resize-y`}
-              />
-            </label>
-          </>
-        )}
-
-        <div className="mb-4 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-xs text-zinc-400">Ссылка (необязательно)</span>
-            <input
-              type="url"
-              value={linkUrl}
-              onChange={(e) => {
-                clearSentInfo();
-                setLinkUrl(e.target.value);
-              }}
-              placeholder="https://…"
-              className={inputCls}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-zinc-400">Сегмент</span>
-            <select
-              value={segment}
-              onChange={(e) => {
-                clearSentInfo();
-                setSegment(e.target.value);
-              }}
-              className={inputCls}
-            >
-              <option value="all">Все пользователи</option>
-              {TIER_OPTIONS.map((tier) => (
-                <option key={tier.value} value={tier.value}>
-                  {tier.label}
-                </option>
-              ))}
-              {webinars.map((webinar) => (
-                <option key={webinar.id} value={`webinar:${webinar.id}`}>
-                  Вебинар «{webinar.title}» ({formatAdminDateTime(webinar.starts_at)})
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-          {activeHasTranslation ? (
-            <button
-              type="button"
-              onClick={clearActiveTranslation}
-              className="text-xs text-zinc-500 underline-offset-2 transition-colors hover:text-red-300 hover:underline"
-            >
-              Удалить перевод ({LOCALE_LABELS[activeTab]})
-            </button>
-          ) : null}
-        </div>
-
-        {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
-        {sentInfo ? (
-          <p className="mb-3 flex items-center gap-1.5 text-sm text-emerald-700">
-            <CheckCircle2 size={15} /> {sentInfo}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={sending}
-          className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-        >
-          {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={2} />}
-          {sending ? "Отправляю…" : "Отправить"}
-        </button>
-      </form>
-
-      <h2 className="mb-3 text-base font-semibold text-zinc-900">История</h2>
-      {history === null ? (
-        <p className="flex items-center gap-2 text-sm text-zinc-500">
-          <Loader2 size={16} className="animate-spin" /> Загружаю…
-        </p>
-      ) : history.length === 0 ? (
-        <p className="text-sm text-zinc-500">Рассылок ещё не было.</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {history.map((item) => (
-            <div key={item.id} className="rounded-xl border border-zinc-200 bg-white p-3">
-              <Link
-                href={`/admin/notifications/${item.id}`}
-                className="font-semibold text-zinc-900 hover:text-emerald-800 hover:underline"
-              >
-                {item.title}
-              </Link>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="rounded-full bg-zinc-100 px-2 py-0.5">{item.segment_label}</span>
-                <span>{formatAdminDateTime(item.created_at)}</span>
-                <span>
-                  получателей {item.recipient_count} · push {item.push_sent_count}
-                  {item.push_error_count > 0 ? ` · ошибок ${item.push_error_count}` : ""}
-                </span>
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={deletingId === item.id}
-                  onClick={() => void handleDelete(item.id)}
-                  className="ml-auto flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-red-300 disabled:opacity-50"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-1.5 disabled:opacity-40"
                 >
-                  {deletingId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                  Удалить
+                  <ChevronLeft size={14} /> Назад
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-1.5 disabled:opacity-40"
+                >
+                  Вперёд <ChevronRight size={14} />
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+          ) : null}
+        </>
       )}
     </div>
+  );
+}
+
+export default function AdminNotificationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <p className="flex items-center gap-2 text-sm text-zinc-500">
+          <Loader2 size={16} className="animate-spin" /> Загрузка…
+        </p>
+      }
+    >
+      <NotificationsList />
+    </Suspense>
   );
 }

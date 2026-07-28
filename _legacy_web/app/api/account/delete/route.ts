@@ -1,14 +1,9 @@
 import { createServiceSupabase, errorResponse, json, requireUser } from "../../_utils/supabase";
-import { cancelActiveSubscriptionsForUser } from "../cancelActiveSubscriptions";
+import { wipeUserAccount } from "../wipeUserAccount";
 
 /**
  * DELETE /api/account/delete — удаление аккаунта из приложения (Bearer JWT).
- *
- * Порядок:
- * 1) отменить активные подписки во всех платёжных провайдерах;
- * 2) сохранить buyer_email на payment_contracts / payments (отчёты без user_id);
- * 3) auth.admin.deleteUser — каскадом чистит public.users и PII;
- *    payment_contracts / payments остаются (FK ON DELETE SET NULL).
+ * Делегирует в wipeUserAccount (cancel шлюзов → buyer_email → deleteUser).
  *
  * Email берём из user JWT (requireUser), не из auth.admin.getUserById —
  * Admin API с `sb_secret_*` ключами периодически отвечает bad_jwt/ES256.
@@ -24,24 +19,7 @@ export async function DELETE(req: Request) {
     }
 
     const db = createServiceSupabase();
-    await cancelActiveSubscriptionsForUser(db, { userId, email });
-
-    // Снимок email до wipe — отчёты по платежам сохраняют покупателя.
-    const { error: contractsEmailError } = await db
-      .from("payment_contracts")
-      .update({ buyer_email: email, updated_at: new Date().toISOString() })
-      .eq("user_id", userId);
-    if (contractsEmailError) throw contractsEmailError;
-
-    const { error: paymentsEmailError } = await db
-      .from("payments")
-      .update({ buyer_email: email })
-      .eq("user_id", userId);
-    if (paymentsEmailError) throw paymentsEmailError;
-
-    const { error: deleteError } = await db.auth.admin.deleteUser(userId);
-    if (deleteError) throw deleteError;
-
+    await wipeUserAccount(db, { userId, email });
     return json({ deleted: true });
   } catch (error) {
     return errorResponse(error);

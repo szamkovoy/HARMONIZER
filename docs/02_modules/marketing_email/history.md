@@ -13,6 +13,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-28 (фаза F + list pagination):** Уведомления как рассылки (list-first / draft). `GET campaigns` — `page`/`limit`/`user_id`. Карточка пользователя: ссылки «Все рассылки/уведомления».
+
 - **2026-07-28 (contacts drill-down):** Доставляемость: убрана подсказка про opens/clicks; статусы подписки (>0) ведут на `/admin/email/contacts?status=`.
 
 - **2026-07-28 (open/click tracking):** Resend не трекает opens/clicks на zamkovoi.ru (нет TLS для tracking subdomain на .ru). First-party пиксель/клики + `email_tracking_keys`. KPI «Отказ доставки» → «Не доставлено» (bounce сервера, не отписка).

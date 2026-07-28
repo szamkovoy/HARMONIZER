@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-07-28 (фаза F list-first):** Список как рассылки: `GET` page/limit/`user_id`; `POST draft:true`; редактор `[id]` + send (`sent_at`); helper `sendNotification.ts`. Точечный push с карточки пользователя по-прежнему create+send без draft.
+
 - **2026-07-27 (detail locale tabs):** Карточка `/admin/notifications/[id]` — вкладки языков + зелёная точка по `title`/`title_i18n` и body (единообразие с рассылками).
 
 - **2026-07-24 (unified inbox + webinar start):** `notification_deliveries` — `id` PK, `kind` (admin/opportunity/webinar_start), snapshot title/body/link, `source_key`. Inbox = 10 последних любых kind. Opportunity → RPC `record_inbox_notification` при fire. Webinar start — Edge `notify-webinar-start` minutely ровно около `starts_at` (не заранее), copy по `users.locale`, нужен `join_url`, флаг `webinars.start_notified_at`. Миграция `20260724193000`.

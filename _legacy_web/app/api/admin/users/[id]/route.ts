@@ -1,5 +1,15 @@
 import { normalizeFxCurrency, settleGrantPayment } from "../../../account/fx";
-import { cancelActiveSubscriptionsForUser } from "../../../account/cancelActiveSubscriptions";
+import { wipeUserAccount } from "../../../account/wipeUserAccount";
+import {
+  cityFromLocationName,
+  locationSuggestsDistrictContext,
+  looksLikeDistrictName,
+  repairCityField,
+} from "../../../_utils/geoCity";
+import {
+  clearGeoPlaceCache,
+  resolveGeoPlaceCached,
+} from "../../../_utils/geoReverseResolve";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { emailsByUserId } from "../../_utils/authEmails";
 import { loadAdminPaymentLedger } from "../../_utils/paymentLedger";
@@ -10,6 +20,8 @@ export const maxDuration = 60;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+const HISTORY_LIMIT = 10;
+
 function membershipLooksStale(user: {
   membership_tier: string;
   membership_expires_at: string | null;
@@ -19,7 +31,7 @@ function membershipLooksStale(user: {
   return Date.parse(user.membership_expires_at) <= Date.now();
 }
 
-/** Карточка пользователя: профиль, email, история платежей, последняя активность. */
+/** Карточка пользователя: общее / гармонизатор, платежи, письма, пуши. */
 export async function GET(req: Request, ctx: RouteContext) {
   try {
     await requireAdmin(req);
@@ -27,7 +39,7 @@ export async function GET(req: Request, ctx: RouteContext) {
     const db = createServiceSupabase();
 
     const userSelect =
-      "id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at, country_code, city, skip_email_automations, last_seen_at";
+      "id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at, country_code, city, location_name, lat, lon, skip_email_automations, last_seen_at";
     const { data, error } = await db.from("users").select(userSelect).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!data) return json({ error: "Пользователь не найден" }, { status: 404 });
@@ -40,30 +52,82 @@ export async function GET(req: Request, ctx: RouteContext) {
       if (refreshed.data) user = refreshed.data;
     }
 
-    const [emails, payments, lastEventRes, contactRes, notifRes] = await Promise.all([
-      emailsByUserId(db, [id]),
-      loadAdminPaymentLedger(db, { userId: id, limit: 100 }),
-      db
-        .from("user_event_log")
-        .select("occurred_at")
-        .eq("user_id", id)
-        .order("occurred_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      db
-        .from("email_contacts")
-        .select("id, email, marketing_status")
-        .eq("user_id", id)
-        .maybeSingle(),
-      db
-        .from("notification_deliveries")
-        .select(
-          "id, title, body, created_at, notification_id, read_at, kind, notifications(id, title, body, sent_at, recipient_count, push_sent_count, push_error_count)",
-        )
-        .eq("user_id", id)
-        .order("created_at", { ascending: false })
-        .limit(30),
-    ]);
+    // Repair district label / village-in-district → town/city (Nominatim zoom=10).
+    const lat = typeof user.lat === "number" ? user.lat : Number(user.lat);
+    const lon = typeof user.lon === "number" ? user.lon : Number(user.lon);
+    const locationHead = cityFromLocationName(user.location_name);
+    // Village / district label while location still has «муниципальный округ» → upgrade.
+    const needsCityUpgrade =
+      looksLikeDistrictName(user.city) ||
+      (locationSuggestsDistrictContext(user.location_name) &&
+        Boolean(user.city) &&
+        (user.city === locationHead || looksLikeDistrictName(user.city)));
+    if (needsCityUpgrade && Number.isFinite(lat) && Number.isFinite(lon)) {
+      let fixed: string | null = repairCityField({
+        city: user.city,
+        location_name: user.location_name,
+      });
+      try {
+        clearGeoPlaceCache();
+        const { place } = await resolveGeoPlaceCached(lat, lon);
+        if (place.city) fixed = place.city;
+        if (place.country_code) {
+          user = { ...user, country_code: place.country_code };
+        }
+        if (place.location_name) {
+          user = { ...user, location_name: place.location_name };
+        }
+      } catch (geoErr) {
+        console.warn("[admin/users] city reverse repair failed", geoErr);
+      }
+      if (fixed && fixed !== user.city) {
+        const patch: Record<string, string | number> = {
+          city: fixed,
+          geo_place_lat: lat,
+          geo_place_lon: lon,
+        };
+        if (user.country_code) patch.country_code = user.country_code;
+        if (user.location_name) patch.location_name = user.location_name;
+        await db.from("users").update(patch).eq("id", id);
+        user = { ...user, city: fixed };
+      }
+    }
+
+    const [emails, payments, lastEventRes, contactRes, notifRes, contractRes] =
+      await Promise.all([
+        emailsByUserId(db, [id]),
+        loadAdminPaymentLedger(db, { userId: id, limit: 100 }),
+        db
+          .from("user_event_log")
+          .select("occurred_at")
+          .eq("user_id", id)
+          .order("occurred_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        db
+          .from("email_contacts")
+          .select("id, email, marketing_status")
+          .eq("user_id", id)
+          .maybeSingle(),
+        db
+          .from("notification_deliveries")
+          .select(
+            "id, title, body, created_at, notification_id, read_at, kind, notifications(id, title, body, sent_at)",
+          )
+          .eq("user_id", id)
+          .order("created_at", { ascending: false })
+          .limit(HISTORY_LIMIT),
+        db
+          .from("payment_contracts")
+          .select(
+            "contract_id, tier, currency, amount, status, current_period_end, cancelled_at, created_at",
+          )
+          .eq("user_id", id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
     if (notifRes.error) throw notifRes.error;
 
     let emailHistory: {
@@ -74,22 +138,32 @@ export async function GET(req: Request, ctx: RouteContext) {
       campaign_id: string | null;
       automation_id: string | null;
     }[] = [];
+    let emailHistoryTotal = 0;
     if (contactRes.data?.id) {
       const contactId = contactRes.data.id;
-      const [campaignSends, autoSends] = await Promise.all([
+      const [campaignSends, autoSends, campCount, autoCount] = await Promise.all([
         db
           .from("email_campaign_sends")
           .select("status, created_at, campaign_id, email_campaigns(name, subject)")
           .eq("contact_id", contactId)
           .order("created_at", { ascending: false })
-          .limit(20),
+          .limit(HISTORY_LIMIT),
         db
           .from("email_automation_sends")
           .select("status, subject, created_at, automation_id, email_automations(name)")
           .eq("contact_id", contactId)
           .order("created_at", { ascending: false })
-          .limit(20),
+          .limit(HISTORY_LIMIT),
+        db
+          .from("email_campaign_sends")
+          .select("id", { count: "exact", head: true })
+          .eq("contact_id", contactId),
+        db
+          .from("email_automation_sends")
+          .select("id", { count: "exact", head: true })
+          .eq("contact_id", contactId),
       ]);
+      emailHistoryTotal = (campCount.count ?? 0) + (autoCount.count ?? 0);
       for (const row of campaignSends.data ?? []) {
         const raw = row.email_campaigns as
           | { name?: string; subject?: string }
@@ -123,23 +197,18 @@ export async function GET(req: Request, ctx: RouteContext) {
       emailHistory.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
-      emailHistory = emailHistory.slice(0, 30);
+      emailHistory = emailHistory.slice(0, HISTORY_LIMIT);
     }
+
+    const { count: notifTotal } = await db
+      .from("notification_deliveries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", id);
 
     const notifications = (notifRes.data ?? []).map((d) => {
       const raw = d.notifications as
-        | {
-            id?: string;
-            title?: string;
-            body?: string;
-            sent_at?: string;
-          }
-        | {
-            id?: string;
-            title?: string;
-            body?: string;
-            sent_at?: string;
-          }[]
+        | { id?: string; title?: string; body?: string; sent_at?: string }
+        | { id?: string; title?: string; body?: string; sent_at?: string }[]
         | null;
       const n = Array.isArray(raw) ? raw[0] : raw;
       return {
@@ -154,6 +223,18 @@ export async function GET(req: Request, ctx: RouteContext) {
       };
     });
 
+    const contract = contractRes.data;
+    const subscription = contract
+      ? {
+          contract_id: contract.contract_id,
+          tier: contract.tier,
+          currency: contract.currency,
+          amount: contract.amount,
+          status: contract.status,
+          current_period_end: contract.current_period_end,
+        }
+      : null;
+
     return json({
       user: {
         ...user,
@@ -162,8 +243,11 @@ export async function GET(req: Request, ctx: RouteContext) {
       },
       payments,
       contact: contactRes.data ?? null,
+      subscription,
       email_history: emailHistory,
+      email_history_total: emailHistoryTotal,
       notifications,
+      notifications_total: notifTotal ?? notifications.length,
     });
   } catch (error) {
     return errorResponse(error);
@@ -181,7 +265,6 @@ type TierUpdatePayload = {
 
 /**
  * Ручное назначение тарифа: обновляет users и пишет строку в леджер (source=manual).
- * expires_at приходит с клиента уже с текущим временем на выбранную дату.
  * Также: skip_email_automations без смены тарифа.
  */
 export async function PATCH(req: Request, ctx: RouteContext) {
@@ -263,7 +346,6 @@ export async function PATCH(req: Request, ctx: RouteContext) {
 
 /**
  * Удаление пользователя админом. Платежи/контракты сохраняются (buyer_email + SET NULL).
- * Нельзя удалить себя или другого admin.
  */
 export async function DELETE(req: Request, ctx: RouteContext) {
   try {
@@ -295,23 +377,7 @@ export async function DELETE(req: Request, ctx: RouteContext) {
       return json({ error: "У пользователя нет email — удаление отменено" }, { status: 409 });
     }
 
-    await cancelActiveSubscriptionsForUser(db, { userId: id, email });
-
-    const { error: contractsEmailError } = await db
-      .from("payment_contracts")
-      .update({ buyer_email: email, updated_at: new Date().toISOString() })
-      .eq("user_id", id);
-    if (contractsEmailError) throw contractsEmailError;
-
-    const { error: paymentsEmailError } = await db
-      .from("payments")
-      .update({ buyer_email: email })
-      .eq("user_id", id);
-    if (paymentsEmailError) throw paymentsEmailError;
-
-    const { error: deleteError } = await db.auth.admin.deleteUser(id);
-    if (deleteError) throw deleteError;
-
+    await wipeUserAccount(db, { userId: id, email });
     return json({ deleted: true });
   } catch (error) {
     return errorResponse(error);

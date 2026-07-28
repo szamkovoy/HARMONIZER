@@ -5,6 +5,12 @@ version: 1.9
 updated: 2026-07-24
 ---
 
+## 2026-07-28 — Reattach ledger by email + shared wipe
+
+- **Проверка:** cancel-on-delete уже был (app + admin → `cancelActiveSubscriptionsForUser`). Не хватало reattach после повторной регистрации с тем же email → «Без имени» в админке и пустой кабинет.
+- **Код:** `wipeUserAccount` — единая точка wipe; `cancelProviderSubscription` — обязательный switch для новых шлюзов (ЮKassa recurring — TODO в case).
+- **DB:** `reattach_payment_ledger_for_email` + `restore_membership_from_ledger` в `handle_new_auth_user` + backfill; миграция `20260728144628`. Orphan Lava для sezam777 **не** отменяли вручную.
+
 ## 2026-07-24 — Delete account: stats trigger + Admin JWT flake
 
 - **Симптом:** Profile «Удалить аккаунт» → «Не удалось удалить аккаунт» (sezam777). Vercel: `Database error deleting user` / иногда `bad_jwt` ES256 на Admin API.

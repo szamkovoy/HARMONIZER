@@ -10,6 +10,10 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-07-28 (geo city settlement):** `GET /api/geo/reverse` — prefer town/city; если только деревня — второй Nominatim `zoom=10` (районный/городской центр). Shared `geoCity` + `geoReverseResolve`; admin GET silent-repair.
+
+- **2026-07-28 (geo city settlement, earlier):** `pickSettlementCity` без municipality/county «округ/район»; repair из `location_name`.
+
 - **2026-07-24 (legal modal padding):** `LegalDocumentModal` — `paddingTop: 10` над первой строкой terms/privacy (мастер + Профиль).
 
 - **2026-07-24 (LegalFooter на Профиле):** `LegalFooter` получил `tone="links"|"consent"`; Профиль рендерит `tone="links"` внизу таба (та же модалка / каталог `wizard.legal.*`). См. `profile/history.md`.

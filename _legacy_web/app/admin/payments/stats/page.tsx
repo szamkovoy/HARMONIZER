@@ -18,9 +18,12 @@ type ProviderStats = {
   daily_series: Array<{ date: string; count: number; sum: number }>;
 };
 
+type Period = 7 | 30 | 90 | "all";
+
 type Stats = {
   generated_at: string;
-  period_days: number;
+  period_days: Period;
+  range_all_time?: boolean;
   grain: "day" | "week";
   display_currency: DisplayCurrency;
   providers: {
@@ -33,7 +36,7 @@ type Stats = {
   total: { count: number; sum: number; currency: string };
 };
 
-const PERIODS = [7, 30, 90] as const;
+const PERIODS: Period[] = [7, 30, 90, "all"];
 const CURRENCIES: Array<{ code: DisplayCurrency; label: string }> = [
   { code: "RUB", label: "₽" },
   { code: "EUR", label: "€" },
@@ -62,27 +65,42 @@ function formatBucket(date: string, grain: "day" | "week"): string {
   return `${d}.${m}.${y?.slice(2) ?? ""}`;
 }
 
+function periodLabelOf(period: Period): string {
+  if (period === "all") return "всё время";
+  return `${period} дн.`;
+}
+
 export default function AdminPaymentStatsPage() {
-  const [days, setDays] = useState<(typeof PERIODS)[number]>(7);
+  const [days, setDays] = useState<Period>(7);
   const [grain, setGrain] = useState<"day" | "week">("day");
   const [currency, setCurrency] = useState<DisplayCurrency>("RUB");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const effectiveGrain: "day" | "week" = days === "all" ? "week" : grain;
+
+  useEffect(() => {
+    if (days === "all" && grain !== "week") setGrain("week");
+  }, [days, grain]);
+
   useEffect(() => {
     setStats(null);
     setError(null);
+    const daysParam = days === "all" ? "all" : String(days);
     adminFetch<Stats>(
-      `/api/admin/payments/stats?days=${days}&grain=${grain}&currency=${currency}`,
+      `/api/admin/payments/stats?days=${daysParam}&grain=${effectiveGrain}&currency=${currency}`,
     )
       .then(setStats)
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Не удалось загрузить статистику"),
       );
-  }, [days, grain, currency]);
+  }, [days, effectiveGrain, currency]);
 
   const displayCurrency = stats?.display_currency ?? currency;
-  const periodLabel = `${stats?.period_days ?? days} дн.`;
+  const period: Period = stats?.range_all_time
+    ? "all"
+    : ((stats?.period_days as Period) ?? days);
+  const periodLabel = periodLabelOf(period);
   const seriesNewestFirst = useMemo(
     () =>
       [...(stats?.daily_series ?? [])].sort((a, b) =>
@@ -118,10 +136,10 @@ export default function AdminPaymentStatsPage() {
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {PERIODS.map((value) => (
             <button
-              key={value}
+              key={String(value)}
               type="button"
               onClick={() => setDays(value)}
               className={`rounded-xl px-3 py-2 text-sm ${
@@ -130,32 +148,36 @@ export default function AdminPaymentStatsPage() {
                   : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
               }`}
             >
-              {value} дн.
+              {value === "all" ? "Всё время" : `${value} дн.`}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setGrain("day")}
-            className={`rounded-xl px-3 py-2 text-sm ${
-              grain === "day"
-                ? "bg-emerald-600 font-semibold text-white"
-                : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
-            }`}
-          >
-            Дни
-          </button>
-          <button
-            type="button"
-            onClick={() => setGrain("week")}
-            className={`rounded-xl px-3 py-2 text-sm ${
-              grain === "week"
-                ? "bg-emerald-600 font-semibold text-white"
-                : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
-            }`}
-          >
-            Недели
-          </button>
-          <span className="mx-1 hidden h-8 w-px bg-white/10 sm:inline-block" />
+          <span className="mx-1 hidden h-6 w-px bg-zinc-200 sm:inline-block" aria-hidden />
+          {(
+            [
+              ["day", "Дни"],
+              ["week", "Недели"],
+            ] as const
+          ).map(([value, label]) => {
+            const disabled = days === "all" && value === "day";
+            return (
+              <button
+                key={value}
+                type="button"
+                disabled={disabled}
+                onClick={() => setGrain(value)}
+                className={`rounded-xl px-3 py-2 text-sm ${
+                  disabled
+                    ? "cursor-not-allowed border border-zinc-100 text-zinc-400"
+                    : effectiveGrain === value
+                      ? "bg-emerald-600 font-semibold text-white"
+                      : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+          <span className="mx-1 hidden h-6 w-px bg-zinc-200 sm:inline-block" aria-hidden />
           {CURRENCIES.map(({ code, label }) => (
             <button
               key={code}

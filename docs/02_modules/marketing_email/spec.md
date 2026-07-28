@@ -45,13 +45,14 @@ code_refs:
 Админские маркетинговые письма с домена **`zamkovoi.ru`** (Resend key `RESEND_ZAMKOVOI_RU_API_KEY`).  
 OTP на `zamkovoi.yoga` изолирован и **не** использует этот ключ.
 
-**Фаза A–D (сейчас):** кампании, сегменты, блочный редактор, цепочки B2+C1/C2, user card, **deliverability dashboard + auto-suppress** (Resend webhooks + Suppressions/Domains API).
+**Фаза A–D + F (сейчас):** кампании, сегменты, блочный редактор, цепочки B2+C1/C2, user card, **deliverability** + auto-suppress; **F** — уведомления list-first как рассылки (черновик/`sent_at`); списки `/admin/email` и `/admin/notifications` с `?page=&limit=50&user_id=`.
 
 ## 2. Публичный контракт
 
 **Админка (`requireAdmin`):**
 
 - Кампании / сегмент / assets / automations / steps — как ранее
+- `GET /api/admin/email/campaigns?page=&limit=50&user_id=` — пагинация; `user_id` → кампании с send на контакт пользователя (`email_campaign_sends`)
 - Карточка кампании `/admin/email/[id]`: заголовок «Рассылка»; статус RU (`черновик` / `отправлено · дата`); после send — KPI-карточки, read-only имя/сегмент/контент, без блока «Отправка»; копирование доступно
 - Общий UI-фундамент: `EmailListRow`, `EmailDeliveryStats`, `EmailMessageWorkspace`; названия/копии — `emailNaming` (`emailListTitle`, `emailCopyName`) для рассылок и шагов. Письмо цепочки: `name` в GET steps; «Копировать» → `POST …/steps/[stepId]/copy` → редирект на копию (`… (копия)`); delay; `POST …/send` `{test_to}`
 - Сегмент JSON дополнительно: `account_created_on_or_after|before` (`users.created_at`), `onboarded_on_or_after|before` (`users.onboarded_at`) — границы включительно (≥ / ≤)

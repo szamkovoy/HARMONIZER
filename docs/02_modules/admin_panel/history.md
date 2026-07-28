@@ -9,6 +9,16 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-28 (wipe + reattach ledger):** Admin delete → `wipeUserAccount` (как Profile). Reattach orphan-платежей по `buyer_email` при signup/backfill (`account_web`). Список платежей: fallback имени на email local-part.
+
+- **2026-07-28 (payments list + revenue all-time):** `/admin/payments` — плоский список как пользователи (без карточки «История платежей»). `/admin/payments/stats` — период «Всё время» + разделитель перед Дни/Недели; API `days=all`.
+
+- **2026-07-28 (stats links + district centre):** Ненулевые цифры статистики → `/admin/users` с фильтрами (access/addon/country/onboarded). Geo: из «…ский муниципальный округ» → центр («Осташков»), confirm search ≤100 км.
+
+- **2026-07-28 (stats UX + geo town + maps link):** Stats: всего = onboarded; «Распределение по тарифам сейчас» (Демо слева); допы = unique webinar/book buyers; период «Всё время». Карточка: светлая «Запустить»; city → районный центр (Nominatim zoom=10); местонахождение → Google Maps search URL без API на load.
+
+- **2026-07-28 (user card + filters + notifications F):** Карточка — Общее/Гармонизатор, marketing_status, subscription + отмена оплаты, истории ≤10 + ссылки `?user_id=`. Уведомления list-first (draft/`sent_at`). Фильтры `admin_search_users` + stats по `onboarded_at`. Geo: `pickSettlementCity` + repair city на GET. Миграция `20260728160000`.
+
 - **2026-07-27 (notification detail UX):** Карточка `/admin/notifications/[id]` — заголовок «Уведомления», название над текстом; KPI с пояснениями (получатели / в приложении / push).
 
 - **2026-07-27 (login proxy):** Browser → Auth с валидным apikey зависал (0 bytes); логин через `POST /api/admin/login` (Vercel → GoTrue). `sb_*` ключи не шлём в `Authorization`. На `/admin/login` AdminChrome не вызывает getSession.

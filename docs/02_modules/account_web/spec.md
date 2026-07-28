@@ -27,7 +27,11 @@ code_refs:
     _legacy_web/app/api/account/overview/route.ts,
     _legacy_web/app/api/account/checkout/route.ts,
     _legacy_web/app/api/account/subscription/route.ts,
+    _legacy_web/app/api/account/delete/route.ts,
+    _legacy_web/app/api/account/wipeUserAccount.ts,
+    _legacy_web/app/api/account/cancelActiveSubscriptions.ts,
     _legacy_web/app/api/account/purchases/last/route.ts,
+    supabase/migrations/20260728144628_reattach_payment_ledger_by_email.sql,
     _legacy_web/app/api/account/webhooks/lava/route.ts,
     _legacy_web/app/api/account/webhooks/yookassa/route.ts,
     _legacy_web/app/api/account/fx/,
@@ -77,7 +81,7 @@ code_refs:
 | `GET /api/account/purchases/last` | Bearer JWT Supabase (приложение) | Последняя активная one_time-покупка (`{ kind, productRef, createdAt, contractId }` | null). Приложение сверяет `createdAt` с `cabinetVisit` и благодарит за покупку (`gate.bookPaid.*`). Таблица `payment_contracts` закрыта для клиента — чтение только service role |
 | `GET /api/account/subscription` | Bearer кабинетной сессии | Последний контракт со статусом active/cancelled |
 | `DELETE /api/account/subscription` | Bearer кабинетной сессии | Отмена через `cancelActiveSubscriptionsForUser` (`lavatop` → Lava DELETE; `yookassa` → DB-only, автосписаний пока нет) + статус cancelled; доступ до `current_period_end` / `membership_expires_at`. |
-| `DELETE /api/account/delete` | Bearer JWT Supabase (приложение) | Удаление аккаунта: (1) email из user JWT через `requireUser` (не `auth.admin.getUserById` — с `sb_secret_*` Admin GET периодически `bad_jwt`/ES256); (2) `cancelActiveSubscriptionsForUser`; (3) снимок `buyer_email` на `payment_contracts`/`payments`; (4) `auth.admin.deleteUser` — PII/профиль каскадом, платёжный леджер остаётся (`user_id` SET NULL). Ответ `{ deleted: true }`. Wipe не должен падать на `recompute_user_daily_stats` (миграция `20260724024500` + `row_security=off`). |
+| `DELETE /api/account/delete` | Bearer JWT Supabase (приложение) | Удаление аккаунта через `wipeUserAccount`: (1) email из user JWT (`requireUser`); (2) `cancelActiveSubscriptionsForUser` → `cancelProviderSubscription` (Lava API; ЮKassa — DB-only до рекуррента; unknown provider → fail-closed); (3) снимок `buyer_email`; (4) `auth.admin.deleteUser` — леджер остаётся (`ON DELETE SET NULL`). Ответ `{ deleted: true }`. Тот же wipe — `DELETE /api/admin/users/[id]`. |
 | `POST /api/account/webhooks/lava` | заголовок `X-Api-Key` = `LAVATOP_WEBHOOK_SECRET` | Приём событий Lava (см. §3.1) |
 | `POST /api/account/webhooks/yookassa` | опц. `YOOKASSA_WEBHOOK_SECRET` + всегда GET payment у API | События ЮKassa (см. §3.3) |
 
@@ -89,6 +93,7 @@ code_refs:
 - **БД** (`20260719000000_app_config_anon_read_account_links.sql`): доп. политика select на `app_config` для `anon, authenticated` с ограничением `using (key = 'account_links_enabled')`. Нужно, чтобы kill-switch читался и без активной сессии (холодный старт, окно sign-out/sign-in, протухший access_token) — иначе `useAccountLinksEnabled` кэшировал fail-safe `false` на 5 минут и кнопка «Личный кабинет» пропадала. Остальные ключи `app_config` остаются только для authenticated/админов.
 - **БД** (`20260715120000_lava_payment_contracts.sql`): `payment_contracts` (user_id, contract_id unique, tier oracle|master, currency, amount, status pending|active|cancelled|failed, current_period_end, cancelled_at; RLS без политик — только service role).
 - **БД** (`20260720092052_payment_ledger_survive_user_delete.sql`): `payment_contracts.user_id` и `payments.user_id` — nullable, FK `ON DELETE SET NULL`; колонка `buyer_email` (снимок email при checkout / перед deleteUser). Платёжные строки переживают удаление аккаунта для отчётов.
+- **БД** (`20260728144628_reattach_payment_ledger_by_email.sql`): при signup `handle_new_auth_user` вызывает `reattach_payment_ledger_for_email` — orphan-строки с тем же `buyer_email` снова получают `user_id`; `restore_membership_from_ledger` поднимает `membership_*` из активных грантов и subscription-контрактов (`active` или `cancelled` с ещё не истёкшим `current_period_end` + 48ч grace). Orphan-подписки у шлюза **не** отменяются backfill’ом.
 - **БД** (`20260718150000_payment_offers.sql`): `payment_offers` (tier, locale, offer_id, active; unique tier+locale; RLS без политик). Маппинг (tier, locale) → Lava offerId с fallback на `en`. `tier` ∈ `oracle`|`master`|`webinar`|`book`|`course:<id>`. Цены НЕ хранятся — тянутся из Lava `GET /api/v2/products?feedVisibility=ALL` (кэш 10 мин; `feedVisibility=ALL` обязателен — иначе скрытые «Доступ только по ссылке» продукты не возвращаются). См. `lava_integration.md` §3.
 - **БД** (`20260718170000_payment_contracts_one_time.sql`): `payment_contracts` расширена колонками `product_kind` (subscription|one_time) и `product_ref` (для webinar = webinar_id); `tier` — `oracle`|`master`|`webinar`|`book`; `periodicity` — `MONTHLY`|`ONE_TIME`.
 - **БД** (`20260718173000_payment_offers_one_time.sql`): seed `webinar/en`, `book/en` (изначально productId — ошибочно).

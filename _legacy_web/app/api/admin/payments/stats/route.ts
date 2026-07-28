@@ -9,16 +9,18 @@ import { normalizeGatewayProvider } from "../../_utils/paymentLedger";
 
 export const runtime = "nodejs";
 
-type PeriodDays = 7 | 30 | 90;
+type PeriodDays = 7 | 30 | 90 | "all";
 type Grain = "day" | "week";
 
 function parsePeriod(raw: string | null): PeriodDays {
+  if (raw === "all") return "all";
   const n = Number(raw ?? 7);
   if (n === 30 || n === 90) return n;
   return 7;
 }
 
-function parseGrain(raw: string | null): Grain {
+function parseGrain(raw: string | null, period: PeriodDays): Grain {
+  if (period === "all") return "week";
   return raw === "week" ? "week" : "day";
 }
 
@@ -69,26 +71,30 @@ export async function GET(req: Request) {
     await requireAdmin(req);
     const url = new URL(req.url);
     const periodDays = parsePeriod(url.searchParams.get("days"));
-    const grain = parseGrain(url.searchParams.get("grain"));
+    const grain = parseGrain(url.searchParams.get("grain"), periodDays);
     const displayCurrency = parseDisplayCurrency(url.searchParams.get("currency"));
-    const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
+    const since =
+      periodDays === "all"
+        ? null
+        : new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
     const db = createServiceSupabase();
 
-    const [settlementsRes, grantsRes] = await Promise.all([
-      db
-        .from("payment_settlements")
-        .select("paid_at, provider, net_amount_rub, net_amount_eur, net_amount_usd, contract_id")
-        .gte("paid_at", since)
-        .order("paid_at", { ascending: true }),
-      db
-        .from("payments")
-        .select(
-          "amount, currency, tier, source, created_at, net_amount_rub, net_amount_eur, net_amount_usd",
-        )
-        .eq("source", "manual")
-        .gte("created_at", since)
-        .order("created_at", { ascending: true }),
-    ]);
+    let settlementsQuery = db
+      .from("payment_settlements")
+      .select("paid_at, provider, net_amount_rub, net_amount_eur, net_amount_usd, contract_id")
+      .order("paid_at", { ascending: true });
+    if (since) settlementsQuery = settlementsQuery.gte("paid_at", since);
+
+    let grantsQuery = db
+      .from("payments")
+      .select(
+        "amount, currency, tier, source, created_at, net_amount_rub, net_amount_eur, net_amount_usd",
+      )
+      .eq("source", "manual")
+      .order("created_at", { ascending: true });
+    if (since) grantsQuery = grantsQuery.gte("created_at", since);
+
+    const [settlementsRes, grantsRes] = await Promise.all([settlementsQuery, grantsQuery]);
     if (settlementsRes.error) throw settlementsRes.error;
     if (grantsRes.error) throw grantsRes.error;
 
@@ -173,6 +179,7 @@ export async function GET(req: Request) {
     return json({
       generated_at: new Date().toISOString(),
       period_days: periodDays,
+      range_all_time: periodDays === "all",
       grain,
       display_currency: displayCurrency,
       providers: {

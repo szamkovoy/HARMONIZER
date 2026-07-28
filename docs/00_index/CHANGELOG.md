@@ -1,3 +1,9 @@
+- 2026-07-28 (308): Account wipe shared helper; reattach payment ledger by email on signup (migration `20260728144628`); membership restore from contracts.
+- 2026-07-28 (307): Payments list flat (no nested History card); revenue stats «Всё время» + gap before Дни/Недели.
+- 2026-07-28 (306): Stats activity 24/72/168h dig-down links (`active_hours` → user_event_log).
+- 2026-07-28 (305): Geo: derive district centre (Осташковский→Осташков); stats dig-down links; users list access/addon URL filters.
+- 2026-07-28 (304): User stats UX (onboarded total, tariffs/addons, all-time); geo prefer town via Nominatim zoom=10; location maps link; light chain button.
+- 2026-07-28 (303): Admin user card (Общее/Гармонизатор), city repair, notifications list-first (F), users filters/stats onboarded_at; migration `20260728160000`.
 - 2026-07-28 (302): Deliverability contact-status counts link to contacts list; drop open/click explainer.
 - 2026-07-28 (301): First-party open/click tracking for zamkovoi.ru; deliverability KPI «Не доставлено».
 - 2026-07-28 (300): Restore email image centering (`inline-block` + parent text-align).

@@ -72,6 +72,8 @@ export async function loadAdminPaymentLedger(
 
   const grantRows: AdminLedgerRow[] = (grantsRes.data ?? []).map((p) => {
     const user = p.users as { display_name?: string | null } | null;
+    const email =
+      (p.user_id ? emails.get(p.user_id as string) : null) || (p.buyer_email as string) || "—";
     return {
       id: p.id as string,
       kind: "grant",
@@ -86,14 +88,16 @@ export async function loadAdminPaymentLedger(
       comment: (p.comment as string | null) ?? null,
       created_at: p.created_at as string,
       edited_at: (p.edited_at as string | null) ?? null,
-      display_name: user?.display_name?.trim() || "Без имени",
-      email: (p.user_id ? emails.get(p.user_id as string) : null) || (p.buyer_email as string) || "—",
+      display_name: ledgerDisplayName(user?.display_name, email === "—" ? null : email),
+      email,
     };
   });
 
   const gatewayRows: AdminLedgerRow[] = (contractsRes.data ?? []).map((c) => {
     const user = c.users as { display_name?: string | null } | null;
     const provider = normalizeGatewayProvider(c.provider as string | null);
+    const email =
+      (c.user_id ? emails.get(c.user_id as string) : null) || (c.buyer_email as string) || "—";
     return {
       id: `gw:${c.contract_id}`,
       kind: "gateway",
@@ -108,8 +112,8 @@ export async function loadAdminPaymentLedger(
       comment: null,
       created_at: c.created_at as string,
       edited_at: null,
-      display_name: user?.display_name?.trim() || "Без имени",
-      email: (c.user_id ? emails.get(c.user_id as string) : null) || (c.buyer_email as string) || "—",
+      display_name: ledgerDisplayName(user?.display_name, email === "—" ? null : email),
+      email,
       contract_id: c.contract_id as string,
     };
   });
@@ -124,4 +128,16 @@ export function normalizeGatewayProvider(raw: string | null | undefined): string
   if (p === "yandex" || p === "yookassa" || p === "yukassa" || p === "yandex_kassa") return "yookassa";
   if (p === "lavatop" || p === "lava") return "lavatop";
   return p;
+}
+
+/** Имя для списка: display_name пользователя, иначе локальная часть email. */
+export function ledgerDisplayName(
+  displayName: string | null | undefined,
+  email: string | null | undefined,
+): string {
+  const name = displayName?.trim();
+  if (name) return name;
+  const local = email?.split("@")[0]?.trim();
+  if (local) return local;
+  return "Без имени";
 }

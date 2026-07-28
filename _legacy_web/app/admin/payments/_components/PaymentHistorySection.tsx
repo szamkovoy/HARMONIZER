@@ -17,6 +17,8 @@ import {
 
 type PaymentHistorySectionProps = {
   title?: string;
+  /** `section` — карточка с заголовком (карточка пользователя); `list` — плоский список как /admin/users. */
+  variant?: "section" | "list";
   payments: AdminPaymentRow[];
   ownerUserId?: string;
   includeUserLink?: boolean;
@@ -44,6 +46,7 @@ function isEditable(payment: AdminPaymentRow): boolean {
 
 export function PaymentHistorySection({
   title = "История платежей",
+  variant = "section",
   payments,
   ownerUserId,
   includeUserLink = false,
@@ -112,32 +115,20 @@ export function PaymentHistorySection({
     }
   }
 
-  return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-zinc-900">{title}</h2>
-        {ownerUserId ? (
-          <button
-            type="button"
-            onClick={() => {
-              setError(null);
-              setCreateOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-400"
-          >
-            <Plus size={14} />
-            Добавить платёж
-          </button>
-        ) : null}
-      </div>
+  const isList = variant === "list";
+  const rowClass = isList
+    ? "rounded-xl border border-zinc-200 bg-white p-3 text-sm"
+    : "rounded-lg border border-zinc-100 bg-zinc-50 p-2.5 text-sm";
 
+  const list = (
+    <>
       {payments.length === 0 ? <p className="text-sm text-zinc-500">Платежей пока нет.</p> : null}
       <div className="flex flex-col gap-1.5">
         {payments.map((payment) => {
           const editable = isEditable(payment);
           const name = payment.display_name ?? "Без имени";
           return (
-            <div key={payment.id} className="rounded-lg border border-zinc-100 bg-zinc-50 p-2.5 text-sm">
+            <div key={payment.id} className={rowClass}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 {includeUserLink ? (
                   payment.user_id ? (
@@ -227,6 +218,30 @@ export function PaymentHistorySection({
         }}
         onSubmit={updatePayment}
       />
+    </>
+  );
+
+  if (isList) return list;
+
+  return (
+    <section className="rounded-xl border border-zinc-200 bg-white p-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-bold text-zinc-900">{title}</h2>
+        {ownerUserId ? (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setCreateOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-400"
+          >
+            <Plus size={14} />
+            Добавить платёж
+          </button>
+        ) : null}
+      </div>
+      {list}
     </section>
   );
 }

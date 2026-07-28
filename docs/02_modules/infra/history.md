@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-07-28 (geo reverse city):** Shared `geoCity.ts` + Nominatim reverse prefer settlement names; reject district labels. Used by onboarding geo persist and admin city repair.
+
 - **2026-07-27 (email suppressions sync cron):** `sync_email_suppressions_daily` (`20 5 * * *` → `invoke_sync_email_suppressions` → Vercel `/api/cron/email-suppressions-sync`). Миграция `20260727180000`.
 
 - **2026-07-25 (email automations cron):** В реестр `ensure_harmonizer_cron_jobs` добавлен `run_email_automations_hourly` (`40 * * * *` → `invoke_run_email_automations` → Vercel). Миграция `20260725020000`.

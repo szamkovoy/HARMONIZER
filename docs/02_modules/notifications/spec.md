@@ -55,9 +55,10 @@ code_refs:
 
 **Админка (гейт `requireAdmin`):**
 
-- `GET/POST /api/admin/notifications`, `GET …/[id]` (detail + `title_i18n`/`body_i18n`), `DELETE|POST …/[id]` (удаление; UI шлёт POST `{action:"delete"}`).
-- UI detail `/admin/notifications/[id]`: заголовок «Уведомления», KPI, вкладки RU…NL с зелёной точкой если есть copy на языке (как у рассылок).
-- POST: сегмент → фильтр eligible по exact copy → row + i18n → deliveries только eligible → Expo через `resolveExactNotificationCopy` + `truncatePushBody` + data `{notificationId,title,body,url}` + `sound`/`priority`/`interruptionLevel` + Android `channelId: harmonizer_remote`. Ответ: `skipped_no_locale_copy`. Если eligible=0 → 400. Expo fetch: `Connection: close`, timeout, полный consume body. UI: статус «Отправлено…» сбрасывается при правке черновика; зелёная точка = есть заголовок на языке.
+- `GET /api/admin/notifications?page=&limit=50&user_id=` — список (`created_at desc`, pagination); filter по delivery `user_id`.
+- `POST /api/admin/notifications` `{draft:true,…}` — черновик (`sent_at=null`); без `draft` — create+send сразу (точечный push с карточки пользователя).
+- `GET/PATCH …/[id]` — detail / правка черновика; `POST …/[id]` `{action:"send"|"delete"}` (DELETE тоже удаляет). Send: `sendNotification.ts` — сегмент → exact copy → deliveries → Expo (`truncatePushBody`, data `{notificationId,title,body,url}`, Android `channelId: harmonizer_remote`). Ответ: `skipped_no_locale_copy`. eligible=0 → 400. Уже отправленные — 409 на send/PATCH.
+- UI list-first как рассылки: `/admin/notifications` + «Новое»; редактор `/admin/notifications/[id]` (черновик: locale strip + Сохранить/Отправить; после send — KPI read-only).
 
 ## 3. Данные
 

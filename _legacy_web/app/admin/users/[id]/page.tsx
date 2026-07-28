@@ -25,8 +25,25 @@ type AdminUserCard = {
   last_seen_at: string | null;
   country_code: string | null;
   city: string | null;
+  lat?: number | null;
+  lon?: number | null;
   skip_email_automations?: boolean;
 };
+
+type ContactInfo = {
+  id: string;
+  email: string;
+  marketing_status: string;
+} | null;
+
+type SubscriptionInfo = {
+  contract_id: string;
+  tier: string;
+  currency: string;
+  amount: number | null;
+  status: string;
+  current_period_end: string | null;
+} | null;
 
 type EmailHist = {
   kind: string;
@@ -48,6 +65,13 @@ type NotifHist = {
 type CampaignOpt = { id: string; name: string; subject: string; status: string };
 type AutomationOpt = { id: string; name: string; is_active: boolean };
 
+const MARKETING_STATUS_RU: Record<string, string> = {
+  active: "Получает письма",
+  unsubscribed: "Отписался",
+  suppressed: "Не доставляется",
+  complained: "Пометил как спам",
+};
+
 function formatLocation(user: AdminUserCard): string {
   const country = user.country_code ? countryNameRu(user.country_code) : null;
   const city = user.city?.trim() || null;
@@ -57,13 +81,42 @@ function formatLocation(user: AdminUserCard): string {
   return "—";
 }
 
+/** Plain Maps URL — no Google Maps API key / billing on profile load. */
+function mapsUrl(user: AdminUserCard): string | null {
+  const lat = typeof user.lat === "number" ? user.lat : Number(user.lat);
+  const lon = typeof user.lon === "number" ? user.lon : Number(user.lon);
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+  }
+  const label = formatLocation(user);
+  if (!label || label === "—") return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`;
+}
+
+function formatMoney(amount: number | null, currency: string): string {
+  if (amount == null || Number.isNaN(amount)) return "—";
+  try {
+    return new Intl.NumberFormat("ru-RU", {
+      style: "currency",
+      currency: currency || "RUB",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+}
+
 export default function AdminUserCardPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [user, setUser] = useState<AdminUserCard | null>(null);
+  const [contact, setContact] = useState<ContactInfo>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo>(null);
   const [payments, setPayments] = useState<AdminPaymentRow[]>([]);
   const [emailHistory, setEmailHistory] = useState<EmailHist[]>([]);
+  const [emailHistoryTotal, setEmailHistoryTotal] = useState(0);
   const [notifications, setNotifications] = useState<NotifHist[]>([]);
+  const [notificationsTotal, setNotificationsTotal] = useState(0);
   const [campaigns, setCampaigns] = useState<CampaignOpt[]>([]);
   const [automations, setAutomations] = useState<AutomationOpt[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -81,13 +134,23 @@ export default function AdminUserCardPage() {
       const data = await adminFetch<{
         user: AdminUserCard;
         payments: AdminPaymentRow[];
+        contact?: ContactInfo;
+        subscription?: SubscriptionInfo;
         email_history?: EmailHist[];
+        email_history_total?: number;
         notifications?: NotifHist[];
+        notifications_total?: number;
       }>(`/api/admin/users/${params.id}`);
       setUser(data.user);
+      setContact(data.contact ?? null);
+      setSubscription(data.subscription ?? null);
       setPayments(data.payments);
       setEmailHistory(data.email_history ?? []);
+      setEmailHistoryTotal(data.email_history_total ?? data.email_history?.length ?? 0);
       setNotifications(data.notifications ?? []);
+      setNotificationsTotal(
+        data.notifications_total ?? data.notifications?.length ?? 0,
+      );
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить пользователя");
@@ -155,6 +218,35 @@ export default function AdminUserCardPage() {
     }
   }
 
+  async function cancelSubscription() {
+    if (!user || !subscription) return;
+    if (
+      !window.confirm(
+        "Отменить автопродление? Доступ по тарифу останется до конца оплаченного периода.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setInfo(null);
+    try {
+      const res = await adminFetch<{ cancelled: boolean; accessUntil: string | null }>(
+        `/api/admin/users/${user.id}/subscription`,
+        { method: "DELETE" },
+      );
+      setInfo(
+        res.accessUntil
+          ? `Оплата отменена. Доступ до ${formatAdminDateTime(res.accessUntil)}`
+          : "Оплата отменена",
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отменить оплату");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function launchChain() {
     if (!user || !automationId) return;
     const chainName =
@@ -182,11 +274,7 @@ export default function AdminUserCardPage() {
     if (!user || !campaignId) return;
     const camp = campaigns.find((c) => c.id === campaignId);
     const label = camp?.name || camp?.subject || "рассылку";
-    if (
-      !window.confirm(
-        `Отправить письмо «${label}» на ${user.email}?`,
-      )
-    ) {
+    if (!window.confirm(`Отправить письмо «${label}» на ${user.email}?`)) {
       return;
     }
     setBusy(true);
@@ -263,6 +351,10 @@ export default function AdminUserCardPage() {
     );
   }
 
+  const marketingLabel = contact?.marketing_status
+    ? (MARKETING_STATUS_RU[contact.marketing_status] ?? contact.marketing_status)
+    : "—";
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <BackLink />
@@ -275,31 +367,20 @@ export default function AdminUserCardPage() {
       ) : null}
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-bold text-zinc-900">
-            {user.display_name?.trim() || "Без имени"}
-          </h1>
-          <TierBadge tier={user.membership_tier} />
-        </div>
+        <h2 className="text-sm font-semibold text-zinc-800">Общее</h2>
+        <h1 className="mt-2 text-lg font-bold text-zinc-900">
+          {user.display_name?.trim() || "Без имени"}
+        </h1>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
           <InfoRow label="Email" value={user.email} />
+          <InfoRow
+            label="Местонахождение"
+            value={formatLocation(user)}
+            href={mapsUrl(user)}
+          />
           <InfoRow label="Язык" value={user.locale ?? "—"} />
-          <InfoRow label="Местонахождение" value={formatLocation(user)} />
           <InfoRow label="Регистрация" value={formatAdminDate(user.created_at)} />
-          <InfoRow label="Заполнил профиль" value={formatAdminDate(user.onboarded_at)} />
-          <InfoRow
-            label="Тариф до"
-            value={
-              user.membership_expires_at
-                ? formatAdminDateTime(user.membership_expires_at)
-                : "бессрочно"
-            }
-          />
-          <InfoRow
-            label="Последняя активность"
-            value={formatAdminDateTime(user.last_activity_at)}
-          />
-          <InfoRow label="Last seen" value={formatAdminDateTime(user.last_seen_at)} />
+          <InfoRow label="Статус писем" value={marketingLabel} />
           <InfoRow label="ID" value={user.id} mono />
         </dl>
 
@@ -325,8 +406,59 @@ export default function AdminUserCardPage() {
         </div>
       </section>
 
+      <section className="rounded-xl border border-zinc-200 bg-white p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold text-zinc-800">Гармонизатор</h2>
+          <TierBadge tier={user.membership_tier} />
+        </div>
+        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+          <InfoRow
+            label="Регистрация в Гарм"
+            value={formatAdminDate(user.onboarded_at)}
+          />
+          <InfoRow
+            label="Последняя активность"
+            value={formatAdminDateTime(
+              user.last_activity_at || user.last_seen_at,
+            )}
+          />
+          <InfoRow
+            label="Тариф до"
+            value={
+              user.membership_expires_at
+                ? formatAdminDateTime(user.membership_expires_at)
+                : "бессрочно"
+            }
+          />
+          {subscription ? (
+            <>
+              <InfoRow
+                label="След. списание"
+                value={
+                  subscription.current_period_end
+                    ? `${formatMoney(subscription.amount, subscription.currency)} · ${formatAdminDateTime(subscription.current_period_end)}`
+                    : formatMoney(subscription.amount, subscription.currency)
+                }
+              />
+            </>
+          ) : null}
+        </dl>
+        {subscription ? (
+          <div className="mt-4">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void cancelSubscription()}
+              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            >
+              Отменить оплату
+            </button>
+          </div>
+        ) : null}
+      </section>
+
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-zinc-800">Цепочка писем</h2>
+        <h2 className="text-sm font-semibold text-zinc-800">Автоцепочка</h2>
         <div className="flex flex-wrap items-end gap-2">
           <label className="min-w-[200px] flex-1 text-xs text-zinc-500">
             Запустить цепочку
@@ -347,7 +479,7 @@ export default function AdminUserCardPage() {
             type="button"
             disabled={busy || !automationId}
             onClick={() => void launchChain()}
-            className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
           >
             <Send size={14} /> Запустить
           </button>
@@ -355,7 +487,17 @@ export default function AdminUserCardPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-zinc-800">Письма</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-800">Письма</h2>
+          {emailHistoryTotal > 10 ? (
+            <Link
+              href={`/admin/email?user_id=${user.id}`}
+              className="text-xs font-medium text-emerald-700 hover:underline"
+            >
+              Все рассылки ({emailHistoryTotal})
+            </Link>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="min-w-[200px] flex-1 text-xs text-zinc-500">
             Отправить письмо (10 недавних рассылок)
@@ -423,7 +565,17 @@ export default function AdminUserCardPage() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-zinc-800">Уведомления</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-800">Уведомления</h2>
+          {notificationsTotal > 10 ? (
+            <Link
+              href={`/admin/notifications?user_id=${user.id}`}
+              className="text-xs font-medium text-emerald-700 hover:underline"
+            >
+              Все уведомления ({notificationsTotal})
+            </Link>
+          ) : null}
+        </div>
         <div className="space-y-2">
           <label className="block text-xs text-zinc-500">
             Заголовок
@@ -505,11 +657,34 @@ function BackLink() {
   );
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function InfoRow({
+  label,
+  value,
+  mono,
+  href,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  href?: string | null;
+}) {
   return (
     <div className="flex justify-between gap-3 sm:block">
       <dt className="text-zinc-500">{label}</dt>
-      <dd className={`text-zinc-800 ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</dd>
+      <dd className={`text-zinc-800 ${mono ? "break-all font-mono text-xs" : ""}`}>
+        {href && value !== "—" ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="text-emerald-700 underline-offset-2 hover:underline"
+          >
+            {value}
+          </a>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   );
 }

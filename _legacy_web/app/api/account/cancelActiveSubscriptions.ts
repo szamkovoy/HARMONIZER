@@ -2,8 +2,13 @@
  * Отмена всех активных recurring-подписок пользователя во всех платёжных
  * провайдерах перед удалением аккаунта (и переиспользуемо для других сценариев).
  *
- * Провайдеры: `lavatop` (Lava DELETE), `yookassa` (DB-only до включения
- * рекуррента — автосписаний нет, API отмены метода не вызываем).
+ * Обязательная точка расширения: каждый новый шлюз — новый `case` в
+ * `cancelProviderSubscription`. Unknown provider → throw (fail-closed).
+ *
+ * Провайдеры:
+ * - `lavatop` — Lava DELETE /api/v1/subscriptions
+ * - `yookassa` — пока DB-only (нет автосписаний); при YOOKASSA_RECURRING_ENABLED
+ *   здесь ОБЯЗАТЕЛЬНО отозвать saved payment_method / отменить подписку у API
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,8 +33,10 @@ export async function cancelProviderSubscription(params: {
       await cancelLavaSubscription({ contractId: params.contractId, email: params.email });
       return;
     case "yookassa":
-      // Первый релиз: подписка = 30-дневный grant без автосписания.
-      // Когда YOOKASSA_RECURRING_ENABLED + payment_method_id — здесь отзовём метод.
+      // Сейчас: 30-дневный grant без автосписания → gateway cancel не нужен.
+      // TODO(YOOKASSA_RECURRING): при включении рекуррента — отозвать
+      // payment_method_id / отменить подписку в ЮKassa API до return.
+      // Иначе wipeUserAccount пометит cancelled в БД, а списания продолжатся.
       return;
     default:
       // Не молчим: иначе пользователь потеряет аккаунт, а списания продолжатся.
