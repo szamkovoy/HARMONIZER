@@ -19,6 +19,7 @@ import {
   emailListSubjectSubtitle,
   emailListTitle,
 } from "../../api/_utils/emailNaming";
+import { ADMIN_LIST_STACK } from "../_components/AdminListCard";
 import { EmailListRow } from "./_components/EmailListRow";
 
 type CampaignRow = {
@@ -56,6 +57,7 @@ function EmailCampaignsList() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -95,7 +97,7 @@ function EmailCampaignsList() {
             name: "Новая рассылка",
             subject: "",
             html_body: "",
-            segment_query: { all_installed: true },
+            segment_query: { all_contacts: true },
           }),
         },
       );
@@ -103,6 +105,20 @@ function EmailCampaignsList() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось создать");
       setCreating(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Удалить эту рассылку?")) return;
+    setDeletingId(id);
+    setError(null);
+    try {
+      await adminFetch(`/api/admin/email/campaigns/${id}`, { method: "DELETE" });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -168,7 +184,7 @@ function EmailCampaignsList() {
         </div>
       ) : (
         <>
-          <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-200 bg-white">
+          <ul className={ADMIN_LIST_STACK}>
             {campaigns.map((c) => {
               const showStats = c.status === "sent" || c.status === "sending";
               return (
@@ -199,6 +215,8 @@ function EmailCampaignsList() {
                         }
                       : undefined
                   }
+                  onDelete={() => void handleDelete(c.id)}
+                  deleting={deletingId === c.id}
                 />
               );
             })}

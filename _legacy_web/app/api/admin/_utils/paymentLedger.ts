@@ -61,19 +61,30 @@ export async function loadAdminPaymentLedger(
   if (grantsRes.error) throw grantsRes.error;
   if (contractsRes.error) throw contractsRes.error;
 
-  const userIds = [
+  // Prefer buyer_email on the row — Auth Admin getUserById is slow and can 504.
+  // Only resolve missing emails via Auth (typically rare).
+  const needAuthEmail = [
     ...new Set(
       [...(grantsRes.data ?? []), ...(contractsRes.data ?? [])]
-        .map((r) => r.user_id as string | null)
-        .filter((id): id is string => Boolean(id)),
+        .filter((r) => {
+          const buyer = typeof r.buyer_email === "string" ? r.buyer_email.trim() : "";
+          return !buyer && Boolean(r.user_id);
+        })
+        .map((r) => r.user_id as string),
     ),
   ];
-  const emails = await emailsByUserId(db, userIds);
+  const emails =
+    needAuthEmail.length > 0
+      ? await emailsByUserId(db, needAuthEmail)
+      : new Map<string, string>();
 
   const grantRows: AdminLedgerRow[] = (grantsRes.data ?? []).map((p) => {
     const user = p.users as { display_name?: string | null } | null;
+    const buyer = typeof p.buyer_email === "string" ? p.buyer_email.trim() : "";
     const email =
-      (p.user_id ? emails.get(p.user_id as string) : null) || (p.buyer_email as string) || "—";
+      buyer ||
+      (p.user_id ? emails.get(p.user_id as string) : null) ||
+      "—";
     return {
       id: p.id as string,
       kind: "grant",
@@ -96,8 +107,11 @@ export async function loadAdminPaymentLedger(
   const gatewayRows: AdminLedgerRow[] = (contractsRes.data ?? []).map((c) => {
     const user = c.users as { display_name?: string | null } | null;
     const provider = normalizeGatewayProvider(c.provider as string | null);
+    const buyer = typeof c.buyer_email === "string" ? c.buyer_email.trim() : "";
     const email =
-      (c.user_id ? emails.get(c.user_id as string) : null) || (c.buyer_email as string) || "—";
+      buyer ||
+      (c.user_id ? emails.get(c.user_id as string) : null) ||
+      "—";
     return {
       id: `gw:${c.contract_id}`,
       kind: "gateway",

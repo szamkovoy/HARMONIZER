@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, MessageSquare, Plus } from "lucide-react";
+import { Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
 
 import { pickAdminPostDisplay } from "./_lib/adminPostDisplayTitle";
 import { adminFetch } from "../_lib/adminApi";
@@ -36,6 +36,7 @@ export default function AdminPostsPage() {
   const [nextCursor, setNextCursor] = useState<FeedCursor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const nextCursorRef = useRef<FeedCursor | null>(null);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -68,6 +69,20 @@ export default function AdminPostsPage() {
   useEffect(() => {
     loadFirst();
   }, [loadFirst]);
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Удалить это видео?")) return;
+    setDeletingId(id);
+    setError(null);
+    try {
+      await adminFetch(`/api/admin/posts/${id}`, { method: "DELETE" });
+      setPosts((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const loadMore = useCallback(async () => {
     const cursor = nextCursorRef.current;
@@ -145,51 +160,70 @@ export default function AdminPostsPage() {
         {posts?.map((post) => {
           const display = pickAdminPostDisplay(post);
           return (
-            <Link
+            <div
               key={post.id}
-              href={`/admin/posts/${post.id}?tab=${display.locale}`}
-              className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 transition-colors hover:border-emerald-400/30"
+              className="flex items-stretch gap-1 rounded-2xl border border-zinc-200 bg-white p-3 transition-colors hover:border-emerald-400/30"
             >
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-200">
-                {display.coverUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={display.coverUrl} alt="" className="h-full w-full object-contain" />
-                ) : null}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-zinc-900">{display.title}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                  <span
-                    className={`rounded-full px-2 py-0.5 ${
-                      post.is_published ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-400"
-                    }`}
-                  >
-                    {post.is_published ? "Опубликовано" : "Черновик"}
-                  </span>
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 uppercase text-zinc-400">
-                    {display.locale}
-                  </span>
-                  <span className="text-zinc-500">
-                    {formatAdminDateTime(post.published_at ?? post.created_at)}
-                  </span>
-                  <span className="flex items-center gap-1 text-zinc-500">
-                    <MessageSquare size={12} /> {post.comment_count}
-                  </span>
-                  {hasPostTranslations(post) ? (
-                    <span
-                      className="rounded-full bg-sky-400/10 px-2 py-0.5 text-sky-300"
-                      title={
-                        post.translations_updated_at
-                          ? `Переведено ${formatAdminDateTime(post.translations_updated_at)}`
-                          : "Есть переводы на другие языки"
-                      }
-                    >
-                      🌐
-                    </span>
+              <Link
+                href={`/admin/posts/${post.id}?tab=${display.locale}`}
+                className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
+              >
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-200">
+                  {display.coverUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={display.coverUrl} alt="" className="h-full w-full object-contain" />
                   ) : null}
                 </div>
-              </div>
-            </Link>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-zinc-900">{display.title}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                    <span
+                      className={`rounded-full px-2 py-0.5 ${
+                        post.is_published
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-zinc-100 text-zinc-400"
+                      }`}
+                    >
+                      {post.is_published ? "Опубликовано" : "Черновик"}
+                    </span>
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 uppercase text-zinc-400">
+                      {display.locale}
+                    </span>
+                    <span className="text-zinc-500">
+                      {formatAdminDateTime(post.published_at ?? post.created_at)}
+                    </span>
+                    <span className="flex items-center gap-1 text-zinc-500">
+                      <MessageSquare size={12} /> {post.comment_count}
+                    </span>
+                    {hasPostTranslations(post) ? (
+                      <span
+                        className="rounded-full bg-sky-400/10 px-2 py-0.5 text-sky-300"
+                        title={
+                          post.translations_updated_at
+                            ? `Переведено ${formatAdminDateTime(post.translations_updated_at)}`
+                            : "Есть переводы на другие языки"
+                        }
+                      >
+                        🌐
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </Link>
+              <button
+                type="button"
+                title="Удалить"
+                disabled={deletingId === post.id}
+                onClick={() => void handleDelete(post.id)}
+                className="shrink-0 self-center p-2 text-zinc-400 hover:text-rose-500 disabled:opacity-50"
+              >
+                {deletingId === post.id ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+              </button>
+            </div>
           );
         })}
       </div>

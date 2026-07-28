@@ -87,6 +87,18 @@ export async function prepareTrackedMarketingEmailHtml(
   return injectFirstPartyEmailTracking(wrapped, opts.trackId);
 }
 
+/**
+ * Point email-assets images at our edge proxy (long Cache-Control).
+ * Direct Supabase public URLs often serve Cache-Control: no-cache.
+ */
+export function rewriteEmailAssetUrlsForCache(html: string, publicBase: string): string {
+  const base = publicBase.replace(/\/$/, "");
+  return html.replace(
+    /https:\/\/[a-z0-9]+\.supabase\.co\/storage\/v1\/object\/public\/email-assets\/[^"'\\\s>]+/gi,
+    (url) => `${base}/api/email/asset?u=${encodeURIComponent(url)}`,
+  );
+}
+
 /** Inject open pixel + wrap http(s) links. Call before Resend send. */
 export function injectFirstPartyEmailTracking(
   html: string,
@@ -97,7 +109,9 @@ export function injectFirstPartyEmailTracking(
   const pixelUrl = `${base}/api/email/track/open?t=${t}`;
   const pixel = `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;max-height:1px;overflow:hidden;" />`;
 
-  let out = html.replace(
+  let out = rewriteEmailAssetUrlsForCache(html, base);
+
+  out = out.replace(
     /href=("|')(https?:\/\/[^"']+)\1/gi,
     (full, quote: string, url: string) => {
       if (isSkippableHref(url)) return full;

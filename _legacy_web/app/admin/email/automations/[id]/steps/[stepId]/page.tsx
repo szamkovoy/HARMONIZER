@@ -106,7 +106,7 @@ export default function AdminEmailAutomationStepPage() {
     void load();
   }, [load]);
 
-  async function saveMeta() {
+  async function saveMeta(): Promise<boolean> {
     setSaving(true);
     setInfo(null);
     try {
@@ -124,11 +124,21 @@ export default function AdminEmailAutomationStepPage() {
       setName((row.name ?? "").trim());
       setDelayHours(row.delay_hours);
       setInfo("Сохранено");
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка сохранения");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Dirty title → confirm + save before opening the block editor. */
+  async function confirmNameBeforeEdit(): Promise<boolean> {
+    const saved = (step?.name ?? "").trim();
+    if (name.trim() === saved) return true;
+    if (!confirm("Новое название будет сохранено")) return false;
+    return saveMeta();
   }
 
   async function saveLocaleContent(
@@ -364,6 +374,7 @@ export default function AdminEmailAutomationStepPage() {
         onSendTest={sendTest}
         sending={sending}
         showSendBlock
+        onBeforeOpenEditor={confirmNameBeforeEdit}
         afterPreview={
           <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
             <h2 className="text-sm font-semibold text-zinc-800">Задержка</h2>

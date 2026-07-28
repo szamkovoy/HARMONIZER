@@ -13,6 +13,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-28 (edit confirms dirty name):** «Редактировать» на рассылке/шаге цепочки: при несохранённом названии — confirm «Новое название будет сохранено», затем save и открытие редактора.
+
+- **2026-07-28 (all_contacts + track after):** Чип «Вся база» (`all_contacts`); «Все установившие» = linked `user_id`. `email_contains` без чипов → вся база. Click/open: redirect/pixel сразу, DB в `after()`. Картинки писем через `/api/email/asset` (Supabase public часто `no-cache`). Убран текст под превью.
+
+- **2026-07-28 (segment count = send):** Счётчик сегмента и confirm отправки — один алгоритм (`resolveCampaignRecipients`); без «примерно». Hint при skipped_locale / no_audience.
+
 - **2026-07-28 (locale exact mid-chain):** Подтверждено: кампании/цепочки без locale-fallback. Harden: sync + `users.locale` перед due-step; skip без перевода → `status=skipped` + advance (цепочка не стопорится).
 
 - **2026-07-28 (letter links + compact KPI):** История на карточке → страница шага цепочки (`…/steps/[stepId]`). `EmailDeliveryStats` компактный как deliverability (без подписей; «Недоставлено»; без «Ошибки»).

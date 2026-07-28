@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { Bell, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 
+import { AdminListCard, ADMIN_LIST_STACK } from "../_components/AdminListCard";
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
 
@@ -155,48 +156,30 @@ function NotificationsList() {
         </div>
       ) : (
         <>
-          <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-200 bg-white">
+          <div className={ADMIN_LIST_STACK}>
             {rows.map((item) => {
               const isDraft = !item.sent_at;
               return (
-                <li key={item.id} className="flex items-stretch gap-2 px-3 py-3">
-                  <Link
-                    href={`/admin/notifications/${item.id}`}
-                    className="min-w-0 flex-1 hover:opacity-90"
-                  >
-                    <div className="truncate text-sm font-semibold text-zinc-900">
-                      {item.title.trim() || "Без заголовка"}
-                    </div>
-                    <div className="mt-0.5 text-xs text-zinc-500">
-                      {[
-                        isDraft ? "Черновик" : "Отправлено",
-                        item.segment_label,
-                        formatAdminDateTime(item.sent_at || item.created_at),
-                        !isDraft
-                          ? `получателей ${item.recipient_count} · push ${item.push_sent_count}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </div>
-                  </Link>
-                  <button
-                    type="button"
-                    disabled={deletingId === item.id}
-                    onClick={() => void handleDelete(item.id)}
-                    className="shrink-0 self-center p-2 text-zinc-400 hover:text-rose-500 disabled:opacity-50"
-                    title="Удалить"
-                  >
-                    {deletingId === item.id ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                  </button>
-                </li>
+                <AdminListCard
+                  key={item.id}
+                  href={`/admin/notifications/${item.id}`}
+                  title={item.title.trim() || "Без заголовка"}
+                  subtitle={[
+                    isDraft ? "Черновик" : "Отправлено",
+                    item.segment_label,
+                    formatAdminDateTime(item.sent_at || item.created_at),
+                    !isDraft
+                      ? `получателей ${item.recipient_count} · push ${item.push_sent_count}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  onDelete={() => void handleDelete(item.id)}
+                  deleting={deletingId === item.id}
+                />
               );
             })}
-          </ul>
+          </div>
 
           {totalPages > 1 ? (
             <div className="flex items-center justify-between text-sm text-zinc-600">

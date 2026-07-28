@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   injectFirstPartyEmailTracking,
   parseEmailTrackToken,
+  rewriteEmailAssetUrlsForCache,
   safeClickRedirectUrl,
   signEmailTrackToken,
 } from "./emailFirstPartyTracking";
@@ -21,6 +22,17 @@ describe("injectFirstPartyEmailTracking", () => {
     expect(out).not.toMatch(
       /track\/click[^"]*unsubscribe/i,
     );
+  });
+
+  it("rewrites supabase email-assets through cacheable proxy", () => {
+    const src =
+      "https://vsdmphhczmcgfrvbwodp.supabase.co/storage/v1/object/public/email-assets/campaigns/x.png";
+    const out = rewriteEmailAssetUrlsForCache(
+      `<img src="${src}" />`,
+      "https://harmonizer-ten.vercel.app",
+    );
+    expect(out).toContain("/api/email/asset?u=");
+    expect(out).toContain(encodeURIComponent(src));
   });
 });
 

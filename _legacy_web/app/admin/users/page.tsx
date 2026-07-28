@@ -316,12 +316,12 @@ function UsersList() {
       ) : null}
       {users?.length === 0 ? <p className="text-sm text-zinc-500">Никого не нашлось.</p> : null}
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-3">
         {users?.map((user) => (
           <Link
             key={user.id}
             href={`/admin/users/${user.id}`}
-            className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 transition-colors hover:border-zinc-300"
+            className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 transition-colors hover:border-emerald-400/30"
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">

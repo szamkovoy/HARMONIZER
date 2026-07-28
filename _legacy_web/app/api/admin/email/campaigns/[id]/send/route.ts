@@ -2,7 +2,7 @@ import { parseStringRecord } from "../../../../../_utils/contentLocaleFallback";
 import { resolveExactEmailCopy } from "../../../../../_utils/emailCopy";
 import {
   parseEmailSegmentQuery,
-  resolveEmailSegment,
+  resolveCampaignRecipients,
 } from "../../../../../_utils/emailSegment";
 import {
   newEmailTrackId,
@@ -133,28 +133,26 @@ export async function POST(req: Request, ctx: Ctx) {
     await db.rpc("sync_email_contacts_from_users");
 
     const segment = parseEmailSegmentQuery(campaign.segment_query);
-    const { contacts } = await resolveEmailSegment(db, segment);
+    const { eligible, skippedLocaleCount: skippedLocale, no_audience } =
+      await resolveCampaignRecipients(db, segment, copySource);
 
-    const eligible: {
-      contact: (typeof contacts)[0];
-      locale: string;
-      subject: string;
-      htmlBody: string;
-    }[] = [];
-    let skippedLocale = 0;
-
-    for (const contact of contacts) {
-      const exact = resolveExactEmailCopy(contact.locale, copySource);
-      if (!exact) {
-        skippedLocale += 1;
-        continue;
-      }
-      eligible.push({
-        contact,
-        locale: exact.locale,
-        subject: exact.subject,
-        htmlBody: exact.htmlBody,
-      });
+    if (no_audience) {
+      await db
+        .from("email_campaigns")
+        .update({
+          status: "failed",
+          skipped_locale_count: 0,
+          recipient_count: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      return json(
+        {
+          error:
+            "Сегмент без аудитории: выберите чип («Вся база» / тариф / «Все установившие») или укажите фрагмент email.",
+        },
+        { status: 400 },
+      );
     }
 
     if (eligible.length === 0) {
@@ -170,7 +168,9 @@ export async function POST(req: Request, ctx: Ctx) {
       return json(
         {
           error:
-            "Нет получателей с переводом на язык контакта. Заполните вкладки или смените сегмент.",
+            skippedLocale > 0
+              ? "Нет получателей с переводом на язык контакта. Заполните вкладки или смените сегмент."
+              : "В сегменте никого нет — проверьте фильтры.",
           skipped_locale_count: skippedLocale,
         },
         { status: 400 },

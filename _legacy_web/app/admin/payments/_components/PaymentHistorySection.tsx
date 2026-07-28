@@ -117,13 +117,13 @@ export function PaymentHistorySection({
 
   const isList = variant === "list";
   const rowClass = isList
-    ? "rounded-xl border border-zinc-200 bg-white p-3 text-sm"
+    ? "rounded-2xl border border-zinc-200 bg-white p-3 text-sm transition-colors hover:border-emerald-400/30"
     : "rounded-lg border border-zinc-100 bg-zinc-50 p-2.5 text-sm";
 
   const list = (
     <>
       {payments.length === 0 ? <p className="text-sm text-zinc-500">Платежей пока нет.</p> : null}
-      <div className="flex flex-col gap-1.5">
+      <div className={isList ? "flex flex-col gap-3" : "flex flex-col gap-1.5"}>
         {payments.map((payment) => {
           const editable = isEditable(payment);
           const name = payment.display_name ?? "Без имени";

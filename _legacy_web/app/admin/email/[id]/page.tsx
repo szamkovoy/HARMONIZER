@@ -57,6 +57,9 @@ type Campaign = {
 };
 
 type SegmentState = {
+  /** Entire email_contacts base (incl. non-installers). */
+  all_contacts: boolean;
+  /** App accounts only (OTP confirmed → linked user_id). */
   all_installed: boolean;
   include_demo: boolean;
   membership_tiers: Array<"free" | "oracle" | "master">;
@@ -70,7 +73,8 @@ type SegmentState = {
 };
 
 const DEFAULT_SEGMENT: SegmentState = {
-  all_installed: true,
+  all_contacts: true,
+  all_installed: false,
   include_demo: false,
   membership_tiers: [],
   last_seen_within_days: "",
@@ -120,11 +124,15 @@ function segmentToQuery(s: SegmentState): Record<string, unknown> {
     ...(onbBefore ? { onboarded_on_or_before: onbBefore } : {}),
     ...(email ? { email_contains: email } : {}),
   };
+  if (s.all_contacts) {
+    return { ...base, all_contacts: true };
+  }
   if (s.all_installed) {
     return { ...base, all_installed: true };
   }
   return {
     ...base,
+    all_contacts: false,
     all_installed: false,
     include_demo: s.include_demo,
     membership_tiers: s.membership_tiers,
@@ -134,9 +142,10 @@ function segmentToQuery(s: SegmentState): Record<string, unknown> {
 function queryToSegment(raw: Record<string, unknown> | null | undefined): SegmentState {
   const s = { ...DEFAULT_SEGMENT };
   if (!raw) return s;
-  s.all_installed = raw.all_installed === true;
-  s.include_demo = raw.include_demo === true && !s.all_installed;
-  if (Array.isArray(raw.membership_tiers) && !s.all_installed) {
+  s.all_contacts = raw.all_contacts === true;
+  s.all_installed = raw.all_installed === true && !s.all_contacts;
+  s.include_demo = raw.include_demo === true && !s.all_installed && !s.all_contacts;
+  if (Array.isArray(raw.membership_tiers) && !s.all_installed && !s.all_contacts) {
     s.membership_tiers = raw.membership_tiers.filter(
       (v): v is "free" | "oracle" | "master" =>
         v === "free" || v === "oracle" || v === "master",
@@ -162,12 +171,19 @@ function queryToSegment(raw: Record<string, unknown> | null | undefined): Segmen
   }
   if (typeof raw.email_contains === "string") s.email_contains = raw.email_contains;
   if (
+    !s.all_contacts &&
     !s.all_installed &&
     !s.include_demo &&
-    s.membership_tiers.length === 0 &&
-    (raw.linked_only === true || Object.keys(raw).length === 0)
+    s.membership_tiers.length === 0
   ) {
-    s.all_installed = true;
+    // Legacy: email-only → whole base; empty → all contacts default.
+    if (typeof raw.email_contains === "string" && raw.email_contains.trim()) {
+      s.all_contacts = true;
+    } else if (raw.linked_only === true) {
+      s.all_installed = true;
+    } else if (Object.keys(raw).length === 0) {
+      s.all_contacts = true;
+    }
   }
   return s;
 }
@@ -188,6 +204,8 @@ export default function AdminEmailCampaignPage() {
   const [blocksI18n, setBlocksI18n] = useState<BlocksByLocale>({});
   const [segment, setSegment] = useState<SegmentState>(DEFAULT_SEGMENT);
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
+  const [skippedLocaleCount, setSkippedLocaleCount] = useState(0);
+  const [segmentHint, setSegmentHint] = useState<string | null>(null);
   const [counting, setCounting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -224,23 +242,48 @@ export default function AdminEmailCampaignPage() {
     void load();
   }, [load]);
 
-  async function refreshCount() {
+  async function refreshCount(): Promise<number | null> {
     setCounting(true);
+    setSegmentHint(null);
     try {
-      const { count } = await adminFetch<{ count: number }>("/api/admin/email/segment", {
+      const result = await adminFetch<{
+        count: number;
+        segment_count?: number;
+        skipped_locale_count?: number;
+        no_audience?: boolean;
+      }>("/api/admin/email/segment", {
         method: "POST",
-        body: JSON.stringify({ query: segmentToQuery(segment) }),
+        body: JSON.stringify({
+          query: segmentToQuery(segment),
+          subject,
+          html_body: htmlBody,
+          subject_i18n: subjectI18n,
+          html_body_i18n: htmlI18n,
+        }),
       });
-      setRecipientCount(count);
+      setRecipientCount(result.count);
+      const skipped = result.skipped_locale_count ?? 0;
+      setSkippedLocaleCount(skipped);
+      if (result.no_audience) {
+        setSegmentHint(
+          "Выберите аудиторию («Вся база» / «Все установившие» / тариф) или укажите фрагмент email.",
+        );
+      } else if (skipped > 0) {
+        setSegmentHint(
+          `В сегменте ${result.segment_count ?? result.count + skipped}, из них ${skipped} без перевода на язык профиля — им письмо не уйдёт.`,
+        );
+      }
+      return result.count;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось посчитать сегмент");
+      return null;
     } finally {
       setCounting(false);
     }
   }
 
-  async function saveMeta() {
-    if (readOnly) return;
+  async function saveMeta(): Promise<boolean> {
+    if (readOnly) return false;
     setSaving(true);
     setInfo(null);
     try {
@@ -255,12 +298,23 @@ export default function AdminEmailCampaignPage() {
         },
       );
       setCampaign(row);
+      setName((row.name ?? "").trim() || name.trim());
       setInfo("Сохранено");
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка сохранения");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+
+  /** Dirty title → confirm + save before opening the block editor. */
+  async function confirmNameBeforeEdit(): Promise<boolean> {
+    const saved = (campaign?.name ?? "").trim();
+    if (name.trim() === saved) return true;
+    if (!confirm("Новое название будет сохранено")) return false;
+    return saveMeta();
   }
 
   async function saveLocaleContent(
@@ -350,15 +404,37 @@ export default function AdminEmailCampaignPage() {
   async function sendCampaign(e: FormEvent) {
     e.preventDefault();
     if (!campaign || readOnly) return;
-    if (recipientCount === null) {
-      setError("Сначала обновите число получателей (кнопка со стрелками)");
+    setError(null);
+    // Fresh count with the same algorithm as send (segment ∩ exact locale).
+    const exactCount = await refreshCount();
+    if (exactCount === null) return;
+    if (exactCount === 0) {
+      setError(
+        segmentHint ||
+          "Получателей нет — проверьте сегмент и переводы на языки профилей.",
+      );
       return;
     }
-    if (!confirm(`Отправить рассылку примерно ${recipientCount} получателям?`)) return;
+    if (!confirm(`Отправить рассылку ${exactCount} получателям?`)) return;
     setSending(true);
-    setError(null);
     try {
-      await saveMeta();
+      // Persist segment + copy so send uses the same content we just counted.
+      const { campaign: row } = await adminFetch<{ campaign: Campaign }>(
+        `/api/admin/email/campaigns/${id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: name.trim(),
+            segment_query: segmentToQuery(segment),
+            subject,
+            html_body: htmlBody,
+            subject_i18n: subjectI18n,
+            html_body_i18n: htmlI18n,
+            blocks_i18n: blocksI18n,
+          }),
+        },
+      );
+      setCampaign(row);
       const result = await adminFetch<{
         sent_count: number;
         skipped_locale_count: number;
@@ -422,9 +498,21 @@ export default function AdminEmailCampaignPage() {
     }
   }
 
+  function selectAllContacts() {
+    setSegment((p) => ({
+      ...p,
+      all_contacts: true,
+      all_installed: false,
+      include_demo: false,
+      membership_tiers: [],
+    }));
+    setRecipientCount(null);
+  }
+
   function selectAllInstalled() {
     setSegment((p) => ({
       ...p,
+      all_contacts: false,
       all_installed: true,
       include_demo: false,
       membership_tiers: [],
@@ -435,6 +523,7 @@ export default function AdminEmailCampaignPage() {
   function toggleDemo() {
     setSegment((p) => ({
       ...p,
+      all_contacts: false,
       all_installed: false,
       include_demo: !p.include_demo,
     }));
@@ -446,6 +535,7 @@ export default function AdminEmailCampaignPage() {
       const has = p.membership_tiers.includes(tier);
       return {
         ...p,
+        all_contacts: false,
         all_installed: false,
         membership_tiers: has
           ? p.membership_tiers.filter((t) => t !== tier)
@@ -556,28 +646,41 @@ export default function AdminEmailCampaignPage() {
         sending={sending}
         showSendBlock={!readOnly}
         onBulkSend={!readOnly ? sendCampaign : undefined}
+        onBeforeOpenEditor={readOnly ? undefined : confirmNameBeforeEdit}
         afterPreview={
           <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-zinc-800">Сегмент</h2>
-              <div className="flex items-center gap-2 text-sm text-emerald-700">
-                <span>
-                  Получателей:{" "}
-                  {recipientCount === null ? "— нажмите обновить" : recipientCount}
-                </span>
-                <button
-                  type="button"
-                  title="Обновить число получателей"
-                  onClick={() => void refreshCount()}
-                  disabled={counting || readOnly}
-                  className="rounded-lg border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-                >
-                  {counting ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <RefreshCw size={16} />
-                  )}
-                </button>
+              <div className="flex flex-col items-end gap-0.5 text-sm text-emerald-700">
+                <div className="flex items-center gap-2">
+                  <span>
+                    Получателей:{" "}
+                    {recipientCount === null ? "— нажмите обновить" : recipientCount}
+                  </span>
+                  <button
+                    type="button"
+                    title="Обновить число получателей (с учётом языков письма)"
+                    onClick={() => void refreshCount()}
+                    disabled={counting || readOnly}
+                    className="rounded-lg border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+                  >
+                    {counting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={16} />
+                    )}
+                  </button>
+                </div>
+                {segmentHint ? (
+                  <p className="max-w-md text-right text-[11px] font-normal text-zinc-500">
+                    {segmentHint}
+                  </p>
+                ) : null}
+                {recipientCount !== null && skippedLocaleCount === 0 && !segmentHint ? (
+                  <p className="text-[11px] font-normal text-zinc-400">
+                    Учтены языки письма и locale в профиле
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -585,31 +688,47 @@ export default function AdminEmailCampaignPage() {
               {(
                 [
                   {
+                    key: "base",
+                    label: "Вся база",
+                    on: segment.all_contacts,
+                  },
+                  {
                     key: "demo",
                     label: "Демо",
-                    on: segment.include_demo && !segment.all_installed,
+                    on:
+                      segment.include_demo &&
+                      !segment.all_installed &&
+                      !segment.all_contacts,
                   },
                   {
                     key: "free",
                     label: "Навигатор",
                     on:
-                      segment.membership_tiers.includes("free") && !segment.all_installed,
+                      segment.membership_tiers.includes("free") &&
+                      !segment.all_installed &&
+                      !segment.all_contacts,
                   },
                   {
                     key: "oracle",
                     label: "Наставник",
                     on:
                       segment.membership_tiers.includes("oracle") &&
-                      !segment.all_installed,
+                      !segment.all_installed &&
+                      !segment.all_contacts,
                   },
                   {
                     key: "master",
                     label: "Мастер",
                     on:
                       segment.membership_tiers.includes("master") &&
-                      !segment.all_installed,
+                      !segment.all_installed &&
+                      !segment.all_contacts,
                   },
-                  { key: "all", label: "Все установившие", on: segment.all_installed },
+                  {
+                    key: "all",
+                    label: "Все установившие",
+                    on: segment.all_installed,
+                  },
                 ] as const
               ).map((chip) => (
                 <button
@@ -617,7 +736,8 @@ export default function AdminEmailCampaignPage() {
                   type="button"
                   disabled={readOnly}
                   onClick={() => {
-                    if (chip.key === "all") selectAllInstalled();
+                    if (chip.key === "base") selectAllContacts();
+                    else if (chip.key === "all") selectAllInstalled();
                     else if (chip.key === "demo") toggleDemo();
                     else toggleTier(chip.key);
                   }}
@@ -631,6 +751,10 @@ export default function AdminEmailCampaignPage() {
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-zinc-400">
+              «Вся база» — все контакты в email_contacts. «Все установившие» — только с
+              подтверждённым OTP / аккаунтом в приложении.
+            </p>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs text-zinc-500">

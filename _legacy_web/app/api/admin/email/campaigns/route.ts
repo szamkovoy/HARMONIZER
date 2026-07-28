@@ -124,7 +124,7 @@ export async function POST(req: Request) {
         subject_i18n: subjectI18n,
         html_body_i18n: htmlBodyI18n,
         blocks_i18n: payload.blocks_i18n ?? {},
-        segment_query: payload.segment_query ?? { all_installed: true },
+        segment_query: payload.segment_query ?? { all_contacts: true },
       })
       .select("*")
       .single();

@@ -53,6 +53,11 @@ type Props = {
   onBulkSend?: (e: FormEvent) => void;
   /** Campaign segment (or step delay) between preview and send. */
   afterPreview?: ReactNode;
+  /**
+   * Before opening the block editor. Return false to stay on the page
+   * (e.g. user cancelled saving a dirty title).
+   */
+  onBeforeOpenEditor?: () => boolean | Promise<boolean>;
 };
 
 /**
@@ -73,9 +78,25 @@ export function EmailMessageWorkspace({
   sendExtra,
   onBulkSend,
   afterPreview,
+  onBeforeOpenEditor,
 }: Props) {
   const [activeTab, setActiveTab] = useState<ContentLocale>("ru");
   const [editorOpen, setEditorOpen] = useState(false);
+  const [openingEditor, setOpeningEditor] = useState(false);
+
+  async function openEditor() {
+    if (readOnly || openingEditor) return;
+    setOpeningEditor(true);
+    try {
+      if (onBeforeOpenEditor) {
+        const ok = await onBeforeOpenEditor();
+        if (!ok) return;
+      }
+      setEditorOpen(true);
+    } finally {
+      setOpeningEditor(false);
+    }
+  }
 
   const { subject, subjectI18n, htmlBody, htmlI18n, blocksI18n } = content;
 
@@ -142,11 +163,16 @@ export function EmailMessageWorkspace({
         ) : null}
         <button
           type="button"
-          onClick={() => setEditorOpen(true)}
-          disabled={readOnly}
+          onClick={() => void openEditor()}
+          disabled={readOnly || openingEditor}
           className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Pencil size={14} /> Редактировать
+          {openingEditor ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Pencil size={14} />
+          )}{" "}
+          Редактировать
         </button>
       </div>
 

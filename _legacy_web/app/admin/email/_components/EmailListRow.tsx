@@ -1,5 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+
+import { AdminListCard } from "../../_components/AdminListCard";
 
 export type EmailListStats = {
   sent_count: number;
@@ -36,14 +37,15 @@ type Props = {
   showStats?: boolean;
   stats?: EmailListStats;
   idleLabel?: string;
-  /** Chain-only controls (reorder, delete, delay) — rendered below/beside the link row. */
+  /** Chain-only controls (reorder, delete, delay). */
   trailingActions?: ReactNode;
   below?: ReactNode;
+  onDelete?: () => void;
+  deleting?: boolean;
 };
 
 /**
- * Shared list row for campaigns and automation steps.
- * Click navigates; no separate «Редактировать» button.
+ * Campaign / automation-step list card — same chrome as Videos / Stories.
  */
 export function EmailListRow({
   href,
@@ -54,30 +56,24 @@ export function EmailListRow({
   idleLabel = "черновик",
   trailingActions,
   below,
+  onDelete,
+  deleting,
 }: Props) {
+  const meta = showStats && stats ? formatCompactStats(stats) : idleLabel;
   return (
-    <li>
-      <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-        <Link
-          href={href}
-          className="min-w-0 flex-1 transition-colors hover:opacity-80"
-        >
-          <div className="truncate font-medium text-zinc-900">{title}</div>
-          <div className="mt-0.5 text-xs text-zinc-500">{subtitle}</div>
-          <div className="mt-1 text-[11px] leading-relaxed text-zinc-500 sm:hidden">
-            {showStats && stats ? formatCompactStats(stats) : idleLabel}
-          </div>
-        </Link>
-        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-          <div className="hidden text-[11px] leading-relaxed text-zinc-500 sm:block sm:text-right">
-            {showStats && stats ? formatCompactStats(stats) : idleLabel}
-          </div>
-          {trailingActions ? (
-            <div className="flex flex-wrap items-center gap-1">{trailingActions}</div>
-          ) : null}
-        </div>
-      </div>
-      {below ? <div className="border-t border-zinc-50 px-4 pb-3 pt-2">{below}</div> : null}
+    <li className="list-none">
+      <AdminListCard
+        href={href}
+        title={title}
+        subtitle={subtitle}
+        meta={meta}
+        trailing={trailingActions}
+        onDelete={onDelete}
+        deleting={deleting}
+      />
+      {below ? (
+        <div className="mt-1 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">{below}</div>
+      ) : null}
     </li>
   );
 }

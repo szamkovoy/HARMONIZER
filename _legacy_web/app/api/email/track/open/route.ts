@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import {
   parseEmailTrackToken,
   recordFirstPartyTrackEvent,
@@ -7,17 +9,19 @@ import { createServiceSupabase } from "../../../_utils/supabase";
 
 export const runtime = "nodejs";
 
-/** 1×1 open pixel for first-party marketing tracking. */
+/** 1×1 open pixel — return GIF first, record in background. */
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const trackId = parseEmailTrackToken(url.searchParams.get("t"));
-    if (trackId) {
-      const db = createServiceSupabase();
-      await recordFirstPartyTrackEvent(db, { trackId, kind: "opened" });
-    }
-  } catch {
-    /* still return pixel — never break the email image */
+  const url = new URL(req.url);
+  const trackId = parseEmailTrackToken(url.searchParams.get("t"));
+  if (trackId) {
+    after(async () => {
+      try {
+        const db = createServiceSupabase();
+        await recordFirstPartyTrackEvent(db, { trackId, kind: "opened" });
+      } catch {
+        /* never break the pixel */
+      }
+    });
   }
   return trackingPixelResponse();
 }

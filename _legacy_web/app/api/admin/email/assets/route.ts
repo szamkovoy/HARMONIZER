@@ -33,7 +33,12 @@ export async function POST(req: Request) {
 
     const { error: uploadError } = await db.storage
       .from("email-assets")
-      .upload(path, buffer, { contentType: mime, upsert: false });
+      .upload(path, buffer, {
+        contentType: mime,
+        // Seconds (Supabase Storage API). Long cache for mail clients / CDN.
+        cacheControl: "31536000",
+        upsert: false,
+      });
     if (uploadError) throw uploadError;
 
     const { data: pub } = db.storage.from("email-assets").getPublicUrl(path);

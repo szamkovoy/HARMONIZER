@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-28 (Auth 522 hang):** Все разделы крутили «Загрузка» — Supabase Auth `/auth/v1/user` отдавал 522/504, а `requireUser` ждал без лимита. Перешли на PostgREST-проверку JWT + hard timeout 8s → 503 вместо бесконечного спиннера.
+
+- **2026-07-28 (list cards + payments timeout):** Канон списков — карточка на запись (`AdminListCard`); уведомления/рассылки/шаги переведены с `divide-y`. Удаление из списка где безопасно. Платежи: `buyer_email` first, Auth email только для пробелов; limit 50 — фикс таймаута при Auth 504.
+
 - **2026-07-28 (users stats geo/locale):** Страны и языки на `/admin/users/stats` — по `onboarded_at` выбранного периода; заголовки с периодом; единая сетка полос с динамикой регистраций; API `by_locale` (только ненулевые).
 
 - **2026-07-28 (letter deep-link + KPI):** Клик по письму цепочки → страница шага; KPI доставляемости компактные («Недоставлено», без «Ошибки»/подписей).

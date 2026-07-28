@@ -108,10 +108,6 @@ export function EmailInlinePreview({
           sandbox="allow-same-origin"
         />
       </div>
-      <p className="text-[11px] text-zinc-400">
-        Превью = тот же HTML, что уходит в почту (ширина {MARKETING_EMAIL_MAX_WIDTH_PX}px). Клиенты
-        могут чуть отличаться, но отступы и колонка совпадают с отправкой.
-      </p>
     </div>
   );
 }

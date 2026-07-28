@@ -1,3 +1,8 @@
+- 2026-07-28 (318): requireUser validates JWT via PostgREST + 8s timeout (avoids Auth 522 hanging all admin lists).
+- 2026-07-28 (317): Admin lists unified to per-item cards; safe delete on lists; payments ledger avoids Auth 504 timeout.
+- 2026-07-28 (316): Campaign/step «Редактировать» confirms and saves dirty title before opening editor.
+- 2026-07-28 (315): Email segment «Вся база» vs installed; click/open redirect without awaiting DB; asset cache; drop preview footnote.
+- 2026-07-28 (314): Campaign segment count = send eligibility (exact locale); email_contains without chips; no «примерно».
 - 2026-07-28 (313): Users stats: countries/languages by selected period; aligned bars; API `by_locale`.
 - 2026-07-28 (312): Email locale exact-match harden: sync + users.locale on automation due-send; skip missing translation, continue drip.
 - 2026-07-28 (311): User-card chain sends link to step page; compact delivery KPI (Недоставлено, no Errors/hints).

@@ -184,11 +184,11 @@ export default function AdminFeedbackPage() {
       ) : null}
       {messages?.length === 0 ? <p className="text-sm text-zinc-500">Сообщений пока нет.</p> : null}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {messages?.map((message) => (
           <div
             key={message.id}
-            className={`flex items-start gap-3 rounded-xl border border-zinc-200 p-3 ${
+            className={`flex items-start gap-3 rounded-2xl border border-zinc-200 p-3 transition-colors hover:border-emerald-400/30 ${
               message.processed_at ? "bg-zinc-50 opacity-70" : "bg-white"
             }`}
           >

@@ -18,6 +18,7 @@ import {
   emailListSubjectSubtitle,
   emailListTitle,
 } from "../../../../api/_utils/emailNaming";
+import { ADMIN_LIST_STACK } from "../../../_components/AdminListCard";
 import { EmailListRow } from "../../_components/EmailListRow";
 
 type Automation = {
@@ -323,7 +324,7 @@ export default function AdminEmailAutomationDetailPage() {
             Пока нет писем — добавьте первое.
           </p>
         ) : (
-          <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-200 bg-white">
+          <ul className={ADMIN_LIST_STACK}>
             {steps.map((s, index) => {
               const hasStats = (s.sent_count ?? 0) > 0 || (s.failed_count ?? 0) > 0;
               return (

@@ -68,35 +68,157 @@ export function bearerToken(req: Request): string | null {
   return match?.[1] ?? null;
 }
 
+const AUTH_PROBE_TIMEOUT_MS = 8_000;
+
+function unauthorized(): Response {
+  return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+}
+
+function authUnavailable(): Response {
+  return new Response(
+    JSON.stringify({
+      error: "Сервис авторизации временно недоступен — подождите минуту и обновите страницу",
+    }),
+    { status: 503 },
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("AUTH_PROBE_TIMEOUT")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+type AccessTokenClaims = {
+  sub: string;
+  email: string | null;
+  exp: number | null;
+};
+
+/** Decode JWT payload without trusting it until PostgREST/Auth accepts the token. */
+function decodeAccessTokenClaims(token: string): AccessTokenClaims | null {
+  try {
+    const payloadPart = token.split(".")[1];
+    if (!payloadPart) return null;
+    const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
+    const payload = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as {
+      sub?: unknown;
+      email?: unknown;
+      exp?: unknown;
+    };
+    if (typeof payload.sub !== "string" || !payload.sub.trim()) return null;
+    return {
+      sub: payload.sub.trim(),
+      email: typeof payload.email === "string" ? payload.email.trim() || null : null,
+      exp: typeof payload.exp === "number" ? payload.exp : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isJwtRejectError(message: string | undefined): boolean {
+  const msg = (message ?? "").toLowerCase();
+  return (
+    msg.includes("jwt") ||
+    msg.includes("unauthorized") ||
+    msg.includes("invalid claim") ||
+    msg.includes("token is expired") ||
+    msg.includes("bad_jwt")
+  );
+}
+
+/** Anon client with the caller's Bearer — PostgREST verifies HS256 without Auth /user. */
+function createUserScopedSupabase(accessToken: string): SupabaseClient {
+  const key = requiredEnv(
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_ANON_KEY",
+  );
+  return createClient(
+    requiredEnv("NEXT_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_URL", "SUPABASE_URL"),
+    key,
+    {
+      ...clientOptions(key),
+      global: {
+        ...clientOptions(key).global,
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    },
+  );
+}
+
 export async function requireUserId(req: Request): Promise<string> {
   const user = await requireUser(req);
   return user.id;
 }
 
-/** JWT → id + email. Prefer this over auth.admin.getUserById (flaky with sb_secret keys). */
+/**
+ * JWT → id + email.
+ * Prefer PostgREST probe (validates signature locally on API) over Auth getUser —
+ * Auth /auth/v1/user often 522/504 under load and would hang every admin route.
+ */
 export async function requireUser(req: Request): Promise<{ id: string; email: string | null }> {
   const token = bearerToken(req);
-  if (!token) throw new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  if (!token) throw unauthorized();
 
-  // Anon first; if apikey/JWT signing keys рассинхронились — service-role getUser
-  // (тот же Auth /user, другой apikey). Не путать с admin.getUserById.
-  const anon = await createAnonSupabase().auth.getUser(token);
-  if (!anon.error && anon.data.user) {
-    return {
-      id: anon.data.user.id,
-      email: anon.data.user.email?.trim() || null,
-    };
+  const claims = decodeAccessTokenClaims(token);
+  if (!claims) throw unauthorized();
+  if (claims.exp != null && claims.exp * 1000 <= Date.now()) throw unauthorized();
+
+  // 1) PostgREST: verifies JWT with project secret; no Auth round-trip.
+  try {
+    const probe = createUserScopedSupabase(token)
+      .from("user_roles")
+      .select("user_id")
+      .limit(1);
+    const { error } = await withTimeout(Promise.resolve(probe), AUTH_PROBE_TIMEOUT_MS);
+    if (!error) {
+      return { id: claims.sub, email: claims.email };
+    }
+    if (isJwtRejectError(error.message) || error.code === "PGRST301") {
+      throw unauthorized();
+    }
+    // Non-JWT PostgREST error — fall through to Auth.
+  } catch (err) {
+    if (err instanceof Response) throw err;
+    // timeout / network — try Auth once, then 503
   }
 
-  const viaService = await createServiceSupabase().auth.getUser(token);
-  if (!viaService.error && viaService.data.user) {
-    return {
-      id: viaService.data.user.id,
-      email: viaService.data.user.email?.trim() || null,
-    };
+  // 2) Auth getUser (single attempt, hard timeout). Avoids double anon+service hang.
+  try {
+    const anon = await withTimeout(
+      Promise.resolve(createAnonSupabase().auth.getUser(token)),
+      AUTH_PROBE_TIMEOUT_MS,
+    );
+    if (!anon.error && anon.data.user) {
+      return {
+        id: anon.data.user.id,
+        email: anon.data.user.email?.trim() || claims.email,
+      };
+    }
+    if (anon.error && isJwtRejectError(anon.error.message)) {
+      throw unauthorized();
+    }
+  } catch (err) {
+    if (err instanceof Response) throw err;
   }
 
-  throw new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  throw authUnavailable();
 }
 
 /**
