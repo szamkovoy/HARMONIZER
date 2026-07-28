@@ -397,12 +397,14 @@ export default function AdminEmailCampaignPage() {
   }
 
   async function copyCampaign() {
+    setError(null);
     try {
       const { campaign: copy } = await adminFetch<{ campaign: { id: string } }>(
         `/api/admin/email/campaigns/${id}/copy`,
         { method: "POST", body: "{}" },
       );
-      router.push(`/admin/email/${copy.id}`);
+      if (!copy?.id) throw new Error("Сервер не вернул id копии");
+      router.replace(`/admin/email/${copy.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Копирование не удалось");
     }

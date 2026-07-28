@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 type Ctx = { params: Promise<{ id: string }> };
 
 type CreateStepBody = {
+  name?: string;
   delay_hours?: number;
   subject?: string;
   html_body?: string;
@@ -30,16 +31,23 @@ export async function POST(req: Request, ctx: Ctx) {
       .maybeSingle();
     const position = (existing?.position ?? 0) + 1;
 
+    const subject = body.subject?.trim() ?? "";
+    const name =
+      typeof body.name === "string" && body.name.trim()
+        ? body.name.trim()
+        : subject || "Новое письмо";
+
     const { data, error } = await db
       .from("email_automation_steps")
       .insert({
         automation_id: automationId,
         position,
+        name,
         delay_hours:
           typeof body.delay_hours === "number" && body.delay_hours >= 0
             ? Math.floor(body.delay_hours)
             : 0,
-        subject: body.subject?.trim() ?? "",
+        subject,
         html_body: body.html_body ?? "",
         subject_i18n: body.subject_i18n ?? {},
         html_body_i18n: body.html_body_i18n ?? {},

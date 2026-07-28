@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.4
-updated: 2026-07-27
+version: 1.6
+updated: 2026-07-28
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -31,6 +31,12 @@ code_refs:
     supabase/migrations/20260724200000_marketing_email.sql,
     supabase/migrations/20260727150000_email_automations_b2_c1_c2.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
+    supabase/migrations/20260728010000_email_automation_step_name.sql,
+    supabase/migrations/20260728140000_email_tracking_keys.sql,
+    _legacy_web/app/api/admin/email/automations/[id]/steps/[stepId]/copy/route.ts,
+    _legacy_web/app/api/email/track/open/route.ts,
+    _legacy_web/app/api/email/track/click/route.ts,
+    _legacy_web/app/api/_utils/emailFirstPartyTracking.ts,
   ]
 ---
 
@@ -47,12 +53,15 @@ OTP на `zamkovoi.yoga` изолирован и **не** использует �
 
 - Кампании / сегмент / assets / automations / steps — как ранее
 - Карточка кампании `/admin/email/[id]`: заголовок «Рассылка»; статус RU (`черновик` / `отправлено · дата`); после send — KPI-карточки, read-only имя/сегмент/контент, без блока «Отправка»; копирование доступно
-- Общий UI-фундамент: `EmailListRow` (список рассылок + письма в цепочке), `EmailDeliveryStats`, `EmailMessageWorkspace` (локали / preview / block editor / тест). Письмо цепочки: `/admin/email/automations/[id]/steps/[stepId]` — тот же workspace без сегмента, с delay; `POST …/steps/[stepId]/send` `{test_to}`
+- Общий UI-фундамент: `EmailListRow`, `EmailDeliveryStats`, `EmailMessageWorkspace`; названия/копии — `emailNaming` (`emailListTitle`, `emailCopyName`) для рассылок и шагов. Письмо цепочки: `name` в GET steps; «Копировать» → `POST …/steps/[stepId]/copy` → редирект на копию (`… (копия)`); delay; `POST …/send` `{test_to}`
 - Сегмент JSON дополнительно: `account_created_on_or_after|before` (`users.created_at`), `onboarded_on_or_after|before` (`users.onboarded_at`) — границы включительно (≥ / ≤)
 - From display name: RU «Сергей Замковой», иначе «Sergei Zamkovoi» (`marketingSenderName`, как OTP); footer unsubscribe 12.5px; block fonts web-safe (system/arial/verdana/georgia/times); блоки: heading/text/image/button (legacy `logo` → `image` при parse)
-- `GET /api/admin/email/deliverability?days=7|30|90` — KPI, series, recent problems (с `user_id` / `display_name`), Resend suppressions
+- Preview (`EmailInlinePreview`) = iframe с тем же `wrapMarketingEmailHtml` (колонка 560px), что уходит в Resend. Высота iframe = высота контента (collapse → measure outer table); не сохраняет высоту от предыдущего/длинного письма. `normalizeEmailBodyHtml`: у `<p>` margin 0; пустой абзац = одна пустая строка; `<br>` без доп. интервала. Новое изображение по умолчанию `240px`, не `100%`. У `<img>` — integer `width`/`height` (из `naturalWidth`/`naturalHeight` блока или probe при `prepareMarketingEmailHtml` на send), чтобы клиент резервировал место до загрузки картинки (без прыжка текста).
+- `GET /api/admin/email/deliverability?days=7|30|90` — KPI, series, recent problems (с `user_id` / `display_name`), Resend suppressions, статус tracking домена; KPI bounce подписан «Не доставлено»
 - `POST /api/admin/email/deliverability` — `{action:"suppress"|"unsuppress", email?}`
-- UI: `/admin/email/deliverability` (метрики + просмотр Resend list; без sync на GET)
+- UI: `/admin/email/deliverability` (метрики + просмотр Resend list; без sync на GET); цифры статусов подписки (>0) → `/admin/email/contacts?status=`
+- `GET /api/admin/email/contacts?status=` — список контактов по `marketing_status` (до 200)
+- **Open/click:** Resend custom tracking недоступен для `.ru` (TLS). Считаем first-party: пиксель `GET /api/email/track/open` + редирект `GET /api/email/track/click` (desktop/mobile); ключи в `email_tracking_keys`; события `email.opened` / `email.clicked` в `email_events` (как у webhook). Bounce/complaint — только Resend webhook.
 - Cron daily `20 5 * * *` → `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync` — Resend suppressions → `email_contacts` (active→suppressed/complained). Жёсткий отказ/спам по-прежнему сразу через webhook.
 
 **Webhooks** `POST /api/webhooks/resend-marketing`:

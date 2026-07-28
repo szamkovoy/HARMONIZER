@@ -1,4 +1,4 @@
-import { getBrowserSupabase } from "./supabaseBrowser";
+import { getBrowserSupabase, resetBrowserSupabase } from "./supabaseBrowser";
 
 /** Ошибка /api/admin/* с HTTP-статусом — чтобы UI не разлогинивал на сетевых сбоях. */
 export class AdminApiError extends Error {
@@ -14,7 +14,45 @@ export class AdminApiError extends Error {
 /** Один refresh за раз — иначе два параллельных refreshSession сжигают single-use refresh token → SIGNED_OUT. */
 let refreshInFlight: Promise<string | null> | null = null;
 
+const GET_SESSION_TIMEOUT_MS = 8_000;
 const REFRESH_TIMEOUT_MS = 12_000;
+const FETCH_TIMEOUT_MS = 45_000;
+/** Refresh access token if it expires within this window. */
+const PROACTIVE_REFRESH_MS = 60_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new AdminApiError(`${label} — превышено время ожидания`, 408));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+function jwtExpiryMs(accessToken: string): number | null {
+  try {
+    const payloadPart = accessToken.split(".")[1];
+    if (!payloadPart) return null;
+    const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshInFlight) {
@@ -23,11 +61,14 @@ async function refreshAccessToken(): Promise<string | null> {
         const sessionPromise = getBrowserSupabase()
           .auth.refreshSession()
           .then(({ data }) => data.session?.access_token ?? null);
-        const timeoutPromise = new Promise<null>((resolve) => {
-          setTimeout(() => resolve(null), REFRESH_TIMEOUT_MS);
-        });
-        return await Promise.race([sessionPromise, timeoutPromise]);
+        return await withTimeout(
+          sessionPromise,
+          REFRESH_TIMEOUT_MS,
+          "Обновление сессии",
+        );
       } catch {
+        // Hung refresh holds supabase-js auth lock — drop client so login can proceed.
+        resetBrowserSupabase();
         return null;
       } finally {
         refreshInFlight = null;
@@ -35,6 +76,39 @@ async function refreshAccessToken(): Promise<string | null> {
     })();
   }
   return refreshInFlight;
+}
+
+/**
+ * Resolve a usable access token. Critical: supabase `getSession()` may internally
+ * await auto-refresh and hang forever — always race it with a timeout.
+ */
+async function resolveAccessToken(explicit?: string): Promise<string> {
+  const given = explicit?.trim();
+  if (given) return given;
+
+  let token: string | undefined;
+  try {
+    const sessionPromise = getBrowserSupabase()
+      .auth.getSession()
+      .then(({ data }) => data.session?.access_token ?? undefined);
+    token = await withTimeout(sessionPromise, GET_SESSION_TIMEOUT_MS, "Чтение сессии");
+  } catch {
+    // Timed-out getSession still runs under the hood and blocks sign-in — reset.
+    resetBrowserSupabase();
+    token = undefined;
+  }
+
+  const expMs = token ? jwtExpiryMs(token) : null;
+  const needsRefresh =
+    !token || (expMs != null && expMs - Date.now() < PROACTIVE_REFRESH_MS);
+
+  if (needsRefresh) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return refreshed;
+  }
+
+  if (token) return token;
+  throw new AdminApiError("Сессия не найдена — войдите заново", 401);
 }
 
 function authErrorMessage(status: number, bodyError?: string | null): string {
@@ -47,7 +121,19 @@ function authErrorMessage(status: number, bodyError?: string | null): string {
   if (status === 403 && (!bodyError || bodyError === "Forbidden")) {
     return "Нет прав администратора";
   }
+  if (status === 408) {
+    return bodyError?.trim() || "Превышено время ожидания — попробуйте ещё раз";
+  }
   return bodyError?.trim() || `Ошибка сервера (HTTP ${status})`;
+}
+
+async function parseErrorBody(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.json()) as { error?: string };
+    return body?.error ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** fetch к /api/admin/* с Bearer-токеном текущей сессии. Бросает AdminApiError / Error. */
@@ -56,16 +142,7 @@ export async function adminFetch<T>(
   init?: RequestInit,
   opts?: { accessToken?: string },
 ): Promise<T> {
-  let token = opts?.accessToken?.trim();
-  if (!token) {
-    const supabase = getBrowserSupabase();
-    const { data } = await supabase.auth.getSession();
-    token = data.session?.access_token;
-    if (!token) {
-      token = (await refreshAccessToken()) ?? undefined;
-    }
-  }
-  if (!token) throw new AdminApiError("Сессия не найдена — войдите заново", 401);
+  let token = await resolveAccessToken(opts?.accessToken);
 
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const hasBody = init?.body != null && init.body !== "";
@@ -78,26 +155,39 @@ export async function adminFetch<T>(
     if (!isFormData && hasBody) {
       headers["Content-Type"] = "application/json";
     }
-    return fetch(path, {
-      ...init,
-      headers: {
-        ...headers,
-        ...(init?.headers ?? {}),
-      },
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      return await fetch(path, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          ...headers,
+          ...(init?.headers ?? {}),
+        },
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new AdminApiError("Сервер не ответил вовремя — попробуйте ещё раз", 408);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   let res = await doFetch(token);
   if (res.status === 401) {
     const retryToken = await refreshAccessToken();
     if (retryToken && retryToken !== token) {
+      token = retryToken;
       res = await doFetch(retryToken);
     }
   }
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new AdminApiError(authErrorMessage(res.status, body?.error), res.status);
+    const bodyError = await parseErrorBody(res);
+    throw new AdminApiError(authErrorMessage(res.status, bodyError), res.status);
   }
 
   const text = await res.text();
@@ -111,25 +201,28 @@ export async function adminFetchBlob(
   init?: RequestInit,
   opts?: { accessToken?: string },
 ): Promise<Blob> {
-  let token = opts?.accessToken?.trim();
-  if (!token) {
-    const supabase = getBrowserSupabase();
-    const { data } = await supabase.auth.getSession();
-    token = data.session?.access_token;
-    if (!token) {
-      token = (await refreshAccessToken()) ?? undefined;
-    }
-  }
-  if (!token) throw new AdminApiError("Сессия не найдена — войдите заново", 401);
+  const token = await resolveAccessToken(opts?.accessToken);
 
   async function doFetch(accessToken: string) {
-    return fetch(path, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        ...(init?.headers ?? {}),
-      },
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      return await fetch(path, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...(init?.headers ?? {}),
+        },
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new AdminApiError("Сервер не ответил вовремя — попробуйте ещё раз", 408);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   let res = await doFetch(token);
@@ -141,8 +234,8 @@ export async function adminFetchBlob(
   }
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new AdminApiError(authErrorMessage(res.status, body?.error), res.status);
+    const bodyError = await parseErrorBody(res);
+    throw new AdminApiError(authErrorMessage(res.status, bodyError), res.status);
   }
   return res.blob();
 }

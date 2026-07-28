@@ -13,6 +13,24 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-28 (contacts drill-down):** Доставляемость: убрана подсказка про opens/clicks; статусы подписки (>0) ведут на `/admin/email/contacts?status=`.
+
+- **2026-07-28 (open/click tracking):** Resend не трекает opens/clicks на zamkovoi.ru (нет TLS для tracking subdomain на .ru). First-party пиксель/клики + `email_tracking_keys`. KPI «Отказ доставки» → «Не доставлено» (bounce сервера, не отписка).
+
+- **2026-07-28 (img center):** `display:block` ломал центрирование в почте (`text-align` не действует на block). Снова `inline-block` + link `inline-block`.
+
+- **2026-07-28 (img width fix):** Probe ошибочно читал `max-width:100%` как `width:100%` → картинки растягивались на колонку. Regex только на CSS `width:`; явный px сохраняется.
+
+- **2026-07-28 (img CLS):** В письме картинка без `height` → текст прыгал вниз после загрузки. Блоки хранят natural size; HTML — integer width/height; send через `prepareMarketingEmailHtml` дописывает размеры, если их не было.
+
+- **2026-07-28 (preview height):** Iframe превью не сжимался после длинного письма (scrollHeight = высота фрейма). Collapse → measure outer table → height по контенту.
+
+- **2026-07-28 (step name GET fix):** GET automation не отдавал `steps.name` → UI откатывался к теме. В select добавлен `name`; общая логика `emailNaming` (title/copy) для рассылок и шагов.
+
+- **2026-07-28 (step name + copy):** У письма цепочки — поле «Название» (колонка `name`, список цепочки) и «Копировать» как у рассылки (`… (копия)` в конец цепочки). Миграция `20260728010000`.
+
+- **2026-07-28 (preview = inbox HTML):** Превью — iframe с `wrapMarketingEmailHtml` (560px). Нормализация `<p>`/пустых строк в `normalizeEmailBodyHtml` (без дефолтных margin почтовых клиентов). Дефолт ширины картинки 240px.
+
 - **2026-07-27 (drop logo block):** В редакторе только «Изображение»; старые `type:logo` нормализуются в `image` при parse.
 
 - **2026-07-27 (shared email UI foundation):** Список и редактор писем общие для рассылок и цепочек (`EmailListRow`, `EmailMessageWorkspace`, `EmailDeliveryStats`). Шаг цепочки — отдельная страница как карточка рассылки (без сегмента, с delay + тест). Footer 12.5px; больше web-safe шрифтов.

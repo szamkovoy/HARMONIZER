@@ -7,9 +7,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseStringRecord } from "./contentLocaleFallback";
 import { resolveExactEmailCopy } from "./emailCopy";
 import {
-  applyEmailPlaceholders,
-  wrapMarketingEmailHtml,
-} from "./emailTemplate";
+  newEmailTrackId,
+  prepareTrackedMarketingEmailHtml,
+  registerEmailTrackKey,
+} from "./emailFirstPartyTracking";
+import { applyEmailPlaceholders } from "./emailTemplate";
 import {
   buildSignedUnsubscribeUrl,
   generateUnsubscribeToken,
@@ -526,10 +528,12 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
         .eq("id", contact.id);
     }
     const unsubscribeUrl = buildSignedUnsubscribeUrl(token);
-    const html = wrapMarketingEmailHtml({
+    const trackId = newEmailTrackId();
+    const html = await prepareTrackedMarketingEmailHtml({
       bodyHtml,
       unsubscribeUrl,
       previewText: subject,
+      trackId,
     });
 
     const result = await sendMarketingEmail({
@@ -557,6 +561,12 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
     });
 
     if (result.ok) {
+      await registerEmailTrackKey(db, {
+        trackId,
+        resendId: result.resendId,
+        contactId: contact.id,
+        stepId: step.id,
+      });
       sent += 1;
       await db
         .from("email_contacts")

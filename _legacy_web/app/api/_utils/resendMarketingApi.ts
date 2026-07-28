@@ -169,3 +169,80 @@ export async function getResendDomain(
   }
   return { domain: json as ResendDomainDetail };
 }
+
+/** Marketing domain tracking status (opens/clicks via Resend require custom subdomain). */
+export async function getMarketingDomainTrackingStatus(): Promise<{
+  domain: string | null;
+  open_tracking: boolean;
+  click_tracking: boolean;
+  tracking_subdomain: string | null;
+  resend_open_click_available: boolean;
+  note: string | null;
+  error?: string;
+}> {
+  const listed = await listResendDomains();
+  if (listed.error) {
+    return {
+      domain: null,
+      open_tracking: false,
+      click_tracking: false,
+      tracking_subdomain: null,
+      resend_open_click_available: false,
+      note: null,
+      error: listed.error,
+    };
+  }
+  const fromEmail =
+    process.env.MAIL_MARKETING_FROM_EMAIL?.trim() || "sergei@zamkovoi.ru";
+  const host = fromEmail.includes("@") ? fromEmail.split("@")[1]!.toLowerCase() : "";
+  const match =
+    listed.domains.find((d) => d.name.toLowerCase() === host) ??
+    listed.domains.find((d) => d.name.toLowerCase().endsWith(".ru")) ??
+    listed.domains[0] ??
+    null;
+  if (!match) {
+    return {
+      domain: host || null,
+      open_tracking: false,
+      click_tracking: false,
+      tracking_subdomain: null,
+      resend_open_click_available: false,
+      note: "Домен отправки не найден в Resend.",
+    };
+  }
+  const detail = await getResendDomain(match.id);
+  if (detail.error || !detail.domain) {
+    return {
+      domain: match.name,
+      open_tracking: false,
+      click_tracking: false,
+      tracking_subdomain: null,
+      resend_open_click_available: false,
+      note: null,
+      error: detail.error,
+    };
+  }
+  const d = detail.domain as ResendDomainDetail & {
+    tracking_subdomain?: string;
+  };
+  const open = Boolean(d.open_tracking);
+  const click = Boolean(d.click_tracking);
+  const sub = d.tracking_subdomain ?? null;
+  const available = open && click && Boolean(sub);
+  let note: string | null = null;
+  if (!available && /\.ru$/i.test(match.name)) {
+    note =
+      "Resend не может выдать TLS для tracking-поддомена на .ru — открытия/клики считает наш пиксель и редирект (не Resend).";
+  } else if (!available) {
+    note =
+      "В Resend выключен open/click tracking. Для zamkovoi.ru используется наш собственный учёт.";
+  }
+  return {
+    domain: match.name,
+    open_tracking: open,
+    click_tracking: click,
+    tracking_subdomain: sub,
+    resend_open_click_available: available,
+    note,
+  };
+}

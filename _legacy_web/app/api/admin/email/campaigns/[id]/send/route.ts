@@ -5,9 +5,11 @@ import {
   resolveEmailSegment,
 } from "../../../../../_utils/emailSegment";
 import {
-  applyEmailPlaceholders,
-  wrapMarketingEmailHtml,
-} from "../../../../../_utils/emailTemplate";
+  newEmailTrackId,
+  prepareTrackedMarketingEmailHtml,
+  registerEmailTrackKey,
+} from "../../../../../_utils/emailFirstPartyTracking";
+import { applyEmailPlaceholders } from "../../../../../_utils/emailTemplate";
 import { buildSignedUnsubscribeUrl, generateUnsubscribeToken } from "../../../../../_utils/emailUnsubscribe";
 import {
   htmlToPlaintext,
@@ -91,10 +93,12 @@ export async function POST(req: Request, ctx: Ctx) {
       }
 
       const unsubscribeUrl = buildSignedUnsubscribeUrl(unsubToken);
-      const html = wrapMarketingEmailHtml({
+      const trackId = newEmailTrackId();
+      const html = await prepareTrackedMarketingEmailHtml({
         bodyHtml: exact.htmlBody,
         unsubscribeUrl,
         previewText: exact.subject,
+        trackId,
       });
       const result = await sendMarketingEmail({
         to: testTo,
@@ -111,6 +115,12 @@ export async function POST(req: Request, ctx: Ctx) {
       if (!result.ok) {
         return json({ error: result.detail }, { status: 502 });
       }
+      await registerEmailTrackKey(db, {
+        trackId,
+        resendId: result.resendId,
+        contactId: contact?.id ?? null,
+        campaignId: id,
+      });
       return json({ ok: true, test: true, resend_id: result.resendId, locale: exact.locale });
     }
 
@@ -195,10 +205,12 @@ export async function POST(req: Request, ctx: Ctx) {
       const bodyHtml = applyEmailPlaceholders(row.htmlBody, { name });
 
       const unsubscribeUrl = buildSignedUnsubscribeUrl(token);
-      const html = wrapMarketingEmailHtml({
+      const trackId = newEmailTrackId();
+      const html = await prepareTrackedMarketingEmailHtml({
         bodyHtml,
         unsubscribeUrl,
         previewText: subject,
+        trackId,
       });
 
       const { data: sendRow, error: sendInsertError } = await db
@@ -238,6 +250,13 @@ export async function POST(req: Request, ctx: Ctx) {
           .from("email_campaign_sends")
           .update({ status: "sent", resend_id: result.resendId })
           .eq("id", sendRow.id);
+        await registerEmailTrackKey(db, {
+          trackId,
+          resendId: result.resendId,
+          contactId: row.contact.id,
+          campaignId: id,
+          sendId: sendRow.id,
+        });
         await db
           .from("email_contacts")
           .update({ last_sent_at: new Date().toISOString() })

@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 
 import { adminFetch } from "../../../_lib/adminApi";
+import {
+  emailListSubjectSubtitle,
+  emailListTitle,
+} from "../../../../api/_utils/emailNaming";
 import { EmailListRow } from "../../_components/EmailListRow";
 
 type Automation = {
@@ -27,6 +31,7 @@ type Automation = {
 
 type Step = {
   id: string;
+  name?: string | null;
   position: number;
   delay_hours: number;
   subject: string;
@@ -132,6 +137,7 @@ export default function AdminEmailAutomationDetailPage() {
         {
           method: "POST",
           body: JSON.stringify({
+            name: "Новое письмо",
             delay_hours: 0,
             subject: "Новое письмо",
             html_body: "<p>Текст…</p>",
@@ -324,8 +330,13 @@ export default function AdminEmailAutomationDetailPage() {
                 <EmailListRow
                   key={s.id}
                   href={`/admin/email/automations/${id}/steps/${s.id}`}
-                  title={s.subject.trim() || "Без темы"}
-                  subtitle={`Письмо ${index + 1} · +${s.delay_hours}ч`}
+                  title={emailListTitle(s.name, s.subject)}
+                  subtitle={[
+                    `Письмо ${index + 1} · +${s.delay_hours}ч`,
+                    emailListSubjectSubtitle(s.name, s.subject),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                   showStats={hasStats}
                   idleLabel="ещё не отправлялось"
                   stats={

@@ -219,6 +219,7 @@ code_refs: []
 
 ## Общее
 
+- **Supabase Auth POST `/token` 504 (2026-07-27):** при валидном apikey password/refresh давали gateway **504** (запросы не доходили до GoTrue), GET `/user` и REST работали — похоже на [silent freeze GoTrue](https://github.com/supabase/supabase/issues/46429). Админка: логин через `POST /api/admin/login`, `sb_*` не слать в `Authorization`. Если снова 504 — Restart project в Supabase Dashboard (`pause` через MCP может упасть на backup check).
 - **Техдолг тестов (не блокер):** `npx tsc --noEmit` в `_legacy_web` даёт 3 ошибки в `app/api/communicator/v2/dialog/practiceSelection.test.ts` (TS2783 ×2 строки 33–34, TS2339 строка 308). Ошибки ПРЕДсуществующие (не регресс HARMONIZER v2 / патча C.4), только в тест-файле, `next build` их фильтрует (runTypeCheck игнорирует `*.test.ts`), в прод-бандл не попадают. Безопасно для продакшена. Чистый фикс — ~3 строки в тесте (деструктуризация input в `breath()`; сужение типа на строке 308). Сделать при ближайшей уборке тестов.
 - На момент создания скелета дополнительных записей не требовалось; новые вопросы добавлять сюда по мере миграции остальных модулей.
 

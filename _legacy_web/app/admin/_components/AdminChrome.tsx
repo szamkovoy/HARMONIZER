@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 import { AdminApiError, adminFetch } from "../_lib/adminApi";
-import { getBrowserSupabase } from "../_lib/supabaseBrowser";
+import { getBrowserSupabase, resetBrowserSupabase } from "../_lib/supabaseBrowser";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Дашборд", icon: Gauge },
@@ -45,8 +45,30 @@ export function AdminChrome({ children }: { children: ReactNode }) {
 
   const verifyAdmin = useCallback(async () => {
     const supabase = getBrowserSupabase();
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) {
+    let session = null as Awaited<
+      ReturnType<typeof supabase.auth.getSession>
+    >["data"]["session"];
+    try {
+      const result = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), 8_000);
+        }),
+      ]);
+      if (result && "data" in result) {
+        session = result.data.session;
+      } else {
+        // Timed out — drop hung client so /admin/login can sign in.
+        resetBrowserSupabase();
+        setPhase("anonymous");
+        return;
+      }
+    } catch {
+      resetBrowserSupabase();
+      setPhase("anonymous");
+      return;
+    }
+    if (!session) {
       setPhase("anonymous");
       return;
     }
@@ -61,8 +83,14 @@ export function AdminChrome({ children }: { children: ReactNode }) {
     } catch (err) {
       const status = err instanceof AdminApiError ? err.status : 0;
       if (status === 401 || status === 403) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+        resetBrowserSupabase({ clearStorage: true });
         setPhase("anonymous");
+        return;
+      }
+      // Network/timeout: keep UI if we already had a session; avoid false sign-out.
+      if (status === 408) {
+        setPhase("admin");
         return;
       }
       setPhase("admin");
@@ -70,13 +98,19 @@ export function AdminChrome({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Login page must not touch supabase-js — hung getSession holds the auth lock
+    // and blocks the next sign-in (browser → Auth can also stall).
+    if (isLoginPage) {
+      setPhase("anonymous");
+      return;
+    }
     void verifyAdmin();
     const { data: sub } = getBrowserSupabase().auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") setPhase("anonymous");
       if (event === "SIGNED_IN") void verifyAdmin();
     });
     return () => sub.subscription.unsubscribe();
-  }, [verifyAdmin]);
+  }, [verifyAdmin, isLoginPage]);
 
   useEffect(() => {
     if (phase !== "admin") return;

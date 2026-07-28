@@ -4,8 +4,31 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { LockKeyhole } from "lucide-react";
 
-import { AdminApiError, adminFetch } from "../_lib/adminApi";
-import { getBrowserSupabase } from "../_lib/supabaseBrowser";
+import { getBrowserSupabase, resetBrowserSupabase } from "../_lib/supabaseBrowser";
+
+const SIGN_IN_TIMEOUT_MS = 30_000;
+
+type LoginSession = {
+  access_token: string;
+  refresh_token: string;
+  error?: string;
+};
+
+function mapLoginError(status: number, message: string): string {
+  const msg = message.toLowerCase();
+  if (status === 429 || msg.includes("rate limit") || msg.includes("too many")) {
+    return "Слишком много попыток входа — подождите минуту и попробуйте снова";
+  }
+  if (status === 403) return "У этого аккаунта нет прав администратора";
+  if (status === 401 || msg.includes("invalid")) return "Неверный email или пароль";
+  if (status === 504 || msg.includes("timeout") || msg.includes("вовремя")) {
+    return "Сервер авторизации не ответил вовремя — обновите страницу и попробуйте снова";
+  }
+  if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch")) {
+    return "Нет связи с сервером — проверьте интернет и попробуйте снова";
+  }
+  return message.trim() || "Не удалось войти";
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -18,21 +41,48 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError(null);
     setBusy(true);
+    const trimmedEmail = email.trim();
     try {
-      const supabase = getBrowserSupabase();
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw new Error("Неверный email или пароль");
-      // Логин успешен, но в админку пускаем только роль admin.
-      try {
-        await adminFetch("/api/admin/me");
-      } catch (err) {
-        const status = err instanceof AdminApiError ? err.status : 0;
-        if (status === 401 || status === 403) {
-          await supabase.auth.signOut();
-          throw new Error("У этого аккаунта нет прав администратора");
+      // Drop hung supabase-js locks from a previous admin session.
+      resetBrowserSupabase({ clearStorage: true });
+
+      const loginPromise = fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail, password }),
+      }).then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as LoginSession;
+        if (!res.ok) {
+          throw new Error(mapLoginError(res.status, data.error || res.statusText || "Не удалось войти"));
         }
-        throw new Error(err instanceof Error ? err.message : "Не удалось проверить права администратора");
-      }
+        if (!data.access_token || !data.refresh_token) {
+          throw new Error("Сервер не вернул сессию");
+        }
+        return data;
+      });
+
+      const timed = await Promise.race([
+        loginPromise,
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "Сервер авторизации не ответил вовремя — обновите страницу и попробуйте снова",
+                ),
+              ),
+            SIGN_IN_TIMEOUT_MS,
+          );
+        }),
+      ]);
+
+      const supabase = getBrowserSupabase();
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token: timed.access_token,
+        refresh_token: timed.refresh_token,
+      });
+      if (setErr) throw new Error(setErr.message || "Не удалось сохранить сессию");
+
       router.replace("/admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось войти");
@@ -44,7 +94,7 @@ export default function AdminLoginPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(ev) => void handleSubmit(ev)}
         className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6"
       >
         <div className="mb-6 flex flex-col items-center gap-2 text-center">

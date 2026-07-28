@@ -69,6 +69,15 @@ type Report = {
     }[];
     suppressions_error: string | null;
     suppressions_count: number;
+    first_party_open_click?: boolean;
+    tracking?: {
+      domain: string | null;
+      open_tracking: boolean;
+      click_tracking: boolean;
+      resend_open_click_available: boolean;
+      note: string | null;
+      error?: string;
+    };
   };
 };
 
@@ -82,7 +91,7 @@ const CONTACT_LABELS: Record<string, string> = {
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  "email.bounced": "Не доставлено (отказ сервера)",
+  "email.bounced": "Не доставлено",
   "email.complained": "Жалоба «это спам»",
   "email.failed": "Ошибка отправки",
   "email.suppressed": "Заблокировано списком запрета",
@@ -91,7 +100,7 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 const ORIGIN_LABELS: Record<string, string> = {
-  bounce: "отказ доставки",
+  bounce: "не доставлено",
   complaint: "жалоба на спам",
   manual: "вручную",
 };
@@ -149,7 +158,7 @@ function MiniBars({ series }: { series: DayBucket[] }) {
         <div
           key={d.date}
           className="flex flex-1 flex-col items-center gap-0.5"
-          title={`${d.date}: доставлено ${d.delivered}, отказов ${d.bounced}`}
+          title={`${d.date}: доставлено ${d.delivered}, не доставлено ${d.bounced}`}
         >
           <div className="flex w-full flex-1 items-end gap-px">
             <div
@@ -327,17 +336,17 @@ export default function AdminEmailDeliverabilityPage() {
             <Kpi
               label="Открыто"
               value={String(t.opened)}
-              hint={`${pct(t.open_rate)} от доставленных`}
+              hint={`${pct(t.open_rate)} от доставленных · уникальные`}
             />
             <Kpi
               label="Клики"
               value={String(t.clicked)}
-              hint={`${pct(t.click_rate)} от доставленных`}
+              hint={`${pct(t.click_rate)} от доставленных · уникальные`}
             />
             <Kpi
-              label="Отказ доставки"
+              label="Не доставлено"
               value={String(t.bounced)}
-              hint={`${pct(t.bounce_rate)} от отправленных`}
+              hint={`${pct(t.bounce_rate)} от отправленных · bounce`}
               warn={(t.bounce_rate ?? 0) >= 5}
             />
             <Kpi
@@ -352,7 +361,7 @@ export default function AdminEmailDeliverabilityPage() {
             <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 lg:col-span-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-zinc-800">
                 <Activity size={16} className="text-emerald-600" />
-                По дням: зелёный — доставлено, красный — отказ
+                По дням: зелёный — доставлено, красный — не доставлено
               </div>
               <MiniBars series={report.series} />
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-zinc-600 sm:grid-cols-3 lg:grid-cols-5">
@@ -377,20 +386,32 @@ export default function AdminEmailDeliverabilityPage() {
               </p>
               <dl className="space-y-1.5 text-sm">
                 {(["active", "unsubscribed", "suppressed", "complained"] as const).map(
-                  (k) => (
-                    <div key={k} className="flex justify-between gap-2">
-                      <dt className="text-zinc-500">{CONTACT_LABELS[k] ?? k}</dt>
-                      <dd className="font-medium text-zinc-900">
-                        {report.contact_status[k] ?? 0}
-                      </dd>
-                    </div>
-                  ),
+                  (k) => {
+                    const n = report.contact_status[k] ?? 0;
+                    return (
+                      <div key={k} className="flex justify-between gap-2">
+                        <dt className="text-zinc-500">{CONTACT_LABELS[k] ?? k}</dt>
+                        <dd className="font-medium text-zinc-900">
+                          {n > 0 ? (
+                            <Link
+                              href={`/admin/email/contacts?status=${k}`}
+                              className="text-emerald-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-800"
+                            >
+                              {n}
+                            </Link>
+                          ) : (
+                            0
+                          )}
+                        </dd>
+                      </div>
+                    );
+                  },
                 )}
               </dl>
               <p className="text-[11px] text-zinc-400">
                 {resendApiBlocked
                   ? "Список запрета Resend недоступен (нужен ключ Full access). Статусы при отказе/спаме всё равно обновляются через webhook."
-                  : "Список запрета Resend синхронизируется с контактами раз в сутки (cron). Отказ и «спам» помечают контакт сразу через webhook."}
+                  : "Список запрета Resend синхронизируется с контактами раз в сутки (cron). Bounce и «спам» помечают контакт сразу через webhook."}
               </p>
             </section>
           </div>
@@ -413,7 +434,7 @@ export default function AdminEmailDeliverabilityPage() {
                   className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700"
                 >
                   <option value="all">Все причины</option>
-                  <option value="bounce">отказ доставки</option>
+                  <option value="bounce">не доставлено</option>
                   <option value="complaint">жалоба на спам</option>
                   <option value="manual">вручную</option>
                 </select>

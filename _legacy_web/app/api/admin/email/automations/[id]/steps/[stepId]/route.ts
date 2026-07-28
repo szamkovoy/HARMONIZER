@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 type Ctx = { params: Promise<{ id: string; stepId: string }> };
 
 type PatchBody = {
+  name?: string;
   delay_hours?: number;
   subject?: string;
   html_body?: string;
@@ -19,6 +20,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const { id: automationId, stepId } = await ctx.params;
     const body = (await req.json()) as PatchBody;
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (typeof body.name === "string") patch.name = body.name.trim();
     if (typeof body.delay_hours === "number" && body.delay_hours >= 0) {
       patch.delay_hours = Math.floor(body.delay_hours);
     }

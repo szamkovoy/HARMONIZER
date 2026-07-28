@@ -8,29 +8,56 @@ function requiredEnv(...names: string[]): string {
   throw new Error(`Missing required env: ${names.join(" or ")}`);
 }
 
+function isModernSupabaseApiKey(key: string): boolean {
+  return key.startsWith("sb_publishable_") || key.startsWith("sb_secret_");
+}
+
+/** sb_* keys are not JWTs — never send them as Authorization: Bearer. */
+function fetchWithoutSbBearer(apiKey: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(init?.headers);
+    if (isModernSupabaseApiKey(apiKey)) {
+      const auth = headers.get("Authorization");
+      if (auth && /^Bearer\s+sb_/i.test(auth)) {
+        headers.delete("Authorization");
+      }
+      if (!headers.has("apikey")) headers.set("apikey", apiKey);
+    }
+    return fetch(input, { ...init, headers });
+  };
+}
+
+function clientOptions(apiKey: string) {
+  return {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      fetch: fetchWithoutSbBearer(apiKey),
+    },
+  } as const;
+}
+
 export function createAnonSupabase(): SupabaseClient {
+  const key = requiredEnv(
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_ANON_KEY",
+  );
   return createClient(
     requiredEnv("NEXT_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_URL", "SUPABASE_URL"),
-    requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "EXPO_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_ANON_KEY"),
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    },
+    key,
+    clientOptions(key),
   );
 }
 
 export function createServiceSupabase(): SupabaseClient {
+  const key = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   return createClient(
     requiredEnv("NEXT_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_URL", "SUPABASE_URL"),
-    requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    },
+    key,
+    clientOptions(key),
   );
 }
 

@@ -1,6 +1,10 @@
 import { parseStringRecord } from "../../../../../../../_utils/contentLocaleFallback";
 import { resolveExactEmailCopy } from "../../../../../../../_utils/emailCopy";
-import { wrapMarketingEmailHtml } from "../../../../../../../_utils/emailTemplate";
+import {
+  newEmailTrackId,
+  prepareTrackedMarketingEmailHtml,
+  registerEmailTrackKey,
+} from "../../../../../../../_utils/emailFirstPartyTracking";
 import {
   buildSignedUnsubscribeUrl,
   generateUnsubscribeToken,
@@ -86,10 +90,12 @@ export async function POST(req: Request, ctx: Ctx) {
     }
 
     const unsubscribeUrl = buildSignedUnsubscribeUrl(unsubToken);
-    const html = wrapMarketingEmailHtml({
+    const trackId = newEmailTrackId();
+    const html = await prepareTrackedMarketingEmailHtml({
       bodyHtml: exact.htmlBody,
       unsubscribeUrl,
       previewText: exact.subject,
+      trackId,
     });
     const result = await sendMarketingEmail({
       to: testTo,
@@ -107,6 +113,12 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!result.ok) {
       return json({ error: result.detail }, { status: 502 });
     }
+    await registerEmailTrackKey(db, {
+      trackId,
+      resendId: result.resendId,
+      contactId: contact?.id ?? null,
+      stepId,
+    });
     return json({
       ok: true,
       test: true,

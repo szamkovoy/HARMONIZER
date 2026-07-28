@@ -11,6 +11,12 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 - **2026-07-27 (notification detail UX):** Карточка `/admin/notifications/[id]` — заголовок «Уведомления», название над текстом; KPI с пояснениями (получатели / в приложении / push).
 
+- **2026-07-27 (login proxy):** Browser → Auth с валидным apikey зависал (0 bytes); логин через `POST /api/admin/login` (Vercel → GoTrue). `sb_*` ключи не шлём в `Authorization`. На `/admin/login` AdminChrome не вызывает getSession.
+
+- **2026-07-27 (login after hang):** Таймаут getSession оставлял lock supabase-js → login минутами и ложный «Неверный пароль». `resetBrowserSupabase`, очистка storage перед sign-in, реальные тексты ошибок, timeout login 25s.
+
+- **2026-07-27 (adminFetch hang):** Save зависал — `getSession()` мог бесконечно ждать auto-refresh. Таймауты на getSession/refresh/fetch; proactive refresh; prune localStorage только для уже expired (не near-expiry).
+
 - **2026-07-27 (email assets auth):** Загрузка картинок в редакторе писем через `adminFetch` (refresh JWT); timeout refresh 12s; без `alert(Unauthorized)`; кнопки Save показывают «Сохранение…».
 
 - **2026-07-27 (email shared foundation):** Рассылки и цепочки на общем UI (список + workspace); страница письма цепочки; тест шага.

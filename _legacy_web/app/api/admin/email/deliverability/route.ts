@@ -1,6 +1,7 @@
 import { buildDeliverabilityReport } from "../../../_utils/emailDeliverability";
 import {
   addResendSuppression,
+  getMarketingDomainTrackingStatus,
   listResendSuppressions,
   removeResendSuppression,
 } from "../../../_utils/resendMarketingApi";
@@ -23,9 +24,10 @@ export async function GET(req: Request) {
     const days = parseDays(url.searchParams.get("days"));
     const db = createServiceSupabase();
 
-    const [report, suppressions] = await Promise.all([
+    const [report, suppressions, tracking] = await Promise.all([
       buildDeliverabilityReport(db, days),
       listResendSuppressions({ limit: 100, maxPages: 3 }),
+      getMarketingDomainTrackingStatus(),
     ]);
 
     return json({
@@ -34,6 +36,8 @@ export async function GET(req: Request) {
         suppressions: suppressions.suppressions,
         suppressions_error: suppressions.error ?? null,
         suppressions_count: suppressions.suppressions.length,
+        tracking,
+        first_party_open_click: true,
       },
     });
   } catch (error) {

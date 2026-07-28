@@ -2,9 +2,11 @@ import { parseStringRecord } from "../../../../_utils/contentLocaleFallback";
 import { enrollContactManual } from "../../../../_utils/emailAutomationRunner";
 import { resolveExactEmailCopy } from "../../../../_utils/emailCopy";
 import {
-  applyEmailPlaceholders,
-  wrapMarketingEmailHtml,
-} from "../../../../_utils/emailTemplate";
+  newEmailTrackId,
+  prepareTrackedMarketingEmailHtml,
+  registerEmailTrackKey,
+} from "../../../../_utils/emailFirstPartyTracking";
+import { applyEmailPlaceholders } from "../../../../_utils/emailTemplate";
 import {
   buildSignedUnsubscribeUrl,
   generateUnsubscribeToken,
@@ -107,10 +109,12 @@ export async function POST(req: Request, ctx: Ctx) {
       const subject = applyEmailPlaceholders(exact.subject, { name });
       const bodyHtml = applyEmailPlaceholders(exact.htmlBody, { name });
       const unsubscribeUrl = buildSignedUnsubscribeUrl(token);
-      const html = wrapMarketingEmailHtml({
+      const trackId = newEmailTrackId();
+      const html = await prepareTrackedMarketingEmailHtml({
         bodyHtml,
         unsubscribeUrl,
         previewText: subject,
+        trackId,
       });
       const result = await sendMarketingEmail({
         to: email,
@@ -126,16 +130,27 @@ export async function POST(req: Request, ctx: Ctx) {
       });
       if (!result.ok) return json({ error: result.detail }, { status: 502 });
 
-      await db.from("email_campaign_sends").upsert(
-        {
-          campaign_id: campaign.id,
-          contact_id: contact.id,
-          locale: exact.locale,
-          resend_id: result.resendId,
-          status: "sent",
-        },
-        { onConflict: "campaign_id,contact_id" },
-      );
+      const { data: sendRow } = await db
+        .from("email_campaign_sends")
+        .upsert(
+          {
+            campaign_id: campaign.id,
+            contact_id: contact.id,
+            locale: exact.locale,
+            resend_id: result.resendId,
+            status: "sent",
+          },
+          { onConflict: "campaign_id,contact_id" },
+        )
+        .select("id")
+        .maybeSingle();
+      await registerEmailTrackKey(db, {
+        trackId,
+        resendId: result.resendId,
+        contactId: contact.id,
+        campaignId: campaign.id,
+        sendId: sendRow?.id ?? null,
+      });
       await db
         .from("email_contacts")
         .update({ last_sent_at: new Date().toISOString() })

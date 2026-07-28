@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -14,7 +14,9 @@ import {
 import { adminFetch } from "../../_lib/adminApi";
 import {
   createEmptyBlock,
+  enrichImageBlockDimensions,
   FONT_FAMILY_OPTIONS,
+  loadImageNaturalSize,
   newBlockId,
   type BlockAlign,
   type BlockFontFamily,
@@ -48,6 +50,10 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const localSubjectRef = useRef(localSubject);
+  const localBlocksRef = useRef(localBlocks);
+  localSubjectRef.current = localSubject;
+  localBlocksRef.current = localBlocks;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,10 +103,26 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
   }
 
   async function handleSave(closeAfter: boolean) {
+    if (saving) return;
     setSaving(true);
     setError(null);
     try {
-      await onSave({ subject: localSubject.trim(), blocks: localBlocks });
+      // Flush open contentEditable before save (onBlur may not have fired yet).
+      if (typeof document !== "undefined") {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) active.blur();
+      }
+      // Let React commit onBlur → onChange into refs.
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+      const blocks = await enrichImageBlockDimensions(localBlocksRef.current);
+      localBlocksRef.current = blocks;
+      setLocalBlocks(blocks);
+      await onSave({
+        subject: localSubjectRef.current.trim(),
+        blocks,
+      });
       if (closeAfter) onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось сохранить");
@@ -335,7 +357,30 @@ function BlockSettingsModal({
         body: form,
       });
       if (data.public_url) {
-        onChange({ src: data.public_url } as Partial<EmailBlock>);
+        let naturalWidth: number | undefined;
+        let naturalHeight: number | undefined;
+        const objectUrl = URL.createObjectURL(file);
+        try {
+          const fromFile = await loadImageNaturalSize(objectUrl);
+          naturalWidth = fromFile.width;
+          naturalHeight = fromFile.height;
+        } catch {
+          try {
+            const fromUrl = await loadImageNaturalSize(data.public_url);
+            naturalWidth = fromUrl.width;
+            naturalHeight = fromUrl.height;
+          } catch {
+            /* send path still probes dimensions */
+          }
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+        onChange({
+          src: data.public_url,
+          ...(naturalWidth && naturalHeight
+            ? { naturalWidth, naturalHeight }
+            : {}),
+        } as Partial<EmailBlock>);
       } else {
         setUploadError("Сервер не вернул ссылку на файл");
       }
@@ -406,7 +451,7 @@ function BlockSettingsModal({
                 </label>
               </div>
               <div
-                className="min-h-[140px] rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                className="email-richtext min-h-[140px] rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 [&_h1]:m-0 [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0 [&_p]:p-0"
                 style={{
                   fontFamily:
                     block.fontFamily === "georgia"
@@ -418,6 +463,7 @@ function BlockSettingsModal({
                           : block.fontFamily === "arial"
                             ? "Arial, Helvetica, sans-serif"
                             : "system-ui, sans-serif",
+                  lineHeight: 1.55,
                 }}
                 contentEditable
                 suppressContentEditableWarning
@@ -425,7 +471,9 @@ function BlockSettingsModal({
                 onBlur={(e) => onChange({ html: e.currentTarget.innerHTML } as Partial<EmailBlock>)}
               />
               <p className="text-[11px] text-zinc-400">
-                Плейсхолдер {"{{name}}"} подставится именем пользователя при отправке.
+                Enter — новый абзац без лишнего зазора; пустая строка (два Enter) — пустая строка в
+                письме; Shift+Enter — перенос без абзаца. Плейсхолдер {"{{name}}"} подставится при
+                отправке.
               </p>
             </>
           )}

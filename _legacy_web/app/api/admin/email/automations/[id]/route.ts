@@ -32,7 +32,7 @@ export async function GET(req: Request, ctx: Ctx) {
     const { data: steps, error: stepsError } = await db
       .from("email_automation_steps")
       .select(
-        "id, position, delay_hours, subject, subject_i18n, html_body, html_body_i18n, blocks_i18n, sent_count, delivered_count, opened_count, clicked_count, bounced_count, complained_count, failed_count, created_at, updated_at",
+        "id, name, position, delay_hours, subject, subject_i18n, html_body, html_body_i18n, blocks_i18n, sent_count, delivered_count, opened_count, clicked_count, bounced_count, complained_count, failed_count, created_at, updated_at",
       )
       .eq("automation_id", id)
       .order("position", { ascending: true });

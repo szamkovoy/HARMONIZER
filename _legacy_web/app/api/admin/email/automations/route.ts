@@ -19,6 +19,7 @@ export async function GET(req: Request) {
     let steps: {
       id: string;
       automation_id: string;
+      name: string;
       position: number;
       delay_hours: number;
       subject: string;
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
     if (ids.length) {
       const { data: stepRows, error: stepsError } = await db
         .from("email_automation_steps")
-        .select("id, automation_id, position, delay_hours, subject")
+        .select("id, automation_id, name, position, delay_hours, subject")
         .in("automation_id", ids)
         .order("position", { ascending: true });
       if (stepsError) throw stepsError;

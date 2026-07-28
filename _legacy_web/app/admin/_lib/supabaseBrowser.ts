@@ -68,10 +68,10 @@ function sessionRefreshToken(blob: StoredAuthBlob): string | null {
 }
 
 /**
- * True when local session cannot be recovered quietly by supabase-js.
- * Incomplete / expired / near-expiry sessions are removed so
- * `_recoverAndRefresh` never calls refresh with a revoked token and
- * `console.error(AuthApiError)` (Next.js dev overlay).
+ * True when local session is incomplete or already expired (past grace).
+ * Do NOT wipe merely near-expiry tokens — that deletes the refresh_token and
+ * leaves the admin UI unable to save until a full re-login.
+ * Near-expiry refresh is handled by supabase-js / adminFetch.
  */
 function shouldDiscardStoredSession(raw: string): boolean {
   let parsed: unknown;
@@ -85,7 +85,8 @@ function shouldDiscardStoredSession(raw: string): boolean {
   if (!sessionAccessToken(blob) || !sessionRefreshToken(blob)) return true;
   const expiresAt = sessionExpirySec(blob);
   if (expiresAt == null) return true;
-  return expiresAt * 1000 - Date.now() < SESSION_EXPIRY_MARGIN_MS;
+  // Already expired beyond the usual refresh margin → unrecoverable locally.
+  return expiresAt * 1000 + SESSION_EXPIRY_MARGIN_MS < Date.now();
 }
 
 function isSupabaseAuthTokenKey(key: string): boolean {
@@ -155,21 +156,65 @@ function installSupabaseAuthConsoleFilter(): void {
  * Используется ТОЛЬКО для аутентификации; данные админка получает через
  * /api/admin/* (service role на сервере), а не прямыми запросами к БД.
  */
+function isModernSupabaseApiKey(key: string): boolean {
+  return key.startsWith("sb_publishable_") || key.startsWith("sb_secret_");
+}
+
+/**
+ * New sb_* keys are not JWTs. supabase-js still puts them on Authorization: Bearer,
+ * and the platform may hang or reject with Invalid JWT. Strip that for sb_* keys;
+ * keep Authorization when it carries a real user access token.
+ */
+function browserFetchWithSafeApiKey(apiKey: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(init?.headers);
+    if (isModernSupabaseApiKey(apiKey)) {
+      const auth = headers.get("Authorization");
+      if (auth && /^Bearer\s+sb_/i.test(auth)) {
+        headers.delete("Authorization");
+      }
+      if (!headers.has("apikey")) headers.set("apikey", apiKey);
+    }
+    return fetch(input, { ...init, headers });
+  };
+}
+
 export function getBrowserSupabase(): SupabaseClient {
   if (!client) {
     installSupabaseAuthConsoleFilter();
     pruneUnusableSupabaseSession();
-    client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-        },
+    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, apiKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
       },
-    );
+      global: {
+        fetch: browserFetchWithSafeApiKey(apiKey),
+      },
+    });
   }
   return client;
+}
+
+/**
+ * Drop the singleton client (and optionally wipe stored auth).
+ * Needed when getSession/refresh hangs: supabase-js keeps an internal lock,
+ * so a timed-out caller still blocks the next signInWithPassword.
+ */
+export function resetBrowserSupabase(opts?: { clearStorage?: boolean }): void {
+  if (opts?.clearStorage && typeof window !== "undefined") {
+    try {
+      const storage = window.localStorage;
+      for (const key of Object.keys(storage)) {
+        if (isSupabaseAuthTokenKey(key)) storage.removeItem(key);
+      }
+    } catch {
+      /* ignore */
+    }
+  } else {
+    pruneUnusableSupabaseSession();
+  }
+  client = null;
 }

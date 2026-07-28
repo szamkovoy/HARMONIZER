@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Loader2, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Save, Trash2 } from "lucide-react";
 
 import { adminFetch } from "../../../../../_lib/adminApi";
 import {
@@ -30,6 +30,7 @@ type Automation = {
 
 type Step = {
   id: string;
+  name: string;
   position: number;
   delay_hours: number;
   subject: string;
@@ -59,6 +60,7 @@ export default function AdminEmailAutomationStepPage() {
   const [step, setStep] = useState<Step | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [subjectI18n, setSubjectI18n] = useState<Record<string, string>>({});
   const [htmlBody, setHtmlBody] = useState("");
@@ -82,6 +84,7 @@ export default function AdminEmailAutomationStepPage() {
       }
       setAutomation(data.automation);
       setStep(row);
+      setName((row.name ?? "").trim());
       setSubject(row.subject ?? "");
       setSubjectI18n((row.subject_i18n as Record<string, string>) ?? {});
       setHtmlBody(row.html_body ?? "");
@@ -102,7 +105,7 @@ export default function AdminEmailAutomationStepPage() {
     void load();
   }, [load]);
 
-  async function saveDelay() {
+  async function saveMeta() {
     setSaving(true);
     setInfo(null);
     try {
@@ -110,10 +113,14 @@ export default function AdminEmailAutomationStepPage() {
         `/api/admin/email/automations/${automationId}/steps/${stepId}`,
         {
           method: "PATCH",
-          body: JSON.stringify({ delay_hours: Math.max(0, Math.floor(delayHours)) }),
+          body: JSON.stringify({
+            name: name.trim(),
+            delay_hours: Math.max(0, Math.floor(delayHours)),
+          }),
         },
       );
       setStep(row);
+      setName((row.name ?? "").trim());
       setDelayHours(row.delay_hours);
       setInfo("Сохранено");
     } catch (err) {
@@ -148,6 +155,7 @@ export default function AdminEmailAutomationStepPage() {
       {
         method: "PATCH",
         body: JSON.stringify({
+          name: name.trim(),
           subject: nextSubjectRu,
           html_body: nextHtmlRu,
           subject_i18n: nextSubjectI18n,
@@ -157,6 +165,7 @@ export default function AdminEmailAutomationStepPage() {
       },
     );
     setStep(row);
+    setName((row.name ?? "").trim() || name.trim());
     setSubject(nextSubjectRu);
     setSubjectI18n(nextSubjectI18n);
     setHtmlBody(nextHtmlRu);
@@ -229,6 +238,20 @@ export default function AdminEmailAutomationStepPage() {
     }
   }
 
+  async function copyStep() {
+    setError(null);
+    try {
+      const { step: copy } = await adminFetch<{ step: { id: string } }>(
+        `/api/admin/email/automations/${automationId}/steps/${stepId}/copy`,
+        { method: "POST", body: "{}" },
+      );
+      if (!copy?.id) throw new Error("Сервер не вернул id копии");
+      router.replace(`/admin/email/automations/${automationId}/steps/${copy.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Копирование не удалось");
+    }
+  }
+
   async function removeStep() {
     if (!window.confirm("Удалить это письмо из цепочки?")) return;
     try {
@@ -274,6 +297,13 @@ export default function AdminEmailAutomationStepPage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={() => void copyStep()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+          >
+            <Copy size={14} /> Копировать
+          </button>
+          <button
+            type="button"
             onClick={() => void removeStep()}
             className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
           >
@@ -281,7 +311,7 @@ export default function AdminEmailAutomationStepPage() {
           </button>
           <button
             type="button"
-            onClick={() => void saveDelay()}
+            onClick={() => void saveMeta()}
             disabled={saving}
             className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
           >
@@ -305,6 +335,16 @@ export default function AdminEmailAutomationStepPage() {
       {step && hasDeliveryActivity(step) ? (
         <EmailDeliveryStats counts={step} showUnsubscribed={false} />
       ) : null}
+
+      <label className="block text-xs font-medium text-zinc-500">
+        Название письма
+        <input
+          className={`${inputCls} mt-1`}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Например: Приветствие через сутки"
+        />
+      </label>
 
       <EmailMessageWorkspace
         content={{

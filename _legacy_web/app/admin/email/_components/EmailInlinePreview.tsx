@@ -1,8 +1,19 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  MARKETING_EMAIL_MAX_WIDTH_PX,
+  wrapMarketingEmailHtml,
+} from "../../../api/_utils/emailTemplate";
+
 /**
- * Email preview as normal page flow (no brand header chrome).
- * Segment & send blocks sit directly under this content.
+ * Preview uses the same HTML document as Resend send (wrap + normalize),
+ * in an iframe so Tailwind preflight cannot change `<p>` margins / width.
+ *
+ * Height must shrink when switching to a shorter letter: measuring
+ * document.scrollHeight while the iframe is still tall keeps the old size
+ * (body expands to fill the frame). Collapse → measure content → set height.
  */
 export function EmailInlinePreview({
   subject,
@@ -13,9 +24,69 @@ export function EmailInlinePreview({
   localeLabel: string;
   bodyHtml: string;
 }) {
-  const body =
-    bodyHtml.trim() ||
-    "<p style=\"color:#9ca3af;font-style:italic;margin:0\">Пустое письмо — нажмите «Редактировать»</p>";
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [frameHeight, setFrameHeight] = useState(200);
+
+  const srcDoc = useMemo(() => {
+    const body =
+      bodyHtml.trim() ||
+      '<p style="margin:0;padding:0;color:#9ca3af;font-style:italic;">Пустое письмо — нажмите «Редактировать»</p>';
+    const html = wrapMarketingEmailHtml({
+      bodyHtml: body,
+      unsubscribeUrl: "#unsubscribe",
+      previewText: subject.trim() || undefined,
+    });
+    // Keep document height = content (not 100% of a tall iframe).
+    return html.replace(
+      "</head>",
+      "<style>html,body{height:auto!important;min-height:0!important;}</style></head>",
+    );
+  }, [bodyHtml, subject]);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    let cancelled = false;
+
+    function measure() {
+      if (cancelled) return;
+      const el = iframeRef.current;
+      if (!el) return;
+      const doc = el.contentDocument;
+      if (!doc?.body) return;
+
+      // Collapse first — otherwise scrollHeight mirrors the previous tall frame.
+      el.style.height = "1px";
+      const rootTable = doc.body.querySelector("table");
+      const contentH = rootTable
+        ? Math.ceil(rootTable.getBoundingClientRect().height)
+        : Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+      const next = Math.max(contentH + 8, 120);
+      el.style.height = `${next}px`;
+      setFrameHeight(next);
+    }
+
+    function onLoad() {
+      measure();
+      const el = iframeRef.current;
+      const doc = el?.contentDocument;
+      if (!doc) return;
+      doc.querySelectorAll("img").forEach((img) => {
+        if (!img.complete) img.addEventListener("load", measure, { once: true });
+      });
+      // Second pass after layout/fonts.
+      requestAnimationFrame(() => requestAnimationFrame(measure));
+    }
+
+    setFrameHeight(120);
+    iframe.addEventListener("load", onLoad);
+    if (iframe.contentDocument?.readyState === "complete") onLoad();
+    return () => {
+      cancelled = true;
+      iframe.removeEventListener("load", onLoad);
+    };
+  }, [srcDoc]);
 
   return (
     <div className="space-y-3">
@@ -24,30 +95,23 @@ export function EmailInlinePreview({
         <span className="font-medium text-zinc-900">{subject.trim() || "—"}</span>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <div
-          className="email-preview-body px-7 py-7 text-base leading-relaxed text-zinc-900 [&_a]:text-emerald-800 [&_img]:max-w-full [&_img]:h-auto"
-          style={{
-            fontFamily:
-              "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
-          }}
-          dangerouslySetInnerHTML={{ __html: body }}
+      <div
+        className="overflow-hidden rounded-xl border border-zinc-200 bg-[#f4f6f5]"
+        style={{ maxWidth: MARKETING_EMAIL_MAX_WIDTH_PX + 48 }}
+      >
+        <iframe
+          ref={iframeRef}
+          title="Превью письма"
+          srcDoc={srcDoc}
+          className="block w-full border-0 bg-[#f4f6f5]"
+          style={{ height: frameHeight, maxWidth: "100%" }}
+          sandbox="allow-same-origin"
         />
-        <div
-          className="border-t border-zinc-200 px-7 py-5 text-xs leading-relaxed text-zinc-500"
-          style={{
-            fontFamily:
-              "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
-            textAlign: "center",
-          }}
-        >
-          <p className="m-0">
-            Вы получили это письмо, потому что регистрировались в учебном центре Сергея
-            Замкового. Если вы не хотите получать мои письма, вы можете{" "}
-            <span className="text-[#0f3d2e] underline">отписаться</span>.
-          </p>
-        </div>
       </div>
+      <p className="text-[11px] text-zinc-400">
+        Превью = тот же HTML, что уходит в почту (ширина {MARKETING_EMAIL_MAX_WIDTH_PX}px). Клиенты
+        могут чуть отличаться, но отступы и колонка совпадают с отправкой.
+      </p>
     </div>
   );
 }

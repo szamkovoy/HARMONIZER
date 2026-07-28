@@ -6,6 +6,10 @@ import { Activity, Loader2, Mail, Plus, Workflow } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+import {
+  emailListSubjectSubtitle,
+  emailListTitle,
+} from "../../api/_utils/emailNaming";
 import { EmailListRow } from "./_components/EmailListRow";
 
 type CampaignRow = {
@@ -130,11 +134,11 @@ export default function AdminEmailListPage() {
               <EmailListRow
                 key={c.id}
                 href={`/admin/email/${c.id}`}
-                title={c.name.trim() || c.subject.trim() || "Без названия"}
+                title={emailListTitle(c.name, c.subject)}
                 subtitle={[
                   STATUS_RU[c.status] ?? c.status,
                   formatAdminDateTime(c.sent_at || c.created_at),
-                  c.subject.trim() && c.name.trim() ? c.subject : null,
+                  emailListSubjectSubtitle(c.name, c.subject),
                 ]
                   .filter(Boolean)
                   .join(" · ")}

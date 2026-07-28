@@ -64,6 +64,7 @@ code_refs:
 **Авторизация (реализовано, этап 0):**
 
 - **`requireAdmin(req): Promise<string>`** (`_legacy_web/app/api/_utils/supabase.ts`) — гейт каждого роута `app/api/admin/*`: `requireUserId` (JWT) + проверка `public.user_roles.role = 'admin'` через service client. 401 без токена, 403 без роли. Возвращает userId админа.
+- **`POST /api/admin/login`** — серверный password-grant (обход зависаний browser → Supabase Auth): body `{ email, password }` → `{ access_token, refresh_token, ... }` или 401/403/504. Клиент кладёт токены через `setSession`.
 - **`GET /api/admin/me`** — проба «я админ» для клиентского гейта: `{ userId, displayName }` или 401/403.
 
 **Сторис (реализовано, этап 1, доработано 2026-07-10):** `GET /api/admin/stories`, `POST /api/admin/stories/process`, `PATCH/DELETE /api/admin/stories/[id]`, `POST /api/admin/stories/cleanup`, UI `/admin/stories`. `GET /api/admin/stories` теперь opportunistically запускает cleanup истёкших published non-evergreen stories перед возвратом списка, а регулярное удаление поддерживается тем же helper + hourly cron invoke `cleanup-expired-stories`. Контракт и данные — в `02_modules/author_presence/spec.md` (владелец функциональности).

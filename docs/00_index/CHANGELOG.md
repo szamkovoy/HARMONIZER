@@ -1,3 +1,15 @@
+- 2026-07-28 (302): Deliverability contact-status counts link to contacts list; drop open/click explainer.
+- 2026-07-28 (301): First-party open/click tracking for zamkovoi.ru; deliverability KPI «Не доставлено».
+- 2026-07-28 (300): Restore email image centering (`inline-block` + parent text-align).
+- 2026-07-28 (299): Fix email image stretch: do not treat max-width:100% as width:100%.
+- 2026-07-28 (298): Marketing email images emit width+height (reserve space; no text jump on load).
+- 2026-07-28 (297): Email preview iframe height shrinks to content (no tall empty gap after shorter letters).
+- 2026-07-28 (296): Fix automation step name persistence (GET omitted `name`); shared `emailNaming` for campaigns/steps.
+- 2026-07-28 (295): Automation step name field + Copy (same chain, «(копия)»); list shows step name.
+- 2026-07-28 (294): Marketing email preview matches send HTML (560px iframe); normalize paragraph spacing; default image width 240px.
+- 2026-07-27 (293): Admin login via `POST /api/admin/login` (server password-grant); safe headers for `sb_*` API keys.
+- 2026-07-27 (292): Admin login — reset hung Supabase client before sign-in; show real auth errors (not always «wrong password»).
+- 2026-07-27 (291): Admin API — timeout getSession/refresh/fetch so Save cannot hang; keep near-expiry sessions for refresh.
 - 2026-07-27 (290): Admin email editor — asset upload via adminFetch (JWT refresh); refresh timeout; no Unauthorized alert; Save loading label.
 - 2026-07-27 (289): Marketing email block editor — remove «Логотип»; keep «Изображение» only (legacy logo → image on parse).
 - 2026-07-27 (288): Marketing email — shared UI foundation for campaigns + automation steps (list row, message workspace, step page + test send); footer 12.5px; web-safe fonts; logo vs image defaults.

@@ -1,3 +1,5 @@
+import { MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX } from "../../../api/_utils/emailChrome";
+
 export type BlockAlign = "left" | "center" | "right";
 /** Web-safe stacks only — email clients ignore arbitrary fonts. */
 export type BlockFontFamily =
@@ -7,6 +9,8 @@ export type BlockFontFamily =
   | "georgia"
   | "times";
 export type BlockFontSize = "sm" | "md" | "lg" | "xl";
+
+const CONTENT_INNER_WIDTH_PX = MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX;
 
 const FONT_CSS: Record<BlockFontFamily, string> = {
   system: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
@@ -39,6 +43,9 @@ export type EmailBlock =
       alt: string;
       href?: string;
       width?: string;
+      /** Intrinsic pixels — used to emit height so clients reserve space before load. */
+      naturalWidth?: number;
+      naturalHeight?: number;
       align?: BlockAlign;
       marginTop?: number;
       marginBottom?: number;
@@ -90,10 +97,11 @@ export function createEmptyBlock(type: EmailBlock["type"]): EmailBlock {
         src: "",
         alt: "",
         href: "",
-        width: "100%",
+        // Prefer explicit px for logos; 100% fills the 560px column and looks huge in clients.
+        width: "240px",
         align: "center",
-        marginTop: 8,
-        marginBottom: 8,
+        marginTop: 0,
+        marginBottom: 12,
       };
     case "heading":
       return {
@@ -103,19 +111,20 @@ export function createEmptyBlock(type: EmailBlock["type"]): EmailBlock {
         align: "left",
         fontFamily: "system",
         fontSize: "xl",
-        marginTop: 12,
+        marginTop: 16,
         marginBottom: 8,
       };
     case "text":
       return {
         id,
         type: "text",
-        html: "<p>Текст письма…</p>",
+        // Spacing comes from blank paragraphs / <br>, not from block margins.
+        html: "<p style=\"margin:0;padding:0;\">Текст письма…</p>",
         align: "left",
         fontFamily: "system",
         fontSize: "md",
-        marginTop: 8,
-        marginBottom: 8,
+        marginTop: 0,
+        marginBottom: 0,
       };
     case "button":
       return {
@@ -145,6 +154,7 @@ function blockToHtml(block: EmailBlock): string {
     const family = FONT_CSS[block.fontFamily ?? "system"];
     const size = SIZE_CSS[block.fontSize ?? (block.type === "heading" ? "xl" : "md")];
     const weight = block.type === "heading" ? "font-weight:700;" : "";
+    // Inner <p>/<br> spacing is finalized in wrapMarketingEmailHtml (normalizeEmailBodyHtml).
     return `<div style="${pad}font-family:${family};font-size:${size};line-height:1.55;${weight}">${block.html || ""}</div>`;
   }
 
@@ -160,12 +170,75 @@ function blockToHtml(block: EmailBlock): string {
   if (!block.src) return "";
   const src = escapeAttr(block.src);
   const alt = escapeAttr(block.alt || "");
-  const width = escapeAttr(block.width || "100%");
-  const img = `<img src="${src}" alt="${alt}" width="${width}" style="max-width:100%;height:auto;display:inline-block;border:0;" />`;
+  const widthRaw = (block.width || "240px").trim();
+  const widthIsPercent = widthRaw === "100%";
+  const widthPx = widthIsPercent
+    ? CONTENT_INNER_WIDTH_PX
+    : parseCssPx(widthRaw) ?? 240;
+  const displayW = Math.min(widthPx, CONTENT_INNER_WIDTH_PX);
+  const nw = block.naturalWidth;
+  const nh = block.naturalHeight;
+  const displayH =
+    typeof nw === "number" &&
+    nw > 0 &&
+    typeof nh === "number" &&
+    nh > 0
+      ? Math.max(1, Math.round((displayW * nh) / nw))
+      : null;
+  const widthCss = widthIsPercent ? "100%" : `${displayW}px`;
+  const heightAttr = displayH != null ? ` height="${displayH}"` : "";
+  // inline-block: parent text-align centers in email clients (block ignores it).
+  // Integer width/height attrs still reserve space before the image loads.
+  const img = `<img src="${src}" alt="${alt}" width="${displayW}"${heightAttr} style="width:${widthCss};max-width:100%;height:auto;display:inline-block;border:0;" />`;
   const inner = block.href
-    ? `<a href="${escapeAttr(block.href)}" style="text-decoration:none;">${img}</a>`
+    ? `<a href="${escapeAttr(block.href)}" style="display:inline-block;text-decoration:none;">${img}</a>`
     : img;
   return `<div style="${pad}">${inner}</div>`;
+}
+
+function parseCssPx(value: string): number | null {
+  const m = value.trim().match(/^(\d+(?:\.\d+)?)\s*px$/i) || value.trim().match(/^(\d+)$/);
+  if (!m) return null;
+  return Math.round(Number(m[1]));
+}
+
+/** Load intrinsic size for an image URL (browser). */
+export function loadImageNaturalSize(
+  src: string,
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("Не удалось прочитать размер изображения"));
+    img.src = src;
+  });
+}
+
+/** Fill missing naturalWidth/Height on image blocks before save/render. */
+export async function enrichImageBlockDimensions(
+  blocks: EmailBlock[],
+): Promise<EmailBlock[]> {
+  return Promise.all(
+    blocks.map(async (block) => {
+      if (block.type !== "image" || !block.src) return block;
+      if (
+        typeof block.naturalWidth === "number" &&
+        block.naturalWidth > 0 &&
+        typeof block.naturalHeight === "number" &&
+        block.naturalHeight > 0
+      ) {
+        return block;
+      }
+      try {
+        const { width, height } = await loadImageNaturalSize(block.src);
+        if (width <= 0 || height <= 0) return block;
+        return { ...block, naturalWidth: width, naturalHeight: height };
+      } catch {
+        return block;
+      }
+    }),
+  );
 }
 
 /** Render blocks to HTML body fragment (no brand chrome). */
@@ -198,13 +271,13 @@ function normalizeBlock(value: unknown): EmailBlock | null {
       src: typeof raw.src === "string" ? raw.src : "",
       alt: typeof raw.alt === "string" ? raw.alt : "",
       href: typeof raw.href === "string" ? raw.href : "",
-      width: typeof raw.width === "string" ? raw.width : "100%",
+      width: typeof raw.width === "string" ? raw.width : "240px",
       align:
         raw.align === "left" || raw.align === "center" || raw.align === "right"
           ? raw.align
           : "center",
-      marginTop: typeof raw.marginTop === "number" ? raw.marginTop : 8,
-      marginBottom: typeof raw.marginBottom === "number" ? raw.marginBottom : 8,
+      marginTop: typeof raw.marginTop === "number" ? raw.marginTop : 0,
+      marginBottom: typeof raw.marginBottom === "number" ? raw.marginBottom : 12,
     };
   }
   if (t === "image" || t === "heading" || t === "text" || t === "button") {
@@ -248,8 +321,8 @@ export function ensureBlocksFromHtml(html: string): EmailBlock[] {
       align: "left",
       fontFamily: "system",
       fontSize: "md",
-      marginTop: 8,
-      marginBottom: 8,
+      marginTop: 0,
+      marginBottom: 0,
     },
   ];
 }

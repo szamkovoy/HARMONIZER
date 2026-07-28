@@ -1,3 +1,4 @@
+import { emailCopyName } from "../../../../../_utils/emailNaming";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ export async function POST(req: Request, ctx: Ctx) {
       .from("email_campaigns")
       .insert({
         status: "draft",
-        name: source.name ? `${source.name} (копия)` : "Копия рассылки",
+        name: emailCopyName(source.name, source.subject, "Копия рассылки"),
         subject: source.subject,
         html_body: source.html_body,
         subject_i18n: source.subject_i18n ?? {},

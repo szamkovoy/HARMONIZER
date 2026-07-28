@@ -341,7 +341,7 @@ export async function buildDeliverabilityReport(
   const complaintRate = rate(totals.complained, Math.max(totals.delivered, 1));
   if (bounceRate != null && bounceRate >= 5) {
     alerts.push(
-      `Много отказов доставки: ${bounceRate}% за ${days}д (лучше держать ниже 2–5%).`,
+      `Много писем «не доставлено»: ${bounceRate}% за ${days}д (лучше держать ниже 2–5%).`,
     );
   }
   if (complaintRate != null && complaintRate >= 0.3) {

@@ -1,6 +1,14 @@
 /**
  * Marketing email chrome: body + fixed unsubscribe footer (no brand header).
+ * Preview in admin must use the same wrap so WYSIWYG ≈ inbox.
+ * Keep this module free of Node-only deps (sharp) — admin client imports it.
  */
+
+import {
+  MARKETING_EMAIL_MAX_WIDTH_PX,
+} from "./emailChrome";
+
+export { MARKETING_EMAIL_MAX_WIDTH_PX } from "./emailChrome";
 
 const BRAND_COLOR = "#0f3d2e";
 const BODY_FONT =
@@ -12,9 +20,52 @@ export type WrapEmailOptions = {
   previewText?: string;
 };
 
+/**
+ * Email clients ignore Tailwind and apply default `<p>` margins (~1em).
+ * Normalize so:
+ * - soft break (`<br>`) does not add block spacing;
+ * - a blank paragraph (Enter on empty line) is exactly one empty line;
+ * - consecutive non-empty paragraphs have no extra gap beyond line-height.
+ */
+export function normalizeEmailBodyHtml(html: string): string {
+  if (!html.trim()) return html;
+
+  let out = html;
+
+  // Empty paragraphs → one blank line (email-safe spacer).
+  out = out.replace(
+    /<p(\s[^>]*)?>\s*(?:<br\s*\/?>|&nbsp;|\u00a0|\s)*<\/p>/gi,
+    '<p style="margin:0;padding:0;line-height:1.55;height:1.55em;font-size:inherit;">&nbsp;</p>',
+  );
+
+  // Force zero margin on block text tags (merge with existing style=).
+  out = out.replace(
+    /<(p|h1|h2|h3|h4|h5|h6|li|ul|ol)(\s[^>]*)?>/gi,
+    (_full, tag: string, attrs = "") => {
+      const attrStr = typeof attrs === "string" ? attrs : "";
+      if (/height\s*:\s*1\.55em/i.test(attrStr)) {
+        return `<${tag}${attrStr}>`;
+      }
+      const styleMatch = attrStr.match(/\sstyle\s*=\s*"([^"]*)"/i);
+      const withoutStyle = attrStr.replace(/\sstyle\s*=\s*"[^"]*"/i, "");
+      const prev = styleMatch?.[1] ?? "";
+      const cleaned = prev
+        .replace(/margin\s*:[^;]*;?/gi, "")
+        .replace(/padding\s*:[^;]*;?/gi, "")
+        .replace(/;;+/g, ";")
+        .trim()
+        .replace(/^;|;$/g, "");
+      const next = `margin:0;padding:0;${cleaned ? `${cleaned};` : ""}`;
+      return `<${tag}${withoutStyle} style="${next}">`;
+    },
+  );
+
+  return out;
+}
+
 export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
   const preview = (opts.previewText ?? "").replace(/</g, "&lt;").slice(0, 140);
-  const body = opts.bodyHtml.trim() || "<p></p>";
+  const body = normalizeEmailBodyHtml(opts.bodyHtml.trim() || "<p style=\"margin:0;padding:0;\"></p>");
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -27,7 +78,7 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6f5;padding:24px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
+        <table role="presentation" width="100%" style="max-width:${MARKETING_EMAIL_MAX_WIDTH_PX}px;background:#ffffff;border-radius:12px;overflow:hidden;">
           <tr>
             <td style="padding:28px;font-size:16px;line-height:1.55;font-family:${BODY_FONT};">
               ${body}
@@ -35,7 +86,7 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
           </tr>
           <tr>
             <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:12.5px;line-height:1.5;color:#6b7280;text-align:center;">
-              <p style="margin:0;font-size:12.5px;line-height:1.5;">
+              <p style="margin:0;padding:0;font-size:12.5px;line-height:1.5;">
                 Вы получили это письмо, потому что регистрировались в учебном центре Сергея Замкового.
                 Если вы не хотите получать мои письма, вы можете
                 <a href="${opts.unsubscribeUrl}" style="color:${BRAND_COLOR};text-decoration:underline;">отписаться</a>.
