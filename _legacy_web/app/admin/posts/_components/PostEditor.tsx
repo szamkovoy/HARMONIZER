@@ -654,7 +654,15 @@ export function PostEditor({
             <input
               type="date"
               value={publishDate}
-              onChange={(e) => setPublishDate(e.target.value || localDateInputValue())}
+              onChange={(e) => {
+                // Browsers often emit "" mid-edit when changing day/month; never
+                // snap back to "today" on empty — that looked like the date jumping.
+                const next = e.target.value;
+                if (next) setPublishDate(next);
+              }}
+              onBlur={(e) => {
+                if (!e.target.value.trim()) setPublishDate(localDateInputValue());
+              }}
               className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-900 outline-none focus:border-emerald-500"
             />
           </label>
