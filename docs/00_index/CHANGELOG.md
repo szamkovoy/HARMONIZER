@@ -1,3 +1,4 @@
+- 2026-07-29 (329): Unify product test UI under `HARMONIZER_TEST_MODE` (not `__DEV__`): DevTierSwitch, day-reset/DevLinks, local-notification probe, profile diagnostics, recommendation/communicator model badges, dialog export; AccessProvider ignores tier override when flag is off.
 - 2026-07-29 (328): Pixel QA — (1) breath interpretation: no bilingual EN+RU timeout; `AppUserError` + silent retry; (2) post-login Home keeps prep overlay and auto-retries transient day-content failures instead of flashing «Could not reach the server»; birth CTA / dev tier copy i18n.
 - 2026-07-29 (327): Breath results: hide «Время вхождения не определено» warning (keep «—» in the row).
 - 2026-07-29 (326): Breath results UI by sensor mode (none/camera/BLE); drop debug time-base line from results.

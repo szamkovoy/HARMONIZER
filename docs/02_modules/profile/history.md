@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.32
-updated: 2026-07-21
+version: 1.33
+updated: 2026-07-29
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-29 (test UI gate):** `DevTierSwitch` и блок «Диагностика ресурсов» только при `HARMONIZER_TEST_MODE` (не `__DEV__` / не OR с test mode).
 
 - **2026-07-24 (reports polish):** `matrixNotReady` — новый copy про 7 дней и «Что делать?». Practice stats 90д: недельное среднее без `Math.round` (1 мин → empty); scrub-линия светлее (`textFaint`). Legal modal `paddingTop: 10` — в onboarding.
 

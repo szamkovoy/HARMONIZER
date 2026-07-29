@@ -12,6 +12,7 @@ import { AppText } from "@/modules/ui/AppText";
 import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { ModalLongExplanation, type HomeExplainerLevel } from "./ModalLongExplanation";
 
 interface DailyRecommendationCardProps {
@@ -75,7 +76,7 @@ export function DailyRecommendationCard({
             {shortText ?? t.loading}
           </AppText>
         </SurfaceCardHeader>
-        {__DEV__ ? (
+        {HARMONIZER_TEST_MODE ? (
           <AppText variant="technicalCaption" tone="muted">
             model: {modelUsed ?? "unknown"} · {accessMode}
           </AppText>

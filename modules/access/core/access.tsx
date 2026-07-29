@@ -5,6 +5,7 @@ import { FEATURE_REQUIRED_TIER, TIER_FEATURES } from "./features";
 import { baseTierFromRow, hasActiveTrial, type MembershipRow } from "./paidAccess";
 import type { ProductTier } from "./tiers";
 import { TIER_LABELS, tierAtLeast } from "./tiers";
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 
 type ProfileAccess = MembershipRow;
 
@@ -76,14 +77,22 @@ export function AccessProvider({
   children: ReactNode;
 }) {
   const [devOverride, setDevOverride] = useState<ProductTier | null>(null);
-  const access = useMemo(() => getEffectiveAccess(profile, devOverride), [profile, devOverride]);
+  // Release / non-QA builds must never honor a leftover override.
+  const effectiveDevOverride = HARMONIZER_TEST_MODE ? devOverride : null;
+  const access = useMemo(
+    () => getEffectiveAccess(profile, effectiveDevOverride),
+    [profile, effectiveDevOverride],
+  );
 
   const value = useMemo<AccessContextValue>(
     () => ({
       access,
       canUseFeature: (feature) => canUseFeature(access.tier, feature),
       requiredTierFor,
-      setDevTierOverride: setDevOverride,
+      setDevTierOverride: (tier) => {
+        if (!HARMONIZER_TEST_MODE) return;
+        setDevOverride(tier);
+      },
     }),
     [access],
   );

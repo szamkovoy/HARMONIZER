@@ -47,7 +47,7 @@ code_refs:
   `modules/home/useDayContent.ts` — параллельно вычисляет `AccessMode` из сырых полей профиля для запросов к `global-content` и персональному прогнозу (должен оставаться согласован с правилами trial в `getEffectiveAccess`).
 
 - **`profile`**  
-  `app/(tabs)/profile.tsx` — отображение `access.label`, `TIER_LABELS[access.tier]`, сырых `membership_tier` / `trial_expires_at`; `canUseFeature("stats")` открывает блок статистики практик и новые HARMONIZER v2 reports; в `__DEV__` рендерится `DevTierSwitch`.
+  `app/(tabs)/profile.tsx` — отображение `access.label`, `TIER_LABELS[access.tier]`, сырых `membership_tier` / `trial_expires_at`; `canUseFeature("stats")` открывает блок статистики практик и новые HARMONIZER v2 reports; при `HARMONIZER_TEST_MODE` рендерится `DevTierSwitch`.
 
 - **`assistant` (сервер)**  
   `_legacy_web/app/api/communicator/v2/dialog/route.ts` — выборка `membership_tier`, `trial_expires_at` для DTO и связки с `_legacy_web/app/api/_utils/userModelTier.ts` (`dialogSurfaceModelHint` / премиум-модели); `hasActiveTrial` / `baseTierFromRow` задают `offerCatalogPractice` в `initFsmState` (ветка practice только Master/trial).

@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { PRODUCT_TIERS, TIER_LABELS, VISIBLE_PRODUCT_TIERS, type ProductTier } from "@/modules/access/core/tiers";
+import { PRODUCT_TIERS, TIER_LABELS, type ProductTier } from "@/modules/access/core/tiers";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { logRuntimeTap } from "@/services/runtimeDiagnostics";
 
+/** Render only under `HARMONIZER_TEST_MODE` (Home / Profile call sites). */
 export function DevTierSwitch({
   value,
   onChange,
@@ -19,9 +20,9 @@ export function DevTierSwitch({
         Dev effective tier: {value ? TIER_LABELS[value] : "from profile"}
       </AppText>
       <View style={styles.row}>
-        {/* practitioner — скрытый legacy-уровень, но dev-переключатель показывает
-            все значения БД, чтобы можно было проверить legacy-аккаунты. */}
-        {(__DEV__ ? PRODUCT_TIERS : VISIBLE_PRODUCT_TIERS).map((tier) => (
+        {/* practitioner — скрытый legacy-уровень; в test mode показываем все
+            значения БД, чтобы можно было проверить legacy-аккаунты. */}
+        {PRODUCT_TIERS.map((tier) => (
           <TierButton
             key={tier}
             label={TIER_LABELS[tier]}

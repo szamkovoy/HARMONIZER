@@ -1,13 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.7
-updated: 2026-07-15
+version: 1.8
+updated: 2026-07-29
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-29 (test UI gate):** `DevTierSwitch` и `devOverride` завязаны на `HARMONIZER_TEST_MODE`, не `__DEV__`. Без флага `AccessProvider` не применяет override.
 
 - **2026-07-21 (Day launch gate):** Гейт практик на вкладке «День» выровнен с каталогом: Oracle/Наставник видит выбор pending-практики, но «Начать практику» открывает `AccountGateDialog` (`gate.body.practices`) вместо `launchPractice`.
 

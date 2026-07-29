@@ -1,7 +1,7 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.49
+version: 2.50
 updated: 2026-07-29
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-29 (test UI gate):** Model badge и `Export dialog to JSON` переведены с `__DEV__` на `HARMONIZER_TEST_MODE` (единый продуктовый QA-флаг).
 
 - **2026-07-29 (interpretation i18n):** Timeout/network в `breathPracticeInterpretation` бросали хардкод RU (`Превышено время ожидания…`); в `__DEV__` results UI показывал его под уже локализованным EN error → bilingual. Fix: `AppUserError` + один silent retry на timeout; UI только `resultsInterpretationError`.
 

@@ -553,7 +553,7 @@ function tierLabelFromProfile(profile: MembershipRow): string {
 
 function ModelBadge({ model, accessTier }: { model?: string; accessTier: string }) {
   const theme = useTheme();
-  if (!__DEV__) return null;
+  if (!HARMONIZER_TEST_MODE) return null;
   return (
     <View style={[styles.modelBadge, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.controlButtonBg }]}>
       <AppText variant="technicalCaption" tone="muted">
@@ -2723,7 +2723,7 @@ export function Communicator({
           },
         ]}
       >
-        {__DEV__ ? (
+        {HARMONIZER_TEST_MODE ? (
           <View style={styles.debugActions}>
             <Pressable
               accessibilityRole="button"

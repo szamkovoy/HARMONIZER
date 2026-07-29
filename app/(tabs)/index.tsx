@@ -179,7 +179,7 @@ function HomeStaleNotice({ title, message }: { title: string; message: string })
   return <StateCard title={title} message={message} tone="warning" />;
 }
 
-/** Только __DEV__: проверка `expo-notifications` без ожидания окна возможностей. */
+/** Только HARMONIZER_TEST_MODE: проверка `expo-notifications` без ожидания окна возможностей. */
 function DevLocalNotificationTestButton() {
   const theme = useTheme();
   if (Platform.OS === "web") return null;
@@ -794,7 +794,9 @@ export default function HomeScreen() {
             }}
           />
         ) : null}
-        {__DEV__ ? <AccessDevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
+        {HARMONIZER_TEST_MODE ? (
+          <AccessDevTierSwitch value={access.devOverride} onChange={setDevTierOverride} />
+        ) : null}
         {HARMONIZER_TEST_MODE ? (
           <DevLinks
             strings={strings}
@@ -825,7 +827,7 @@ export default function HomeScreen() {
             }
           />
         ) : null}
-        {__DEV__ ? <DevLocalNotificationTestButton /> : null}
+        {HARMONIZER_TEST_MODE ? <DevLocalNotificationTestButton /> : null}
         <AppButton
           label={signingIn ? strings.signingOutButton : strings.signOutButton}
           variant="secondary"

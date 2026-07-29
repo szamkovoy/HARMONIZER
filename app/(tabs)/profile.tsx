@@ -805,9 +805,11 @@ export default function ProfileTabRoute() {
           }
         />
 
-        {__DEV__ ? <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} /> : null}
+        {HARMONIZER_TEST_MODE ? (
+          <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} />
+        ) : null}
 
-        {__DEV__ || HARMONIZER_TEST_MODE ? (
+        {HARMONIZER_TEST_MODE ? (
           <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
             <AppText variant="sectionTitle">Диагностика ресурсов</AppText>
             <AppText variant="dialogBody" tone="muted">
