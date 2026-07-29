@@ -147,6 +147,10 @@ export interface CoherenceBreathStrings {
   wearableActivationNoDeviceHint: string;
   wearableBluetoothOff: string;
   wearableConnecting: string;
+  /** Short status while connecting a named strap. */
+  wearableConnectingWithName: (deviceName: string) => string;
+  /** Android: one-line hint if the system «Запрос подключения» banner appears. */
+  wearableAndroidSystemConnectHint: string;
   wearableReadyGuidedOnly: string;
   wearableReadyFullMetrics: string;
   wearableScanning: string;
@@ -169,6 +173,8 @@ export interface CoherenceBreathStrings {
   wearablePickerNotFoundHint: string;
   wearablePickerNotFoundTips: string;
   wearablePickerSelectButton: string;
+  wearablePickerConnectedLabel: string;
+  wearablePickerDisconnectButton: string;
   wearablePickerCloseButton: string;
   wearablePickerFaultyMessage: string;
   /** Отображаемые имена практик (на родном языке). */
@@ -281,9 +287,9 @@ const ru: CoherenceBreathStrings = {
   startWithoutSensorButton: "Начать без пульсометра",
   emulatedPulseResultsNote:
     "Пульс эмулировался (датчик не использовался) — метрики HRV, стресса, когерентности и RSA не рассчитываются.",
-  noSensorGreatPracticeTitle: "Отличная практика!",
+  noSensorGreatPracticeTitle: "Практика завершена",
   noSensorResultsRecommendation:
-    "В следующий раз рекомендую вам выполнить практику, выбрав в её настройках телефон в качестве пульсометра или подключив Bluetooth пульсометр. Благодаря этому ритм и скорость дыхания будут регулироваться биологической обратной связью от вашего тела, практика будет значительно глубже и приведёт к лучшим результатам.",
+    "Практика выполнена без пульсометра. Если вы хотите получать лучшие результаты от выполнения дыхательных практик, используйте пульсометр. У большинства современных моделей телефонов встроенной камеры достаточно для управления дыхательной практикой на основе биологической обратной связи. Если камера вашего телефона эту функцию не поддерживает или если вы хотите получать расширенные метрики: вариабельность сердечного ритма (RMSSD), дыхательная синусовая аритмия (RSA), индекс стресса Баевского, коэффициент когерентности — подключите Bluetooth пульсометр Polar H10. Могут подойти и другие Bluetooth пульсометры, особенно нагрудные, но с ними приложение не тестировалось.",
   cameraGuidanceOnlyResultsNote:
     "Практика выполнена по пульсу с камеры телефона. Для камеры расширенные метрики HRV, когерентности и RSA отключены; чтобы получить их, используйте совместимый Bluetooth-пульсометр.",
   guidedLimitedResultsNote:
@@ -334,7 +340,9 @@ const ru: CoherenceBreathStrings = {
   wearableActivationNoDeviceHint:
     "Найдите и выберите BLE-пульсометр. Подключение выполняется внутри приложения, а не через системный список Bluetooth-устройств.",
   wearableBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
-  wearableConnecting: "Подключаемся к датчику...",
+  wearableConnecting: "Подключаем пульсометр…",
+  wearableConnectingWithName: (deviceName) => `Подключаем ${deviceName}…`,
+  wearableAndroidSystemConnectHint: "Если сверху запрос Android — подтвердите соединение.",
   wearableReadyGuidedOnly: "Датчик подключен. Будем вести практику по пульсу без HRV-метрик.",
   wearableReadyFullMetrics: "Датчик подключен. Полные биометрические метрики доступны.",
   wearableScanning: "Ищем совместимые пульсометры поблизости...",
@@ -360,6 +368,8 @@ const ru: CoherenceBreathStrings = {
   wearablePickerNotFoundTips:
     "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
   wearablePickerSelectButton: "Подключить",
+  wearablePickerConnectedLabel: "Подключен",
+  wearablePickerDisconnectButton: "Отключить",
   wearablePickerCloseButton: "Закрыть",
   wearablePickerFaultyMessage:
     "Выбранный пульсометр работает некорректно. Чтобы продолжить практику, выберите другой пульсометр.",
@@ -461,11 +471,11 @@ const en: CoherenceBreathStrings = {
   startWithoutSensorButton: "Start without pulse sensor",
   emulatedPulseResultsNote:
     "Pulse was emulated (no sensor used) — HRV, stress, coherence, and RSA are not computed.",
-  noSensorGreatPracticeTitle: "Great practice!",
+  noSensorGreatPracticeTitle: "Practice complete",
   noSensorResultsRecommendation:
-    "Next time I recommend running the practice with the phone as the pulse sensor in its settings, or connecting a Bluetooth heart-rate monitor. Then breathing rhythm and pace will follow biofeedback from your body — the practice will go much deeper and bring better results.",
+    "This practice was completed without a pulse sensor. For better results, use a pulse sensor. On most modern phones the built-in camera is enough to guide the breathing practice with biofeedback. If your phone camera does not support this, or if you want advanced metrics — heart-rate variability (RMSSD), respiratory sinus arrhythmia (RSA), Baevsky stress index, and coherence — connect a Polar H10 Bluetooth heart-rate monitor. Other Bluetooth monitors, especially chest straps, may work, but they have not been tested with the app.",
   cameraGuidanceOnlyResultsNote:
-    "This practice used the phone camera for pulse guidance only. Advanced HRV, coherence, and RSA metrics are disabled for camera mode; use a compatible Bluetooth heart-rate sensor to get them.",
+    "This practice used the phone camera for pulse. Advanced HRV, coherence, and RSA metrics are disabled for camera mode; use a compatible Bluetooth heart-rate sensor to get them.",
   guidedLimitedResultsNote:
     "Finger signal was unstable: the practice continued on baseline pulse, RMSSD and stress were kept, but coherence and RSA are hidden.",
   pulseOnlyResultsNote:
@@ -514,7 +524,9 @@ const en: CoherenceBreathStrings = {
   wearableActivationNoDeviceHint:
     "Scan and select a BLE heart-rate strap. Connection is handled inside the app, not through the system Bluetooth device list.",
   wearableBluetoothOff: "Bluetooth is off. Turn it on and try scanning again.",
-  wearableConnecting: "Connecting to the sensor...",
+  wearableConnecting: "Connecting heart-rate monitor…",
+  wearableConnectingWithName: (deviceName) => `Connecting ${deviceName}…`,
+  wearableAndroidSystemConnectHint: "If Android asks above — confirm the connection.",
   wearableReadyGuidedOnly: "Sensor connected. Breathing will follow pulse, but HRV metrics stay off.",
   wearableReadyFullMetrics: "Sensor connected. Full biometric metrics are available.",
   wearableScanning: "Scanning for compatible heart-rate straps nearby...",
@@ -540,6 +552,8 @@ const en: CoherenceBreathStrings = {
   wearablePickerNotFoundTips:
     "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
   wearablePickerSelectButton: "Connect",
+  wearablePickerConnectedLabel: "Connected",
+  wearablePickerDisconnectButton: "Disconnect",
   wearablePickerCloseButton: "Close",
   wearablePickerFaultyMessage:
     "The selected heart-rate monitor is not working correctly. Choose another monitor to continue the practice.",

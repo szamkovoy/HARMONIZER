@@ -32,8 +32,8 @@
   "hold": "VASTHOUDEN",
   "hybridEmulatedMidNote": "De onderstaande metingen zijn berekend op basis van twee vensters van echte PPG-metingen — aan het begin en aan het einde van de oefening. Het middengedeelte werd gebruikt voor vrij ademen en telt niet mee in de uiteindelijke analyse.",
   "inhale": "INADEMEN",
-  "noSensorGreatPracticeTitle": "Uitstekende oefening!",
-  "noSensorResultsRecommendation": "De volgende keer raad ik aan de oefening te doen met de telefoon als pulssensor in de instellingen, of met een Bluetooth-hartslagmeter. Dan worden ademritme en -tempo gestuurd door biofeedback van je lichaam — de oefening wordt veel dieper en levert betere resultaten op.",
+  "noSensorGreatPracticeTitle": "Oefening voltooid",
+  "noSensorResultsRecommendation": "Oefening voltooid zonder hartslagmeter. Als je betere resultaten wilt behalen met ademhalingsoefeningen, gebruik dan een hartslagmeter. Bij de meeste moderne telefoonmodellen is de ingebouwde camera voldoende om de ademhalingsoefening te sturen op basis van biofeedback. Als de camera van je telefoon deze functie niet ondersteunt of als je uitgebreide metingen wilt ontvangen: hartslagvariabiliteit (RMSSD), ademhalingssinusaritmie (RSA), stressindex van Baevsky, coherentiecoëfficiënt – sluit dan een Bluetooth-hartslagmeter Polar H10 aan. Andere Bluetooth-hartslagmeters, met name borstbanden, kunnen ook werken, maar de app is er niet mee getest.",
   "opticalNoSamples": "Geen optical-samples in opname",
   "opticalSeriesCaption": "Optical (detrend, zoals in PPG-proef)",
   "opticalSimulatedNote": "Geen live optical in simulatiemodus.",
@@ -108,6 +108,7 @@
   "warmupTitle": "Sensor opwarmen",
   "wearableActivationNoDeviceHint": "Zoek en kies je BLE-hartslagmeter. Je koppelt hem rechtstreeks in de app, niet via de algemene Bluetooth-lijst van je telefoon.",
   "wearableActivationTitle": "Hartslagmeter koppelen",
+  "wearableAndroidSystemConnectHint": "Als er bovenaan een Android-verzoek verschijnt, bevestig dan de verbinding.",
   "wearableBluetoothLabel": "Bluetooth",
   "wearableBluetoothOff": "Bluetooth staat uit. Zet het aan en probeer opnieuw te zoeken.",
   "wearableCapabilityMetrics": "metingen",
@@ -118,6 +119,8 @@
   "wearableIdleStartButton": "Hartslagmeter verbinden",
   "wearableNoDevicesFound": "Er zijn nog geen geschikte BLE-hartslagmeters gevonden. Probeer opnieuw te zoeken of kies voor de cameramodus.",
   "wearablePickerCloseButton": "Sluiten",
+  "wearablePickerConnectedLabel": "Verbonden",
+  "wearablePickerDisconnectButton": "Ontkoppelen",
   "wearablePickerFaultyMessage": "De gekozen hartslagmeter werkt niet goed. Kies een andere hartslagmeter om verder te gaan met de oefening.",
   "wearablePickerFoundHint": "Hartslagmeter gevonden. Kies een apparaat om te verbinden.",
   "wearablePickerNotFoundHint": "Geen hartslagmeter gevonden. Probeer opnieuw te zoeken.",
@@ -135,8 +138,5 @@
   "wearableRunningGuidedOnly": "HRV-metingen zijn niet beschikbaar: de sensor begeleidt alleen het ademhalingsritme.",
   "wearableRunningReconnect": "Hartslagmeter wordt opnieuw verbonden…",
   "wearableScanning": "Zoeken naar compatibele hartslagmeters in de buurt…",
-  "wearableUseCamera": "Camera",
-  "wearablePickerConnectedLabel": "Verbonden",
-  "wearablePickerDisconnectButton": "Verbreken",
-  "wearableAndroidSystemConnectHint": "Als Android bovenaan vraagt — bevestig de verbinding."
+  "wearableUseCamera": "Camera"
 }

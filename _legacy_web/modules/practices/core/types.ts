@@ -70,6 +70,8 @@ export type PracticeLaunchParams =
       practiceId: string;
       durationMs?: number;
       chakra?: Chakra;
+      /** Catalog already knows the Vimeo id — pass through so the player need not wait on Supabase. */
+      vimeoId?: string;
     };
 
 export interface PracticeSummary {

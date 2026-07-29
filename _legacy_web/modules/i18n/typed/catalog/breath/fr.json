@@ -32,8 +32,8 @@
   "hold": "RÉTENTION",
   "hybridEmulatedMidNote": "Les métriques ci-dessous sont calculées sur deux fenêtres de mesures PPG réelles — au début et à la fin de la pratique. Le milieu de la pratique a été consacré à la respiration libre et n'est pas inclus dans l'analyse finale.",
   "inhale": "INSPIRE",
-  "noSensorGreatPracticeTitle": "Excellente pratique !",
-  "noSensorResultsRecommendation": "La prochaine fois, je vous recommande de faire la pratique en choisissant le téléphone comme capteur de pouls dans ses réglages, ou en connectant un cardiofréquencemètre Bluetooth. Ainsi, le rythme et la vitesse de respiration suivront le biofeedback de votre corps — la pratique sera bien plus profonde et donnera de meilleurs résultats.",
+  "noSensorGreatPracticeTitle": "Pratique terminée",
+  "noSensorResultsRecommendation": "La pratique a été effectuée sans cardiofréquencemètre. Si vous souhaitez obtenir de meilleurs résultats lors de vos exercices de respiration, utilisez un cardiofréquencemètre. La plupart des téléphones modernes disposent d'une caméra intégrée suffisante pour guider la respiration par biofeedback. Si la caméra de votre téléphone ne prend pas en charge cette fonction, ou si vous désirez des métriques avancées — variabilité de la fréquence cardiaque (RMSSD), arythmie sinusale respiratoire (RSA), indice de stress de Baevsky, coefficient de cohérence — connectez un cardiofréquencemètre Bluetooth Polar H10. D'autres cardiofréquencemètres Bluetooth, notamment les modèles à sangle thoracique, pourraient également fonctionner, mais l'application n'a pas été testée avec eux.",
   "opticalNoSamples": "Pas d’échantillons optical dans la capture",
   "opticalSeriesCaption": "Optical (detrend, comme pour un test PPG)",
   "opticalSimulatedNote": "Pas de signal optical en direct en mode simulation.",
@@ -108,6 +108,7 @@
   "warmupTitle": "Échauffement du capteur",
   "wearableActivationNoDeviceHint": "Recherchez et sélectionnez un moniteur de fréquence cardiaque BLE. La connexion s'effectue dans l'application, pas via la liste système des appareils Bluetooth.",
   "wearableActivationTitle": "Connexion du moniteur de fréquence cardiaque",
+  "wearableAndroidSystemConnectHint": "Si une demande Android apparaît en haut, confirmez la connexion.",
   "wearableBluetoothLabel": "Bluetooth",
   "wearableBluetoothOff": "Bluetooth est désactivé. Activez-le et relancez la recherche.",
   "wearableCapabilityMetrics": "métriques",
@@ -118,6 +119,8 @@
   "wearableIdleStartButton": "Connecter le moniteur de fréquence cardiaque",
   "wearableNoDevicesFound": "Aucun moniteur de fréquence cardiaque BLE compatible trouvé pour le moment. Relancez la recherche ou utilisez la caméra du téléphone.",
   "wearablePickerCloseButton": "Fermer",
+  "wearablePickerConnectedLabel": "Connecté",
+  "wearablePickerDisconnectButton": "Déconnecter",
   "wearablePickerFaultyMessage": "Le moniteur de fréquence cardiaque sélectionné fonctionne de manière incorrecte. Pour continuer la pratique, sélectionnez un autre moniteur.",
   "wearablePickerFoundHint": "Moniteur de fréquence cardiaque trouvé. Sélectionnez l'appareil pour vous connecter.",
   "wearablePickerNotFoundHint": "Aucun moniteur de fréquence cardiaque trouvé. Essayez de relancer la recherche.",
@@ -135,8 +138,5 @@
   "wearableRunningGuidedOnly": "Métriques HRV désactivées : le capteur guide uniquement le rythme respiratoire.",
   "wearableRunningReconnect": "Le moniteur de fréquence cardiaque se reconnecte...",
   "wearableScanning": "Recherche de moniteurs de fréquence cardiaque compatibles à proximité...",
-  "wearableUseCamera": "Caméra",
-  "wearablePickerConnectedLabel": "Connecté",
-  "wearablePickerDisconnectButton": "Déconnecter",
-  "wearableAndroidSystemConnectHint": "Si Android demande en haut — confirmez la connexion."
+  "wearableUseCamera": "Caméra"
 }
