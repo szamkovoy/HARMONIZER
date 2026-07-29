@@ -460,7 +460,9 @@ export function WebinarEditor({
                 type="button"
                 onClick={() => setActive(locale)}
                 className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  active === locale ? "bg-white/10 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
+                  active === locale
+                    ? "bg-emerald-500 text-white"
+                    : "text-zinc-500 hover:text-zinc-700"
                 }`}
                 title={LOCALE_FULL_NAMES[locale]}
               >

@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-29 (post translate timeout):** `adminFetch({ timeoutMs })` для `/api/admin/translate` (180s); роут чанкует post-перевод; источник — активная вкладка; EN→все кроме RU.
+
 - **2026-07-29 (post edit list return):** Save в редакторе видео → `/admin/posts`; 🌐 только при реальном i18n.
 
 - **2026-07-29 (video duration):** В `PostEditor` поля длительности ЧЧ/ММ/СС → `duration_seconds`; превью бейджа на обложке.

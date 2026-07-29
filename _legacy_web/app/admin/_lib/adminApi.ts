@@ -140,9 +140,11 @@ async function parseErrorBody(res: Response): Promise<string | null> {
 export async function adminFetch<T>(
   path: string,
   init?: RequestInit,
-  opts?: { accessToken?: string },
+  opts?: { accessToken?: string; timeoutMs?: number },
 ): Promise<T> {
   let token = await resolveAccessToken(opts?.accessToken);
+  const fetchTimeoutMs =
+    typeof opts?.timeoutMs === "number" && opts.timeoutMs > 0 ? opts.timeoutMs : FETCH_TIMEOUT_MS;
 
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const hasBody = init?.body != null && init.body !== "";
@@ -156,7 +158,7 @@ export async function adminFetch<T>(
       headers["Content-Type"] = "application/json";
     }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), fetchTimeoutMs);
     try {
       return await fetch(path, {
         ...init,

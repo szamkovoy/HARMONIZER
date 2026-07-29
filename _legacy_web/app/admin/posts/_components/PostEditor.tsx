@@ -21,10 +21,19 @@ import {
 } from "../../_lib/videoDuration";
 import { compressPostCoverFile } from "../_lib/compressPostCover";
 import { pickAdminPostDisplay } from "../_lib/adminPostDisplayTitle";
+import {
+  localesMissingPostContent,
+  pickPostTranslateSource,
+  POST_TARGET_LOCALES,
+  type PostTargetLocale,
+} from "../_lib/postTranslate";
 
-const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
-type TargetLocale = (typeof TARGET_LOCALES)[number];
+const TARGET_LOCALES = POST_TARGET_LOCALES;
+type TargetLocale = PostTargetLocale;
 type ContentLocale = AppContentLocale;
+
+/** LLM translate of 6–7 locales can exceed the default adminFetch 45s. */
+const TRANSLATE_FETCH_TIMEOUT_MS = 180_000;
 
 const LOCALE_LABELS: Record<ContentLocale, string> = {
   ru: "RU",
@@ -170,21 +179,6 @@ function tabHasCover(tab: CoverSource): boolean {
   return Boolean(tab.coverUrl || tab.coverFile || tab.coverPreview);
 }
 
-function pickTranslateSource(
-  title: string,
-  body: string,
-  localeTabs: Record<TargetLocale, LocaleTabData>,
-): { locale: ContentLocale; title: string; body: string } | null {
-  if (title.trim()) return { locale: "ru", title: title.trim(), body };
-  for (const locale of TARGET_LOCALES) {
-    const tab = localeTabs[locale];
-    if (tab.title.trim()) {
-      return { locale, title: tab.title.trim(), body: tab.body };
-    }
-  }
-  return null;
-}
-
 function pickSourceCover(
   sourceLocale: ContentLocale,
   ru: CoverSource,
@@ -195,20 +189,6 @@ function pickSourceCover(
   }
   const tab = localeTabs[sourceLocale as TargetLocale];
   return tabHasCover(tab) ? tab : null;
-}
-
-function localesMissingContent(
-  title: string,
-  localeTabs: Record<TargetLocale, LocaleTabData>,
-  sourceLocale: ContentLocale,
-): ContentLocale[] {
-  const missing: ContentLocale[] = [];
-  if (sourceLocale !== "ru" && !title.trim()) missing.push("ru");
-  for (const locale of TARGET_LOCALES) {
-    if (locale === sourceLocale) continue;
-    if (!localeTabs[locale].title.trim()) missing.push(locale);
-  }
-  return missing;
 }
 
 function emptyLocaleTab(): LocaleTabData {
@@ -276,12 +256,12 @@ export function PostEditor({
   }
 
   async function runTranslate() {
-    const source = pickTranslateSource(title, body, localeTabs);
+    const source = pickPostTranslateSource(activeTab, { title, body }, localeTabs);
     if (!source) {
       setTranslateError("Сначала введите заголовок хотя бы на одном языке");
       return;
     }
-    const fillLocales = localesMissingContent(title, localeTabs, source.locale);
+    const fillLocales = localesMissingPostContent(localeTabs, source.locale);
     if (fillLocales.length === 0) {
       setTranslateError("Все языки уже заполнены — пустых вкладок нет");
       return;
@@ -291,16 +271,20 @@ export function PostEditor({
     try {
       const res = await adminFetch<{
         translations: Record<string, { title: string; body: string }>;
-      }>("/api/admin/translate", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "post",
-          source_locale: source.locale,
-          source_title: source.title,
-          source_body: source.body,
-          fill_locales: fillLocales,
-        }),
-      });
+      }>(
+        "/api/admin/translate",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            type: "post",
+            source_locale: source.locale,
+            source_title: source.title,
+            source_body: source.body,
+            fill_locales: fillLocales,
+          }),
+        },
+        { timeoutMs: TRANSLATE_FETCH_TIMEOUT_MS },
+      );
 
       const sourceCover = pickSourceCover(
         source.locale,
@@ -320,18 +304,6 @@ export function PostEditor({
           coverFile: sourceCover.coverFile,
           coverPreview: preview,
         };
-      }
-
-      const ruT = res.translations.ru;
-      if (fillLocales.includes("ru") && ruT?.title.trim() && !title.trim()) {
-        setTitle(ruT.title);
-        setBody(ruT.body ?? "");
-        if (sourceCover && !tabHasCover({ coverUrl, coverFile, coverPreview })) {
-          const copy = coverCopyFromSource();
-          setCoverUrl(copy.coverUrl ?? null);
-          setCoverFile(copy.coverFile ?? null);
-          setCoverPreview(copy.coverPreview ?? null);
-        }
       }
 
       setLocaleTabs((prev) => {
@@ -539,7 +511,9 @@ export function PostEditor({
                   type="button"
                   onClick={() => setActiveTab(locale)}
                   className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    activeTab === locale ? "bg-white/10 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
+                    activeTab === locale
+                      ? "bg-emerald-500 text-white"
+                      : "text-zinc-500 hover:text-zinc-700"
                   }`}
                   title={LOCALE_FULL_NAMES[locale]}
                 >
@@ -557,7 +531,7 @@ export function PostEditor({
                 onClick={() => void runTranslate()}
                 disabled={translating}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-60"
-                title="Перевести пустые языки и скопировать обложку источника (RU → EN → …)"
+                title="Перевести пустые языки с активной вкладки (RU → все; EN → все кроме RU) и скопировать обложку"
               >
                 {translating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                 Перевести

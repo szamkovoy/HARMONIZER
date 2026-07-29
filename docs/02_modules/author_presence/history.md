@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-29 (post translate timeout + EN≠RU):** «Перевести» с EN таймаутил (client 45s / LLM 30s на 6–7 локалей). Чанки по 3, `maxDuration` 180, client timeout 180s, per-call 90s. Источник = активная вкладка; с не-RU не заполняем русский.
+
 - **2026-07-29 (post edit UX + globe):** После Save редактор возвращает в список. 🌐 только при реальном i18n-контенте; PATCH больше не ставит `translations_updated_at` на пустые `{}`.
 
 - **2026-07-29 (video duration):** `posts.duration_seconds` + feed RPC; админка ЧЧ/ММ/СС; бейдж длительности на обложке (YouTube-style) в админке и `VideoCard`/`PostScreen`.

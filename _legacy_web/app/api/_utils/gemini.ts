@@ -22,6 +22,8 @@ type GeminiBaseRequest = {
   temperature?: number | null;
   maxOutputTokens?: number | null;
   responseMimeType?: "text/plain" | "application/json";
+  /** Per-request LLM timeout; overrides GEMINI_TIMEOUT_MS / DEEPSEEK_TIMEOUT_MS when > 0. */
+  timeoutMs?: number | null;
 };
 
 type GeminiLegacyPromptRequest = GeminiBaseRequest & {
@@ -262,6 +264,12 @@ function timeoutMs(): number {
 function deepseekTimeoutMs(): number {
   const value = Number(process.env.DEEPSEEK_TIMEOUT_MS ?? DEFAULT_DEEPSEEK_TIMEOUT_MS);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_DEEPSEEK_TIMEOUT_MS;
+}
+
+function resolveRequestTimeoutMs(options: GeminiBaseRequest, kind: "gemini" | "deepseek"): number {
+  const override = Number(options.timeoutMs);
+  if (Number.isFinite(override) && override > 0) return override;
+  return kind === "deepseek" ? deepseekTimeoutMs() : timeoutMs();
 }
 
 async function withLlmTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -545,6 +553,8 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
   const request = toStructuredRequest(options);
   const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
   const primaryRetryDelays = backgroundRetryDelaysFor(options);
+  const geminiRequestTimeoutMs = resolveRequestTimeoutMs(options, "gemini");
+  const deepseekRequestTimeoutMs = resolveRequestTimeoutMs(options, "deepseek");
 
   for (let i = 0; i < chain.length; i += 1) {
     const modelId = chain[i]!;
@@ -553,7 +563,7 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
     for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
       try {
         if (isDeepSeekModelId(modelId)) {
-          const { rawText, modelUsed } = await withDeepSeekTimeout(
+          const { rawText, modelUsed } = await withLlmTimeout(
             generateDeepSeekChatJson({
               model: modelId,
               systemInstruction: effectiveRequest.systemInstruction,
@@ -561,12 +571,14 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
               temperature: effectiveRequest.temperature,
               maxOutputTokens: effectiveRequest.maxOutputTokens,
             }),
+            deepseekRequestTimeoutMs,
           );
           return { json: extractJson(rawText) as T, rawText, modelUsed };
         }
         const model = geminiClient().getGenerativeModel({ model: modelId });
-        const result = await withGeminiTimeout(
+        const result = await withLlmTimeout(
           model.generateContent(buildRequestBody(modelId, effectiveRequest, "application/json") as never),
+          geminiRequestTimeoutMs,
         );
         const rawText = result.response.text();
         return { json: extractJson(rawText) as T, rawText, modelUsed: modelId };
