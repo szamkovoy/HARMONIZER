@@ -58,6 +58,9 @@ export interface PracticeCatalogStrings {
   chakraLabel: string;
   pulseLabel: string;
   sensorCameraOption: string;
+  /** When VisionCamera finger PPG plugin is missing (e.g. Android until native port). */
+  sensorCameraUnavailableTitle: string;
+  sensorCameraUnavailableBody: string;
   sensorBluetoothOption: string;
   sensorBluetoothOtherOption: string;
   sensorNoneOption: string;
@@ -65,20 +68,42 @@ export interface PracticeCatalogStrings {
   wearablePickerTitle: string;
   wearablePickerHint: string;
   wearablePickerFoundHint: string;
+  /** When the listed strap already has a verified live link. */
+  wearablePickerConnectedHint: string;
   wearablePickerNotFound: string;
   wearablePickerNotFoundTips: string;
   wearablePickerBluetoothOff: string;
+  wearablePickerPermissionDenied: string;
+  wearablePickerScanBusy: string;
   wearablePickerRetry: string;
   wearablePickerClose: string;
   wearablePickerSelectButton: string;
+  wearablePickerConnectedLabel: string;
+  wearablePickerFoundNotConnectedLabel: string;
+  wearablePickerDisconnectButton: string;
   wearablePickerSignalLabel: string;
   wearableBluetoothStateLabel: string;
+  /** Android: while system connect banners + sustained HR. */
+  wearablePickerLinkingHint: string;
+  wearablePickerLinkingButton: string;
+  wearablePickerLinkingStatusLabel: string;
   withPulseSensor: string;
   withoutPulseSensor: string;
   startPractice: string;
+  /** Shown on the start button while GATT is opening for a BLE strap. */
+  connectingWearableButton: string;
+  /** Android: live HR link failed before practice start. */
+  wearableLinkFailedTitle: string;
+  wearableLinkFailedBody: string;
+  wearableLinkRetry: string;
   openOnPhone: string;
   openOnTv: string;
   videoLabel: string;
+  /** Shared «?» help on every breath PracticeCard (catalog + communicator). */
+  breathHelpButtonAccessibilityLabel: string;
+  breathHelpModalTitle: string;
+  breathHelpBody: string;
+  breathHelpCloseLabel: string;
   breathDescriptions: Record<BreathPracticeId, string>;
   meditationFlashTitle: string;
   meditationFlashSubtitle: string;
@@ -132,28 +157,54 @@ const ru: PracticeCatalogStrings = {
   chakraLabel: "Чакра",
   pulseLabel: "Источник пульса",
   sensorCameraOption: "пульс с телефона",
+  sensorCameraUnavailableTitle: "Пульс с камеры недоступен",
+  sensorCameraUnavailableBody:
+    "На этом устройстве ещё не подключен модуль считывания пульса с камеры. Выберите «без пульсометра» или Bluetooth-пульсометр — либо дождитесь обновления приложения с поддержкой камеры на Android.",
   sensorBluetoothOption: "пульсометр Bluetooth",
   sensorBluetoothOtherOption: "другой Bluetooth-пульсометр",
   sensorNoneOption: "без пульсометра",
   findWearableButton: "Найти пульсометр",
   wearablePickerTitle: "Поиск пульсометра",
   wearablePickerHint: "Ищем совместимый Bluetooth-пульсометр рядом с вами...",
-  wearablePickerFoundHint: "Пульсометр найден. Выберите устройство для подключения.",
+  wearablePickerFoundHint:
+    "Пульсометр найден, но ещё не подключён. Нажмите «Подключить» и подтвердите запросы Android сверху (иногда два раза подряд).",
+  wearablePickerConnectedHint:
+    "Пульсометр найден и подключён. Теперь вы можете закрыть это окно и начать дыхательную практику.",
   wearablePickerNotFound: "Пульсометр не найден. Попробуйте повторить поиск.",
   wearablePickerNotFoundTips:
     "При использовании нагрудного пульсометра: смочите контакты, прижмите его к коже и подождите 5–10 секунд, убедитесь что Bluetooth включен, закройте другие приложения, использующие этот пульсометр. Если датчик ещё не сопряжён с телефоном, откройте приложение производителя и дождитесь сопряжения. При необходимости перезагрузите телефон.",
   wearablePickerBluetoothOff: "Bluetooth выключен. Включите его и повторите поиск.",
+  wearablePickerPermissionDenied:
+    "Нет разрешения на Bluetooth. Разрешите доступ к Bluetooth в настройках телефона и повторите поиск.",
+  wearablePickerScanBusy: "Bluetooth занят предыдущим поиском. Закройте окно и нажмите «Найти пульсометр» ещё раз.",
   wearablePickerRetry: "Повторить поиск",
   wearablePickerClose: "Закрыть",
   wearablePickerSelectButton: "Подключить",
+  wearablePickerConnectedLabel: "Подключен · пульс идёт",
+  wearablePickerFoundNotConnectedLabel: "Найден · не подключён",
+  wearablePickerDisconnectButton: "Отключить",
   wearablePickerSignalLabel: "Сигнал",
   wearableBluetoothStateLabel: "Bluetooth",
+  wearablePickerLinkingHint:
+    "Подтвердите запросы Android сверху экрана (может появиться дважды). Не закрывайте окно, пока статус не станет «Подключен · пульс идёт».",
+  wearablePickerLinkingButton: "Подключаем…",
+  wearablePickerLinkingStatusLabel: "Подключение… подтвердите Android сверху",
   withPulseSensor: "с пульсометром",
   withoutPulseSensor: "без пульсометра",
   startPractice: "Начать практику",
+  connectingWearableButton: "Подключаем…",
+  wearableLinkFailedTitle: "Пульсометр не подключился",
+  wearableLinkFailedBody:
+    "Нагрудный пульсометр сейчас недоступен. Наденьте ремень, включите Bluetooth, закройте другие приложения с этим датчиком. На Android подтвердите системный запрос сверху, затем нажмите «Повторить». Или выберите «без пульсометра» / «пульс с телефона».",
+  wearableLinkRetry: "Повторить",
   openOnPhone: "Открыть на телефоне",
   openOnTv: "Открыть на ТВ",
   videoLabel: "Видео",
+  breathHelpButtonAccessibilityLabel: "Пояснение к настройке дыхательной практики",
+  breathHelpModalTitle: "О параметрах практики",
+  breathHelpBody:
+    "Выберите длительность практики, на какую чакру она должна быть направлена, а также используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».",
+  breathHelpCloseLabel: "Закрыть",
   breathDescriptions: {
     coherent:
       "Создаёт глубокий физиологический резонанс между сердцем и мозгом, переводя всю систему в режим максимальной энергоэффективности и эмоциональной неуязвимости.",
@@ -223,28 +274,54 @@ const en: PracticeCatalogStrings = {
   chakraLabel: "Chakra",
   pulseLabel: "Pulse source",
   sensorCameraOption: "pulse from phone",
+  sensorCameraUnavailableTitle: "Camera pulse unavailable",
+  sensorCameraUnavailableBody:
+    "Camera pulse sensing is not available in this build yet. Choose “without heart-rate monitor” or a Bluetooth strap — or update the app when Android camera pulse support ships.",
   sensorBluetoothOption: "Bluetooth heart-rate monitor",
   sensorBluetoothOtherOption: "another Bluetooth heart-rate monitor",
   sensorNoneOption: "without heart-rate monitor",
   findWearableButton: "Find heart-rate monitor",
   wearablePickerTitle: "Find heart-rate monitor",
   wearablePickerHint: "Scanning for a compatible Bluetooth heart-rate monitor nearby...",
-  wearablePickerFoundHint: "Heart-rate monitor found. Select a device to connect.",
+  wearablePickerFoundHint:
+    "Heart-rate monitor found, but not linked yet. Tap Connect and confirm the Android prompts at the top (sometimes twice).",
+  wearablePickerConnectedHint:
+    "Heart-rate monitor found and connected. You can close this window and start the breathing practice.",
   wearablePickerNotFound: "Heart-rate monitor not found. Try scanning again.",
   wearablePickerNotFoundTips:
     "For a chest strap heart-rate monitor: moisten the contacts, press it against your skin and wait 5–10 seconds, make sure Bluetooth is on, and close other apps using this monitor. If the sensor is not yet paired with the phone, open the manufacturer's app and wait until it is paired. Restart the phone if needed.",
   wearablePickerBluetoothOff: "Bluetooth is off. Turn it on and try again.",
+  wearablePickerPermissionDenied:
+    "Bluetooth permission is required. Allow Bluetooth access in phone settings and scan again.",
+  wearablePickerScanBusy: "Bluetooth is busy from a previous scan. Close this dialog and tap “Find heart-rate monitor” again.",
   wearablePickerRetry: "Scan again",
   wearablePickerClose: "Close",
   wearablePickerSelectButton: "Connect",
+  wearablePickerConnectedLabel: "Connected · pulse live",
+  wearablePickerFoundNotConnectedLabel: "Found · not connected",
+  wearablePickerDisconnectButton: "Disconnect",
   wearablePickerSignalLabel: "Signal",
   wearableBluetoothStateLabel: "Bluetooth",
+  wearablePickerLinkingHint:
+    "Confirm the Android prompts at the top (they may appear twice). Keep this window open until the status says “Connected · pulse live”.",
+  wearablePickerLinkingButton: "Connecting…",
+  wearablePickerLinkingStatusLabel: "Connecting… confirm Android at the top",
   withPulseSensor: "with heart-rate sensor",
   withoutPulseSensor: "without heart-rate sensor",
   startPractice: "Start practice",
+  connectingWearableButton: "Connecting…",
+  wearableLinkFailedTitle: "Heart-rate monitor did not connect",
+  wearableLinkFailedBody:
+    "The chest strap is not available right now. Put the strap on, turn Bluetooth on, and close other apps using this sensor. On Android, accept the system prompt at the top, then tap Retry. Or choose “no pulse sensor” / “pulse from phone”.",
+  wearableLinkRetry: "Retry",
   openOnPhone: "Open on phone",
   openOnTv: "Open on TV",
   videoLabel: "Video",
+  breathHelpButtonAccessibilityLabel: "Explain breathing practice settings",
+  breathHelpModalTitle: "About practice settings",
+  breathHelpBody:
+    "Choose the practice duration, which chakra it should target, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».",
+  breathHelpCloseLabel: "Close",
   breathDescriptions: {
     coherent:
       "Creates deep physiological resonance between heart and brain, shifting the whole system toward energy efficiency and emotional steadiness.",

@@ -1,13 +1,14 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.66
+version: 1.67
 updated: 2026-07-29
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
     modules/practices/core/catalog.ts,
     modules/practices/core/vimeo.ts,
+    modules/practices/ui/PracticeCard.tsx,
     modules/mandala/experiments/SacredSymbolStreamScreen.tsx,
     app/asana-practice.tsx,
     supabase/migrations/20260429051600_calibration_dialogue_orchestrator.sql,
@@ -15,6 +16,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-29 (breath card help «?»):** На всех дыхательных `PracticeCard` — `SurfaceCardTitleRow` + `SurfaceHelpModal` (как «Рекомендации на день»); общий copy `breathHelp*` в `practices` i18n + typed overlays; padding карточки выровнен на `SURFACE_CARD.padding`.
 
 - **2026-07-29 (catalog footer):** Убрана строка «Всего в каталоге: N…» с каталога (и test, и prod) — лишний UI без отдельного DB-запроса (счёт локальный).
 

@@ -10,6 +10,10 @@
     "triangle-up": "Un puissant reset physiologique qui, via la rétention à l'expiration, désactive littéralement les foyers d'angoisse et entraîne une résistance fondamentale au stress.",
     "triangle-down": "Un oxygénateur cellulaire intense qui, grâce à la rétention à l'inspiration, « imbibe » les tissus cérébraux d'oxygène, redonnant clarté mentale et vivacité cognitive."
   },
+  "breathHelpBody": "Choisissez la durée de la pratique, le chakra ciblé, ainsi que le cardiofréquencemètre utilisé.\\n\\nVotre téléphone peut tout à fait convenir. Cependant, pour un signal plus stable et pour mesurer la variabilité de la fréquence cardiaque, je vous recommande une ceinture cardio Bluetooth pectorale. Le modèle idéal est le Polar H10. Pour les autres marques (Coospo, Magene...), vérifiez bien la compatibilité avant d'acheter.\\n\\nPour connecter la ceinture cardio, sélectionnez « Rechercher un cardiofréquencemètre ».",
+  "breathHelpButtonAccessibilityLabel": "Aide pour le réglage de la respiration",
+  "breathHelpCloseLabel": "Fermer",
+  "breathHelpModalTitle": "Paramètres de pratique",
   "catalogFooterTemplate": "Total dans le catalogue : {total}. Lancement via les écrans de pratique existants.",
   "chakraLabel": "Chakra",
   "chakraPending": "chakra à préciser",

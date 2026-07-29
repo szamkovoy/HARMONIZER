@@ -10,6 +10,10 @@
     "triangle-up": "Poderosa redefinição fisiológica que, com a retenção na expiração, apaga focos de ansiedade e constrói resistência duradoura ao estresse.",
     "triangle-down": "Intenso oxigenador celular: ao reter a inspiração, ele infunde oxigênio nos tecidos cerebrais, devolvendo a clareza de pensamento e a vivacidade mental."
   },
+  "breathHelpBody": "Escolha a duração da prática, o chakra para o qual ela deve ser direcionada e o monitor cardíaco a ser usado.\\n\\nSeu telefone pode lidar bem com a tarefa. Mas para um sinal estável, bem como a capacidade de calcular a variabilidade da frequência cardíaca etc., recomendo usar um monitor cardíaco de peito Bluetooth. O melhor é o Polar H10. Outros modelos (Coospo, Magene...) verifique a compatibilidade antes de comprar.\\n\\nPara conectar o monitor cardíaco Bluetooth, selecione a opção «Encontrar monitor cardíaco».",
+  "breathHelpButtonAccessibilityLabel": "Explicação da configuração da prática respiratória",
+  "breathHelpCloseLabel": "Fechar",
+  "breathHelpModalTitle": "Sobre os parâmetros da prática",
   "catalogFooterTemplate": "Total no catálogo: {total}. Inicie pelas telas de prática já disponíveis.",
   "chakraLabel": "Chakra",
   "chakraPending": "chakra a confirmar",

@@ -55,7 +55,10 @@ export function SurfaceHelpModal({
   const [bodyWidth, setBodyWidth] = useState(() => estimateBodyWidth(windowWidth));
   const closeA11y = closeAccessibilityLabel ?? closeLabel;
   const bodyStyle = textStyleFromToken(theme.typography.screenHint, theme.colors.textPrimary);
-  const paragraphs = body?.split(/\n\n+/).filter(Boolean) ?? [];
+  // Typed overlays sometimes store literal `\n` sequences from LLM fill;
+  // normalize before splitting so all 8 locales get the same paragraph gaps.
+  const paragraphs =
+    body?.replace(/\\n/g, "\n").split(/\n\n+/).filter(Boolean) ?? [];
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>

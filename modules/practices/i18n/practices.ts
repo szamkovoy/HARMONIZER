@@ -99,6 +99,11 @@ export interface PracticeCatalogStrings {
   openOnPhone: string;
   openOnTv: string;
   videoLabel: string;
+  /** Shared «?» help on every breath PracticeCard (catalog + communicator). */
+  breathHelpButtonAccessibilityLabel: string;
+  breathHelpModalTitle: string;
+  breathHelpBody: string;
+  breathHelpCloseLabel: string;
   breathDescriptions: Record<BreathPracticeId, string>;
   meditationFlashTitle: string;
   meditationFlashSubtitle: string;
@@ -195,6 +200,11 @@ const ru: PracticeCatalogStrings = {
   openOnPhone: "Открыть на телефоне",
   openOnTv: "Открыть на ТВ",
   videoLabel: "Видео",
+  breathHelpButtonAccessibilityLabel: "Пояснение к настройке дыхательной практики",
+  breathHelpModalTitle: "О параметрах практики",
+  breathHelpBody:
+    "Выберите длительность практики, на какую чакру она должна быть направлена, а также используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».",
+  breathHelpCloseLabel: "Закрыть",
   breathDescriptions: {
     coherent:
       "Создаёт глубокий физиологический резонанс между сердцем и мозгом, переводя всю систему в режим максимальной энергоэффективности и эмоциональной неуязвимости.",
@@ -307,6 +317,11 @@ const en: PracticeCatalogStrings = {
   openOnPhone: "Open on phone",
   openOnTv: "Open on TV",
   videoLabel: "Video",
+  breathHelpButtonAccessibilityLabel: "Explain breathing practice settings",
+  breathHelpModalTitle: "About practice settings",
+  breathHelpBody:
+    "Choose the practice duration, which chakra it should target, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».",
+  breathHelpCloseLabel: "Close",
   breathDescriptions: {
     coherent:
       "Creates deep physiological resonance between heart and brain, shifting the whole system toward energy efficiency and emotional steadiness.",

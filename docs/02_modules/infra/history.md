@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.10
-updated: 2026-07-24
+version: 1.11
+updated: 2026-07-29
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-29 (Play AAB location permissions):** Upload rejected — `ACCESS_COARSE/FINE_LOCATION` declared with conflicting `maxSdkVersion` (BLE plugin `uses-permission-sdk-23` + `maxSdkVersion=30` vs unrestricted `expo-location`). Fix: `plugins/with-android-location-permission-merge.js` after BLE — remove sdk-23 location, `tools:node=replace` unrestricted location; also cap legacy Bluetooth @30 and external storage @32; force `BLUETOOTH_SCAN` `neverForLocation` (Expo permissions list otherwise skips the BLE flag). Synced `android/app/src/main/AndroidManifest.xml`.
 
 - **2026-07-28 (geo reverse city):** Shared `geoCity.ts` + Nominatim reverse prefer settlement names; reject district labels. Used by onboarding geo persist and admin city repair.
 

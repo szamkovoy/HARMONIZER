@@ -23,6 +23,9 @@ import { chakraTagLabel } from "@/modules/chakra/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { ComboBoxDismissOverlay, ComboBoxRow } from "@/modules/ui/ComboBox";
+import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
+import { SurfaceCardTitleRow } from "@/modules/ui/SurfaceCardTitleRow";
+import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
 import { fetchPracticeVimeoThumbnail } from "@/services/practice-thumbnails";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
@@ -107,6 +110,7 @@ export const PracticeCard = memo(function PracticeCard({
   const [androidLiveDeviceId, setAndroidLiveDeviceId] = useState<string | null>(null);
   const [openField, setOpenField] = useState<SelectField>(null);
   const [wearablePickerVisible, setWearablePickerVisible] = useState(false);
+  const [breathHelpVisible, setBreathHelpVisible] = useState(false);
   const rememberedProbeRef = useRef<{ probing: boolean; available: boolean | null }>({
     probing: false,
     available: null,
@@ -499,7 +503,17 @@ export const PracticeCard = memo(function PracticeCard({
       >
         <View style={styles.headerRow}>
           <View style={styles.titleBlock}>
-            <AppText variant="sectionTitle">{practice.title}</AppText>
+            {practice.kind === "breath" ? (
+              <SurfaceCardTitleRow
+                title={practice.title}
+                help={{
+                  accessibilityLabel: strings.breathHelpButtonAccessibilityLabel,
+                  onPress: () => setBreathHelpVisible(true),
+                }}
+              />
+            ) : (
+              <AppText variant="sectionTitle">{practice.title}</AppText>
+            )}
             {practice.subtitle ? (
               <AppText variant="technicalCaption" tone="muted">
                 {practice.subtitle}
@@ -678,6 +692,15 @@ export const PracticeCard = memo(function PracticeCard({
           linkingStatusLabel: strings.wearablePickerLinkingStatusLabel,
         }}
       />
+      {practice.kind === "breath" ? (
+        <SurfaceHelpModal
+          visible={breathHelpVisible}
+          title={strings.breathHelpModalTitle}
+          closeLabel={strings.breathHelpCloseLabel}
+          onClose={() => setBreathHelpVisible(false)}
+          body={strings.breathHelpBody}
+        />
+      ) : null}
     </>
   );
 });
@@ -707,7 +730,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 12,
     overflow: "visible",
-    padding: 16,
+    // Match `SurfaceCardView` inset so «?» sits the same distance from card edges.
+    padding: SURFACE_CARD.padding,
     position: "relative",
   },
   headerRow: {

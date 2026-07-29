@@ -133,11 +133,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         "@sfourdrinier/react-native-ble-plx",
         {
+          // Scan itself is not used for location (BLUETOOTH_SCAN neverForLocation).
+          // Do NOT rely on BLE's capped ACCESS_*_LOCATION (maxSdkVersion=30) —
+          // expo-location needs GPS on all SDKs; conflicting maxSdkVersion fails Play.
           neverForLocation: true,
           bluetoothAlwaysPermission:
             "Harmonizer использует Bluetooth для подключения совместимых нагрудных пульсометров и получения точных ударов R-R.",
         },
       ],
+      // After BLE plugin: collapse location permissions for Google Play merge rules.
+      "./plugins/with-android-location-permission-merge.js",
       "react-native-health-connect",
       "./plugins/with-native-health.js",
     ],

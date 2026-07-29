@@ -3,10 +3,14 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.37
-updated: 2026-07-22
+version: 1.38
+updated: 2026-07-29
 depends_on: [00_index/CHANGELOG]
 code_refs: []
+
+## `infra` / store submission checklist (2026-07-29)
+
+- **Google Play / App Store — внекодовые декларации перед релизом.** Код: конфликт LOCATION `maxSdkVersion` закрыт (`with-android-location-permission-merge`); Privacy Manifest на iOS есть; `ITSAppUsesNonExemptEncryption=false`. Остаётся в консолях: (a) Play **Data safety** + declaration для location / Health Connect / mic / camera / Bluetooth; (b) Play **Health Connect** form (уже в open_questions communicator); (c) Play точное alarm / `SCHEDULE_EXACT_ALARM` use-case если спрашивает; (d) App Store privacy labels + HealthKit purpose strings review (локали — см. i18n open question); (e) залить **новый** AAB/IPA после prebuild, не старый артефакт. `SYSTEM_ALERT_WINDOW` может попасть из RN debug/dev-client tooling — при вопросе Play сверить, нужен ли overlay в production build.
 
 ## `notifications` / Android remote push (FCM, 2026-07-22)
 

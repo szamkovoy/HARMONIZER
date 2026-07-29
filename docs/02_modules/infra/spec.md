@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.10
-updated: 2026-07-23
+version: 1.11
+updated: 2026-07-29
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql]
 ---
@@ -28,7 +28,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 **Корень монорепозитория**
 
 - `package.json` — Expo SDK 54, скрипты `expo start` / dev-client / EAS, `vitest run`, зависимости клиента включая `@sentry/react-native`, `@kingstinct/react-native-healthkit`, `react-native-nitro-modules`, `react-native-health-connect`, `@sfourdrinier/react-native-ble-plx` и `expo-build-properties` для native health / BLE provider.
-- `app.config.ts` + `plugins/with-native-health.js` — prebuild-конфиг для Apple HealthKit, Android Health Connect и BLE heart-rate monitors: iOS добавляет HealthKit entitlement, usage descriptions и `NSBluetoothAlwaysUsageDescription`; Android добавляет `android.permission.health.READ_*`, `BLUETOOTH(_SCAN/_CONNECT)`, `HealthConnectPermissionDelegate` в `MainActivity` и SDK 35 / minSdk 26 через `expo-build-properties`. BLE работает только в dev-client / prebuild build, не в Expo Go.
+- `app.config.ts` + `plugins/with-native-health.js` + **`plugins/with-android-location-permission-merge.js`** — prebuild-конфиг для Apple HealthKit, Android Health Connect и BLE heart-rate monitors: iOS добавляет HealthKit entitlement, usage descriptions и `NSBluetoothAlwaysUsageDescription`; Android добавляет `android.permission.health.READ_*`, `BLUETOOTH(_SCAN/_CONNECT)`, `HealthConnectPermissionDelegate` в `MainActivity` и SDK 35 / minSdk 26 через `expo-build-properties`. Location-merge plugin (после BLE) убирает конфликт Play Console «ACCESS_*_LOCATION с разным maxSdkVersion» (BLE `neverForLocation` sdk-23/`maxSdkVersion=30` vs `expo-location`), выравнивает legacy Bluetooth (`maxSdkVersion=30`) + external storage (`maxSdkVersion=32`) и форсит `BLUETOOTH_SCAN` `neverForLocation`. BLE работает только в dev-client / prebuild build, не в Expo Go.
 - `sentry.client.config.ts` — `Sentry.init` для React Native: `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_APP_ENV`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` (дефолт выборки `0.05`). Файл лежит в корне; факт подключения к entry-point приложения нужно сверять с текущим `app/` (см. `history.md`).
 
 **Vercel**

@@ -10,6 +10,10 @@
     "triangle-up": "Ein kraftvoller physiologischer Neustart, der durch das Anhalten der Ausatmung buchstäblich Angstherde abschaltet und die grundlegende Widerstandsfähigkeit gegenüber Stressfaktoren trainiert.",
     "triangle-down": "Ein intensiver zellulärer Oxygenator, der durch das Anhalten der Einatmung das Gehirngewebe mit Sauerstoff «durchtränkt» und so klare Gedanken und kognitive Wachheit zurückbringt."
   },
+  "breathHelpBody": "Wähle die Dauer der Übung, auf welches Chakra sie ausgerichtet sein soll und den zu verwendenden Herzfrequenzmesser.\\n\\nDein Telefon kann die Aufgabe gut bewältigen. Für ein stabiles Signal und die Berechnung der Herzfrequenzvariabilität usw. empfehle ich jedoch einen Bluetooth-Brustgurt. Am besten ist der Polar H10. Bei anderen Modellen (Coospo, Magene...) prüfe vor dem Kauf die Kompatibilität.\\n\\nUm einen Bluetooth-Herzfrequenzmesser zu verbinden, wähle „Herzfrequenzmesser suchen“.",
+  "breathHelpButtonAccessibilityLabel": "Hilfe zur Atemübungseinstellung",
+  "breathHelpCloseLabel": "Schließen",
+  "breathHelpModalTitle": "Übungsparameter",
   "catalogFooterTemplate": "Insgesamt im Katalog: {total}. Der Start erfolgt über die gewohnten Übungsbildschirme.",
   "chakraLabel": "Chakra",
   "chakraPending": "Chakra wird ermittelt",
