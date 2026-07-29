@@ -819,6 +819,31 @@ function CoherenceBreathScreenInner({
   );
   const theme = useTheme();
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
+  /** Catalog / Day / assistant — leave breath screen without the legacy idle picker. */
+  const returnToPracticeOrigin = useCallback(() => {
+    const normalized = (launchSource ?? "").trim().toLowerCase();
+    if (normalized === "assistant" || normalized === "day") {
+      try {
+        router.replace("/day");
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
+    try {
+      router.back();
+    } catch {
+      try {
+        router.replace("/practices");
+      } catch {
+        try {
+          router.replace("/");
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [launchSource]);
   const pipeline = useBiofeedbackPipeline();
   const bus = useBiofeedbackBus();
   const wearablePreferences = useWearablePreferences();
@@ -2071,12 +2096,20 @@ function CoherenceBreathScreenInner({
     if ((phase !== "warmup" && phase !== "qualityCheck") || useSimulatedPpg || isWearableMode) return;
     const id = setInterval(() => {
       if (Date.now() - (protocolStartedAtMs.current ?? 0) > COHERENCE_PROTOCOL_MAX_MS) {
-        Alert.alert(str.calibrationTitle, str.calibrationTimeout);
-        setPhase("idle");
+        Alert.alert(str.calibrationTitle, str.calibrationTimeout, [
+          { text: "OK", onPress: () => returnToPracticeOrigin() },
+        ]);
       }
     }, 2000);
     return () => clearInterval(id);
-  }, [isWearableMode, phase, str.calibrationTimeout, str.calibrationTitle]);
+  }, [
+    isWearableMode,
+    phase,
+    returnToPracticeOrigin,
+    str.calibrationTimeout,
+    str.calibrationTitle,
+    useSimulatedPpg,
+  ]);
 
   // ─── Live optical preview для warmup/QC/running ───────────────────────────
 
@@ -2624,20 +2657,6 @@ function CoherenceBreathScreenInner({
       if (wearableRuntime.state === "failed" || wearableRuntime.state === "disconnected" || wearableRuntime.state === "signalLost") {
         setShowQcFailedDialog(true);
       }
-      // Android: still connecting while OS may show «Запрос подключения» — wait, do not
-      // start the black running UI. After a long hang, offer the QC failed dialog.
-      if (
-        Platform.OS === "android" &&
-        (wearableRuntime.state === "connecting" ||
-          wearableRuntime.state === "reconnecting" ||
-          wearableRuntime.state === "probing" ||
-          wearableRuntime.state === "connected")
-      ) {
-        const prepStartedAt = protocolStartedAtMs.current ?? Date.now();
-        if (Date.now() - prepStartedAt > 45_000) {
-          setShowQcFailedDialog(true);
-        }
-      }
       return;
     }
     // Require a live ready stream — not a half-open GATT waiting on an ignored OS prompt.
@@ -2712,6 +2731,33 @@ function CoherenceBreathScreenInner({
     wearableRuntime.lastHeartRateBpm,
     wearableRuntime.lastRrAtMs,
     wearableRuntime.packetCount,
+    wearableRuntime.state,
+  ]);
+
+  // BLE prep hang watchdog — interval so a stuck "connecting" state still surfaces a dialog.
+  useEffect(() => {
+    if (!isWearableMode) return;
+    if (phase !== "warmup" && phase !== "qualityCheck") return;
+    const hangLimitMs = Platform.OS === "ios" ? 20_000 : 45_000;
+    const id = setInterval(() => {
+      if (showQcFailedDialog) return;
+      const prepStartedAt = protocolStartedAtMs.current ?? Date.now();
+      if (Date.now() - prepStartedAt <= hangLimitMs) return;
+      const state = wearableRuntime.state;
+      const tierReady =
+        wearableCapabilityTier === "fullMetrics" || wearableCapabilityTier === "guidedOnly";
+      const heartRateReady = (wearableRuntime.lastHeartRateBpm ?? 0) > 0;
+      const liveReady = tierReady && state === "ready" && heartRateReady;
+      if (liveReady) return;
+      setShowQcFailedDialog(true);
+    }, 500);
+    return () => clearInterval(id);
+  }, [
+    isWearableMode,
+    phase,
+    showQcFailedDialog,
+    wearableCapabilityTier,
+    wearableRuntime.lastHeartRateBpm,
     wearableRuntime.state,
   ]);
 
@@ -4095,31 +4141,6 @@ function CoherenceBreathScreenInner({
     practiceBackgroundEnteredAtRef.current = null;
   }, [allowAdvancedMetrics, clearPpgBannerUi, clearOverlayTimer, pipeline, stopBaselineRamp]);
 
-  const returnToPracticeOrigin = useCallback(() => {
-    const normalized = (launchSource ?? "").trim().toLowerCase();
-    if (normalized === "assistant" || normalized === "day") {
-      try {
-        router.replace("/day");
-        return;
-      } catch {
-        /* fall through */
-      }
-    }
-    try {
-      router.back();
-    } catch {
-      try {
-        router.replace("/practices");
-      } catch {
-        try {
-          router.replace("/");
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-  }, [launchSource]);
-
   useEffect(() => {
     applyHardPracticeExitRef.current = applyHardPracticeExit;
   }, [applyHardPracticeExit]);
@@ -5153,16 +5174,13 @@ function CoherenceBreathScreenInner({
       ) : null}
 
       {/*
-        BLE prep chrome:
-        - iOS: never (silent connect).
-        - Android: light overlay while qualityCheck waits — never a bare black screen.
-          (Previously we hid chrome when hold was warm, which left a long black gap.)
+        BLE prep chrome: spinner + cancel on both platforms so a missing strap
+        never traps the user on a bare black screen (iOS used to hide this UI).
       */}
       {sensorUiMounted &&
       (phase === "warmup" ||
         phase === "qualityCheck" ||
-        (!isWearableMode && phase === "running")) &&
-      !(isWearableMode && Platform.OS === "ios") ? (
+        (!isWearableMode && phase === "running")) ? (
         <View
           style={[styles.calib, isWearableMode ? styles.blePrepOverlay : null]}
           pointerEvents={phase === "running" ? "none" : "auto"}
@@ -5189,7 +5207,10 @@ function CoherenceBreathScreenInner({
               <AppButton
                 variant="secondary"
                 label={str.cancelButton}
-                onPress={() => setPhase("idle")}
+                onPress={() => {
+                  void updateWearablePreferences({ preferredSensorMode: "none" });
+                  returnToPracticeOrigin();
+                }}
                 style={styles.sensorBackBtn}
               />
             </View>
@@ -5225,7 +5246,7 @@ function CoherenceBreathScreenInner({
           <AppButton
             variant="secondary"
             label={str.cancelButton}
-            onPress={() => setPhase("idle")}
+            onPress={returnToPracticeOrigin}
             style={styles.sensorBackBtn}
           />
           {DEBUG_ACTIVATION_EXPORT_ENABLED && !useSimulatedPpg ? (
@@ -5283,6 +5304,17 @@ function CoherenceBreathScreenInner({
                 beginFromIdle(true);
               }}
             />
+            {isWearableMode ? (
+              <AppButton
+                variant="secondary"
+                label={str.cancelButton}
+                onPress={() => {
+                  setShowQcFailedDialog(false);
+                  void updateWearablePreferences({ preferredSensorMode: "none" });
+                  returnToPracticeOrigin();
+                }}
+              />
+            ) : null}
             {/*
              * TAG_REMOVE_PERF_DIAGNOSTICS
              *
@@ -6103,7 +6135,7 @@ function ResultsView(props: {
             ) : null}
             {useSimulatedPpg ? <Text style={styles.approx}>{str.simulatedMetricsNote}</Text> : null}
             {cameraGuidanceOnlyMode ? (
-              <Text style={styles.warnBox}>{str.cameraGuidanceOnlyResultsNote}</Text>
+              <Text style={styles.interpretationBody}>{str.cameraGuidanceOnlyResultsNote}</Text>
             ) : null}
             {finalPulseWasEmulated && !useSimulatedPpg ? (
               <Text style={styles.warnBox}>{str.emulatedPulseResultsNote}</Text>
@@ -6125,79 +6157,72 @@ function ResultsView(props: {
                 )}
               </Text>
             ) : null}
-            {analysis?.warnings?.length ? (
+            {!cameraGuidanceOnlyMode && analysis?.warnings?.length ? (
               <Text style={styles.warnBox}>{analysis.warnings.join("\n")}</Text>
             ) : null}
-            {DEBUG_ACTIVATION_EXPORT_ENABLED && exportDebug ? (
-              <Text style={styles.debugMini}>
-                {exportDebug.sessionTimeBase === "cameraPresentationMs"
-                  ? str.debugTimeBaseCamera
-                  : str.debugTimeBaseUnix}
-                {" · "}
-                {str.debugBeatsInWindow}: {exportDebug.beatsAfterSessionWindowFilter}
-                {exportDebug.beatsAfterDedupeMs != null ? (
+            {!cameraGuidanceOnlyMode ? (
+              <>
+                <Text style={styles.metricLine}>
+                  {str.durationLabel}:{" "}
+                  {sessionStartWallMs != null ? (practiceTotalMs / 1000).toFixed(0) : "—"} с
+                </Text>
+                {finalStartAnalysis != null && finalEndAnalysis != null ? (
                   <>
-                    {" · "}
-                    {str.debugBeatsAfterDedupe}: {exportDebug.beatsAfterDedupeMs}
+                    <Text style={styles.approx}>{str.hybridEmulatedMidNote}</Text>
+                    <HybridResultsTable
+                      str={str}
+                      startAnalysis={finalStartAnalysis}
+                      endAnalysis={finalEndAnalysis}
+                      startHrv={finalStartHrv}
+                      endHrv={finalEndHrv}
+                      startAvgBpm={finalStartAvgBpm}
+                      endAvgBpm={finalEndAvgBpm}
+                      startWindowMs={finalStartWindowMs}
+                      endWindowMs={finalEndWindowMs}
+                    />
                   </>
-                ) : null}
-              </Text>
+                ) : (
+                  <>
+                    <Text style={styles.metricLine}>
+                      {str.coherenceAvgLabel}:{" "}
+                      {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceAveragePercent) : "—"}
+                    </Text>
+                    <Text style={styles.metricLine}>
+                      {str.coherenceMaxLabel}:{" "}
+                      {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceMaxPercent) : "—"}
+                    </Text>
+                    <Text style={styles.metricLine}>
+                      {str.rsaLabel}:{" "}
+                      {showCoherenceResults && analysis?.rsaAmplitudeBpm != null
+                        ? `${Math.round(analysis.rsaAmplitudeBpm)} уд/мин`
+                        : "—"}
+                    </Text>
+                    <Text style={styles.metricLine}>
+                      {str.rsaNormalizedLabel}:{" "}
+                      {showCoherenceResults && analysis?.rsaNormalizedPercent != null
+                        ? `${Math.round(analysis.rsaNormalizedPercent)} %`
+                        : "—"}
+                    </Text>
+                    <Text style={styles.metricLine}>
+                      {str.entryTimeLabel}:{" "}
+                      {showCoherenceResults && analysis?.entryTimeSec != null
+                        ? `${analysis.entryTimeSec} с`
+                        : "—"}
+                    </Text>
+                    <Text style={styles.metricLine}>
+                      {str.rmssdLabel}:{" "}
+                      {showHrvResults && finalRmssdMs != null ? `${Math.round(finalRmssdMs)} мс` : "—"}
+                    </Text>
+                    <Text style={styles.metricLine}>
+                      {str.stressLabel}:{" "}
+                      {showHrvResults && finalStressPercent != null
+                        ? `${Math.round(finalStressPercent)}%`
+                        : "—"}
+                    </Text>
+                  </>
+                )}
+              </>
             ) : null}
-            <Text style={styles.metricLine}>
-              {str.durationLabel}:{" "}
-              {sessionStartWallMs != null ? (practiceTotalMs / 1000).toFixed(0) : "—"} с
-            </Text>
-            {finalStartAnalysis != null && finalEndAnalysis != null ? (
-              <>
-                <Text style={styles.approx}>{str.hybridEmulatedMidNote}</Text>
-                <HybridResultsTable
-                  str={str}
-                  startAnalysis={finalStartAnalysis}
-                  endAnalysis={finalEndAnalysis}
-                  startHrv={finalStartHrv}
-                  endHrv={finalEndHrv}
-                  startAvgBpm={finalStartAvgBpm}
-                  endAvgBpm={finalEndAvgBpm}
-                  startWindowMs={finalStartWindowMs}
-                  endWindowMs={finalEndWindowMs}
-                />
-              </>
-            ) : (
-              <>
-                <Text style={styles.metricLine}>
-                  {str.coherenceAvgLabel}:{" "}
-                  {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceAveragePercent) : "—"}
-                </Text>
-                <Text style={styles.metricLine}>
-                  {str.coherenceMaxLabel}:{" "}
-                  {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceMaxPercent) : "—"}
-                </Text>
-                <Text style={styles.metricLine}>
-                  {str.rsaLabel}:{" "}
-                  {showCoherenceResults && analysis?.rsaAmplitudeBpm != null
-                    ? `${Math.round(analysis.rsaAmplitudeBpm)} уд/мин`
-                    : "—"}
-                </Text>
-                <Text style={styles.metricLine}>
-                  {str.rsaNormalizedLabel}:{" "}
-                  {showCoherenceResults && analysis?.rsaNormalizedPercent != null
-                    ? `${Math.round(analysis.rsaNormalizedPercent)} %`
-                    : "—"}
-                </Text>
-                <Text style={styles.metricLine}>
-                  {str.entryTimeLabel}:{" "}
-                  {showCoherenceResults && analysis?.entryTimeSec != null ? `${analysis.entryTimeSec} с` : "—"}
-                </Text>
-                <Text style={styles.metricLine}>
-                  {str.rmssdLabel}:{" "}
-                  {showHrvResults && finalRmssdMs != null ? `${Math.round(finalRmssdMs)} мс` : "—"}
-                </Text>
-                <Text style={styles.metricLine}>
-                  {str.stressLabel}:{" "}
-                  {showHrvResults && finalStressPercent != null ? `${Math.round(finalStressPercent)}%` : "—"}
-                </Text>
-              </>
-            )}
             {measuredPulseGraphPoints.length >= 2 ? (
               <ResultsMetricChart
                 title={showSeparateGuidancePulseGraph ? str.resultsMeasuredPulseLabel : str.calibrationPulse}
@@ -6265,9 +6290,7 @@ function ResultsView(props: {
                 domainEndMs={practiceTotalMs}
               />
             ) : null}
-            {cameraGuidanceOnlyMode ? (
-              <Text style={styles.infoBox}>{str.resultsInterpretationRequiresBleNote}</Text>
-            ) : !canRequestInterpretation ? (
+            {!cameraGuidanceOnlyMode && !canRequestInterpretation ? (
               <Text style={styles.infoBox}>{str.resultsInterpretationRequiresMetricsNote}</Text>
             ) : null}
             {DEBUG_ACTIVATION_EXPORT_ENABLED ? (

@@ -714,11 +714,8 @@ export function runCoherenceSessionAnalysis(input: CoherenceSessionInput): Coher
     }
   }
 
-  if (!metricsWithheldDueToInsufficientData && hasTachogramSignal && entryTimeSec == null) {
-    warnings.push(
-      `Время вхождения не определено: нужно ${ENTRY_STABILITY_SECONDS} с подряд с когерентностью ≥ ${threshold}% после медианного сглаживания; максимум подряд: ${maxConsecutiveSecondsAtOrAboveEntryThreshold} с.`,
-    );
-  }
+  // No user-facing warning when entryTimeSec is null — results UI shows «—» in the
+  // entry-time row. Streak diagnostics remain in exportMeta for debug exports.
 
   return {
     algorithmVersion: COHERENCE_ALGORITHM_VERSION,

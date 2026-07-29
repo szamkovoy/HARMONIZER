@@ -27,6 +27,8 @@ import { useTheme } from "@/modules/ui/theme";
 import { fetchPracticeVimeoThumbnail } from "@/services/practice-thumbnails";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
+import { shouldDemoteUnavailableBleToNone } from "./breathSensorDefault";
+
 const CHAKRA_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 type SelectField = "duration" | "chakra" | "pulse" | null;
 
@@ -105,6 +107,10 @@ export const PracticeCard = memo(function PracticeCard({
   const [androidLiveDeviceId, setAndroidLiveDeviceId] = useState<string | null>(null);
   const [openField, setOpenField] = useState<SelectField>(null);
   const [wearablePickerVisible, setWearablePickerVisible] = useState(false);
+  const rememberedProbeRef = useRef<{ probing: boolean; available: boolean | null }>({
+    probing: false,
+    available: null,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -189,17 +195,25 @@ export const PracticeCard = memo(function PracticeCard({
     // race with "Cannot start scanning" and used to show a false "Bluetooth busy" banner.
     practice.kind === "breath" && !wearablePickerVisible,
   );
-  // Android: show Polar only when OS-link was completed AND probe still sees it
-  // (or we have a live hold). After Forget in phone BT settings, probe → false → hide.
+  rememberedProbeRef.current = {
+    probing: rememberedWearableProbe.probing,
+    available: rememberedWearableProbe.available,
+  };
+  // Show remembered Polar only while the radio still sees it (or Android live hold).
+  // OS-paired-but-powered-off straps must not stay selected in the combo.
+  const rememberedWearableLive =
+    Boolean(wearablePreferences.lastDeviceId?.trim()) &&
+    (isWearableLiveLinkReady(wearablePreferences.lastDeviceId ?? "", 30_000) ||
+      rememberedWearableProbe.available === true);
   const rememberedWearableVisible =
     hasRememberedWearable &&
     Boolean(rememberedWearableName) &&
-    (selectedSensorMode === "ble" || wearablePreferences.preferredSensorMode === "ble") &&
+    (rememberedWearableLive ||
+      (rememberedWearableProbe.probing &&
+        (selectedSensorMode === "ble" || wearablePreferences.preferredSensorMode === "ble"))) &&
     (Platform.OS !== "android" ||
-      (wearablePreferences.androidOsLinkReady &&
-        (isWearableLiveLinkReady(wearablePreferences.lastDeviceId ?? "", 30_000) ||
-          rememberedWearableProbe.available === true ||
-          rememberedWearableProbe.probing)));
+      wearablePreferences.androidOsLinkReady ||
+      rememberedWearableProbe.probing);
   const needsWearableSelection =
     practice.kind === "breath" &&
     selectedSensorMode === "ble" &&
@@ -214,14 +228,6 @@ export const PracticeCard = memo(function PracticeCard({
     }, [practice.kind, rememberedWearableProbe.refresh]),
   );
 
-  // Keep UI in sync with persisted BLE intent.
-  useEffect(() => {
-    if (practice.kind !== "breath") return;
-    if (wearablePreferences.preferredSensorMode === "ble") {
-      setSelectedSensorMode("ble");
-    }
-  }, [practice.kind, wearablePreferences.preferredSensorMode]);
-
   // Sync live-link badge from hold module / prefs (Android).
   useEffect(() => {
     if (Platform.OS !== "android") return;
@@ -231,21 +237,28 @@ export const PracticeCard = memo(function PracticeCard({
     }
   }, [wearablePreferences.androidOsLinkReady, wearablePreferences.lastDeviceId]);
 
-  // Android: strap gone from radio (BT on, probe finished) → hide + default «без пульсометра».
+  // Missing BLE strap → demote only `ble` → `none`. Never stomp fingerCamera/none
+  // when a late/refreshed probe finishes after the user already changed the combo.
   useEffect(() => {
-    if (Platform.OS !== "android" || practice.kind !== "breath") return;
-    if (!hasRememberedWearable) return;
-    if (rememberedWearableProbe.probing) return;
-    if (rememberedWearableProbe.available !== false) return;
+    if (practice.kind !== "breath") return;
+    const liveLinkReady = isWearableLiveLinkReady(wearablePreferences.lastDeviceId ?? "", 30_000);
+    if (
+      !shouldDemoteUnavailableBleToNone({
+        preferredSensorMode: wearablePreferences.preferredSensorMode,
+        selectedSensorMode,
+        hasRememberedWearable,
+        probing: rememberedWearableProbe.probing,
+        available: rememberedWearableProbe.available,
+        liveLinkReady,
+      })
+    ) {
+      return;
+    }
     setSelectedSensorMode("none");
     setAndroidLiveDeviceId(null);
     void releaseWearableConnection();
     void updateWearablePreferences({
       preferredSensorMode: "none",
-      lastDeviceId: null,
-      lastDeviceName: null,
-      lastProvider: null,
-      lastCapabilityTier: null,
       androidOsLinkReady: false,
     });
   }, [
@@ -253,6 +266,9 @@ export const PracticeCard = memo(function PracticeCard({
     practice.kind,
     rememberedWearableProbe.available,
     rememberedWearableProbe.probing,
+    selectedSensorMode,
+    wearablePreferences.lastDeviceId,
+    wearablePreferences.preferredSensorMode,
   ]);
 
   const openWearablePicker = () => {
@@ -366,45 +382,89 @@ export const PracticeCard = memo(function PracticeCard({
       onLaunch({ ...practice, launch });
     };
 
-    // Android: pair/system prompts belong in the picker. Start only reconnects
-    // a previously verified OS link (usually silent). Never open practice unlinked.
+    // BLE start: never open practice when the remembered strap is known-missing.
+    // Android also re-verifies OS live-link; iOS uses the same soft gate + alert.
     const bleDeviceId =
       practice.kind === "breath" && selectedSensorMode === "ble"
         ? wearablePreferences.lastDeviceId?.trim()
         : "";
-    if (bleDeviceId && Platform.OS === "android") {
-      if (!wearablePreferences.androidOsLinkReady) {
-        openWearablePicker();
+    if (bleDeviceId) {
+      if (rememberedWearableProbe.available === false && !isWearableLiveLinkReady(bleDeviceId, 30_000)) {
+        setSelectedSensorMode("none");
+        void updateWearablePreferences({ preferredSensorMode: "none", androidOsLinkReady: false });
+        Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
+          { text: strings.wearableLinkRetry, onPress: () => openWearablePicker() },
+          { text: strings.wearablePickerClose, style: "cancel" },
+        ]);
         return;
       }
-      // Fresh live stream from picker — open practice without another connectToDevice.
-      if (isWearableLiveLinkReady(bleDeviceId, 30_000)) {
-        runLaunch();
+      if (Platform.OS === "android") {
+        if (!wearablePreferences.androidOsLinkReady) {
+          openWearablePicker();
+          return;
+        }
+        // Fresh live stream from picker — open practice without another connectToDevice.
+        if (isWearableLiveLinkReady(bleDeviceId, 30_000)) {
+          runLaunch();
+          return;
+        }
+        setBleWarmLaunching(true);
+        void ensureWearableLiveLink(bleDeviceId)
+          .then((ok) => {
+            // ensure reuses open GATT when possible — avoids a second OS pair banner.
+            if (!ok) {
+              void updateWearablePreferences({
+                preferredSensorMode: "none",
+                androidOsLinkReady: false,
+              });
+              setSelectedSensorMode("none");
+              setAndroidLiveDeviceId(null);
+              Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
+                { text: strings.wearableLinkRetry, onPress: () => openWearablePicker() },
+                { text: strings.wearablePickerClose, style: "cancel" },
+              ]);
+              return;
+            }
+            setAndroidLiveDeviceId(bleDeviceId);
+            runLaunch();
+          })
+          .catch(() => {
+            setSelectedSensorMode("none");
+            void updateWearablePreferences({ preferredSensorMode: "none", androidOsLinkReady: false });
+            Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
+              { text: strings.wearableLinkRetry, onPress: () => openWearablePicker() },
+            ]);
+          })
+          .finally(() => setBleWarmLaunching(false));
         return;
       }
-      setBleWarmLaunching(true);
-      void ensureWearableLiveLink(bleDeviceId)
-        .then((ok) => {
-          // ensure reuses open GATT when possible — avoids a second OS pair banner.
-          if (!ok) {
-            void updateWearablePreferences({ androidOsLinkReady: false });
-            setAndroidLiveDeviceId(null);
+      // iOS: if probe still running/unknown, wait briefly rather than a black prep screen.
+      if (rememberedWearableProbe.probing || rememberedWearableProbe.available == null) {
+        setBleWarmLaunching(true);
+        rememberedWearableProbe.refresh();
+        const startedAt = Date.now();
+        const waitForProbe = () => {
+          const probe = rememberedProbeRef.current;
+          if (isWearableLiveLinkReady(bleDeviceId, 30_000) || probe.available === true) {
+            setBleWarmLaunching(false);
+            runLaunch();
+            return;
+          }
+          if (probe.available === false || Date.now() - startedAt > 5_500) {
+            setBleWarmLaunching(false);
+            setSelectedSensorMode("none");
+            void updateWearablePreferences({ preferredSensorMode: "none" });
             Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
               { text: strings.wearableLinkRetry, onPress: () => openWearablePicker() },
               { text: strings.wearablePickerClose, style: "cancel" },
             ]);
             return;
           }
-          setAndroidLiveDeviceId(bleDeviceId);
-          runLaunch();
-        })
-        .catch(() => {
-          Alert.alert(strings.wearableLinkFailedTitle, strings.wearableLinkFailedBody, [
-            { text: strings.wearableLinkRetry, onPress: () => openWearablePicker() },
-          ]);
-        })
-        .finally(() => setBleWarmLaunching(false));
-      return;
+          setTimeout(waitForProbe, 200);
+        };
+        waitForProbe();
+        return;
+      }
     }
     runLaunch();
   };

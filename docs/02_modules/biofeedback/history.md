@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-29 (remembered BLE probe):** `useRememberedWearableProbe` на всех платформах требует live presence (не `manager.devices()`); выключенный Polar → combo «без пульсометра». Breath prep: spinner+cancel на iOS, hang watchdog 20s, выход из QC. Пары: `practices`.
+
 - **2026-07-22 (7):** Picker `connectedHint` когда live; `bluetooth_scan_busy` больше не показывается пользователю (тихий retry); Android probe не считает `manager.devices()` достаточным (Forget → hide из combo). Пары: `practices`.
 
 - **2026-07-22 (6):** Android QA: ложный «Подключен» после 1 HR-пакета + голый чёрный qualityCheck + `format/invalid-fps` 30 на Pixel. Fix: sustained HR (≥3 пакета) перед ready; статусы «найден / подключение / подключен»; prep-chrome на Android до `running`; PPG `HIGH_PRECISION` Android=15 + clamp к `format.maxFps`. Два OS-баннера на первом link — слой Android (connect+notify), UI держит «Подключение…» до конца. Пары: `practices`.

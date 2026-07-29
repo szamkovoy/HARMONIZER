@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState } from "react-native";
 
 import { getWearableBleManager } from "@/modules/biofeedback/wearables/bleManager";
 import { HEART_RATE_SERVICE_UUID } from "@/modules/biofeedback/wearables/heartRateMeasurement";
@@ -83,37 +83,10 @@ export function useRememberedWearableProbe(
           return;
         }
 
-        // iOS: OS-known peripherals may not advertise yet but are still connectable.
-        // Android: after «Forget device» the stack can still list Polar in devices()
-        // while it is no longer usable — treat that as unknown and require a live
-        // scan (or connectedDevices above) so the catalog drops the stale combo entry.
-        if (Platform.OS !== "android") {
-          try {
-            const known = await manager.devices([HEART_RATE_SERVICE_UUID]);
-            if (probeGenerationRef.current !== generation) return;
-            const knownMatch = known.find(
-              (entry) => entry.id === trimmedId && entry.isConnectable !== false,
-            );
-            if (knownMatch) {
-              const name = knownMatch.localName?.trim() || knownMatch.name?.trim() || "";
-              setProbing(false);
-              setAvailable(true);
-              setCandidate(
-                describeWearableCandidate({
-                  id: knownMatch.id,
-                  name,
-                  localName: knownMatch.localName,
-                  rssi: knownMatch.rssi ?? null,
-                  hasHeartRateService: true,
-                  isConnectable: knownMatch.isConnectable ?? null,
-                }),
-              );
-              return;
-            }
-          } catch {
-            // best-effort; fall through to live scan
-          }
-        }
+        // Do not trust manager.devices() alone on any platform: iOS (and Android
+        // after «Forget device») can keep returning a remembered peripheral long
+        // after the strap is powered off. Availability requires connectedDevices
+        // (above) or a live advertisement below.
 
         let finished = false;
         const finishUnavailable = async () => {

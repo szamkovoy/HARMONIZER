@@ -190,7 +190,7 @@ const ru: PracticeCatalogStrings = {
   connectingWearableButton: "Подключаем…",
   wearableLinkFailedTitle: "Пульсометр не подключился",
   wearableLinkFailedBody:
-    "Если сверху был запрос Android — подтвердите его и нажмите «Повторить». Держите ремень на груди, Bluetooth включён, другие приложения с этим датчиком закрыты.",
+    "Нагрудный пульсометр сейчас недоступен. Наденьте ремень, включите Bluetooth, закройте другие приложения с этим датчиком. На Android подтвердите системный запрос сверху, затем нажмите «Повторить». Или выберите «без пульсометра» / «пульс с телефона».",
   wearableLinkRetry: "Повторить",
   openOnPhone: "Открыть на телефоне",
   openOnTv: "Открыть на ТВ",
@@ -302,7 +302,7 @@ const en: PracticeCatalogStrings = {
   connectingWearableButton: "Connecting…",
   wearableLinkFailedTitle: "Heart-rate monitor did not connect",
   wearableLinkFailedBody:
-    "If Android asked to connect at the top — confirm it, then tap Retry. Keep the strap on your chest, Bluetooth on, and close other apps using this sensor.",
+    "The chest strap is not available right now. Put the strap on, turn Bluetooth on, and close other apps using this sensor. On Android, accept the system prompt at the top, then tap Retry. Or choose “no pulse sensor” / “pulse from phone”.",
   wearableLinkRetry: "Retry",
   openOnPhone: "Open on phone",
   openOnTv: "Open on TV",

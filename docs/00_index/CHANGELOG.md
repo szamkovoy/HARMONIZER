@@ -1,4 +1,9 @@
 - 2026-07-29 (328): Pixel QA — (1) breath interpretation: no bilingual EN+RU timeout; `AppUserError` + silent retry; (2) post-login Home keeps prep overlay and auto-retries transient day-content failures instead of flashing «Could not reach the server»; birth CTA / dev tier copy i18n.
+- 2026-07-29 (327): Breath results: hide «Время вхождения не определено» warning (keep «—» in the row).
+- 2026-07-29 (326): Breath results UI by sensor mode (none/camera/BLE); drop debug time-base line from results.
+- 2026-07-29 (325): Breath activation «Отменить» returns to catalog/Day (not legacy practice-type idle).
+- 2026-07-29 (324): Breath catalog: late BLE probe no longer resets «пульс с телефона» back to «без пульсометра».
+- 2026-07-29 (323): Breath catalog: unavailable BLE → default «без пульсометра»; no black-screen start; iOS prep cancel + hang watchdog.
 - 2026-07-29 (322): Admin video «Перевести»: longer timeouts + chunked LLM; source=active tab; EN fills all except RU.
 - 2026-07-29 (321): Admin video Save returns to list; globe icon only when real i18n content exists.
 - 2026-07-29 (320): Video duration_seconds (HH/MM/SS in admin); YouTube-style badge on covers in app + admin.

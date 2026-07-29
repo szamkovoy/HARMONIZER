@@ -287,9 +287,9 @@ const ru: CoherenceBreathStrings = {
   startWithoutSensorButton: "Начать без пульсометра",
   emulatedPulseResultsNote:
     "Пульс эмулировался (датчик не использовался) — метрики HRV, стресса, когерентности и RSA не рассчитываются.",
-  noSensorGreatPracticeTitle: "Отличная практика!",
+  noSensorGreatPracticeTitle: "Практика завершена",
   noSensorResultsRecommendation:
-    "В следующий раз рекомендую вам выполнить практику, выбрав в её настройках телефон в качестве пульсометра или подключив Bluetooth пульсометр. Благодаря этому ритм и скорость дыхания будут регулироваться биологической обратной связью от вашего тела, практика будет значительно глубже и приведёт к лучшим результатам.",
+    "Практика выполнена без пульсометра. Если вы хотите получать лучшие результаты от выполнения дыхательных практик, используйте пульсометр. У большинства современных моделей телефонов встроенной камеры достаточно для управления дыхательной практикой на основе биологической обратной связи. Если камера вашего телефона эту функцию не поддерживает или если вы хотите получать расширенные метрики: вариабельность сердечного ритма (RMSSD), дыхательная синусовая аритмия (RSA), индекс стресса Баевского, коэффициент когерентности — подключите Bluetooth пульсометр Polar H10. Могут подойти и другие Bluetooth пульсометры, особенно нагрудные, но с ними приложение не тестировалось.",
   cameraGuidanceOnlyResultsNote:
     "Практика выполнена по пульсу с камеры телефона. Для камеры расширенные метрики HRV, когерентности и RSA отключены; чтобы получить их, используйте совместимый Bluetooth-пульсометр.",
   guidedLimitedResultsNote:
@@ -471,11 +471,11 @@ const en: CoherenceBreathStrings = {
   startWithoutSensorButton: "Start without pulse sensor",
   emulatedPulseResultsNote:
     "Pulse was emulated (no sensor used) — HRV, stress, coherence, and RSA are not computed.",
-  noSensorGreatPracticeTitle: "Great practice!",
+  noSensorGreatPracticeTitle: "Practice complete",
   noSensorResultsRecommendation:
-    "Next time I recommend running the practice with the phone as the pulse sensor in its settings, or connecting a Bluetooth heart-rate monitor. Then breathing rhythm and pace will follow biofeedback from your body — the practice will go much deeper and bring better results.",
+    "This practice was completed without a pulse sensor. For better results, use a pulse sensor. On most modern phones the built-in camera is enough to guide the breathing practice with biofeedback. If your phone camera does not support this, or if you want advanced metrics — heart-rate variability (RMSSD), respiratory sinus arrhythmia (RSA), Baevsky stress index, and coherence — connect a Polar H10 Bluetooth heart-rate monitor. Other Bluetooth monitors, especially chest straps, may work, but they have not been tested with the app.",
   cameraGuidanceOnlyResultsNote:
-    "This practice used the phone camera for pulse guidance only. Advanced HRV, coherence, and RSA metrics are disabled for camera mode; use a compatible Bluetooth heart-rate sensor to get them.",
+    "This practice used the phone camera for pulse. Advanced HRV, coherence, and RSA metrics are disabled for camera mode; use a compatible Bluetooth heart-rate sensor to get them.",
   guidedLimitedResultsNote:
     "Finger signal was unstable: the practice continued on baseline pulse, RMSSD and stress were kept, but coherence and RSA are hidden.",
   pulseOnlyResultsNote:
