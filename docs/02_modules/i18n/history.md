@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.15
-updated: 2026-07-17
+version: 1.16
+updated: 2026-07-29
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-29 (home birth CTA):** Хардкод «Введите дату рождения» / DevTier «из профиля» на EN UI → `enterBirthDataButton` в `getHomeStrings` + EN «from profile» в DevTierSwitch.
 
 - **2026-07-24 (hydrate same-account):** `hydrateAppLocale(profileLocale, userId)` — при смене аккаунта по-прежнему берёт `users.locale`; на том же аккаунте не откатывает UI на отстающую БД, а пишет UI → `users.locale` (push = inbox). См. notifications/history (exact locale send).
 

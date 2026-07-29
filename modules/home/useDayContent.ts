@@ -23,6 +23,7 @@ import { getResponseLocale, subscribeAppLocale, type AppLocale } from "@/modules
 import { stripHomeLlmTexts } from "@/modules/home/stripHomeLlmTexts";
 import { sanitizeRecommendationDisplay } from "@/modules/home/sanitizeRecommendationDisplay";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
+import { classifyUserFacingError } from "@/services/userFacingErrors";
 
 type DayContentStatus =
   | "idle"
@@ -240,6 +241,12 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   const warmHeldRef = useRef(false);
   /** Таймаут-страховка: скрыть оверлей, если тексты не пришли за HOME_WARM_TEXTS_TIMEOUT_MS. */
   const warmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Cold/login path: сколько тихих повторов уже сделали, пока bootstrap ещё blocking.
+   * Не снимаем «готовим день» на первом транзиентном network/timeout после OTP.
+   */
+  const coldBootstrapRetryRef = useRef(0);
+  const coldBootstrapRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Держать оверлей «Готовим ваш день» пока нет слоган+short (paid, сервер отдал только базу). */
   const holdWarmForTexts = useCallback(() => {
@@ -852,6 +859,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         }
         setStatus("ready");
         lastResolvedRequestKeyRef.current = resolvedRequestKey;
+        coldBootstrapRetryRef.current = 0;
         // Free: dismiss splash as soon as cron/structural row is renderable —
         // never holdWarmForTexts (that pin was the midnight multi-minute hang).
         // Paid: keep overlay until slogan+short match locale (or warm timeout).
@@ -919,6 +927,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           setStatus("ready");
           setHomeTextsLoading(false);
           lastResolvedRequestKeyRef.current = resolvedRequestKey;
+          coldBootstrapRetryRef.current = 0;
           completeHomeBootstrap();
           logRuntimeEvent(
             "day_content:locale_refresh_failed_kept_current",
@@ -927,6 +936,49 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           );
           return;
         }
+
+        // Cold start / post-login: keep prep overlay and auto-retry transient
+        // failures instead of flashing Home + "Could not reach the server".
+        const errorKind = classifyUserFacingError(err);
+        const isTransientLoadError =
+          errorKind === "network" ||
+          errorKind === "timeout" ||
+          errorKind === "service_busy" ||
+          errorKind === "auth";
+        const maxColdRetries = 3;
+        if (
+          shouldBlockSplash &&
+          isTransientLoadError &&
+          coldBootstrapRetryRef.current < maxColdRetries
+        ) {
+          const attempt = coldBootstrapRetryRef.current;
+          coldBootstrapRetryRef.current = attempt + 1;
+          const delayMs = [1000, 2000, 4000][attempt] ?? 4000;
+          setStatus("loading");
+          setError(null);
+          setHomeTextsLoading(true);
+          setHomeBootstrapPhase("loading_day", "HOME/home_overlay_start");
+          logRuntimeEvent(
+            "day_content:cold_bootstrap_retry",
+            {
+              attempt: attempt + 1,
+              delayMs,
+              kind: errorKind,
+              message: err.message,
+            },
+            "warn",
+          );
+          if (coldBootstrapRetryTimerRef.current) {
+            clearTimeout(coldBootstrapRetryTimerRef.current);
+          }
+          coldBootstrapRetryTimerRef.current = setTimeout(() => {
+            coldBootstrapRetryTimerRef.current = null;
+            void refresh(opts).catch(() => undefined);
+          }, delayMs);
+          return;
+        }
+
+        coldBootstrapRetryRef.current = 0;
         setForecast(null);
         setSource(null);
         setModelUsed(null);
@@ -958,7 +1010,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       trialExpiresAt,
       userLocation,
       setStartupStep,
+      setHomeBootstrapPhase,
       holdWarmForTexts,
+      beginHomeBootstrap,
+      completeHomeBootstrap,
     ],
   );
 
@@ -982,6 +1037,10 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       if (warmTimeoutRef.current) {
         clearTimeout(warmTimeoutRef.current);
         warmTimeoutRef.current = null;
+      }
+      if (coldBootstrapRetryTimerRef.current) {
+        clearTimeout(coldBootstrapRetryTimerRef.current);
+        coldBootstrapRetryTimerRef.current = null;
       }
     };
   }, []);

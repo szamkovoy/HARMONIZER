@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.64
-updated: 2026-07-15
+version: 1.65
+updated: 2026-07-29
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -15,6 +15,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-29 (interpretation bilingual):** Results «Interpret» при EN UI показывал EN error + RU timeout detail (`__DEV__` + хардкод в `breathPracticeInterpretation`). Fix в communicator client + UI — только локализованная строка; silent retry на timeout.
 
 - **2026-07-23 (TV standalone HTML):** WordPress Custom HTML на `/tv/` не сохранял новый сниппет (оставался старый browser-locale build → `?fr` игнорировался). Канон: `web_cabinet/tv/` (+ симметрично `web_cabinet/cabinet/`) через ISPManager; WP-страницу `/tv/` снять. `docs/remote-play/wordpress-snippet.html` удалён; модульные docs — `docs/remote-play/README.md`.
 

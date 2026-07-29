@@ -58,7 +58,11 @@ function isServiceBusyMessage(message: string): boolean {
 }
 
 function isTimeoutMessage(message: string): boolean {
-  return /timed out|timeout|занял слишком много|took too long/i.test(message);
+  return (
+    /timed out|timeout|занял слишком много|took too long|время ожидания|превышено время/i.test(
+      message,
+    )
+  );
 }
 
 function isAbortMessage(error: unknown, message: string): boolean {
@@ -92,13 +96,20 @@ export function classifyUserFacingError(error: unknown): UserFacingErrorKind {
 
 export function wrapConnectivityFailure(error: unknown, feature: string): Error {
   if (isAppUserError(error)) return error;
+  const message = errorMessage(error);
   if (error instanceof Error && error.name === "AbortError") {
     return new AppUserError("timeout", {
       cause: error,
       debugMessage: `[${feature}] aborted request`,
     });
   }
-  if (isLikelyFetchNetworkFailure(error) || isLegacyClientNetworkMessage(errorMessage(error))) {
+  if (isTimeoutMessage(message)) {
+    return new AppUserError("timeout", {
+      cause: error,
+      debugMessage: `[${feature}] timeout`,
+    });
+  }
+  if (isLikelyFetchNetworkFailure(error) || isLegacyClientNetworkMessage(message)) {
     return new AppUserError("network", {
       cause: error,
       debugMessage: `[${feature}] transient network`,

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.48
-updated: 2026-07-12
+version: 2.49
+updated: 2026-07-29
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-29 (interpretation i18n):** Timeout/network в `breathPracticeInterpretation` бросали хардкод RU (`Превышено время ожидания…`); в `__DEV__` results UI показывал его под уже локализованным EN error → bilingual. Fix: `AppUserError` + один silent retry на timeout; UI только `resultsInterpretationError`.
 
 - **2026-07-22 (Health Connect crash):** `requestPermission` без `HealthConnectPermissionDelegate` крашил process (`lateinit requestPermission`) — JS try/catch не ловит. **Временно не вызываем** `requestPermission` (только уже выданные grants); plugin `with-native-health.js` вставляет delegate после любого `super.onCreate(...)`. После native rebuild можно снова включить prompt.
 

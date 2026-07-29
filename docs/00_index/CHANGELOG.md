@@ -1,3 +1,4 @@
+- 2026-07-29 (328): Pixel QA — (1) breath interpretation: no bilingual EN+RU timeout; `AppUserError` + silent retry; (2) post-login Home keeps prep overlay and auto-retries transient day-content failures instead of flashing «Could not reach the server»; birth CTA / dev tier copy i18n.
 - 2026-07-29 (322): Admin video «Перевести»: longer timeouts + chunked LLM; source=active tab; EN fills all except RU.
 - 2026-07-29 (321): Admin video Save returns to list; globe icon only when real i18n content exists.
 - 2026-07-29 (320): Video duration_seconds (HH/MM/SS in admin); YouTube-style badge on covers in app + admin.

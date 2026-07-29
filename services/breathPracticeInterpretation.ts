@@ -1,7 +1,7 @@
 import { getResponseLocale } from "@/modules/i18n/localeStore";
 import { getCommunicatorV2PracticeInterpretationUrl } from "@/services/communicatorConfig";
 import { requireSupabase } from "@/services/supabase";
-import { wrapConnectivityFailure } from "@/services/userFacingErrors";
+import { AppUserError, appUserErrorKind, wrapConnectivityFailure } from "@/services/userFacingErrors";
 import { withTransientNetworkRetry } from "@/services/withTransientNetworkRetry";
 
 export type BreathPracticeInterpretationRequest = {
@@ -42,7 +42,10 @@ async function fetchWithTimeout(
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (error) {
     if (timedOut) {
-      throw new Error("Превышено время ожидания интерпретации. Попробуйте ещё раз.");
+      throw new AppUserError("timeout", {
+        cause: error,
+        debugMessage: `[breath-practice-interpretation] client timeout after ${timeoutMs}ms`,
+      });
     }
     throw error;
   } finally {
@@ -54,7 +57,11 @@ async function getAccessToken(): Promise<string> {
   const { data, error } = await requireSupabase().auth.getSession();
   if (error) throw error;
   const token = data.session?.access_token;
-  if (!token) throw new Error("Нужна авторизация, чтобы получить интерпретацию.");
+  if (!token) {
+    throw new AppUserError("auth", {
+      debugMessage: "[breath-practice-interpretation] missing access token",
+    });
+  }
   return token;
 }
 
@@ -66,14 +73,15 @@ async function readError(res: Response): Promise<Error> {
   }
   const text = await res.text().catch(() => res.statusText);
   if (ct.includes("text/html") || /^\s*<!doctype html/i.test(text)) {
-    return new Error(
-      "Сервер интерпретации вернул HTML вместо JSON. Обычно это значит, что текущий backend origin не содержит route `/api/communicator/v2/practice-interpretation` и требует deploy.",
-    );
+    return new AppUserError("generic", {
+      debugMessage:
+        "[breath-practice-interpretation] HTML response — route missing or wrong backend origin",
+    });
   }
   return new Error(text.slice(0, 280) || `HTTP ${res.status}`);
 }
 
-export async function fetchBreathPracticeInterpretation(
+async function fetchInterpretationOnce(
   request: BreathPracticeInterpretationRequest,
   signal?: AbortSignal,
 ): Promise<BreathPracticeInterpretationResponse> {
@@ -105,10 +113,30 @@ export async function fetchBreathPracticeInterpretation(
       if (!res.ok) throw await readError(res);
       const payload = (await res.json()) as BreathPracticeInterpretationResponse;
       if (!payload.text?.trim()) {
-        throw new Error("Сервер вернул пустой текст интерпретации.");
+        throw new AppUserError("generic", {
+          debugMessage: "[breath-practice-interpretation] empty text",
+        });
       }
       return payload;
     },
     { signal },
   );
+}
+
+/**
+ * Inline LLM interpretation for breath results.
+ * Transient network drops are retried inside `withTransientNetworkRetry`;
+ * a single extra attempt covers client/server timeout (cold Gemini / Vercel).
+ */
+export async function fetchBreathPracticeInterpretation(
+  request: BreathPracticeInterpretationRequest,
+  signal?: AbortSignal,
+): Promise<BreathPracticeInterpretationResponse> {
+  try {
+    return await fetchInterpretationOnce(request, signal);
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (appUserErrorKind(error) !== "timeout") throw error;
+    return fetchInterpretationOnce(request, signal);
+  }
 }

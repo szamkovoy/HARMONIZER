@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.35
-updated: 2026-07-24
+version: 2.36
+updated: 2026-07-29
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -22,6 +22,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-29 (cold bootstrap retry):** После OTP/login без phone-cache первый `daily-forecast`/`global-content` мог упасть транзиентно → `completeHomeBootstrap()` + Home «Could not reach the server», хотя «Try again» сразу чинил. Fix: при `shouldBlockSplash` держим splash/day_card и до 3 silent retry (1s/2s/4s) на network/timeout/service_busy/auth; error UI только после исчерпания. Параллельно Home CTA birth data → `enterBirthDataButton` (i18n).
 
 - **2026-07-24 (cache scope birth_time):** `dayContentNatalScopeKey` канонизирует `birth_time` как `HH:MM:SS` (совпадает с Postgres/`users.birth_time` и legacy Home-ключами). Краткая нормализация `HH:MM` давала cache miss → cold `fetchDailyForecast` 25s → UI timeout. `useDayContent` при чтении перебирает кандидатов канон + `HH:MM`.
 

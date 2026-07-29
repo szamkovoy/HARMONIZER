@@ -16,7 +16,7 @@ export function DevTierSwitch({
   return (
     <View style={[styles.root, { borderColor: theme.colors.surfaceBorder }]}>
       <AppText variant="technicalCaption" tone="muted">
-        Dev effective tier: {value ? TIER_LABELS[value] : "из профиля"}
+        Dev effective tier: {value ? TIER_LABELS[value] : "from profile"}
       </AppText>
       <View style={styles.row}>
         {/* practitioner — скрытый legacy-уровень, но dev-переключатель показывает

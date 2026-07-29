@@ -289,8 +289,8 @@ function DevLinks({ strings, leadingAccessory }: { strings: HomeStrings; leading
   );
 }
 
-function NatalBridgeCard({ onOpen }: { onOpen: () => void }) {
-  return <AppButton label="Введите дату рождения" variant="secondary" onPress={onOpen} />;
+function NatalBridgeCard({ onOpen, label }: { onOpen: () => void; label: string }) {
+  return <AppButton label={label} variant="secondary" onPress={onOpen} />;
 }
 
 function CommunicatorOverlay({
@@ -719,7 +719,7 @@ export default function HomeScreen() {
             title={strings.birthDataTitle}
             message={strings.birthDataMessage}
             tone="warning"
-            actionLabel="Введите дату рождения"
+            actionLabel={strings.enterBirthDataButton}
             onAction={() => setNatalBridgeOpen(true)}
           />
         ) : null}
@@ -784,6 +784,7 @@ export default function HomeScreen() {
 
         {status !== "need_birth_data" ? (
           <NatalBridgeCard
+            label={strings.enterBirthDataButton}
             onOpen={() => {
               if (canUseFeature("calibration")) {
                 setNatalBridgeOpen(true);

@@ -36,6 +36,7 @@ export interface HomeStrings {
   openSettingsButton: string;
   birthDataTitle: string;
   birthDataMessage: string;
+  enterBirthDataButton: string;
   staleContentTitle: string;
   staleContentMessage: string;
   forecastErrorTitle: string;
@@ -255,6 +256,7 @@ const ru: HomeStrings = {
   openSettingsButton: "Открыть настройки",
   birthDataTitle: "Нужна дата рождения",
   birthDataMessage: "Чтобы построить персональный прогноз дня, введите дату, время и место рождения.",
+  enterBirthDataButton: "Введите дату рождения",
   staleContentTitle: "Показываю сохранённый прогноз",
   staleContentMessage: "Свежие данные сейчас не загрузились, поэтому временно показываю последний сохранённый вариант за этот день.",
   forecastErrorTitle: "Не удалось загрузить прогноз",
@@ -471,6 +473,7 @@ const en: HomeStrings = {
   openSettingsButton: "Open settings",
   birthDataTitle: "Birth data is required",
   birthDataMessage: "Enter your birth date, time, and place to build a personal daily forecast.",
+  enterBirthDataButton: "Enter date of birth",
   staleContentTitle: "Showing saved forecast",
   staleContentMessage: "Fresh data could not be loaded right now, so the latest saved forecast for today is shown temporarily.",
   forecastErrorTitle: "Could not load forecast",

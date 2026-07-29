@@ -5806,7 +5806,6 @@ function ResultsView(props: {
   const { authUser } = useAuth();
   const [detailsViewMode, setDetailsViewMode] = useState<ResultsDetailsViewMode>("metrics");
   const [interpretationText, setInterpretationText] = useState<string | null>(null);
-  const [interpretationErrorDetail, setInterpretationErrorDetail] = useState<string | null>(null);
   const savedSessionRef = useRef(false);
   const interpretationAbortRef = useRef<AbortController | null>(null);
   const trustLevel = finalSignalTrust?.level ?? "full_biometrics";
@@ -5992,7 +5991,6 @@ function ResultsView(props: {
     interpretationAbortRef.current = controller;
     setDetailsViewMode("loadingInterpretation");
     setInterpretationText(null);
-    setInterpretationErrorDetail(null);
 
     const outcome = buildOutcome();
     const payload = buildInterpretationOutcomePayload(
@@ -6016,7 +6014,7 @@ function ResultsView(props: {
       if (controller.signal.aborted) return;
       const text = response.text?.trim() ?? "";
       if (!text) {
-        throw new Error("Сервер вернул пустой текст интерпретации.");
+        throw new Error("empty_interpretation");
       }
       setInterpretationText(text);
       setDetailsViewMode("interpretation");
@@ -6030,7 +6028,6 @@ function ResultsView(props: {
         "warn",
       );
       setInterpretationText(null);
-      setInterpretationErrorDetail(error instanceof Error ? error.message : String(error));
       setDetailsViewMode("interpretationError");
     } finally {
       if (interpretationAbortRef.current === controller) {
@@ -6090,12 +6087,7 @@ function ResultsView(props: {
               </View>
             ) : null}
             {detailsViewMode === "interpretationError" ? (
-              <>
-                <Text style={styles.warnBox}>{str.resultsInterpretationError}</Text>
-                {__DEV__ && interpretationErrorDetail ? (
-                  <Text style={styles.metricNote}>{interpretationErrorDetail}</Text>
-                ) : null}
-              </>
+              <Text style={styles.warnBox}>{str.resultsInterpretationError}</Text>
             ) : null}
             {detailsViewMode === "interpretation" && interpretationText ? (
               <Text style={styles.interpretationBody}>{interpretationText}</Text>
