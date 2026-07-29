@@ -16,7 +16,6 @@ import { GeoGate } from "@/modules/home/ui/GeoGate";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
-import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { BlockingStatusToast } from "@/modules/ui/BlockingStatusToast";
 import { StateCard } from "@/modules/ui/StateCard";
@@ -243,11 +242,8 @@ function DevLocalNotificationTestButton() {
           },
         ]}
       >
-        <AppText variant="technicalCaption">Тест уведомления (~20 с)</AppText>
+          <AppText variant="technicalCaption">Тест уведомления (~20 с)</AppText>
       </Pressable>
-      <AppText variant="technicalCaption" tone="muted" style={{ textAlign: "center" }}>
-        Только в dev-сборке. Не связано с окнами возможностей.
-      </AppText>
     </View>
   );
 }
@@ -287,10 +283,6 @@ function DevLinks({ strings, leadingAccessory }: { strings: HomeStrings; leading
       ))}
     </View>
   );
-}
-
-function NatalBridgeCard({ onOpen, label }: { onOpen: () => void; label: string }) {
-  return <AppButton label={label} variant="secondary" onPress={onOpen} />;
 }
 
 function CommunicatorOverlay({
@@ -443,7 +435,7 @@ function profileHasBirthData(profile: { birth_date?: string | null } | null | un
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const { authUser, profile, signOut, signingIn, refreshProfile, profileLoading } = useAuth();
+  const { authUser, profile, signOut, refreshProfile, profileLoading } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
   const { locale: appLocale } = useAppLocale();
@@ -552,10 +544,6 @@ export default function HomeScreen() {
   useEffect(() => {
     prevLocaleRef.current = appLocale;
   }, [appLocale]);
-
-  const onSignOut = useCallback(async () => {
-    await signOut();
-  }, [signOut]);
 
   // Естественный выход из геогейта: на Android реально закрываем приложение;
   // на iOS Apple запрещает программный выход, поэтому выходим из аккаунта —
@@ -782,18 +770,6 @@ export default function HomeScreen() {
           <LatestPostBanner />
         )}
 
-        {status !== "need_birth_data" ? (
-          <NatalBridgeCard
-            label={strings.enterBirthDataButton}
-            onOpen={() => {
-              if (canUseFeature("calibration")) {
-                setNatalBridgeOpen(true);
-              } else {
-                setUpgradeFeature("calibration");
-              }
-            }}
-          />
-        ) : null}
         {HARMONIZER_TEST_MODE ? (
           <AccessDevTierSwitch value={access.devOverride} onChange={setDevTierOverride} />
         ) : null}
@@ -828,12 +804,6 @@ export default function HomeScreen() {
           />
         ) : null}
         {HARMONIZER_TEST_MODE ? <DevLocalNotificationTestButton /> : null}
-        <AppButton
-          label={signingIn ? strings.signingOutButton : strings.signOutButton}
-          variant="secondary"
-          onPress={onSignOut}
-          disabled={signingIn}
-        />
       </TabScrollView>
 
       {communicatorMounted && forecast ? (

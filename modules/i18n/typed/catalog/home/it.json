@@ -38,6 +38,7 @@
   },
   "devResetDayContent": "Aggiorna",
   "emptyTimeLabel": "—",
+  "enterBirthDataButton": "Inserisci la data di nascita",
   "eventBells": {
     "title": "Campanelle",
     "empty": "Oggi non ci sono eventi astrologici imminenti con orario preciso.",

@@ -38,6 +38,7 @@
   },
   "devResetDayContent": "Vernieuwen",
   "emptyTimeLabel": "—",
+  "enterBirthDataButton": "Voer geboortedatum in",
   "eventBells": {
     "title": "Bellen",
     "empty": "Vandaag geen aankomende astro-gebeurtenissen met exacte tijd.",

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.65
+version: 1.66
 updated: 2026-07-29
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -16,6 +16,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-29 (catalog footer):** Убрана строка «Всего в каталоге: N…» с каталога (и test, и prod) — лишний UI без отдельного DB-запроса (счёт локальный).
+
 - **2026-07-29 (interpretation bilingual):** Results «Interpret» при EN UI показывал EN error + RU timeout detail (`__DEV__` + хардкод в `breathPracticeInterpretation`). Fix в communicator client + UI — только локализованная строка; silent retry на timeout.
 
 - **2026-07-29 (entry-time warn):** Не показываем warning «Время вхождения не определено…» — в строке остаётся «—»; расчёт/exportMeta без изменений. Мигание guidedOnly от Polar HR-only пакетов оставлено как есть.
@@ -27,6 +29,8 @@ code_refs:
 - **2026-07-29 (breath HR race):** Probe `available===false` больше не перезаписывает `fingerCamera`/`none` в `none` (гонка после выбора «пульс с телефона»). Demote только из `ble`. Пары: `biofeedback`.
 
 - **2026-07-29 (breath HR default):** Если last BLE недоступен — combo по умолчанию «без пульсометра» (не Polar); старт с мёртвым BLE → alert, не чёрный экран. `CoherenceBreathScreen`: prep UI + cancel на iOS, hang watchdog. Пары: `biofeedback`.
+
+- **2026-07-29 (breath test gate):** `BREATH_TESTING_MODE` = `HARMONIZER_TEST_MODE`; live footer diagnostics / activation export / Export JSON только в test; Close на results центрируется, если одна.
 
 - **2026-07-23 (TV standalone HTML):** WordPress Custom HTML на `/tv/` не сохранял новый сниппет (оставался старый browser-locale build → `?fr` игнорировался). Канон: `web_cabinet/tv/` (+ симметрично `web_cabinet/cabinet/`) через ISPManager; WP-страницу `/tv/` снять. `docs/remote-play/wordpress-snippet.html` удалён; модульные docs — `docs/remote-play/README.md`.
 

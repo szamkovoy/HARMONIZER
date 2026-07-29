@@ -1,3 +1,4 @@
+- 2026-07-29 (330): Product UI cleanup vs `HARMONIZER_TEST_MODE`: remove Home birth/sign-out CTAs; Profile copy + drop access/DevTier/coming-soon; catalog footer gone; breath live diagnostics + activation export follow test flag; results Close centered when alone.
 - 2026-07-29 (329): Unify product test UI under `HARMONIZER_TEST_MODE` (not `__DEV__`): DevTierSwitch, day-reset/DevLinks, local-notification probe, profile diagnostics, recommendation/communicator model badges, dialog export; AccessProvider ignores tier override when flag is off.
 - 2026-07-29 (328): Pixel QA — (1) breath interpretation: no bilingual EN+RU timeout; `AppUserError` + silent retry; (2) post-login Home keeps prep overlay and auto-retries transient day-content failures instead of flashing «Could not reach the server»; birth CTA / dev tier copy i18n.
 - 2026-07-29 (327): Breath results: hide «Время вхождения не определено» warning (keep «—» in the row).

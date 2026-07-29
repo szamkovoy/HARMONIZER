@@ -5,8 +5,6 @@ import { router } from "expo-router";
 
 import {
   AccountGateDialog,
-  DevTierSwitch,
-  TIER_LABELS,
   useAccess,
   type FeatureKey,
 } from "@/modules/access";
@@ -100,7 +98,7 @@ function errorMessage(value: unknown, fallback = "Неизвестная оши�
 export default function ProfileTabRoute() {
   const theme = useTheme();
   const { authUser, profile, refreshProfile, signOut } = useAuth();
-  const { access, canUseFeature, setDevTierOverride } = useAccess();
+  const { access, canUseFeature } = useAccess();
   const { locale, setLocale, testMode } = useAppLocale();
   const { t } = useTranslate();
   const [localeOpen, setLocaleOpen] = useState(false);
@@ -734,21 +732,6 @@ export default function ProfileTabRoute() {
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">{t("profile.access.title")}</AppText>
-          <AppText variant="screenHint">{access.label}</AppText>
-          <AppText variant="technicalCaption" tone="muted">
-            effective tier: {TIER_LABELS[access.tier]} · source: {access.source}
-          </AppText>
-          <AppText variant="technicalCaption" tone="muted">
-            profile tier: {profile?.membership_tier ?? "unknown"} · trial: {profile?.trial_expires_at ?? "нет"}
-          </AppText>
-          <AppButton label={t("profile.access.updateButton")} variant="secondary" onPress={openBirthEditor} />
-          <AppText variant="technicalCaption" tone="muted">
-            {t("profile.access.birthHint")}
-          </AppText>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
           <AppText variant="sectionTitle">{t("support.title")}</AppText>
           <AppText variant="screenHint" tone="muted">
             {t("support.profileHint")}
@@ -804,10 +787,6 @@ export default function ProfileTabRoute() {
               : ""
           }
         />
-
-        {HARMONIZER_TEST_MODE ? (
-          <DevTierSwitch value={access.devOverride} onChange={setDevTierOverride} />
-        ) : null}
 
         {HARMONIZER_TEST_MODE ? (
           <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
@@ -891,13 +870,6 @@ export default function ProfileTabRoute() {
           onRetry={() => void lifeMatrix.reload()}
           retryLabel={lifeMatrix.retryLabel}
         />
-
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.surfaceBorder }]}>
-          <AppText variant="sectionTitle">{t("profile.comingSoon.title")}</AppText>
-          <AppText variant="dialogBody" tone="muted">
-            {t("profile.comingSoon.body")}
-          </AppText>
-        </View>
 
         {/* Те же юр. документы, что на шаге 1 мастера; Modal не сбрасывает скролл. */}
         <View style={styles.legalFooter}>

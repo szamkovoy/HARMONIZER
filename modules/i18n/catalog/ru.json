@@ -8,7 +8,7 @@
   "common.cancel": "Отмена",
   "common.close": "Закрыть",
   "profile.title": "Профиль",
-  "profile.subtitle": "Минимальная зона настроек и проверки доступа для первого витка.",
+  "profile.subtitle": "Здесь находится информация о вас и ряд полезных отчетов",
   "profile.access.title": "Текущий доступ",
   "profile.access.updateButton": "Обновить профиль",
   "profile.access.birthHint": "Дата и время рождения (натальная карта). На главной экран обновится после сохранения.",

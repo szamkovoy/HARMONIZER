@@ -70,10 +70,6 @@ function durationFilters(strings: ReturnType<typeof getPracticeCatalogStrings>):
 const CATALOG_THUMBNAIL_WIDTH = 295;
 const INITIAL_THUMBNAILS_TO_PREFETCH = 12;
 
-function totalCount(catalog: PracticeCatalog): number {
-  return catalog.meditation.length + catalog.breath.length + catalog.yoga.length;
-}
-
 export function PracticeCatalogScreen() {
   const theme = useTheme();
   const { locale: appLocale } = useAppLocale();
@@ -599,13 +595,6 @@ export function PracticeCatalogScreen() {
         }}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
-        ListFooterComponent={
-          state.status !== "loading" ? (
-            <AppText variant="technicalCaption" tone="faint" style={styles.footer}>
-              {strings.catalogFooter(totalCount(catalog))}
-            </AppText>
-          ) : null
-        }
         ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
         contentContainerStyle={listContentProps.contentContainerStyle}
         initialNumToRender={6}
@@ -698,9 +687,5 @@ const styles = StyleSheet.create({
   },
   itemSeparator: {
     height: 12,
-  },
-  footer: {
-    textAlign: "center",
-    marginTop: 18,
   },
 });

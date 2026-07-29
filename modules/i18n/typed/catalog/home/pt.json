@@ -38,6 +38,7 @@
   },
   "devResetDayContent": "Atualizar",
   "emptyTimeLabel": "—",
+  "enterBirthDataButton": "Insira sua data de nascimento",
   "eventBells": {
     "title": "Sinos",
     "empty": "Hoje não há eventos astrológicos futuros com horário exato.",

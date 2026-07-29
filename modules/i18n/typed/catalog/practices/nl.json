@@ -62,7 +62,7 @@
   "videoUnavailableMessage": "Deze asana heeft nog geen Vimeo-ID voor Remote Play.",
   "videoUnavailableTitle": "Video niet beschikbaar",
   "wearableBluetoothStateLabel": "Bluetooth",
-  "wearableLinkFailedBody": "Als er een Android-melding bovenaan verscheen, bevestig deze en tik op «Opnieuw». Houd de borstband om, Bluetooth aan en sluit andere apps die de sensor gebruiken.",
+  "wearableLinkFailedBody": "De borstband hartslagmeter is momenteel niet beschikbaar. Doe de band om, zet Bluetooth aan en sluit andere apps die deze sensor gebruiken. Bevestig op Android de systeemmelding bovenaan en tik op 'Opnieuw proberen'. Of kies 'zonder hartslagmeter' / 'hartslag via telefoon'.",
   "wearableLinkFailedTitle": "Hartslagmeter kon niet worden verbonden",
   "wearableLinkRetry": "Opnieuw",
   "wearablePickerBluetoothOff": "Bluetooth is uitgeschakeld. Schakel het in en zoek opnieuw.",

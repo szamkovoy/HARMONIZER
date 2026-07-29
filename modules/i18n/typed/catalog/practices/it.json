@@ -62,7 +62,7 @@
   "videoUnavailableMessage": "Questa asana non ha ancora un ID Vimeo per il Remote Play.",
   "videoUnavailableTitle": "Video non disponibile",
   "wearableBluetoothStateLabel": "Bluetooth",
-  "wearableLinkFailedBody": "Se in alto è apparsa una richiesta Android, confermala e tocca «Riprova». Tieni la fascia toracica sul petto, il Bluetooth attivo e chiudi le altre app che usano questo sensore.",
+  "wearableLinkFailedBody": "Sembra che il tuo cardiofrequenzimetro toracico non sia disponibile al momento. Indossa la fascia, attiva il Bluetooth e chiudi le altre app che usano questo sensore. Su Android, conferma la richiesta di sistema che appare in alto, poi tocca «Riprova». In alternativa, scegli «senza cardiofrequenzimetro» / «pulsazioni dal telefono».",
   "wearableLinkFailedTitle": "Cardiofrequenzimetro non connesso",
   "wearableLinkRetry": "Riprova",
   "wearablePickerBluetoothOff": "Bluetooth spento. Accendilo e ripeti la ricerca.",

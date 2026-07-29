@@ -1,8 +1,8 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.37
-updated: 2026-07-04
+version: 1.38
+updated: 2026-07-29
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-29 (test gate):** `BREATH_TESTING_MODE` зеркалит `HARMONIZER_TEST_MODE` — live optical footer / activation diagnostics / Export JSON скрыты вне QA. Пары: `practices`.
 
 - **2026-07-29 (remembered BLE probe):** `useRememberedWearableProbe` на всех платформах требует live presence (не `manager.devices()`); выключенный Polar → combo «без пульсометра». Breath prep: spinner+cancel на iOS, hang watchdog 20s, выход из QC. Пары: `practices`.
 

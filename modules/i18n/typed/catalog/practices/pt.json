@@ -62,7 +62,7 @@
   "videoUnavailableMessage": "Esta asana ainda não tem um ID do Vimeo para o Remote Play.",
   "videoUnavailableTitle": "Vídeo indisponível",
   "wearableBluetoothStateLabel": "Bluetooth",
-  "wearableLinkFailedBody": "Se houve uma solicitação do Android no topo, confirme-a e toque em «Repetir». Mantenha a cinta cardíaca no peito, o Bluetooth ligado e feche outros aplicativos que usam este sensor.",
+  "wearableLinkFailedBody": "O monitor cardíaco de peito está indisponível no momento. Vista a cinta, ligue o Bluetooth, feche outros aplicativos que estejam usando este sensor. No Android, confirme a solicitação do sistema no topo e depois toque em «Repetir». Ou selecione «sem monitor cardíaco» / «frequência cardíaca pelo telefone».",
   "wearableLinkFailedTitle": "Monitor cardíaco não conectado",
   "wearableLinkRetry": "Repetir",
   "wearablePickerBluetoothOff": "Bluetooth está desligado. Ligue-o e repita a busca.",

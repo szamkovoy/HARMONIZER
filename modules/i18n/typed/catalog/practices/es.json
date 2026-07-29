@@ -62,7 +62,7 @@
   "videoUnavailableMessage": "Esta asana aún no tiene un ID de Vimeo para Remote Play.",
   "videoUnavailableTitle": "Vídeo no disponible",
   "wearableBluetoothStateLabel": "Bluetooth",
-  "wearableLinkFailedBody": "Si hubo una solicitud de Android arriba, confírmela y pulse «Reintentar». Mantenga la banda en el pecho, Bluetooth encendido, otras aplicaciones con este sensor cerradas.",
+  "wearableLinkFailedBody": "El pulsómetro de pecho no está disponible ahora. Ponte la correa, activa el Bluetooth, cierra otras aplicaciones que usen este sensor. En Android, confirma la solicitud del sistema en la parte superior y luego pulsa «Reintentar». O elige «sin pulsómetro» / «pulso desde el teléfono».",
   "wearableLinkFailedTitle": "El pulsómetro no se ha conectado",
   "wearableLinkRetry": "Reintentar",
   "wearablePickerBluetoothOff": "Bluetooth está apagado. Enciéndelo y vuelve a buscar.",

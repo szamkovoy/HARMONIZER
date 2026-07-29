@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-29 (profile.subtitle):** RU source → «Здесь находится информация о вас и ряд полезных отчетов»; fill на 8 локалей.
+
 - **2026-07-29 (home birth CTA):** Хардкод «Введите дату рождения» / DevTier «из профиля» на EN UI → `enterBirthDataButton` в `getHomeStrings` + EN «from profile» в DevTierSwitch.
 
 - **2026-07-24 (hydrate same-account):** `hydrateAppLocale(profileLocale, userId)` — при смене аккаунта по-прежнему берёт `users.locale`; на том же аккаунте не откатывает UI на отстающую БД, а пишет UI → `users.locale` (push = inbox). См. notifications/history (exact locale send).

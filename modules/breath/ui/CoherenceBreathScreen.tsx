@@ -4966,6 +4966,8 @@ function CoherenceBreathScreenInner({
    */
   const practiceFooter = useMemo(() => {
     if (phase !== "running") return null;
+    // Live optical/BLE/RSA diagnostics are QA-only (HARMONIZER_TEST_MODE).
+    if (!HARMONIZER_TEST_MODE) return null;
     const elapsedSec = Math.floor(elapsedMs / 1000);
     // Wearable sessions must not inherit the Android "no finger PPG plugin" simulated
     // optical note — that flag is about the camera path only.
@@ -5026,6 +5028,8 @@ function CoherenceBreathScreenInner({
     str,
     wearableCapabilityTier,
     wearableRuntime.lastHeartRateBpm,
+    // HARMONIZER_TEST_MODE is a build-time constant; listed for clarity.
+    HARMONIZER_TEST_MODE,
   ]);
 
   return (
@@ -6092,14 +6096,18 @@ function ResultsView(props: {
         >
           <Text style={styles.interpretationBody}>{str.noSensorResultsRecommendation}</Text>
         </ScrollView>
-        <View style={styles.resultsActionsRow}>
-          <Pressable onPress={onClose} style={styles.resultsCloseBtn}>
+        <View style={[styles.resultsActionsRow, styles.resultsActionsRowCentered]}>
+          <Pressable onPress={onClose} style={[styles.resultsCloseBtn, styles.resultsCloseBtnAlone]}>
             <Text style={styles.resultsCloseBtnText}>{str.resultsCloseButton}</Text>
           </Pressable>
         </View>
       </View>
     );
   }
+
+  const showInterpretAction = !showingInterpretation && canRequestInterpretation;
+  const showInterpretRetry = detailsViewMode === "interpretationError";
+  const closeAlone = !showInterpretAction && !showInterpretRetry;
 
   return (
     <View style={styles.results}>
@@ -6301,18 +6309,21 @@ function ResultsView(props: {
           </>
         )}
       </ScrollView>
-      <View style={styles.resultsActionsRow}>
-        {!showingInterpretation && canRequestInterpretation ? (
+      <View style={[styles.resultsActionsRow, closeAlone ? styles.resultsActionsRowCentered : null]}>
+        {showInterpretAction ? (
           <Pressable onPress={() => void requestInterpretation()} style={styles.resultsDiscussBtn}>
             <Text style={styles.resultsDiscussBtnText}>{str.resultsDiscussButton}</Text>
           </Pressable>
         ) : null}
-        {detailsViewMode === "interpretationError" ? (
+        {showInterpretRetry ? (
           <Pressable onPress={() => void requestInterpretation()} style={styles.resultsDiscussBtn}>
             <Text style={styles.resultsDiscussBtnText}>{str.resultsInterpretationRetryButton}</Text>
           </Pressable>
         ) : null}
-        <Pressable onPress={onClose} style={styles.resultsCloseBtn}>
+        <Pressable
+          onPress={onClose}
+          style={[styles.resultsCloseBtn, closeAlone ? styles.resultsCloseBtnAlone : null]}
+        >
           <Text style={styles.resultsCloseBtnText}>{str.resultsCloseButton}</Text>
         </Pressable>
       </View>
@@ -6681,6 +6692,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 16,
   },
+  resultsActionsRowCentered: {
+    justifyContent: "center",
+  },
   resultsDiscussBtn: {
     flex: 1,
     alignItems: "center",
@@ -6699,6 +6713,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: "#22c55e",
+  },
+  resultsCloseBtnAlone: {
+    flex: 0,
+    alignSelf: "center",
+    minWidth: 168,
+    paddingHorizontal: 28,
   },
   resultsCloseBtnText: {
     color: "#052e16",

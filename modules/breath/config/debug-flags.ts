@@ -1,37 +1,22 @@
+import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
+
 /**
  * Централизованные флаги «тестового режима» модуля BREATH.
  *
- * Смысл: все диагностические/отладочные тумблеры, которые раньше были
- * разбросаны по разным файлам, собраны в одном месте. Чтобы включить
- * «полный тестовый режим» — достаточно поставить `BREATH_TESTING_MODE = true`.
- * Чтобы выпустить прод-сборку — поставить `false`: сэмплинг метрик
- * отключится, JSON-экспорты и диагностические кнопки уйдут из UI,
- * jank-детектор станет no-op. Никакие другие места править не нужно.
+ * Мастер-флаг совпадает с продуктовым `HARMONIZER_TEST_MODE`
+ * (`EXPO_PUBLIC_HARMONIZER_TEST_MODE`). В release с `false` сэмплинг,
+ * JSON-экспорты и диагностические кнопки/футеры уходят из UI.
  *
- * Именно этот файл импортируют:
- *   - `modules/breath/debug/session-runtime-diagnostics.ts` — выключатель
- *     сэмплера (`PerfDiag.push` становится no-op).
- *   - `modules/breath/debug/jank-detector.ts` — выключатель FPS/JS-лага.
- *   - `modules/breath/ui/CoherenceBreathScreen.tsx` — скрытие кнопок
- *     «Экспорт JSON», «Диагностика активации», блоков debug-* в итогах.
- *
- * ВАЖНО: флаг читается один раз при загрузке модуля. Если нужен рантайм-
- * свитч (developer menu), оберни значения в геттеры и подмени их через
- * `overrideBreathTestingMode(true)` — такая подпись зарезервирована на
- * будущее, сейчас не реализована, чтобы не увеличивать поверхность API
- * до появления реальной кнопки в UI.
+ * Импортируют:
+ *   - `modules/breath/debug/session-runtime-diagnostics.ts`
+ *   - `modules/breath/debug/jank-detector.ts`
+ *   - `modules/breath/ui/CoherenceBreathScreen.tsx`
  */
 
 /**
- * Мастер-переключатель «всё диагностическое».
- *
- * `true`  — собираем perf-семплы, показываем отладочные кнопки, доступен
- *           экспорт полной диагностики JSON. Используется при тестировании
- *           и при отладке feedback-ов от конкретных пользователей.
- * `false` — прод: UI без отладочных элементов, `PerfDiag`/`JankDetector`
- *           превращаются в no-op, native-heap-probe не опрашивается.
+ * Мастер-переключатель «всё диагностическое» = `HARMONIZER_TEST_MODE`.
  */
-export const BREATH_TESTING_MODE = true;
+export const BREATH_TESTING_MODE = HARMONIZER_TEST_MODE;
 
 /**
  * Записываем ли per-frame/per-second телеметрию (FPS, JS-лаг, heap, thermal

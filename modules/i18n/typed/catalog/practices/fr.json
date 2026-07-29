@@ -62,7 +62,7 @@
   "videoUnavailableMessage": "Cette asana n'a pas encore d'ID Vimeo pour le Remote Play.",
   "videoUnavailableTitle": "Vidéo indisponible",
   "wearableBluetoothStateLabel": "Bluetooth",
-  "wearableLinkFailedBody": "Si une demande Android est apparue en haut, confirmez-la et appuyez sur « Réessayer ». Gardez la sangle sur la poitrine, le Bluetooth activé et les autres applications utilisant ce capteur fermées.",
+  "wearableLinkFailedBody": "Le capteur cardiaque thoracique n'est pas disponible pour le moment. Mettez la ceinture, activez le Bluetooth et fermez les autres applications utilisant ce capteur. Sur Android, confirmez la demande système qui apparaît en haut, puis appuyez sur « Réessayer ». Ou sélectionnez « sans capteur cardiaque » / « fréquence cardiaque du téléphone ».",
   "wearableLinkFailedTitle": "Le capteur de fréquence cardiaque ne s'est pas connecté",
   "wearableLinkRetry": "Réessayer",
   "wearablePickerBluetoothOff": "Le Bluetooth est désactivé. Activez-le et relancez la recherche.",

@@ -38,6 +38,7 @@
   },
   "devResetDayContent": "Aktualisieren",
   "emptyTimeLabel": "—",
+  "enterBirthDataButton": "Geburtsdatum eingeben",
   "eventBells": {
     "title": "Glocken",
     "empty": "Heute gibt es keine bevorstehenden Astro-Ereignisse mit genauer Zeit.",

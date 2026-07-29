@@ -62,7 +62,7 @@
   "videoUnavailableMessage": "Für diese Asana gibt es noch keine Vimeo-ID für Remote Play.",
   "videoUnavailableTitle": "Video nicht verfügbar",
   "wearableBluetoothStateLabel": "Bluetooth",
-  "wearableLinkFailedBody": "Falls oben eine Android-Anfrage erschien, bestätigen Sie diese und tippen Sie auf «Wiederholen». Behalten Sie den Brustgurt an, Bluetooth eingeschaltet, andere Apps, die den Sensor verwenden, geschlossen.",
+  "wearableLinkFailedBody": "Der Brustgurt-Herzfrequenzmesser ist derzeit nicht verfügbar. Legen Sie den Gurt an, aktivieren Sie Bluetooth und schließen Sie andere Apps, die diesen Sensor verwenden. Bestätigen Sie bei Android die Systemanfrage oben und tippen Sie dann auf „Wiederholen“. Oder wählen Sie „ohne Pulsmesser“ / „Puls vom Telefon“.",
   "wearableLinkFailedTitle": "Herzfrequenzmesser nicht verbunden",
   "wearableLinkRetry": "Wiederholen",
   "wearablePickerBluetoothOff": "Bluetooth ist ausgeschaltet. Schalten Sie es ein und versuchen Sie es erneut.",

@@ -38,6 +38,7 @@
   },
   "devResetDayContent": "Actualiser",
   "emptyTimeLabel": "—",
+  "enterBirthDataButton": "Entrez la date de naissance",
   "eventBells": {
     "title": "Clochettes",
     "empty": "Aucun événement astro à venir avec heure précise pour aujourd'hui.",
