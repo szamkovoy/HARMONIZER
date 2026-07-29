@@ -1,3 +1,4 @@
+- 2026-07-29 (321): Admin video Save returns to list; globe icon only when real i18n content exists.
 - 2026-07-29 (320): Video duration_seconds (HH/MM/SS in admin); YouTube-style badge on covers in app + admin.
 - 2026-07-29 (319): Admin video editor: publish date field; list status Планируется for future published_at.
 - 2026-07-28 (318): requireUser validates JWT via PostgREST + 8s timeout (avoids Auth 522 hanging all admin lists).

@@ -53,7 +53,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
 
     const { data: current, error: readError } = await db
       .from("posts")
-      .select("published_at, title, title_i18n")
+      .select("published_at, title, title_i18n, body_i18n, cover_url_i18n")
       .eq("id", id)
       .maybeSingle();
     if (readError) throw readError;

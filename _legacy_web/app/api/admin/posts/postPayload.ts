@@ -40,6 +40,16 @@ function hasAnyTitle(title: string, titleI18n: Record<string, string>): boolean 
   return Object.values(titleI18n).some((value) => value.trim().length > 0);
 }
 
+function hasNonEmptyI18n(
+  titleI18n: Record<string, string>,
+  bodyI18n: Record<string, string>,
+  coverUrlI18n: Record<string, string | null>,
+): boolean {
+  if (Object.keys(titleI18n).length > 0) return true;
+  if (Object.keys(bodyI18n).length > 0) return true;
+  return Object.values(coverUrlI18n).some((url) => typeof url === "string" && url.trim().length > 0);
+}
+
 /** Create: at least one locale title required; RU columns may be empty for non-RU-only videos. */
 export function postRowFromPayload(payload: AdminPostPayload) {
   const title = payload.title?.trim() ?? "";
@@ -55,10 +65,7 @@ export function postRowFromPayload(payload: AdminPostPayload) {
   }
   const durationSeconds = parseDurationSeconds(payload.duration_seconds);
   const coverUrlI18n = payload.cover_url_i18n ?? {};
-  const hasI18n =
-    Object.keys(titleI18n).length > 0 ||
-    Object.keys(bodyI18n).length > 0 ||
-    Object.keys(coverUrlI18n).some((key) => Boolean(coverUrlI18n[key]));
+  const hasI18n = hasNonEmptyI18n(titleI18n, bodyI18n, coverUrlI18n);
 
   return {
     title,
@@ -71,18 +78,35 @@ export function postRowFromPayload(payload: AdminPostPayload) {
     body_i18n: bodyI18n,
     cover_url_i18n: coverUrlI18n,
     kind: "video" as const,
-    ...(hasI18n ? { translations_updated_at: new Date().toISOString() } : {}),
+    translations_updated_at: hasI18n ? new Date().toISOString() : null,
   };
 }
 
 /** Partial update; published_at set on first publish. Empty RU title allowed if i18n titles remain. */
-export function postUpdateFromPayload(payload: AdminPostPayload, current: { published_at: string | null; title?: string; title_i18n?: unknown }) {
+export function postUpdateFromPayload(
+  payload: AdminPostPayload,
+  current: {
+    published_at: string | null;
+    title?: string;
+    title_i18n?: unknown;
+    body_i18n?: unknown;
+    cover_url_i18n?: unknown;
+  },
+) {
   const update: Record<string, unknown> = {};
   const nextTitle = payload.title !== undefined ? payload.title.trim() : (current.title ?? "");
   const nextTitleI18n =
     payload.title_i18n !== undefined
       ? trimmedRecord(payload.title_i18n)
       : trimmedRecord((current.title_i18n as Record<string, string> | undefined) ?? undefined);
+  const nextBodyI18n =
+    payload.body_i18n !== undefined
+      ? trimmedRecord(payload.body_i18n)
+      : trimmedRecord((current.body_i18n as Record<string, string> | undefined) ?? undefined);
+  const nextCoverI18n =
+    payload.cover_url_i18n !== undefined
+      ? (payload.cover_url_i18n ?? {})
+      : ((current.cover_url_i18n as Record<string, string | null> | undefined) ?? {});
 
   if (payload.title !== undefined || payload.title_i18n !== undefined) {
     if (!hasAnyTitle(nextTitle, nextTitleI18n)) {
@@ -115,15 +139,18 @@ export function postUpdateFromPayload(payload: AdminPostPayload, current: { publ
     }
   }
   if (payload.title_i18n !== undefined) update.title_i18n = nextTitleI18n;
-  if (payload.body_i18n !== undefined) update.body_i18n = trimmedRecord(payload.body_i18n);
-  if (payload.cover_url_i18n !== undefined) update.cover_url_i18n = payload.cover_url_i18n;
+  if (payload.body_i18n !== undefined) update.body_i18n = nextBodyI18n;
+  if (payload.cover_url_i18n !== undefined) update.cover_url_i18n = nextCoverI18n;
 
+  // Only stamp / clear translations_updated_at from real i18n content — not from empty {}.
   if (
     payload.title_i18n !== undefined ||
     payload.body_i18n !== undefined ||
     payload.cover_url_i18n !== undefined
   ) {
-    update.translations_updated_at = new Date().toISOString();
+    update.translations_updated_at = hasNonEmptyI18n(nextTitleI18n, nextBodyI18n, nextCoverI18n)
+      ? new Date().toISOString()
+      : null;
   }
 
   if (Object.keys(update).length === 0) {

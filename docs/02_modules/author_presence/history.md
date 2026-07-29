@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
+- **2026-07-29 (post edit UX + globe):** После Save редактор возвращает в список. 🌐 только при реальном i18n-контенте; PATCH больше не ставит `translations_updated_at` на пустые `{}`.
+
 - **2026-07-29 (video duration):** `posts.duration_seconds` + feed RPC; админка ЧЧ/ММ/СС; бейдж длительности на обложке (YouTube-style) в админке и `VideoCard`/`PostScreen`.
 
 - **2026-07-29 (video publish date):** `PostEditor` — поле даты публикации (default сегодня); `published_at` уходит в API; список — статус «Планируется» для будущих дат; лента уже фильтрует `published_at <= now()`.

@@ -475,14 +475,14 @@ export function PostEditor({
 
       if (post) {
         await adminFetch(`/api/admin/posts/${post.id}`, { method: "PATCH", body: JSON.stringify(payload) });
-        router.refresh();
       } else {
         await adminFetch<{ post: AdminPost }>("/api/admin/posts", {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        router.replace("/admin/posts");
       }
+      // Create and edit both return to the list (same as «Новое видео»).
+      router.replace("/admin/posts");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось сохранить");
     } finally {

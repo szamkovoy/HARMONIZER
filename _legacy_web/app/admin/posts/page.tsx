@@ -21,16 +21,25 @@ type PostListRow = {
   created_at: string;
   comment_count: number;
   title_i18n?: Record<string, string>;
+  body_i18n?: Record<string, string>;
   cover_url_i18n?: Record<string, string | null>;
   translations_updated_at?: string | null;
 };
 
 type FeedCursor = { created_at: string; id: string };
 
+/** 🌐 = есть реальный контент на другом языке (не только stamp translations_updated_at). */
 function hasPostTranslations(post: PostListRow): boolean {
-  if (post.translations_updated_at) return true;
   const titles = post.title_i18n ?? {};
-  return Object.values(titles).some((value) => typeof value === "string" && value.trim().length > 0);
+  if (Object.values(titles).some((value) => typeof value === "string" && value.trim().length > 0)) {
+    return true;
+  }
+  const bodies = post.body_i18n ?? {};
+  if (Object.values(bodies).some((value) => typeof value === "string" && value.trim().length > 0)) {
+    return true;
+  }
+  const covers = post.cover_url_i18n ?? {};
+  return Object.values(covers).some((value) => typeof value === "string" && value.trim().length > 0);
 }
 
 /** Черновик / Планируется (дата в будущем) / Опубликовано. */
