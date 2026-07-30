@@ -61,7 +61,10 @@ type SegmentState = {
   all_contacts: boolean;
   /** App accounts only (OTP confirmed → linked user_id). */
   all_installed: boolean;
+  /** Active trial (trial_expires_at) — same «Демо» as /admin/users. */
   include_demo: boolean;
+  /** Registered in the last 24 hours. */
+  include_new_24h: boolean;
   membership_tiers: Array<"free" | "oracle" | "master">;
   last_seen_within_days: string;
   last_seen_older_than_days: string;
@@ -76,6 +79,7 @@ const DEFAULT_SEGMENT: SegmentState = {
   all_contacts: true,
   all_installed: false,
   include_demo: false,
+  include_new_24h: false,
   membership_tiers: [],
   last_seen_within_days: "",
   last_seen_older_than_days: "",
@@ -135,6 +139,7 @@ function segmentToQuery(s: SegmentState): Record<string, unknown> {
     all_contacts: false,
     all_installed: false,
     include_demo: s.include_demo,
+    include_new_24h: s.include_new_24h,
     membership_tiers: s.membership_tiers,
   };
 }
@@ -145,6 +150,8 @@ function queryToSegment(raw: Record<string, unknown> | null | undefined): Segmen
   s.all_contacts = raw.all_contacts === true;
   s.all_installed = raw.all_installed === true && !s.all_contacts;
   s.include_demo = raw.include_demo === true && !s.all_installed && !s.all_contacts;
+  s.include_new_24h =
+    raw.include_new_24h === true && !s.all_installed && !s.all_contacts;
   if (Array.isArray(raw.membership_tiers) && !s.all_installed && !s.all_contacts) {
     s.membership_tiers = raw.membership_tiers.filter(
       (v): v is "free" | "oracle" | "master" =>
@@ -174,6 +181,7 @@ function queryToSegment(raw: Record<string, unknown> | null | undefined): Segmen
     !s.all_contacts &&
     !s.all_installed &&
     !s.include_demo &&
+    !s.include_new_24h &&
     s.membership_tiers.length === 0
   ) {
     // Legacy: email-only → whole base; empty → all contacts default.
@@ -504,6 +512,7 @@ export default function AdminEmailCampaignPage() {
       all_contacts: true,
       all_installed: false,
       include_demo: false,
+      include_new_24h: false,
       membership_tiers: [],
     }));
     setRecipientCount(null);
@@ -515,6 +524,7 @@ export default function AdminEmailCampaignPage() {
       all_contacts: false,
       all_installed: true,
       include_demo: false,
+      include_new_24h: false,
       membership_tiers: [],
     }));
     setRecipientCount(null);
@@ -526,6 +536,16 @@ export default function AdminEmailCampaignPage() {
       all_contacts: false,
       all_installed: false,
       include_demo: !p.include_demo,
+    }));
+    setRecipientCount(null);
+  }
+
+  function toggleNew24h() {
+    setSegment((p) => ({
+      ...p,
+      all_contacts: false,
+      all_installed: false,
+      include_new_24h: !p.include_new_24h,
     }));
     setRecipientCount(null);
   }
@@ -701,6 +721,14 @@ export default function AdminEmailCampaignPage() {
                       !segment.all_contacts,
                   },
                   {
+                    key: "new24h",
+                    label: "Новые 24ч",
+                    on:
+                      segment.include_new_24h &&
+                      !segment.all_installed &&
+                      !segment.all_contacts,
+                  },
+                  {
                     key: "free",
                     label: "Навигатор",
                     on:
@@ -739,6 +767,7 @@ export default function AdminEmailCampaignPage() {
                     if (chip.key === "base") selectAllContacts();
                     else if (chip.key === "all") selectAllInstalled();
                     else if (chip.key === "demo") toggleDemo();
+                    else if (chip.key === "new24h") toggleNew24h();
                     else toggleTier(chip.key);
                   }}
                   className={`rounded-lg px-2.5 py-1 text-xs ${
@@ -753,7 +782,8 @@ export default function AdminEmailCampaignPage() {
             </div>
             <p className="text-[11px] text-zinc-400">
               «Вся база» — все контакты в email_contacts. «Все установившие» — только с
-              подтверждённым OTP / аккаунтом в приложении.
+              подтверждённым OTP. «Демо» — активный trial (как в Пользователях). «Новые
+              24ч» — регистрация за сутки. «Навигатор» — free без активного демо.
             </p>
 
             <div className="grid gap-3 sm:grid-cols-2">

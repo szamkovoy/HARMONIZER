@@ -54,20 +54,77 @@ Optional environment variables:
 
 ## Mobile Client
 
-Required Expo public variables for the production app build:
+### Three lanes (side-by-side on one phone)
 
-- `EXPO_PUBLIC_COMMUNICATOR_API_URL` - origin of the deployed `_legacy_web` backend, for example `https://your-app.vercel.app`.
+`APP_VARIANT` (via `eas.json` → `env`) changes **display name** and **bundle / package id** so installs do not overwrite each other:
+
+| Lane | Home-screen name | iOS bundle id | Android package | How you run | Env source |
+| --- | --- | --- | --- | --- | --- |
+| **Dev (QR)** | Harmonizer **Expo** | `…harmonizer.dev` | `…harmonizer.dev` | `eas build --profile development` once, then daily `npx expo start --dev-client` | `.env.local` |
+| **Testers** | Harmonizer **Test** | `…harmonizer.preview` | `…harmonizer.preview` | `eas build --profile preview` → APK / internal link | EAS **`preview`** |
+| **Store / TestFlight** | Harmonizer | `…harmonizer.app` | `com.zamkovoi.harmonizer` | `eas build --profile production` | EAS **`production`** |
+
+**Important:** Apple TestFlight always uses the **production** bundle id. Installing TestFlight will offer to replace the store/TestFlight app — that is normal. It must **not** replace «Harmonizer Expo» / «Harmonizer Test» once those use `.dev` / `.preview` ids (rebuild those profiles after this change).
+
+`.env.local` is **never** uploaded to EAS cloud builds. If a variable is only in `.env.local`, store/TestFlight builds will miss it (classic symptom: «Supabase is not configured»).
+
+`--local` on Android only runs **that one** build on your Mac (needs Android SDK). It does **not** make Expo/dev/test/prod generally faster.
+
+Before every store build:
+
+```bash
+npm run check:eas-env -- production
+```
+
+Required EAS **production** (and usually **preview**) client vars:
+
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
-- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
-- `EXPO_PUBLIC_SENTRY_DSN` - Sentry project DSN for frontend error monitoring.
-- `EXPO_PUBLIC_APP_ENV` - app environment label, for example `production`.
+- `EXPO_PUBLIC_COMMUNICATOR_API_URL` — Vercel origin, no `/api` suffix
+- `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` — Android maps
+- `GOOGLE_SERVICES_JSON` — EAS file secret for FCM
+- `EXPO_PUBLIC_APP_ENV` — e.g. `production`
 
-Optional Expo public variables:
+Also useful: `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`.
 
-- `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME` - explicit iOS URL scheme for Google Sign-In. If absent, `app.config.ts` derives it from `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`.
-- `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` - frontend Sentry traces sample rate, defaults to `0.05`.
+Legacy Google Sign-In client ids may still sit in **development** EAS env; OTP-only auth does not require them in production.
+
+### Rebuild after env changes
+
+Changing EAS env does **not** patch an already-uploaded AAB/IPA. Rebuild + resubmit.
+
+### iOS capability sync workaround
+
+If `eas build -p ios` fails on `APPLE_ID_AUTH` / «bundle cannot be deleted»:
+
+```bash
+EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile production --no-wait
+```
+
+### Submit
+
+```bash
+npx eas-cli submit --platform ios --latest
+```
+
+`ascAppId` is in `eas.json` → `submit.production.ios`. Android: upload `.aab` in Play Console (or `eas submit -p android` once Play credentials exist).
+
+### Local Android AAB (optional, faster than cloud queue)
+
+On this Mac (Homebrew, no Android Studio GUI required):
+
+- `JAVA_HOME` → `/opt/homebrew/opt/openjdk@17/...`
+- `ANDROID_HOME` → `/opt/homebrew/share/android-commandlinetools`
+- (already added to `~/.zshrc` — open a **new** terminal tab)
+
+Then:
+
+```bash
+npm run check:eas-env -- production
+npx eas-cli build --platform android --profile production --local
+```
+
+You do not need to open Android Studio daily — same idea as Expo: tools sit in the background for the terminal.
 
 ## Production SQL Migrations
 

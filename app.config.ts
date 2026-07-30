@@ -58,18 +58,74 @@ if (!GOOGLE_MAPS_API_KEY) {
  * локали, чтобы системные диалоги (напр. запрос уведомлений) шли на языке устройства.
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { locales, LANGS } = require("./plugins/appLocalesData");
+const { buildLocales, LANGS } = require("./plugins/appLocalesData");
+
+/**
+ * App variants so Dev / Test / Store can sit side-by-side on one phone.
+ * Set via eas.json `env.APP_VARIANT` (or locally for prebuild).
+ * - development → "Harmonizer Expo" + *.dev ids (QR / Metro)
+ * - preview → "Harmonizer Test" + *.preview ids (internal APK / ad-hoc)
+ * - production → store ids (Play / App Store / TestFlight) — TestFlight
+ *   always shares the production id (Apple rule); it replaces store, not Expo.
+ */
+type AppVariant = "development" | "preview" | "production";
+
+function resolveAppVariant(): AppVariant {
+  const raw = (process.env.APP_VARIANT || "production").trim().toLowerCase();
+  if (raw === "development" || raw === "preview" || raw === "production") return raw;
+  return "production";
+}
+
+function variantIdentity(variant: AppVariant): {
+  name: string;
+  displayNameSuffix: string;
+  scheme: string;
+  iosBundleId: string;
+  androidPackage: string;
+} {
+  if (variant === "development") {
+    return {
+      name: "Harmonizer Expo",
+      displayNameSuffix: " Expo",
+      scheme: "com.zamkovoi.harmonizer.dev",
+      iosBundleId: "com.zamkovoi.harmonizer.dev",
+      androidPackage: "com.zamkovoi.harmonizer.dev",
+    };
+  }
+  if (variant === "preview") {
+    return {
+      name: "Harmonizer Test",
+      displayNameSuffix: " Test",
+      scheme: "com.zamkovoi.harmonizer.preview",
+      iosBundleId: "com.zamkovoi.harmonizer.preview",
+      androidPackage: "com.zamkovoi.harmonizer.preview",
+    };
+  }
+  return {
+    name: "Harmonizer",
+    displayNameSuffix: "",
+    scheme: "com.zamkovoi.harmonizer.app",
+    iosBundleId: "com.zamkovoi.harmonizer.app",
+    androidPackage: "com.zamkovoi.harmonizer",
+  };
+}
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const base = appJson.expo as ExpoConfig;
+  const variant = resolveAppVariant();
+  const identity = variantIdentity(variant);
+  const locales = buildLocales(identity.displayNameSuffix);
 
   return {
     ...base,
     ...config,
+    name: identity.name,
+    scheme: identity.scheme,
     locales,
     ios: {
       ...base.ios,
       ...config.ios,
+      bundleIdentifier: identity.iosBundleId,
       infoPlist: {
         ...(base.ios?.infoPlist ?? {}),
         ...(config.ios?.infoPlist ?? {}),
@@ -90,6 +146,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       ...base.android,
       ...config.android,
+      package: identity.androidPackage,
       ...(GOOGLE_SERVICES_FILE ? { googleServicesFile: GOOGLE_SERVICES_FILE } : {}),
       config: {
         ...((base.android as { config?: Record<string, unknown> } | undefined)?.config ?? {}),

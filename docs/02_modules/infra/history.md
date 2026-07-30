@@ -1,13 +1,19 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.11
-updated: 2026-07-29
+version: 1.13
+updated: 2026-07-30
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-30 (APP_VARIANT side-by-side):** `APP_VARIANT` in `eas.json` + `app.config.ts` → distinct names/ids: Expo (`*.dev`), Test (`*.preview`), Store (production). Localized display names get « Expo» / « Test» via `buildLocales`. TestFlight still shares production id (Apple). See `DEPLOY.md`.
+
+- **2026-07-30 (store env bake-in):** Production/preview EAS envs were missing `EXPO_PUBLIC_SUPABASE_*` (only development had them) → store AAB/IPA crashed «Supabase is not configured». Synced URL+anon to production/preview + `EXPO_PUBLIC_APP_ENV`; `eas.json` binds profiles to environments + `autoIncrement` + iOS `ascAppId`; `scripts/check-eas-client-env.mjs` / `npm run check:eas-env`; restored direct `babel-preset-expo` for Metro/QR; documented three lanes in `DEPLOY.md`.
+
+- **2026-07-29 (expo-doctor hygiene):** Removed project `eas-cli` dep (use `npx eas-cli`); aligned Expo SDK 54 package versions; kept `@sentry/react-native` 8.x via `expo.install.exclude`; registered `expo-font` / `expo-web-browser` plugins; bumped `eas.json` `cli.version` to `>= 16.26.1`. `npx expo-doctor` → 18/18.
 
 - **2026-07-29 (Play AAB location permissions):** Upload rejected — `ACCESS_COARSE/FINE_LOCATION` declared with conflicting `maxSdkVersion` (BLE plugin `uses-permission-sdk-23` + `maxSdkVersion=30` vs unrestricted `expo-location`). Fix: `plugins/with-android-location-permission-merge.js` after BLE — remove sdk-23 location, `tools:node=replace` unrestricted location; also cap legacy Bluetooth @30 and external storage @32; force `BLUETOOTH_SCAN` `neverForLocation` (Expo permissions list otherwise skips the BLE flag). Synced `android/app/src/main/AndroidManifest.xml`.
 

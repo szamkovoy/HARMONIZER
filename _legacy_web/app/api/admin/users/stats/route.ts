@@ -1,3 +1,4 @@
+import { accessNowSegment } from "../../../../admin/_lib/accessNow";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -31,15 +32,8 @@ function accessSegment(row: {
   membership_tier: string | null;
   membership_expires_at: string | null;
   trial_expires_at: string | null;
-}): "trial" | "navigator" | "oracle" | "master" {
-  const now = Date.now();
-  if (row.trial_expires_at && new Date(row.trial_expires_at).getTime() > now) return "trial";
-  const expires = row.membership_expires_at ? new Date(row.membership_expires_at).getTime() : null;
-  const active = expires == null || expires > now;
-  if (!active) return "navigator";
-  if (row.membership_tier === "master") return "master";
-  if (row.membership_tier === "oracle" || row.membership_tier === "practitioner") return "oracle";
-  return "navigator";
+}) {
+  return accessNowSegment(row);
 }
 
 /** Unique users with active one-time webinar/book contracts in period. */

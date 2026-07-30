@@ -1,3 +1,8 @@
+- 2026-07-30 (337): Admin email segment — «Демо» = active trial (same as Users); new chip «Новые 24ч»; Навигатор excludes trial. Store app unchanged.
+- 2026-07-30 (336): Admin users — list/card badge shows effective access («Демо» while trial active), not raw free→«Навигатор»; filter order clarified. No membership/access change.
+- 2026-07-30 (335): App variants — `APP_VARIANT` gives side-by-side «Harmonizer Expo» / «Harmonizer Test» / store ids so QR, internal test, and Play/TestFlight no longer overwrite each other.
+- 2026-07-30 (334): Store builds — bake `EXPO_PUBLIC_SUPABASE_*` into EAS production/preview; eas profile→environment + autoIncrement + iOS ascAppId; `check:eas-env` preflight; `babel-preset-expo` for Metro; `DEPLOY.md` three-lane workflow.
+- 2026-07-29 (333): Expo doctor hygiene — remove project `eas-cli`, align SDK 54 deps, exclude intentional Sentry 8.x, add `expo-font`/`expo-web-browser` plugins (`expo-doctor` 18/18).
 - 2026-07-29 (332): Breath `PracticeCard` — unified «?» help (`SurfaceCardTitleRow` / `SurfaceHelpModal`) on all seven breath cards; shared `breathHelp*` copy + typed overlays; card padding matches `SURFACE_CARD`.
 - 2026-07-29 (331): Android Play AAB — fix duplicate LOCATION `maxSdkVersion` (BLE vs expo-location) via `with-android-location-permission-merge`; align Bluetooth≤30 and storage≤32.
 - 2026-07-29 (330): Product UI cleanup vs `HARMONIZER_TEST_MODE`: remove Home birth/sign-out CTAs; Profile copy + drop access/DevTier/coming-soon; catalog footer gone; breath live diagnostics + activation export follow test flag; results Close centered when alone.

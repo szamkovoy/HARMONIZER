@@ -9,7 +9,7 @@ import { adminFetch } from "../../_lib/adminApi";
 import { countryNameRu } from "../../_lib/countryNamesRu";
 import { formatAdminDate, formatAdminDateTime } from "../../_lib/adminDates";
 import { PaymentHistorySection } from "../../payments/_components/PaymentHistorySection";
-import { TierBadge } from "../_components/TierBadge";
+import { AccessNowBadge } from "../_components/TierBadge";
 import type { AdminPaymentRow } from "../_types/payments";
 
 type AdminUserCard = {
@@ -18,6 +18,7 @@ type AdminUserCard = {
   display_name: string | null;
   membership_tier: string;
   membership_expires_at: string | null;
+  trial_expires_at?: string | null;
   locale: string | null;
   created_at: string | null;
   onboarded_at: string | null;
@@ -465,7 +466,11 @@ export default function AdminUserCardPage() {
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold text-zinc-800">Гармонизатор</h2>
-          <TierBadge tier={user.membership_tier} />
+          <AccessNowBadge
+            membershipTier={user.membership_tier}
+            membershipExpiresAt={user.membership_expires_at}
+            trialExpiresAt={user.trial_expires_at}
+          />
         </div>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
           <InfoRow
@@ -479,13 +484,20 @@ export default function AdminUserCardPage() {
             )}
           />
           <InfoRow
-            label="Тариф до"
-            value={
+            label="Тариф в БД"
+            value={`${user.membership_tier}${
               user.membership_expires_at
-                ? formatAdminDateTime(user.membership_expires_at)
-                : "бессрочно"
-            }
+                ? ` · до ${formatAdminDateTime(user.membership_expires_at)}`
+                : " · бессрочно"
+            }`}
+            mono
           />
+          {user.trial_expires_at ? (
+            <InfoRow
+              label="Демо до"
+              value={formatAdminDateTime(user.trial_expires_at)}
+            />
+          ) : null}
           {subscription ? (
             <>
               <InfoRow

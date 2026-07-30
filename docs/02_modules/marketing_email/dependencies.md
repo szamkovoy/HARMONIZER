@@ -22,7 +22,7 @@ code_refs:
 - **`infra`** — Supabase tables/storage, Vercel env (`RESEND_ZAMKOVOI_RU_API_KEY`, webhook secret, `CRON_SECRET`, `EMAIL_PUBLIC_BASE_URL`, `EMAIL_UNSUBSCRIBE_SECRET` для подписи track-токенов), Resend (send + webhooks + Suppressions/Domains API); first-party open/click на том же публичном origin; pg_cron → `invoke_run_email_automations` → Vercel `/api/cron/email-automations`; daily `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync`.
 - **`i18n`** — 8 content locales; exact copy per contact locale; admin translate (`type=post` reuse for subject/body HTML).
 - **`profile` / auth** — `email_contacts.user_id` → `users`; `auth.users.email_confirmed_at` для welcome; `skip_email_automations` / `last_seen_at` / `display_name`.
-- **`subscription` / payments** — C1 via `payment_contracts` / `payments.paid_until` / `membership_*` (любой paid tier).
+- **`subscription` / payments** — C1 via `payment_contracts` / `payments.paid_until` / `membership_*` (любой paid tier); сегмент «Демо» читает `users.trial_expires_at` (как admin access-now).
 - **`notifications`** — user-card push через `segment=user:<id>`.
 
 ## 2. От него зависят

@@ -13,6 +13,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-30 (Demo = trial):** Чип «Демо» (`include_demo`) = активный `trial_expires_at`, как в Пользователях/пульсе. Старое «регистрация 24ч» вынесено в чип «Новые 24ч» (`include_new_24h`). «Навигатор» (`free`) не включает активный trial. Только админка/сегмент — доступ в приложении не меняется.
+
 - **2026-07-28 (edit confirms dirty name):** «Редактировать» на рассылке/шаге цепочки: при несохранённом названии — confirm «Новое название будет сохранено», затем save и открытие редактора.
 
 - **2026-07-28 (all_contacts + track after):** Чип «Вся база» (`all_contacts`); «Все установившие» = linked `user_id`. `email_contains` без чипов → вся база. Click/open: redirect/pixel сразу, DB в `after()`. Картинки писем через `/api/email/asset` (Supabase public часто `no-cache`). Убран текст под превью.

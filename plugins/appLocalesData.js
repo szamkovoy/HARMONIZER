@@ -181,18 +181,28 @@ const PERMISSION_STRINGS = {
 
 const LANGS = Object.keys(APP_NAMES);
 
-/** Готовая карта `expo.locales`: ios (CFBundleDisplayName + reason-строки) + android (app_name). */
-const locales = {};
-for (const lang of LANGS) {
-  locales[lang] = {
-    ios: {
-      CFBundleDisplayName: APP_NAMES[lang],
-      ...PERMISSION_STRINGS[lang],
-    },
-    android: {
-      app_name: APP_NAMES[lang],
-    },
-  };
+/**
+ * @param {string} [displayNameSuffix] e.g. " Expo" / " Test" so home-screen labels
+ * stay distinct across APP_VARIANT installs (same icon is OK).
+ */
+function buildLocales(displayNameSuffix = "") {
+  const locales = {};
+  for (const lang of LANGS) {
+    const displayName = `${APP_NAMES[lang]}${displayNameSuffix}`;
+    locales[lang] = {
+      ios: {
+        CFBundleDisplayName: displayName,
+        ...PERMISSION_STRINGS[lang],
+      },
+      android: {
+        app_name: displayName,
+      },
+    };
+  }
+  return locales;
 }
 
-module.exports = { locales, LANGS, APP_NAMES, PERMISSION_STRINGS };
+/** Production / default map (no suffix). */
+const locales = buildLocales("");
+
+module.exports = { locales, buildLocales, LANGS, APP_NAMES, PERMISSION_STRINGS };

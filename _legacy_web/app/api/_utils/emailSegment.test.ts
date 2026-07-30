@@ -42,4 +42,14 @@ describe("emailSegment audience", () => {
     expect(q.all_contacts).toBe(true);
     expect(q.all_installed).toBe(false);
   });
+
+  it("accepts demo (trial) and new-24h audience chips", () => {
+    const demo = parseEmailSegmentQuery({ include_demo: true });
+    expect(demo.include_demo).toBe(true);
+    expect(hasEmailSegmentAudience(demo)).toBe(true);
+
+    const neu = parseEmailSegmentQuery({ include_new_24h: true });
+    expect(neu.include_new_24h).toBe(true);
+    expect(hasEmailSegmentAudience(neu)).toBe(true);
+  });
 });

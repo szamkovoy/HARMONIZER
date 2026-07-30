@@ -39,7 +39,7 @@ export async function GET(req: Request, ctx: RouteContext) {
     const db = createServiceSupabase();
 
     const userSelect =
-      "id, display_name, membership_tier, membership_expires_at, locale, created_at, onboarded_at, country_code, city, location_name, lat, lon, skip_email_automations, last_seen_at";
+      "id, display_name, membership_tier, membership_expires_at, trial_expires_at, locale, created_at, onboarded_at, country_code, city, location_name, lat, lon, skip_email_automations, last_seen_at";
     const { data, error } = await db.from("users").select(userSelect).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!data) return json({ error: "Пользователь не найден" }, { status: 404 });

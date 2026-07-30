@@ -97,3 +97,22 @@ export function formatUserTierPeriod(
   if (from) return `с ${from} до ${to}`;
   return `до ${to}`;
 }
+
+/**
+ * Period line for users list: active trial → «демо с … до …»;
+ * otherwise same as formatUserTierPeriod (paid membership window).
+ */
+export function formatUserAccessPeriod(
+  createdAt: string | null | undefined,
+  membershipExpiresAt: string | null | undefined,
+  membershipTier: string,
+  trialExpiresAt: string | null | undefined,
+): string | null {
+  if (trialExpiresAt && new Date(trialExpiresAt).getTime() > Date.now()) {
+    const from = createdAt ? formatAdminDate(createdAt) : null;
+    const to = formatAdminDate(trialExpiresAt);
+    if (from) return `демо с ${from} до ${to}`;
+    return `демо до ${to}`;
+  }
+  return formatUserTierPeriod(createdAt, membershipExpiresAt, membershipTier);
+}

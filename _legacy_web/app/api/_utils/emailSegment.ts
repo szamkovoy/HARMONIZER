@@ -19,8 +19,13 @@ export type EmailSegmentQuery = {
    * Exclusive vs all_contacts / tier chips.
    */
   all_installed?: boolean;
-  /** Users created within the last 24 hours. */
+  /**
+   * Active product trial (`users.trial_expires_at > now()`).
+   * Same «Демо» as admin users list / dashboard — not a membership_tier.
+   */
   include_demo?: boolean;
+  /** App users created within the last 24 hours (registration cohort). */
+  include_new_24h?: boolean;
   membership_tiers?: VisibleTier[];
   last_seen_within_days?: number | null;
   last_seen_older_than_days?: number | null;
@@ -95,6 +100,7 @@ export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
   out.all_contacts = q.all_contacts === true;
   out.all_installed = q.all_installed === true;
   out.include_demo = q.include_demo === true;
+  out.include_new_24h = q.include_new_24h === true;
 
   if (Array.isArray(q.membership_tiers)) {
     out.membership_tiers = q.membership_tiers.filter((v): v is VisibleTier =>
@@ -105,9 +111,11 @@ export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
   if (out.all_contacts) {
     out.all_installed = false;
     out.include_demo = false;
+    out.include_new_24h = false;
     out.membership_tiers = [];
   } else if (out.all_installed) {
     out.include_demo = false;
+    out.include_new_24h = false;
     out.membership_tiers = [];
   }
 
@@ -141,6 +149,7 @@ export function hasEmailSegmentAudience(query: EmailSegmentQuery): boolean {
     query.all_contacts === true ||
     query.all_installed === true ||
     query.include_demo === true ||
+    query.include_new_24h === true ||
     Boolean(query.membership_tiers?.length)
   );
 }
@@ -159,6 +168,7 @@ export function normalizeEmailSegmentAudience(
     all_contacts: true,
     all_installed: false,
     include_demo: false,
+    include_new_24h: false,
     membership_tiers: [],
   };
 }
@@ -187,6 +197,7 @@ export async function resolveEmailSegment(
   const needsAppUser =
     query.all_installed === true ||
     query.include_demo === true ||
+    query.include_new_24h === true ||
     Boolean(query.membership_tiers?.length);
 
   let contactQuery = db
@@ -231,6 +242,7 @@ export async function resolveEmailSegment(
       country_code: string | null;
       created_at: string | null;
       onboarded_at: string | null;
+      trial_expires_at: string | null;
       locale: string | null;
     }
   >();
@@ -241,7 +253,7 @@ export async function resolveEmailSegment(
     const { data: users, error: usersError } = await db
       .from("users")
       .select(
-        "id, membership_tier, last_seen_at, country_code, created_at, onboarded_at, locale",
+        "id, membership_tier, last_seen_at, country_code, created_at, onboarded_at, trial_expires_at, locale",
       )
       .in("id", chunk);
     if (usersError) throw usersError;
@@ -252,13 +264,14 @@ export async function resolveEmailSegment(
         country_code: u.country_code,
         created_at: u.created_at,
         onboarded_at: u.onboarded_at,
+        trial_expires_at: u.trial_expires_at,
         locale: u.locale,
       });
     }
   }
 
   const now = Date.now();
-  const demoCutoff = now - 24 * 60 * 60 * 1000;
+  const new24hCutoff = now - 24 * 60 * 60 * 1000;
   const tiers = query.membership_tiers ?? [];
 
   contacts = contacts.flatMap((c) => {
@@ -283,13 +296,20 @@ export async function resolveEmailSegment(
     }
 
     if (!query.all_installed && !query.all_contacts) {
-      const isDemo =
-        query.include_demo === true &&
+      const onTrial =
+        u.trial_expires_at != null &&
+        new Date(u.trial_expires_at).getTime() > now;
+      const isDemo = query.include_demo === true && onTrial;
+      const isNew24h =
+        query.include_new_24h === true &&
         u.created_at != null &&
-        new Date(u.created_at).getTime() >= demoCutoff;
+        new Date(u.created_at).getTime() >= new24hCutoff;
+      // «Навигатор» = free without active trial (same as users access=navigator).
       const tierOk =
-        tiers.length > 0 && tiers.includes(u.membership_tier as VisibleTier);
-      if (!isDemo && !tierOk) return [];
+        tiers.length > 0 &&
+        tiers.includes(u.membership_tier as VisibleTier) &&
+        !(u.membership_tier === "free" && onTrial);
+      if (!isDemo && !isNew24h && !tierOk) return [];
     }
 
     if (query.last_seen_within_days != null) {

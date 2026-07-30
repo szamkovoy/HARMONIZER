@@ -11,8 +11,8 @@ import {
 } from "@/modules/access/core/tiers";
 
 import { adminFetch } from "../_lib/adminApi";
-import { formatUserTierPeriod } from "../_lib/adminDates";
-import { TierBadge } from "./_components/TierBadge";
+import { formatUserAccessPeriod } from "../_lib/adminDates";
+import { AccessNowBadge } from "./_components/TierBadge";
 
 type AdminUserRow = {
   id: string;
@@ -20,6 +20,7 @@ type AdminUserRow = {
   display_name: string | null;
   membership_tier: string;
   membership_expires_at: string | null;
+  trial_expires_at?: string | null;
   created_at: string | null;
   onboarded_at?: string | null;
   locale?: string | null;
@@ -185,18 +186,6 @@ function UsersList() {
 
         <div className="grid gap-2 sm:grid-cols-2">
           <select
-            value={tier}
-            onChange={(e) => setTier(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Все тарифы (сырые)</option>
-            {VISIBLE_PRODUCT_TIERS.map((value) => (
-              <option key={value} value={value}>
-                {TIER_LABELS_RU[value]}
-              </option>
-            ))}
-          </select>
-          <select
             value={access}
             onChange={(e) => setAccess(e.target.value)}
             className={inputCls}
@@ -204,6 +193,19 @@ function UsersList() {
             {ACCESS_OPTIONS.map((opt) => (
               <option key={opt.value || "any-access"} value={opt.value}>
                 {opt.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={tier}
+            onChange={(e) => setTier(e.target.value)}
+            className={inputCls}
+            title="Сырое поле membership_tier в БД (free = Навигатор). Демо — не тариф, а trial: фильтр «Демо» слева."
+          >
+            <option value="">Тариф в БД (сырой)</option>
+            {VISIBLE_PRODUCT_TIERS.map((value) => (
+              <option key={value} value={value}>
+                {TIER_LABELS_RU[value]}
               </option>
             ))}
           </select>
@@ -328,20 +330,26 @@ function UsersList() {
                 <span className="truncate text-sm font-semibold text-zinc-900">
                   {user.display_name?.trim() || "Без имени"}
                 </span>
-                <TierBadge tier={user.membership_tier} />
+                <AccessNowBadge
+                  membershipTier={user.membership_tier}
+                  membershipExpiresAt={user.membership_expires_at}
+                  trialExpiresAt={user.trial_expires_at}
+                />
               </div>
               <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-zinc-500">
                 <span className="truncate">{user.email ?? "—"}</span>
-                {formatUserTierPeriod(
+                {formatUserAccessPeriod(
                   user.created_at,
                   user.membership_expires_at,
                   user.membership_tier,
+                  user.trial_expires_at,
                 ) ? (
                   <span>
-                    {formatUserTierPeriod(
+                    {formatUserAccessPeriod(
                       user.created_at,
                       user.membership_expires_at,
                       user.membership_tier,
+                      user.trial_expires_at,
                     )}
                   </span>
                 ) : null}
