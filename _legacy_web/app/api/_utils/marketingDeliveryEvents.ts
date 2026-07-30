@@ -240,10 +240,11 @@ export async function applyMarketingDeliveryEvent(
 export function mapSesEventType(event: {
   eventType?: string;
   notificationType?: string;
-  bounce?: { bounceType?: string };
+  bounce?: { bounceType?: string; bounceSubType?: string };
 }): MarketingDeliveryMapped {
   const type = (event.eventType || event.notificationType || "").trim();
   const bounceType = event.bounce?.bounceType?.trim() ?? "";
+  const bounceSubType = (event.bounce?.bounceSubType ?? "").trim().toLowerCase();
 
   if (type === "Send") {
     return {
@@ -269,11 +270,13 @@ export function mapSesEventType(event: {
   }
   if (type === "Bounce") {
     const hard = bounceType === "Permanent";
+    // MailboxFull is Transient at Gmail but marketing should stop (OTP unaffected).
+    const suppress = hard || bounceSubType === "mailboxfull";
     return {
       eventType: "email.bounced",
       sendStatus: "bounced",
       campaignCounter: "bounced_count",
-      suppressStatus: hard ? "suppressed" : null,
+      suppressStatus: suppress ? "suppressed" : null,
       isHardBounce: hard,
       addToResendSuppressions: false,
       removeFromResendSuppressions: false,

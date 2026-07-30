@@ -52,6 +52,49 @@ async function fetchSigninHint(email: string): Promise<SigninHint> {
     return empty;
   }
 }
+
+type OtpGateResult = { ok: boolean; code: string; retry_after_seconds?: number };
+
+/** Consume App Check permit + enforce send rate limits before mailing. */
+async function consumeOtpSendPermit(
+  email: string,
+  requirePermit: boolean,
+): Promise<OtpGateResult> {
+  const supabaseUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceRoleKey) {
+    return { ok: false, code: "server_misconfigured" };
+  }
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/otp_consume_send_permit`, {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        p_email: email.toLowerCase(),
+        p_require_permit: requirePermit,
+      }),
+    });
+    if (!res.ok) {
+      console.error("otp_consume_send_permit http", res.status, await res.text());
+      return { ok: false, code: "gate_error" };
+    }
+    const data = (await res.json()) as OtpGateResult;
+    return {
+      ok: Boolean(data?.ok),
+      code: String(data?.code ?? "denied"),
+      retry_after_seconds: data?.retry_after_seconds,
+    };
+  } catch (e) {
+    console.error("otp_consume_send_permit", e);
+    return { ok: false, code: "gate_error" };
+  }
+}
 function renderEmail(
   tpl: {
     subject: string;
@@ -168,6 +211,19 @@ Deno.serve(async (req) => {
   const code = emailData?.token;
   if (!to || !code) {
     return hookError("Missing user.email or email_data.token", 400);
+  }
+
+  // Rate limits + App Check permit (issued by POST /api/auth/otp-gate).
+  // OTP_REQUIRE_APP_CHECK=false → limits only (emergency / staged rollout).
+  // Default false until store clients call otp-gate; then set secret to true.
+  const requirePermit =
+    (Deno.env.get("OTP_REQUIRE_APP_CHECK") ?? "false").trim().toLowerCase() ===
+    "true";
+  const gate = await consumeOtpSendPermit(String(to), requirePermit);
+  if (!gate.ok) {
+    console.warn("send-auth-email: gate denied", gate.code, String(to));
+    // 429 so GoTrue surfaces a retryable rate-limit style error to the client.
+    return hookError(`otp_gate:${gate.code}`, 429);
   }
 
   // Приоритет locale/имени: свежая подсказка со страницы входа (язык UI мастера

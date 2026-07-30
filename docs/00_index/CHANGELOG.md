@@ -1,3 +1,8 @@
+- 2026-07-30 (344): OTP send — shorter App Check budget + prefetch; CTA shows «Отправляется…» at full opacity while busy.
+- 2026-07-30 (343): OTP App Check enforce temporarily off (`OTP_REQUIRE_APP_CHECK=false`) after store `otpAppCheckFailed`; client App Check getToken retries; rate limits still on.
+- 2026-07-30 (342): EAS builds default to `--local` on this Mac (Android SDK + Xcode/fastlane); cloud only if explicitly asked — see `.cursor/rules/eas-local-builds.mdc` + `DEPLOY.md`.
+- 2026-07-30 (341): OTP abuse protection — server rate limits (60s/10h/25d) + verify cap; `POST /api/auth/otp-gate` + Firebase App Check permit; UI cooldown; Turnstile skipped.
+- 2026-07-30 (340): Marketing deliverability — ignore OTP Resend events; MailboxFull → suppress marketing; report filters historical OTP noise (Play tester bounce flood was sign-in codes, not campaigns).
 - 2026-07-30 (339): Email transport profiles — `EMAIL_OTP` / `EMAIL_MARKETING` (Resend↔Amazon × yoga|ru); OTP default Amazon yoga; marketing default Resend ru; SES marketing webhook for future flip; shared delivery event apply.
 - 2026-07-30 (338): Client geo place — sync `country_code`/`city` after onboarding GPS and on every `logAppOpen` (even when event is throttled).
 - 2026-07-30 (337): Admin email segment — «Демо» = active trial (same as Users); new chip «Новые 24ч»; Навигатор excludes trial. Store app unchanged.

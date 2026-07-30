@@ -8,6 +8,10 @@ updated: 2026-07-29
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
+## `onboarding` / OTP App Check enforce (2026-07-30)
+
+- **Enforce временно снят (2026-07-30 вечер):** store OTP падал с `auth.otpAppCheckFailed` — клиент не успевал получить Play Integrity token (или token не доходил). `OTP_REQUIRE_APP_CHECK=false` на Vercel + edge; rate limits остаются. Клиент: retry `getToken` после cold start. Перед повторным enforce: убедиться в логах `otp-gate`, что store шлёт валидный `appCheckToken`; (a) iOS `GoogleService-Info.plist`; (b) Expo/Test — debug secret EAS↔Vercel.
+
 ## `infra` / store submission checklist (2026-07-29)
 
 - **Google Play / App Store — внекодовые декларации перед релизом.** Код: конфликт LOCATION `maxSdkVersion` закрыт (`with-android-location-permission-merge`); Privacy Manifest на iOS есть; `ITSAppUsesNonExemptEncryption=false`. Остаётся в консолях: (a) Play **Data safety** + declaration для location / Health Connect / mic / camera / Bluetooth; (b) Play **Health Connect** form (уже в open_questions communicator); (c) Play точное alarm / `SCHEDULE_EXACT_ALARM` use-case если спрашивает; (d) App Store privacy labels + HealthKit purpose strings review (локали — см. i18n open question); (e) залить **новый** AAB/IPA после prebuild, не старый артефакт. `SYSTEM_ALERT_WINDOW` может попасть из RN debug/dev-client tooling — при вопросе Play сверить, нужен ли overlay в production build.

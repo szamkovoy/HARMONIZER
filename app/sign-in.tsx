@@ -22,7 +22,13 @@ import {
 } from "react-native";
 
 import { useTranslate } from "@/modules/i18n";
-import { isValidEmail, normalizeEmail } from "@/modules/auth/sign-in-email";
+import { prefetchOtpAppCheck } from "@/modules/auth/appCheck";
+import {
+  isValidEmail,
+  normalizeEmail,
+  OtpGateError,
+  readOtpCooldownRemainingSec,
+} from "@/modules/auth/sign-in-email";
 import {
   LegalFooter,
   WizardBody,
@@ -63,6 +69,18 @@ export default function SignInScreen() {
   const codeInputRef = useRef<TextInput>(null);
   const verifyingRef = useRef(false);
 
+  // Restore persisted cooldown (survives «change email» / app restart) — UX only.
+  useEffect(() => {
+    void readOtpCooldownRemainingSec().then((sec) => {
+      if (sec > 0) setResendSecondsLeft(sec);
+    });
+  }, []);
+
+  // Warm Play Integrity / App Attest so «Получить код» is not blocked on cold token.
+  useEffect(() => {
+    prefetchOtpAppCheck();
+  }, []);
+
   useEffect(() => {
     if (resendSecondsLeft <= 0) return;
     const timer = setTimeout(() => setResendSecondsLeft((s) => s - 1), 1000);
@@ -76,6 +94,10 @@ export default function SignInScreen() {
         setErrorText(t("auth.invalidEmail"));
         return;
       }
+      if (resendSecondsLeft > 0) {
+        setErrorText(t("auth.otpCooldown", { seconds: String(resendSecondsLeft) }));
+        return;
+      }
       logRuntimeTap("sign_in_send_code", { source });
       try {
         await requestEmailCode(normalizeEmail(email), name);
@@ -87,10 +109,13 @@ export default function SignInScreen() {
         logRuntimeEvent("sign_in_send_code_error", {
           message: e instanceof Error ? e.message : String(e),
         }, "warn");
+        if (e instanceof OtpGateError && e.code === "cooldown" && e.retryAfterSeconds) {
+          setResendSecondsLeft(e.retryAfterSeconds);
+        }
         setErrorText(resolveAuthErrorText(e, t));
       }
     },
-    [email, name, requestEmailCode, t],
+    [email, name, requestEmailCode, resendSecondsLeft, t],
   );
 
   const verify = useCallback(
@@ -134,9 +159,16 @@ export default function SignInScreen() {
   const footer = sub === "welcome" ? (
     <View style={styles.footerGap}>
       <AppButton
-        label={signingIn ? t("auth.sending") : t("auth.sendCode")}
+        label={
+          signingIn
+            ? t("auth.sending")
+            : resendSecondsLeft > 0
+              ? t("auth.otpCooldown", { seconds: String(resendSecondsLeft) })
+              : t("auth.sendCode")
+        }
         onPress={() => void sendCode("initial")}
-        disabled={signingIn || !email.trim()}
+        busy={signingIn}
+        disabled={!email.trim() || resendSecondsLeft > 0}
       />
       <LegalFooter />
     </View>
@@ -236,13 +268,16 @@ export default function SignInScreen() {
           <View style={styles.codeActions}>
             <AppButton
               label={
-                resendSecondsLeft > 0
-                  ? t("auth.resendIn", { seconds: String(resendSecondsLeft) })
-                  : t("auth.resend")
+                signingIn
+                  ? t("auth.sending")
+                  : resendSecondsLeft > 0
+                    ? t("auth.resendIn", { seconds: String(resendSecondsLeft) })
+                    : t("auth.resend")
               }
               variant="secondary"
               onPress={() => void sendCode("resend")}
-              disabled={signingIn || resendSecondsLeft > 0}
+              busy={signingIn}
+              disabled={resendSecondsLeft > 0}
             />
             <AppButton
               label={t("auth.changeEmail")}
@@ -276,7 +311,34 @@ function isOtpMismatchError(error: unknown): boolean {
 }
 
 function resolveAuthErrorText(error: unknown, t: (key: string, params?: Record<string, string>) => string): string {
+  if (error instanceof OtpGateError) {
+    switch (error.code) {
+      case "cooldown":
+        return t("auth.otpCooldown", {
+          seconds: String(error.retryAfterSeconds ?? 60),
+        });
+      case "hourly_limit":
+        return t("auth.otpHourlyLimit");
+      case "daily_limit":
+        return t("auth.otpDailyLimit");
+      case "verify_limit":
+        return t("auth.otpVerifyLimit");
+      case "app_check_failed":
+      case "app_check_missing":
+      case "app_check_unavailable":
+        return t("auth.otpAppCheckFailed");
+      case "network":
+        return t("auth.networkError");
+      case "invalid_email":
+        return t("auth.invalidEmail");
+      default:
+        return t("auth.genericError");
+    }
+  }
   const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/otp_gate:hourly_limit/i.test(message)) return t("auth.otpHourlyLimit");
+  if (/otp_gate:daily_limit/i.test(message)) return t("auth.otpDailyLimit");
+  if (/otp_gate:cooldown|otp_gate:no_permit/i.test(message)) return t("auth.rateLimited");
   if (/rate limit|too many/i.test(message)) return t("auth.rateLimited");
   if (/network|fetch|timeout|connection/i.test(message)) return t("auth.networkError");
   return t("auth.genericError");

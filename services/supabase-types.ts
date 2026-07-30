@@ -2374,6 +2374,26 @@ export type Database = {
         Args: { p_email: string; p_name: string; p_locale: string }
         Returns: undefined
       }
+      otp_check_verify_allowed: {
+        Args: { p_email: string }
+        Returns: Json
+      }
+      otp_record_verify_failure: {
+        Args: { p_email: string }
+        Returns: Json
+      }
+      otp_check_send_limits: {
+        Args: { p_email: string }
+        Returns: Json
+      }
+      otp_issue_send_permit: {
+        Args: { p_email: string; p_app_id?: string | null; p_ttl_seconds?: number }
+        Returns: Json
+      }
+      otp_consume_send_permit: {
+        Args: { p_email: string; p_require_permit?: boolean }
+        Returns: Json
+      }
       get_posts_feed: {
         Args: {
           p_limit?: number

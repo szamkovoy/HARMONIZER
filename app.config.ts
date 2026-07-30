@@ -122,6 +122,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: identity.name,
     scheme: identity.scheme,
     locales,
+    extra: {
+      ...(base.extra as Record<string, unknown> | undefined),
+      ...(config.extra as Record<string, unknown> | undefined),
+      appVariant: variant,
+    },
     ios: {
       ...base.ios,
       ...config.ios,
@@ -173,6 +178,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       ...(base.plugins ?? []),
       "expo-localization",
+      "@react-native-firebase/app",
+      "@react-native-firebase/app-check",
       [
         "expo-build-properties",
         {
@@ -184,6 +191,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             // не сжимает окно — WizardShell дополнительно поднимает контент через
             // paddingBottom = высота IME (см. modules/onboarding/wizard/WizardShell.tsx).
             windowSoftInputMode: "adjustResize",
+          },
+          ios: {
+            useFrameworks: "static",
+            forceStaticLinking: ["RNFBApp", "RNFBAppCheck"],
           },
         },
       ],

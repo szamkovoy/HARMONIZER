@@ -14,6 +14,12 @@
     "build:ios:dev": "npx eas-cli build --platform ios --profile development",
     "check:eas-env": "node scripts/check-eas-client-env.mjs",
     "doctor:ios:biofeedback": "./scripts/doctor-ios-biofeedback.sh",
+    "build:android:dev": "npm run check:eas-env -- development && npx eas-cli build --platform android --profile development --local --output dist/harmonizer-development.apk",
+    "build:android:prod": "npm run check:eas-env -- production && npx eas-cli build --platform android --profile production --local --output dist/harmonizer-production.aab",
+    "build:ios:dev:local": "npm run check:eas-env -- development && EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile development --local --output dist/harmonizer-development.ipa",
+    "build:ios:prod": "npm run check:eas-env -- production && EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile production --local --output dist/harmonizer-production.ipa",
+    "submit:android": "npx eas-cli submit --platform android --path dist/harmonizer-production.aab",
+    "submit:ios": "npx eas-cli submit --platform ios --path dist/harmonizer-production.ipa",
     "web": "expo start --web",
     "test": "vitest run",
     "deploy:vercel": "vercel --prod --yes"
@@ -28,6 +34,8 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@kingstinct/react-native-healthkit": "^14.0.2",
+    "@react-native-firebase/app": "^26.0.0",
+    "@react-native-firebase/app-check": "^26.0.0",
     "@react-navigation/native": "^7.1.8",
     "@sentry/react-native": "^8.9.2",
     "@sfourdrinier/react-native-ble-plx": "^3.7.10",

@@ -53,8 +53,15 @@ code_refs:
 ## 4. Шаг 1 — sign-in (`app/sign-in.tsx`)
 
 - Два подшага: `welcome` (имя + email) → `confirm` (6 ячеек OTP).
-- `requestEmailOtpCode(email, displayName?)` (`modules/auth/sign-in-email.ts`): перед `signInWithOtp` вызывает RPC `set_signin_name_hint(p_email, p_name)` — side-channel, чтобы edge-функция `send-auth-email` увидела свежее имя для приветствия (для существующих пользователей `signInWithOtp` не обновляет `user_metadata`; см. `i18n/spec.md` §4.1c).
-- `LegalFooter` показывается **только** на подшаге `welcome`. `footerInContent={sub === "welcome"}` — на welcome страница поднимается с клавиатурой; на `confirm` (OTP) авто-подъём выключен, картинка остаётся видимой, низ перекрывается клавиатурой, скролл ручной.
+- `requestEmailOtpCode` (`modules/auth/sign-in-email.ts`):
+  1. `POST /api/auth/otp-gate` (App Check token или debug attestation + серверные лимиты) → single-use permit;
+  2. RPC `set_signin_name_hint` + `signInWithOtp`;
+  3. edge `send-auth-email` потребляет permit и шлёт письмо.
+- Пока идёт отправка: CTA `busy` + лейбл `auth.sending` («Отправляется…»), без dim. На mount welcome — `prefetchOtpAppCheck` (прогрев Play Integrity); на критическом пути getToken ≤ ~1.2 с, иначе gate без токена (пока enforce выключен).
+- Лимиты отправки (сервер, email): ≥60 с между письмами; ≤10/час; ≤25/сутки. UI cooldown 60 с на welcome и resend (SecureStore; «Изменить email» не обходит).
+- `verifyEmailOtpCode`: ≤10 неверных попыток/час на email (RPC `otp_check_verify_allowed` / `otp_record_verify_failure`).
+- Turnstile/капча **не** используются (RN WebView UX); защита — rate limits + Firebase App Check.
+- `LegalFooter` **только** на `welcome`. `footerInContent={sub === "welcome"}`.
 - Картинка подтверждения — `assets/onboarding/email_600.jpg`.
 
 ## 5. Шаг 2 — данные рождения + гео (`app/onboarding.tsx`)

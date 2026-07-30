@@ -134,12 +134,24 @@ export async function buildDeliverabilityReport(
     const payload = (ev.payload ?? {}) as {
       data?: {
         to?: string[];
+        from?: string;
+        subject?: string;
         bounce?: { type?: string; subType?: string; message?: string };
         failed?: { reason?: string };
         suppressed?: { message?: string; reason?: string };
         email?: string;
       };
     };
+    // Historical OTP noise (yoga / sign-in codes) — exclude from marketing report.
+    const from = (payload.data?.from ?? "").toLowerCase();
+    const subject = (payload.data?.subject ?? "").toLowerCase();
+    if (
+      from.includes("@zamkovoi.yoga") ||
+      subject.includes("sign-in code") ||
+      subject.includes("код входа")
+    ) {
+      continue;
+    }
     const email =
       payload.data?.to?.[0]?.toLowerCase() ??
       payload.data?.email?.toLowerCase() ??

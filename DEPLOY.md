@@ -61,14 +61,16 @@ Optional environment variables:
 | Lane | Home-screen name | iOS bundle id | Android package | How you run | Env source |
 | --- | --- | --- | --- | --- | --- |
 | **Dev (QR)** | Harmonizer **Expo** | `…harmonizer.dev` | `…harmonizer.dev` | `eas build --profile development` once, then daily `npx expo start --dev-client` | `.env.local` |
-| **Testers** | Harmonizer **Test** | `…harmonizer.preview` | `…harmonizer.preview` | `eas build --profile preview` → APK / internal link | EAS **`preview`** |
-| **Store / TestFlight** | Harmonizer | `…harmonizer.app` | `com.zamkovoi.harmonizer` | `eas build --profile production` | EAS **`production`** |
+| **Testers** | Harmonizer **Test** | `…harmonizer.preview` | `…harmonizer.preview` | `eas build --profile preview --local` → APK | EAS **`preview`** |
+| **Store / TestFlight** | Harmonizer | `…harmonizer.app` | `com.zamkovoi.harmonizer` | `eas build --profile production --local` | EAS **`production`** |
 
 **Important:** Apple TestFlight always uses the **production** bundle id. Installing TestFlight will offer to replace the store/TestFlight app — that is normal. It must **not** replace «Harmonizer Expo» / «Harmonizer Test» once those use `.dev` / `.preview` ids (rebuild those profiles after this change).
 
-`.env.local` is **never** uploaded to EAS cloud builds. If a variable is only in `.env.local`, store/TestFlight builds will miss it (classic symptom: «Supabase is not configured»).
+`.env.local` is **never** uploaded to EAS (cloud or local credential fetch still uses EAS env for `EXPO_PUBLIC_*` on profile). If a variable is only in `.env.local`, store builds will miss it (classic symptom: «Supabase is not configured»).
 
-`--local` on Android only runs **that one** build on your Mac (needs Android SDK). It does **not** make Expo/dev/test/prod generally faster.
+### Default: local EAS builds (not expo.dev cloud)
+
+Free plan ≈ **30 cloud builds/month**; queues are often hours. On this Mac **always prefer `--local`**. Do **not** start cloud builds unless explicitly asked. Agent rule: `.cursor/rules/eas-local-builds.mdc`.
 
 Before every store build:
 
@@ -82,10 +84,39 @@ Required EAS **production** (and usually **preview**) client vars:
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 - `EXPO_PUBLIC_COMMUNICATOR_API_URL` — Vercel origin, no `/api` suffix
 - `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` — Android maps
-- `GOOGLE_SERVICES_JSON` — EAS file secret for FCM
+- `GOOGLE_SERVICES_JSON` — EAS file secret for FCM (+ Firebase App Check on Android)
 - `EXPO_PUBLIC_APP_ENV` — e.g. `production`
 
 Also useful: `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`.
+
+### OTP abuse protection (App Check + rate limits)
+
+Server (always on after deploy):
+
+- Migration `otp_rate_limits` — ledgers/permits
+- Edge `send-auth-email` — `otp_consume_send_permit` (rate limits always; permit when `OTP_REQUIRE_APP_CHECK=true`)
+- Vercel `POST /api/auth/otp-gate` — App Check verify + issue permit
+
+Vercel env:
+
+- `FIREBASE_PROJECT_ID=harmonizer-777`
+- `FIREBASE_SERVICE_ACCOUNT_JSON` — service account JSON (Firebase Admin / App Check verify)
+- `OTP_APP_CHECK_DEBUG_SECRET` — shared secret for Expo/Test debug attestation
+- `OTP_REQUIRE_APP_CHECK` — currently **`false`** (2026-07-30): store clients failed App Check before Play Integrity token was ready. Rate limits still apply. Set `true` only after store builds reliably send `appCheckToken` (see client retry in `modules/auth/appCheck.ts`)
+
+Supabase edge secret: same `OTP_REQUIRE_APP_CHECK`.
+
+EAS / `.env.local` for Expo/Test:
+
+- `EXPO_PUBLIC_OTP_APP_CHECK_DEBUG_SECRET` = same value as `OTP_APP_CHECK_DEBUG_SECRET`
+
+Firebase Console checklist:
+
+1. App Check → register Android (`com.zamkovoi.harmonizer`) Play Integrity + iOS App Attest
+2. Register debug tokens for Expo/Test devices (or use debug secret above)
+3. Add `GoogleService-Info.plist` for iOS when enabling App Check on iPhone builds
+
+Turnstile / invisible captcha: **not** used (RN WebView UX risk).
 
 Legacy Google Sign-In client ids may still sit in **development** EAS env; OTP-only auth does not require them in production.
 
@@ -93,38 +124,30 @@ Legacy Google Sign-In client ids may still sit in **development** EAS env; OTP-o
 
 Changing EAS env does **not** patch an already-uploaded AAB/IPA. Rebuild + resubmit.
 
-### iOS capability sync workaround
+### Local builds + submit (fixed paths, no copy-paste)
 
-If `eas build -p ios` fails on `APPLE_ID_AUTH` / «bundle cannot be deleted»:
-
-```bash
-EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile production --no-wait
-```
-
-### Submit
+Artifacts always land in gitignored `dist/` (same filename every time). After build, submit needs **no** path typing.
 
 ```bash
-npx eas-cli submit --platform ios --latest
+source ~/.zshrc   # JAVA_HOME / ANDROID_HOME
+
+# Android production → dist/harmonizer-production.aab → Play
+npm run build:android:prod
+npm run submit:android
+
+# iOS production → dist/harmonizer-production.ipa → TestFlight
+npm run build:ios:prod
+npm run submit:ios
+
+# Development clients (install on device; no store submit)
+npm run build:android:dev    # → dist/harmonizer-development.apk
+npm run build:ios:dev:local  # → dist/harmonizer-development.ipa
 ```
 
-`ascAppId` is in `eas.json` → `submit.production.ios`. Android: upload `.aab` in Play Console (or `eas submit -p android` once Play credentials exist).
-
-### Local Android AAB (optional, faster than cloud queue)
-
-On this Mac (Homebrew, no Android Studio GUI required):
-
-- `JAVA_HOME` → `/opt/homebrew/opt/openjdk@17/...`
-- `ANDROID_HOME` → `/opt/homebrew/share/android-commandlinetools`
-- (already added to `~/.zshrc` — open a **new** terminal tab)
-
-Then:
-
-```bash
-npm run check:eas-env -- production
-npx eas-cli build --platform android --profile production --local
-```
-
-You do not need to open Android Studio daily — same idea as Expo: tools sit in the background for the terminal.
+Prereqs: Android SDK + JDK 17 in `~/.zshrc`; Xcode + CocoaPods + Fastlane for iOS.  
+`EXPO_NO_CAPABILITY_SYNC=1` is baked into the iOS npm scripts.  
+`ascAppId` is in `eas.json` → `submit.production.ios`.  
+Do **not** rely on `eas submit --latest` after `--local` (cloud-oriented); use the fixed `--output` paths above.
 
 ## Production SQL Migrations
 

@@ -20,6 +20,8 @@ interface AppButtonProps {
   variant?: AppButtonVariant;
   onPress?: () => void;
   disabled?: boolean;
+  /** In-flight work: not pressable, but keep full opacity so status label stays readable. */
+  busy?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -31,19 +33,21 @@ export function AppButton({
   variant = "primary",
   onPress,
   disabled,
+  busy,
   accessibilityLabel,
   style,
   testID,
 }: AppButtonProps) {
   const theme = useTheme();
   const isPrimary = variant === "primary";
+  const inactive = Boolean(disabled || busy);
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       onPress={onPress}
-      disabled={disabled}
+      disabled={inactive}
       testID={testID}
       style={({ pressed }) => [
         styles.base,
@@ -54,7 +58,8 @@ export function AppButton({
           backgroundColor: isPrimary ? theme.colors.buttonPrimaryBg : "transparent",
           borderWidth: isPrimary ? 0 : 1,
           borderColor: theme.colors.buttonSecondaryBorder,
-          opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
+          // busy: keep label readable; plain disabled: dim
+          opacity: busy ? 1 : disabled ? 0.4 : pressed ? 0.85 : 1,
         },
         style,
       ]}

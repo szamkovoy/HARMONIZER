@@ -6,6 +6,7 @@ import { applyMarketingDeliveryEvent } from "../../_utils/marketingDeliveryEvent
 import { createServiceSupabase, errorResponse, json } from "../../_utils/supabase";
 import {
   extractRecipientEmails,
+  isOtpTransportResendEvent,
   mapResendEventType,
   verifyResendMarketingWebhook,
   type ResendWebhookPayload,
@@ -16,7 +17,7 @@ export const maxDuration = 30;
 
 /**
  * Resend marketing webhooks → email_events + campaign counters + auto-suppress.
- * OTP yoga domain must never point here.
+ * OTP (zamkovoi.yoga / sign-in codes) is ignored — same Resend account can emit them.
  *
  * Enable: sent, delivered, delivery_delayed, opened, clicked, bounced, complained,
  * failed, suppressed, suppression.added, suppression.removed.
@@ -38,6 +39,11 @@ export async function POST(req: Request) {
     const type = payload.type?.trim() ?? "";
     if (!type) {
       return json({ ok: true, skipped: "missing type" });
+    }
+
+    // Account-level Resend webhook also fires for OTP on zamkovoi.yoga.
+    if (isOtpTransportResendEvent(payload)) {
+      return json({ ok: true, skipped: "otp_transport" });
     }
 
     const resendId = payload.data?.email_id?.trim() ?? "";

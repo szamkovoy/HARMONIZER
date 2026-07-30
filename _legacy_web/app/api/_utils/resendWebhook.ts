@@ -102,6 +102,25 @@ function bounceIsHard(payload: ResendWebhookPayload): boolean {
   return true;
 }
 
+/** MailboxFull is Transient at Gmail but marketing should stop (OTP unaffected). */
+function bounceShouldSuppressMarketing(payload: ResendWebhookPayload): boolean {
+  if (bounceIsHard(payload)) return true;
+  const sub = (payload.data?.bounce?.subType ?? "").toLowerCase();
+  return sub === "mailboxfull";
+}
+
+/**
+ * Resend account webhooks can include OTP (zamkovoi.yoga). Those must not pollute
+ * marketing deliverability / suppressions.
+ */
+export function isOtpTransportResendEvent(payload: ResendWebhookPayload): boolean {
+  const from = (payload.data?.from ?? "").toLowerCase();
+  if (from.includes("@zamkovoi.yoga")) return true;
+  const subject = (payload.data?.subject ?? "").toLowerCase();
+  if (subject.includes("sign-in code") || subject.includes("код входа")) return true;
+  return false;
+}
+
 /** Map Resend event type → our send status / counters / suppress actions. */
 export function mapResendEventType(
   type: string,
@@ -150,12 +169,13 @@ export function mapResendEventType(
       };
     case "email.bounced": {
       const hard = bounceIsHard(payload ?? {});
+      const suppress = bounceShouldSuppressMarketing(payload ?? {});
       return {
         eventType: type,
         sendStatus: "bounced",
         campaignCounter: "bounced_count",
-        suppressStatus: hard ? "suppressed" : null,
-        addToResendSuppressions: hard,
+        suppressStatus: suppress ? "suppressed" : null,
+        addToResendSuppressions: suppress,
         removeFromResendSuppressions: false,
         isHardBounce: hard,
       };

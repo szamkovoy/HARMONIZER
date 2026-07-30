@@ -1,0 +1,42 @@
+---
+description: Prefer local EAS builds — never burn Expo cloud quota by default
+alwaysApply: true
+---
+
+# EAS builds — local first (HARMONIZER Mac)
+
+The Expo Free plan has a small monthly cloud build quota (≈30). Cloud queues are often hours long. This Mac is set up for **local** builds — use them by default.
+
+## Default commands (prefer npm scripts — fixed `dist/` paths)
+
+```bash
+cd /Users/sergey/Desktop/HARMONIZER
+source ~/.zshrc   # if ANDROID_HOME / JAVA_HOME missing in this shell
+
+npm run build:android:prod   # → dist/harmonizer-production.aab
+npm run submit:android       # submits that same path
+
+npm run build:ios:prod       # → dist/harmonizer-production.ipa (EXPO_NO_CAPABILITY_SYNC=1)
+npm run submit:ios
+```
+
+Development clients: `npm run build:android:dev` / `npm run build:ios:dev:local`.  
+Always `--local` unless the user explicitly asks for cloud. Do not use `eas submit --latest` after local builds — use the fixed `dist/` paths.
+
+## Never do by default
+
+- `eas build` **without** `--local` (uses expo.dev workers + Free quota)
+- Starting a cloud build “in the background” to save time
+
+## When cloud is OK
+
+Only if the user **explicitly** asks for a cloud/EAS remote build, or local tools are broken and they approve burning quota.
+
+## Local toolchain (already on this Mac)
+
+- **Android:** `JAVA_HOME` (openjdk@17), `ANDROID_HOME` (cmdline-tools), NDK/cmake — see `~/.zshrc` and `DEPLOY.md`
+- **iOS:** Xcode from Mac App Store, `xcode-select`, CocoaPods (`pod`), Fastlane (`brew install fastlane`)
+
+## After local Android build
+
+Upload the `.aab` to Play (Console or `eas submit -p android --path <aab>`). Local build does not auto-submit.

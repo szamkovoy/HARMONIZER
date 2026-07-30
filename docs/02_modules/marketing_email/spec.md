@@ -82,6 +82,8 @@ code_refs:
 
 - `POST /api/webhooks/resend-marketing` — Resend Svix/Bearer (`RESEND_MARKETING_WEBHOOK_SECRET`).
 - `POST /api/webhooks/ses-marketing?token=` — SES via SNS (`SES_MARKETING_WEBHOOK_SECRET`); SubscriptionConfirmation supported.
+- OTP (from `@zamkovoi.yoga` / subject «sign-in code» / «код входа») на Resend webhook **игнорируется** — тот же аккаунт Resend может слать OTP; в marketing deliverability не пишется.
+- `GET …/deliverability` при агрегации тоже отфильтровывает исторические OTP-события по from/subject.
 
 Оба пути → `applyMarketingDeliveryEvent` (общие счётчики кампаний/шагов + local suppress). Match по `resend_id` (= Resend id или SES MessageId).
 
@@ -91,7 +93,8 @@ code_refs:
 | delivered / Delivery | `delivered_count` |
 | opened/clicked / Open/Click | counters (обычно first-party) |
 | bounced Permanent / Bounce Permanent | `bounced_count` + local suppressed (+ Resend suppressions API if Resend) |
-| bounced Transient | bounce counter, **no** suppress |
+| bounced Transient + subType MailboxFull | `bounced_count` + local suppressed (маркетинг стоп; OTP не трогаем) |
+| bounced Transient (прочее) | bounce counter, **no** suppress |
 | complained / Complaint | `complained_count` + local complained |
 
 **Публично:** unsubscribe · webhook.

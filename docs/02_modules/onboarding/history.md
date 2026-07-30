@@ -10,6 +10,12 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-07-30 (OTP send UX latency):** Пауза ~8 с на «Получить код» — длинные retry App Check. Укорочен бюджет getToken (~1.2 с) + prefetch на mount; кнопка `busy` с «Отправляется…» (без dim).
+
+- **2026-07-30 (OTP App Check rollback):** Store OTP → `otpAppCheckFailed` (клиент без валидного Play Integrity token на cold start). `OTP_REQUIRE_APP_CHECK=false` на Vercel+edge; rate limits остаются. Клиент: retry `getToken` перед gate. Enforce снова — только после проверки логов.
+
+- **2026-07-30 (OTP abuse A+B):** Server rate limits (60s / 10/h / 25/day) + failed-verify cap (10/h); `POST /api/auth/otp-gate` + App Check permit; UI cooldown persists across «change email». Turnstile skipped (RN WebView). Enforce via `OTP_REQUIRE_APP_CHECK=true` after store rebuild.
+
 - **2026-07-30 (geo place after onboard GPS):** После записи `lat`/`lon` в шаге 2 — `scheduleGeoPlaceSyncAfterCoords` (фон `country_code`/`city` через `/api/geo/reverse`). Раньше sync шёл только с `app_open`/`acquireAndPersist`, и часто не успевал, если первый `app_open` был до GPS.
 
 - **2026-07-28 (geo city settlement):** `GET /api/geo/reverse` — prefer town/city; если только деревня — второй Nominatim `zoom=10` (районный/городской центр). Shared `geoCity` + `geoReverseResolve`; admin GET silent-repair.

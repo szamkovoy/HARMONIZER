@@ -28,7 +28,7 @@ Operational map for transactional OTP and admin marketing.
 
 | Channel | Purpose | Env switch | Code entry |
 | --- | --- | --- | --- |
-| OTP | Sign-in codes (Supabase Send Email Hook) | **`EMAIL_OTP`** (Supabase secrets) | `send-auth-email` → `sendMail("auth_otp", …)` |
+| OTP | Sign-in codes (Supabase Send Email Hook) | **`EMAIL_OTP`** (Supabase secrets) | `otp-gate` → `signInWithOtp` → `send-auth-email` (`otp_consume_send_permit`) → `sendMail("auth_otp", …)` |
 | Marketing | Admin broadcasts / automations | **`EMAIL_MARKETING`** (Vercel) | `_legacy_web` → `sendMarketingEmail()` |
 
 Reputation on `zamkovoi.ru` must never affect OTP on `zamkovoi.yoga` (and vice versa). Use separate Resend API keys / SES identities per domain.
