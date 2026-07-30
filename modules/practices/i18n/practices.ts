@@ -203,7 +203,7 @@ const ru: PracticeCatalogStrings = {
   breathHelpButtonAccessibilityLabel: "Пояснение к настройке дыхательной практики",
   breathHelpModalTitle: "О параметрах практики",
   breathHelpBody:
-    "Выберите длительность практики, на какую чакру она должна быть направлена, а также используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».",
+    "Выберите длительность практики, на какую чакру она должна быть направлена, а также используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».\n\nЧтобы бинауральный звук оказывал на вас воздействие, выполняйте практику в наушниках.\n\nЕсли практика предлагает слишком быстрое или медленное дыхание, тапните на экране и на всплывающей панели измените скорость индикатора дыхания.",
   breathHelpCloseLabel: "Закрыть",
   breathDescriptions: {
     coherent:
@@ -320,7 +320,7 @@ const en: PracticeCatalogStrings = {
   breathHelpButtonAccessibilityLabel: "Explain breathing practice settings",
   breathHelpModalTitle: "About practice settings",
   breathHelpBody:
-    "Choose the practice duration, which chakra it should target, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».",
+    "Choose the practice duration, which chakra it should target, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».\n\nFor binaural sound to affect you, do the practice with headphones.\n\nIf the practice feels too fast or too slow, tap the screen and change the breathing indicator speed on the popup panel.",
   breathHelpCloseLabel: "Close",
   breathDescriptions: {
     coherent:

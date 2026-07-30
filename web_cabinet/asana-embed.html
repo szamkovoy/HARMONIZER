@@ -74,6 +74,13 @@
         });
         p.ready()
           .then(function () {
+            return p.getDuration().then(function (d) {
+              if (typeof d === "number" && d > 0) {
+                send({ type: "duration", seconds: Math.floor(d) });
+              }
+            }).catch(function () {});
+          })
+          .then(function () {
             return p.setVolume(1).catch(function () {});
           })
           .then(function () {

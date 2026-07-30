@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
@@ -236,9 +237,11 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
     }
   }, [locale, periodDays, props.enabled, reportLoadError]);
 
-  useEffect(() => {
-    void loadReport();
-  }, [loadReport]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadReport();
+    }, [loadReport]),
+  );
 
   const handlePeriodChange = useCallback((days: number) => {
     if (days === periodDays) return;

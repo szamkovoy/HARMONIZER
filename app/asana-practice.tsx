@@ -5,8 +5,13 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { AccountGateDialog, useAccess } from "@/modules/access";
 import { useAuth } from "@/modules/auth";
-import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
+import {
+  asanaCreditedDurationSec,
+  asanaTargetDurationSec,
+  asanaWatchedSec,
+  isAsanaCompleted,
+} from "@/modules/practices/core/asanaSessionCredit";
 import { resolveYogaPracticeTitle } from "@/modules/practices/core/catalog";
 import {
   vimeoAudiotrackForLocale,
@@ -27,10 +32,6 @@ import { useTheme } from "@/modules/ui/theme";
 import { recordPracticeSession } from "@/services/practiceSessions";
 import { getSupabase } from "@/services/supabase";
 import type { Database } from "@/services/supabase-types";
-
-// Practice counts as completed if watched to within this many seconds of the end
-// (covers users who close the screen during the closing remarks).
-const COMPLETION_TAIL_SEC = 10;
 
 type PracticeRow = Database["public"]["Tables"]["practices"]["Row"];
 type ChakraRow = Database["public"]["Tables"]["practice_chakras"]["Row"];
@@ -55,7 +56,6 @@ export default function AsanaPracticeRoute() {
   const { authUser } = useAuth();
   const { locale } = useAppLocale();
   const strings = getAsanaScreenStrings(locale);
-  const stopConfirm = getCoherenceBreathStrings(locale);
   const params = useLocalSearchParams<{
     practiceId?: string;
     durationMs?: string;
@@ -70,8 +70,13 @@ export default function AsanaPracticeRoute() {
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   // Vimeo → RN event bridge: elapsed seconds + ended flag from the WebView.
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [playerDurationSec, setPlayerDurationSec] = useState(0);
   const [practiceEnded, setPracticeEnded] = useState(false);
+  const [wallTick, setWallTick] = useState(0);
+  const [wallRunning, setWallRunning] = useState(false);
   const recordedRef = useRef(false);
+  /** Wall-clock start (ms): first ready/play/time from the WebView player. */
+  const wallStartedAtRef = useRef<number | null>(null);
   const practiceId = typeof params.practiceId === "string" ? params.practiceId : null;
   const launchSource = typeof params.launchSource === "string" && params.launchSource.trim()
     ? params.launchSource.trim()
@@ -129,39 +134,77 @@ export default function AsanaPracticeRoute() {
   // Prefer catalog-passed id so Android/iOS can mount the player before Supabase returns.
   const vimeoId = (practice?.video_external_id?.trim() || routeVimeoId || null) as string | null;
   const audiotrack = vimeoAudiotrackForLocale(locale);
-  const durationSec =
+  const catalogDurationSec =
     practice?.default_duration_sec ?? (routeDurationMinutes ? routeDurationMinutes * 60 : 0);
+  const targetDurationSec = asanaTargetDurationSec(catalogDurationSec, playerDurationSec);
 
-  // Practice is considered completed when Vimeo fired `ended` OR the elapsed
-  // timer is within the closing tail (<= 10s left). In that state ✕ / «Завершить»
-  // skip the stop-confirm dialog and just record + exit.
-  const completed =
-    practiceEnded || (durationSec > 0 && elapsedSec >= durationSec - COMPLETION_TAIL_SEC);
+  // Tick so completion can trip on wall-clock even when postMessage is silent.
+  useEffect(() => {
+    if (!wallRunning || practiceEnded) return;
+    const id = setInterval(() => setWallTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [practiceEnded, wallRunning]);
+
+  const wallElapsedSec =
+    wallStartedAtRef.current != null
+      ? Math.max(0, Math.floor((Date.now() - wallStartedAtRef.current) / 1000))
+      : 0;
+  // wallTick keeps this recalculating every second while the clock runs.
+  void wallTick;
+  const watchedSec = asanaWatchedSec(elapsedSec, wallElapsedSec);
+
+  // Practice is considered completed when Vimeo fired `ended` OR watched time
+  // (player or wall-clock) is within the closing tail.
+  const completed = isAsanaCompleted({
+    practiceEnded,
+    watchedSec,
+    targetDurationSec,
+  });
+
+  const ensureWallStarted = () => {
+    if (wallStartedAtRef.current != null) return;
+    wallStartedAtRef.current = Date.now();
+    setWallRunning(true);
+  };
 
   const handlePlayerMessage = (event: WebViewMessageEvent) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data) as { type: string; seconds?: number };
-      if (data.type === "ended") {
+      const data = JSON.parse(event.nativeEvent.data) as {
+        type: string;
+        seconds?: number;
+      };
+      if (data.type === "ready" || data.type === "play") {
+        ensureWallStarted();
+      } else if (data.type === "ended") {
+        ensureWallStarted();
         setPracticeEnded(true);
       } else if (data.type === "time" && typeof data.seconds === "number") {
+        ensureWallStarted();
         setElapsedSec(data.seconds);
+      } else if (data.type === "duration" && typeof data.seconds === "number" && data.seconds > 0) {
+        setPlayerDurationSec(data.seconds);
       }
     } catch {
       /* ignore malformed messages */
     }
   };
 
-  // Auto-record once when the practice reaches the completed state, so the
-  // session is captured even if the user just closes the screen without tapping
-  // «Завершить». Best-effort.
-  useEffect(() => {
-    if (!completed || !practice || !authUser?.id || recordedRef.current) return;
+  const persistCompletedSession = async () => {
+    if (!authUser?.id || !practice || recordedRef.current) return;
     recordedRef.current = true;
-    const effectiveDurationSec = durationSec || elapsedSec || 0;
+    const creditedSec = asanaCreditedDurationSec({
+      // Seek-to-end still fires `ended` with low elapsed — credit full video length.
+      watchedSec:
+        practiceEnded && targetDurationSec > 0
+          ? Math.max(watchedSec, targetDurationSec)
+          : watchedSec,
+      targetDurationSec,
+    });
     const endedAt = Date.now();
-    const startedAt = endedAt - Math.max(1, effectiveDurationSec) * 1000;
-    const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
-    void recordPracticeSession({
+    const startedAt = endedAt - Math.max(1, creditedSec) * 1000;
+    const chakraIds =
+      metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
+    await recordPracticeSession({
       userId: authUser.id,
       practiceId: practice.id,
       practiceSlug: practice.slug,
@@ -178,14 +221,27 @@ export default function AsanaPracticeRoute() {
         vimeo_id: vimeoId,
         playback_mode: "phone",
         audiotrack,
+        watched_sec: watchedSec,
+        target_duration_sec: targetDurationSec,
+        credit_source: practiceEnded ? "vimeo_ended" : "watched_threshold",
       },
-    }).catch(() => {});
-  }, [audiotrack, authUser?.id, completed, durationSec, elapsedSec, launchSource, metadata?.chakras, practice, vimeoId]);
+    });
+  };
+
+  // Auto-record once when the practice reaches the completed state, so the
+  // session is captured even if the user just closes the screen without tapping
+  // «Завершить». Best-effort.
+  useEffect(() => {
+    if (!completed || !practice || !authUser?.id || recordedRef.current) return;
+    void persistCompletedSession().catch(() => {
+      recordedRef.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: fire once on completed
+  }, [completed, practice, authUser?.id]);
 
   const requestStop = () => {
     if (!practice || !authUser?.id || savingCompletion) return;
     if (completed) {
-      // Already finished (or within the closing tail) — no warning, just close.
       void confirmFinish();
       return;
     }
@@ -195,36 +251,11 @@ export default function AsanaPracticeRoute() {
   const confirmFinish = async () => {
     if (!authUser?.id || !practice || savingCompletion) return;
     // Completed sessions were already recorded by the auto-record effect;
-    // interrupted sessions are NOT recorded (the warning told the user their
-    // progress wouldn't be saved).
+    // interrupted sessions are NOT recorded (asana stop dialog explains this).
     if (completed && !recordedRef.current) {
-      // Fallback: record if auto-record somehow missed it.
       setSavingCompletion(true);
       try {
-        const effectiveDurationSec = durationSec || elapsedSec || 0;
-        const endedAt = Date.now();
-        const startedAt = endedAt - Math.max(1, effectiveDurationSec) * 1000;
-        const chakraIds = metadata?.chakras.map((item) => item.chakra_id).filter((item) => item >= 1 && item <= 7) ?? [];
-        recordedRef.current = true;
-        await recordPracticeSession({
-          userId: authUser.id,
-          practiceId: practice.id,
-          practiceSlug: practice.slug,
-          practiceVersion: practice.version ?? 1,
-          startedAt: new Date(startedAt).toISOString(),
-          endedAt: new Date(endedAt).toISOString(),
-          completionPct: 100,
-          chakraFocusIds: chakraIds,
-          metrics: {},
-          context: {
-            source: "asana",
-            launch_source: launchSource,
-            practice_kind: "yoga",
-            vimeo_id: vimeoId,
-            playback_mode: "phone",
-            audiotrack,
-          },
-        });
+        await persistCompletedSession();
       } catch {
         /* swallow — still navigate away */
       } finally {
@@ -283,10 +314,10 @@ export default function AsanaPracticeRoute() {
 
       <PracticeStopConfirmDialog
         visible={showStopConfirm}
-        title={stopConfirm.stopConfirmTitle}
-        message={stopConfirm.stopConfirmMessage}
-        continueLabel={stopConfirm.stopConfirmNo}
-        finishLabel={savingCompletion ? strings.completingButton : stopConfirm.stopConfirmYes}
+        title={strings.stopConfirmTitle}
+        message={strings.stopConfirmMessage}
+        continueLabel={strings.stopConfirmNo}
+        finishLabel={savingCompletion ? strings.completingButton : strings.stopConfirmYes}
         onContinue={() => setShowStopConfirm(false)}
         onFinish={confirmFinish}
       />

@@ -14,12 +14,16 @@ export const SURFACE_CARD_HELP = {
   titleLineHeight: 24,
 } as const;
 
-/** Centered help modal opened from `SurfaceCardHelpButton` (`SurfaceHelpModal`). */
+/** Help modal opened from `SurfaceCardHelpButton` (`SurfaceHelpModal`). */
 export const SURFACE_HELP_MODAL = {
   backdropPadding: 20,
   cardBorderRadius: 22,
   cardGap: 12,
   cardMaxWidth: 360,
+  /** Cap card height so long help copy / large Dynamic Type stay on-screen and scroll. */
+  cardMaxHeightFraction: 0.9,
+  /** Minimum scroll viewport for the body when chrome measurement is still settling. */
+  bodyMinHeight: 96,
   cardPadding: 18,
   closeIconSize: 22,
   /** Title + close icon sit below the card's top padding edge. */

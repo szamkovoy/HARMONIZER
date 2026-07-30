@@ -44,8 +44,9 @@ describe("practiceStatsChart", () => {
   });
 
   it("defaults selection to the first bar", () => {
-    expect(defaultPracticeStatsSelectionIndex([{ minutes: 0 }, { minutes: 12 }, { minutes: 0 }])).toBe(0);
-    expect(defaultPracticeStatsSelectionIndex([{ minutes: 0 }, { minutes: 0 }])).toBe(0);
+    expect(defaultPracticeStatsSelectionIndex([{ minutes: 0 }, { minutes: 12 }, { minutes: 0 }])).toBe(1);
+    expect(defaultPracticeStatsSelectionIndex([{ minutes: 0 }, { minutes: 0 }, { minutes: 19 }])).toBe(2);
+    expect(defaultPracticeStatsSelectionIndex([{ minutes: 0 }, { minutes: 0 }])).toBe(1);
   });
 
   it("keeps callout edge flush with the selection line", () => {

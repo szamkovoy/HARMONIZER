@@ -7,7 +7,7 @@ import {
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
@@ -19,6 +19,7 @@ installDevLoadingViewPatch();
 import { AccessProvider } from "@/modules/access";
 import { MembershipEventsBridge } from "@/modules/account";
 import { AuthProvider, useAuth } from "@/modules/auth";
+import { EarlySplashCover } from "@/modules/bootstrap/EarlySplashCover";
 import { AppStartupProvider, useAppStartup } from "@/modules/bootstrap/AppStartupProvider";
 import { hydrateAppLocale } from "@/modules/i18n";
 import { PushRegistrationBridge } from "@/modules/notifications";
@@ -36,13 +37,15 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+SplashScreen.setOptions({ duration: 0, fade: false });
 
-/** Нативный сплэш держим до первого рендера JS-оверлея — дальше анимация уже под нашим контролем. */
-function NativeSplashBridge({ fontsLoaded }: { fontsLoaded: boolean }) {
+/** After fonts: keep native hidden only once the JS startup splash has painted. */
+function NativeSplashBridge() {
+  const { jsSplashPainted } = useAppStartup();
   useEffect(() => {
-    if (!fontsLoaded) return;
+    if (!jsSplashPainted) return;
     void SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+  }, [jsSplashPainted]);
   return null;
 }
 
@@ -54,6 +57,15 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
   });
+  const nativeHiddenRef = useRef(false);
+  const [earlySplashDone, setEarlySplashDone] = useState(false);
+
+  const hideNativeSplash = useCallback(() => {
+    if (nativeHiddenRef.current) return;
+    nativeHiddenRef.current = true;
+    void SplashScreen.hideAsync();
+    setEarlySplashDone(true);
+  }, []);
 
   useEffect(() => {
     if (error) throw error;
@@ -64,7 +76,14 @@ export default function RootLayout() {
     configureLocalNotifications();
   }, []);
 
-  if (!loaded) return null;
+  // Until fonts load: full-bleed cover replaces the tiny native Android/iOS logo splash.
+  if (!loaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
+        <EarlySplashCover onPainted={hideNativeSplash} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaProvider>
@@ -73,7 +92,8 @@ export default function RootLayout() {
           <AppStartupProvider>
             <RemotePlayProvider>
               <AccessBridge>
-                <NativeSplashBridge fontsLoaded={loaded} />
+                {/* If early cover already hid native, bridge is a no-op after paint. */}
+                {!earlySplashDone ? <NativeSplashBridge /> : null}
                 <PushRegistrationBridge />
                 <StorySessionBootstrap />
                 <MembershipEventsBridge />

@@ -1,13 +1,17 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.13
-updated: 2026-07-30
+version: 1.14
+updated: 2026-07-31
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-31 (SurfaceHelpModal scroll):** «?» help modals (`SurfaceHelpModal`) vertically centered the whole card without a body `ScrollView`, so long copy / large system font pushed the opening lines off-screen and made the tip unreadable. Fix in shared UI: card `maxHeight` ≈ 90% viewport, sticky title/× + «Закрыть», scrollable body from the first line (`nestedScrollEnabled`, reset scroll on open).
+
+- **2026-07-30 (splash full-bleed):** Холодный старт: крошечный centered logo (Android 12 Splash API / iOS без legacy full-screen), пока `useFonts` держал `return null`. Fix: `EarlySplashCover` (cover) до шрифтов + сразу `hideAsync`; plugin `enableFullScreenImage_legacy: true` (iOS) + `imageWidth: 288` (макс. Android icon canvas). Полный full-bleed на Android 12+ системно недоступен — минимизируем время мелкого кадра.
 
 - **2026-07-30 (APP_VARIANT side-by-side):** `APP_VARIANT` in `eas.json` + `app.config.ts` → distinct names/ids: Expo (`*.dev`), Test (`*.preview`), Store (production). Localized display names get « Expo» / « Test» via `buildLocales`. TestFlight still shares production id (Apple). See `DEPLOY.md`.
 

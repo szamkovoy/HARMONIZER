@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.67
-updated: 2026-07-29
+version: 1.68
+updated: 2026-07-31
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -16,6 +16,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-31 (asana not credited):** Audrone: 20 мин асан не попали в статистику + текст «не будет засчитаны». Причина: экран брал `stopConfirmMessage` у дыхания и писал `practice_sessions` только при Vimeo `ended`/`time` в хвосте 10 с; при молчании WebView-bridge даже досмотр давал диалог «не засчитаны» и выход без записи. Fix: wall-clock с `ready`/`play`, `duration` от плеера, `asanaSessionCredit.ts`, свои `stopConfirm*` у асан; обновить `web_cabinet/asana-embed.html` на zamkovoi.yoga.
+
+- **2026-07-31 (breath help copy):** В `breathHelpBody` (каталог «?» на дыхательных карточках) добавлены два абзаца: наушники для бинаурального звука; тап по экрану → скорость индикатора дыхания на всплывающей панели. RU/EN inline + typed overlays de–nl (`fill --all`).
 
 - **2026-07-29 (breath card help «?»):** На всех дыхательных `PracticeCard` — `SurfaceCardTitleRow` + `SurfaceHelpModal` (как «Рекомендации на день»); общий copy `breathHelp*` в `practices` i18n + typed overlays; padding карточки выровнен на `SURFACE_CARD.padding`.
 

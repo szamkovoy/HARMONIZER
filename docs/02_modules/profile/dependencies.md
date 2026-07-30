@@ -35,7 +35,7 @@ code_refs:
   После успешного `createNatalProfile` с вкладки профиля вызывается **`markHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`); при следующем фокусе **`app/(tabs)/index.tsx`** потребляется флаг и **`useDayContent.refresh`** выполняется с **`blockingReload`** + при необходимости **`forceRefresh`**, чтобы главный экран дождался обновлённого дня под новый `scopeKey`. Смена языка: probe/ensure через **`localeDayContentProbe`** / **`localeDayContentEnsure`** с ключами **`resolveDayContentAccessKeys`**; commit локали только после verified peek; Home на `subscribeAppLocale` сначала применяет warmed cache (без второго monologue), иначе strip + `refresh({ localeChange })` без принудительного force-flag.
 
 - **`practices` (агрегаты)**  
-  Экран профиля читает **`loadDailyPracticeStatsInRange`** / **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица `user_daily_stats` / завершённые сессии). Запись сессий выполняется из flow практик, не из таба профиля.
+  Экран профиля читает **`loadDailyPracticeStatsInRange`** / **`loadDailyPracticeStats`** из `services/practiceSessions.ts` (таблица `user_daily_stats` / завершённые сессии) и `practice-by-chakra` из `practice_sessions`. Перечитывание при фокусе таба Профиля (иначе сумма отстаёт от вкладки «День» после новых практик). Запись сессий — из flow практик, не из таба профиля.
 
 - **`account_web`**  
   Кнопка «Личный кабинет» → `openAccountCabinet`; **«Удалить аккаунт»** → `deleteAccountRemote()` → `DELETE /api/account/delete` (JWT). Выход из аккаунта — локальный `useAuth().signOut()` без account API.

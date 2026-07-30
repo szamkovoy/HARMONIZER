@@ -494,14 +494,13 @@ export default function ProfileTabRoute() {
     setStatsLoading(false);
   }, [authUser?.id, profile?.tz, statsEnabled, statsPeriodDays]);
 
-  useEffect(() => {
-    void loadStats();
-  }, [loadStats]);
-
   useFocusEffect(
     useCallback(() => {
       refreshDonutVisibility();
-    }, [refreshDonutVisibility]),
+      // Day tab reloads after practices; Profile must too — otherwise
+      // «Статистика практик» stays on the first visit's total (e.g. 8 мин vs 19).
+      void loadStats();
+    }, [loadStats, refreshDonutVisibility]),
   );
 
   const exportDiagnostics = useCallback(() => {

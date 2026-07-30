@@ -29,6 +29,10 @@ type AsanaScreenTable = {
   completedTitle: string;
   completedHint: string;
   closeButton: string;
+  stopConfirmTitle: string;
+  stopConfirmMessage: string;
+  stopConfirmYes: string;
+  stopConfirmNo: string;
 };
 
 export type AsanaScreenStrings = Omit<AsanaScreenTable, "tvConnectedMetaTemplate" | "tvStatusTemplate"> & {
@@ -60,6 +64,11 @@ const ru: AsanaScreenTable = {
   completedTitle: "Практика завершена",
   completedHint: "Поздравляем — практика засчитана. Закройте окно, чтобы вернуться назад.",
   closeButton: "Закрыть",
+  stopConfirmTitle: "Завершить практику?",
+  stopConfirmMessage:
+    "Если закончить сейчас, до просмотра почти до конца, практика не попадёт в статистику. Досмотрите видео — тогда она засчитается.",
+  stopConfirmYes: "Завершить",
+  stopConfirmNo: "Продолжить",
 };
 
 const en: AsanaScreenTable = {
@@ -86,6 +95,11 @@ const en: AsanaScreenTable = {
   completedTitle: "Practice completed",
   completedHint: "Well done — the practice has been recorded. Close the window to return.",
   closeButton: "Close",
+  stopConfirmTitle: "End practice?",
+  stopConfirmMessage:
+    "If you stop now, before watching almost to the end, this practice will not count in your stats. Finish the video for it to be recorded.",
+  stopConfirmYes: "End",
+  stopConfirmNo: "Continue",
 };
 
 export function getAsanaScreenStrings(locale: AsanaScreenLocale = "ru"): AsanaScreenStrings {

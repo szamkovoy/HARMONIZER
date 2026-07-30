@@ -1,3 +1,8 @@
+- 2026-07-31 (349): Breath practice «?» help — two new paragraphs (headphones for binaural sound; tap to adjust breathing-indicator speed); RU/EN + de–nl overlays.
+- 2026-07-31 (348): `SurfaceHelpModal` — body starts at the top and scrolls (finger / large Dynamic Type); card capped to ~90% viewport so long «?» tips are not vertically clipped.
+- 2026-07-31 (347): Asana credit — wall-clock + player duration when Vimeo bridge misses time/ended; own stop-confirm copy (was breath «не будут засчитаны»).
+- 2026-07-30 (346): Profile practice stats / chakra reload on tab focus (fix stale totals vs Day); chart scrub defaults to latest day with practice.
+- 2026-07-30 (345): Splash — `EarlySplashCover` before fonts (hide tiny native logo ASAP); iOS `enableFullScreenImage_legacy`; Android `imageWidth: 288`.
 - 2026-07-30 (344): OTP send — shorter App Check budget + prefetch; CTA shows «Отправляется…» at full opacity while busy.
 - 2026-07-30 (343): OTP App Check enforce temporarily off (`OTP_REQUIRE_APP_CHECK=false`) after store `otpAppCheckFailed`; client App Check getToken retries; rate limits still on.
 - 2026-07-30 (342): EAS builds default to `--local` on this Mac (Android SDK + Xcode/fastlane); cloud only if explicitly asked — see `.cursor/rules/eas-local-builds.mdc` + `DEPLOY.md`.

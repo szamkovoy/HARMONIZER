@@ -119,8 +119,13 @@ export function nearestPracticeStatsBarIndex(
   return bestIndex;
 }
 
-export function defaultPracticeStatsSelectionIndex(_bars?: Array<{ minutes: number }>): number {
-  return 0;
+/** Prefer the latest day/week that has practice; else the last bar (today). */
+export function defaultPracticeStatsSelectionIndex(bars?: Array<{ minutes: number }>): number {
+  if (!bars?.length) return 0;
+  for (let index = bars.length - 1; index >= 0; index -= 1) {
+    if ((bars[index]?.minutes ?? 0) > 0) return index;
+  }
+  return bars.length - 1;
 }
 
 /** Place callout so one vertical edge touches the selection line. */

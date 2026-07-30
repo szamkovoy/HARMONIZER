@@ -60,6 +60,8 @@
           "image": "./assets/images/splash.png",
           "resizeMode": "cover",
           "backgroundColor": "#ffffff",
+          "enableFullScreenImage_legacy": true,
+          "imageWidth": 288,
           "dark": {
             "image": "./assets/images/splash.png",
             "backgroundColor": "#ffffff",

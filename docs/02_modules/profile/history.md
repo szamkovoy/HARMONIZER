@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-30 (practice stats stale on Profile):** «День» показывал 19 мин практик, «Статистика практик» — 8 мин (Audrone). В `user_daily_stats` сумма уже была верной; Профиль не перечитывал агрегаты при фокусе таба. Fix: `useFocusEffect` → `loadStats` + reload `practice-by-chakra`; scrub по умолчанию на последний день с практикой.
+
 - **2026-07-30 (OTP App Check rollback):** Enforce снят (`OTP_REQUIRE_APP_CHECK=false`); см. onboarding history.
 
 - **2026-07-30 (OTP abuse A+B):** `otp-gate` + App Check permit; send ledgers/limits; verify failure cap. См. onboarding history / `DEPLOY.md` OTP section.

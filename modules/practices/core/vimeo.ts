@@ -90,6 +90,7 @@ export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAU
     "    p.on('ended',function(){send({type:'ended'});});",
     "    p.on('timeupdate',function(d){if(d&&typeof d.seconds==='number'){send({type:'time',seconds:Math.floor(d.seconds)});}});",
     "    try{p.ready().then(function(){",
+    "      p.getDuration().then(function(d){if(typeof d==='number'&&d>0){send({type:'duration',seconds:Math.floor(d)});}}).catch(function(){});",
     "      p.getQualities().then(function(qs){var best=null;for(var i=0;i<qs.length;i++){if(qs[i].id!=='auto'&&qs[i].active){best=qs[i];}}",
     "        if(!best){for(var i=0;i<qs.length;i++){if(qs[i].id!=='auto'){best=qs[i];break;}}}",
     "        if(best){p.setCurrentQuality(best.id).catch(function(){});}",

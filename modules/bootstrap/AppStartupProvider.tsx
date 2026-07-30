@@ -40,6 +40,8 @@ type AppStartupContextValue = {
    * а не модальная day_card поверх недогруженной главной.
    */
   forceNextHomeBootstrapSplash: () => void;
+  /** JS splash painted (or not needed) — safe to hide native SplashScreen. */
+  jsSplashPainted: boolean;
 };
 
 const AppStartupContext = createContext<AppStartupContextValue | null>(null);
@@ -166,14 +168,31 @@ function DayWaitCardOverlay({ visible, locale }: { visible: boolean; locale: App
   );
 }
 
-function AppStartupSplashOverlay({ visible, step, locale }: { visible: boolean; step: string; locale: AppLocale }) {
+function AppStartupSplashOverlay({
+  visible,
+  step,
+  locale,
+  onFirstPaint,
+}: {
+  visible: boolean;
+  step: string;
+  locale: AppLocale;
+  onFirstPaint?: () => void;
+}) {
   const { width: winW, height: winH } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(1)).current;
   const progress = useRef(new Animated.Value(0)).current;
   const logoBreath = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(true);
+  const paintedRef = useRef(false);
   useSplashProgress(visible, progress);
+
+  const notifyPainted = useCallback(() => {
+    if (paintedRef.current) return;
+    paintedRef.current = true;
+    onFirstPaint?.();
+  }, [onFirstPaint]);
 
   useEffect(() => {
     if (!visible) {
@@ -261,7 +280,11 @@ function AppStartupSplashOverlay({ visible, step, locale }: { visible: boolean; 
   });
 
   return (
-    <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.splashOverlay, { opacity }]}>
+    <Animated.View
+      pointerEvents="auto"
+      style={[StyleSheet.absoluteFill, styles.splashOverlay, { opacity }]}
+      onLayout={notifyPainted}
+    >
       {/* Полный кадр как expo.splash (resizeMode: cover): явные размеры экрана — надёжнее, чем absoluteFill для cover */}
       <Animated.View
         style={[
@@ -327,6 +350,8 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
     step: "HOME/js_bridge",
     presentation: "splash",
   });
+  const [jsSplashPainted, setJsSplashPainted] = useState(false);
+  const markJsSplashPainted = useCallback(() => setJsSplashPainted(true), []);
 
   const visible = initializing || (isHomeRoute && homeBootstrap.blocking);
   /**
@@ -404,6 +429,14 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
     }
   }, [initializing, isHomeRoute]);
 
+  const splashVisible = visible && presentation === "splash";
+  const dayCardVisible = visible && presentation === "day_card";
+
+  // If we never show the full splash (e.g. day_card), still release the native splash.
+  useEffect(() => {
+    if (!splashVisible) markJsSplashPainted();
+  }, [splashVisible, markJsSplashPainted]);
+
   const value = useMemo<AppStartupContextValue>(
     () => ({
       beginHomeBootstrap,
@@ -412,24 +445,28 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
       completeHomeBootstrap,
       setHomeRouteActive,
       forceNextHomeBootstrapSplash,
+      jsSplashPainted,
     }),
     [
       beginHomeBootstrap,
       completeHomeBootstrap,
       forceNextHomeBootstrapSplash,
+      jsSplashPainted,
       setHomeBootstrapPhase,
       setStartupStep,
     ],
   );
 
-  const splashVisible = visible && presentation === "splash";
-  const dayCardVisible = visible && presentation === "day_card";
-
   return (
     <AppStartupContext.Provider value={value}>
       <View style={styles.root}>
         {children}
-        <AppStartupSplashOverlay visible={splashVisible} step={footerStep} locale={appLocale} />
+        <AppStartupSplashOverlay
+          visible={splashVisible}
+          step={footerStep}
+          locale={appLocale}
+          onFirstPaint={markJsSplashPainted}
+        />
         <DayWaitCardOverlay visible={dayCardVisible} locale={appLocale} />
       </View>
     </AppStartupContext.Provider>

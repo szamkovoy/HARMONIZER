@@ -1,8 +1,8 @@
 ---
 id: 03_rules/ui_kit
 title: Ui Kit
-version: 1.1
-updated: 2026-06-24
+version: 1.2
+updated: 2026-07-31
 depends_on: [01_foundation/tech_stack, 02_modules/infra/spec]
 code_refs:
   [
@@ -50,7 +50,7 @@ code_refs:
 - **Стандартный header:** `modules/ui/ScreenHeader.tsx`
 - **Section/header primitives:** `modules/ui/ScreenSection.tsx`
 - **Типовая surface-card:** `modules/ui/SurfaceCardView.tsx`
-- **Help «?» + модалка подсказки:** `SurfaceCardTitleRow` / `SurfaceCardHelpButton` → `SurfaceHelpModal` (заголовок + ×, текст, «Закрыть»)
+- **Help «?» + модалка подсказки:** `SurfaceCardTitleRow` / `SurfaceCardHelpButton` → `SurfaceHelpModal` (заголовок + ×, скроллируемое тело с первой строки, «Закрыть»; `maxHeight` ≈ 90% экрана, чтобы длинный текст / крупный шрифт не уходили за край)
 - **Типовые loading/error/empty state:** `modules/ui/StateCard.tsx`
 - **Bottom padding под tab bar:** `modules/ui/useTabContentBottomPadding.ts` — только небольшой `extra`-gap; tab navigator сам inset-ит контент над bar, полная высота bar в padding не добавляется.
 - **Компактная нижняя панель вкладок:** `modules/ui/useCompactTabBarStyle.ts` + `app/(tabs)/_layout.tsx` — уменьшенная высота bar (иконка+лейбл ближе к нижнему краю); safe-area inset сохраняется через `paddingBottom`.
