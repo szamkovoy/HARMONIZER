@@ -1,13 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.8
-updated: 2026-07-29
+version: 1.9
+updated: 2026-07-31
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-31 (trial ≠ webinars):** Демо (`isTrial`) больше не открывает `webinar_community` — тот же `AccountGateDialog` / кабинет, что у «Навигатора». Остальные master-фичи на trial без изменений. `canUseFeatureForAccess` + тест.
 
 - **2026-07-29 (test UI gate):** `DevTierSwitch` и `devOverride` завязаны на `HARMONIZER_TEST_MODE`, не `__DEV__`. Без флага `AccessProvider` не применяет override.
 

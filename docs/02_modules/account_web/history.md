@@ -1,9 +1,14 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.9
-updated: 2026-07-24
+version: 1.10
+updated: 2026-07-31
 ---
+
+## 2026-07-31 — Wipe cancels email automations
+
+- **Продукт:** после удаления аккаунта drip-цепочки не продолжаются; при новой регистрации с тем же email welcome стартует с начала (вместе с новым демо-trial).
+- **Код:** `wipeUserAccount` → `cancelActiveEmailAutomationsForUser` до `deleteUser`; due-send отменяет orphan (`user_id` null).
 
 ## 2026-07-28 — Reattach ledger by email + shared wipe
 

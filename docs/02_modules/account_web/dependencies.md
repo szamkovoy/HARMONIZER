@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.4
-updated: 2026-07-22
+version: 1.5
+updated: 2026-07-31
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -21,6 +21,7 @@ code_refs:
 - **`subscription`** — `baseTierFromRow` / `hasActiveTrial` / `TIER_ORDER` для детекта смены уровня; `VISIBLE_PAID_PRODUCT_TIERS` для `upgradeTiers` в overview. Сервер использует vendored-копию `_legacy_web/modules/access` (`scripts/sync-vercel-server-modules.mjs`).
 - **`i18n`** — тексты `gate.*` и `tier.*` из JSON-каталога; язык страницы кабинета передаётся параметром `lang` (из `getResponseLocale()`), словари страницы зашиты в `web_cabinet/cabinet/index.html` (8 локалей) и НЕ входят в i18n-sync gate.
 - **`infra`** — Vercel-роуты `/api/account/*` (общие утилиты `_legacy_web/app/api/_utils/supabase.ts`); Supabase-таблицы `web_ott_tokens`, `app_config`, `payment_contracts`; publication `supabase_realtime` для `users`.
+- **`marketing_email`** — `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
 - **`location`** — `resolveBillingCurrency` читает кэш координат (`userLocationProfileCache`) и `expo-location.reverseGeocodeAsync` для страны → валюты; таймаут 800 мс + персистентный флаг `billingCurrency`, чтобы гео не блокировало `openURL`.
 - **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava или ЮKassa: вебхук успеха upsert `webinar_registrations`; `MembershipEventsBridge` детектит one_time `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground; кнопки «Отменить запись» нет.
 - **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice`, `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions`, вебхуки `/api/account/webhooks/lava`. Маппинг — `payment_offers`. Используется для USD/EUR всегда и для RUB, пока `PAYMENT_GATEWAY_FOR_RUB≠yookassa` или `YOOKASSA_ENABLED≠true`. См. `lava_integration.md`.

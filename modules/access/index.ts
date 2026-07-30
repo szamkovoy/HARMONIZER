@@ -2,6 +2,7 @@ export {
   AccessProvider,
   accessModeForTier,
   canUseFeature,
+  canUseFeatureForAccess,
   getEffectiveAccess,
   requiredTierFor,
   useAccess,

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.7
-updated: 2026-07-30
+version: 1.8
+updated: 2026-07-31
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -63,6 +63,7 @@ code_refs:
 - **Подсчёт получателей рассылки:** `POST /api/admin/email/segment` с телом copy → `count` = send-eligible (`resolveCampaignRecipients`). UI без «примерно». Аудитория: `all_contacts` («Вся база» — все `email_contacts`, в т.ч. без приложения); `all_installed` («Все установившие» — `user_id` после OTP); `include_demo` («Демо» = `trial_expires_at > now()`, как `/admin/users`); `include_new_24h` («Новые 24ч» = `created_at` за сутки); тарифные чипы (для `free`/«Навигатор» — без активного trial). `email_contains` без чипов ≡ `all_contacts` + фильтр email.
 - **Open/click UX:** `GET /api/email/track/{open,click}` отвечают сразу (GIF / 302), запись события — в `after()`. На send `email-assets` img → `GET /api/email/asset?u=` (edge, Cache-Control 1y); upload `cacheControl=31536000`.
 - Карточка пользователя: `active_enrollments` + `POST …/messaging` `cancel_chain` (enrollment → `cancelled`); история sends — имена цепочки/письма/рассылки
+- **Автоцепочки × удаление аккаунта:** `wipeUserAccount` вызывает `cancelActiveEmailAutomationsForUser` (все `active` enrollments контакта → `cancelled`) до `deleteUser`. Due-send дополнительно отменяет enrollment, если у контакта `user_id` null (orphan после wipe). **Повторная регистрация** с тем же email: `enrollAccountRegistered` пропускает только при уже **активном** enrollment; `completed`/`cancelled` не блокируют — welcome-цепочка стартует снова с начала (новый `cycle_key` = `email_confirmed_at`).
 - Карточка кампании `/admin/email/[id]`: заголовок «Рассылка»; статус RU (`черновик` / `отправлено · дата`); после send — KPI-карточки, read-only имя/сегмент/контент, без блока «Отправка»; копирование доступно
 - Общий UI-фундамент: `EmailListRow`, `EmailDeliveryStats`, `EmailMessageWorkspace`; названия/копии — `emailNaming` (`emailListTitle`, `emailCopyName`) для рассылок и шагов. Письмо цепочки: `name` в GET steps; «Копировать» → `POST …/steps/[stepId]/copy` → редирект на копию (`… (копия)`); delay; `POST …/send` `{test_to}`. «Редактировать»: если название изменено и не сохранено — confirm «Новое название будет сохранено» → save → редактор (рассылка и шаг цепочки).
 - Сегмент JSON дополнительно: `account_created_on_or_after|before` (`users.created_at`), `onboarded_on_or_after|before` (`users.onboarded_at`) — границы включительно (≥ / ≤)

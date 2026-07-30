@@ -1,13 +1,15 @@
 ---
 id: 02_modules/webinars/history
 title: Webinars History
-version: 3.1
-updated: 2026-07-19
+version: 3.2
+updated: 2026-07-31
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708140000_webinars.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-31 (trial gated like free):** Запись на вебинар в приложении недоступна на демо-trial — `canUseFeatureForAccess` закрывает `webinar_community`; UI как у «Навигатора» (`AccountGateDialog` → кабинет).
 
 - **2026-07-24 (auto start push):** Авто-уведомление записавшимся в момент `starts_at` (Edge minutely + `start_notified_at`), язык `users.locale`, ссылка `join_url`. Inbox `kind=webinar_start`. См. `notifications/history`.
 

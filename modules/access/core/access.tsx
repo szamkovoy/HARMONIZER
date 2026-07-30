@@ -61,6 +61,15 @@ export function canUseFeature(tier: ProductTier, feature: FeatureKey): boolean {
   return TIER_FEATURES[tier].includes(feature);
 }
 
+/**
+ * Feature check for an effective access snapshot.
+ * Trial mirrors master for app features, except webinars — same paywall as free/Navigator.
+ */
+export function canUseFeatureForAccess(access: EffectiveAccess, feature: FeatureKey): boolean {
+  if (access.isTrial && feature === "webinar_community") return false;
+  return canUseFeature(access.tier, feature);
+}
+
 export function requiredTierFor(feature: FeatureKey): ProductTier {
   return FEATURE_REQUIRED_TIER[feature];
 }
@@ -87,7 +96,7 @@ export function AccessProvider({
   const value = useMemo<AccessContextValue>(
     () => ({
       access,
-      canUseFeature: (feature) => canUseFeature(access.tier, feature),
+      canUseFeature: (feature) => canUseFeatureForAccess(access, feature),
       requiredTierFor,
       setDevTierOverride: (tier) => {
         if (!HARMONIZER_TEST_MODE) return;

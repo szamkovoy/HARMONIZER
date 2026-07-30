@@ -102,21 +102,6 @@ async function firstStepDelayHours(
   return Math.max(0, Number(data.delay_hours) || 0);
 }
 
-async function hasAnyEnrollment(
-  db: SupabaseClient,
-  automationId: string,
-  contactId: string,
-): Promise<boolean> {
-  const { data } = await db
-    .from("email_automation_enrollments")
-    .select("id")
-    .eq("automation_id", automationId)
-    .eq("contact_id", contactId)
-    .limit(1)
-    .maybeSingle();
-  return Boolean(data);
-}
-
 async function hasActiveEnrollment(
   db: SupabaseClient,
   automationId: string,
@@ -175,7 +160,12 @@ async function insertEnrollment(
   return true;
 }
 
-/** Welcome: first OTP confirm only, once forever, no historical backfill. */
+/**
+ * Welcome after OTP confirm.
+ * Re-registration (same email, new auth user) may start the chain again:
+ * we only skip when an *active* enrollment already exists for this contact.
+ * Completed/cancelled history (incl. after account wipe) does not block.
+ */
 export async function enrollAccountRegistered(db: SupabaseClient): Promise<number> {
   const automation = await loadActiveAutomation(db, "account_registered");
   if (!automation?.activated_at) return 0;
@@ -208,7 +198,7 @@ export async function enrollAccountRegistered(db: SupabaseClient): Promise<numbe
       .eq("marketing_status", "active")
       .maybeSingle();
     if (!contact) continue;
-    if (await hasAnyEnrollment(db, automation.id, contact.id)) continue;
+    if (await hasActiveEnrollment(db, automation.id, contact.id)) continue;
     const ok = await insertEnrollment(db, {
       automation_id: automation.id,
       contact_id: contact.id,
@@ -367,6 +357,46 @@ export async function enrollInactive(db: SupabaseClient): Promise<number> {
   return enrolled;
 }
 
+/**
+ * Stop all active automation drips for a user about to be wiped.
+ * Contact rows survive (user_id → null); without this, due-sends would continue.
+ */
+export async function cancelActiveEmailAutomationsForUser(
+  db: SupabaseClient,
+  params: { userId: string; email: string },
+): Promise<number> {
+  const normalized = params.email.trim().toLowerCase();
+  const contactIds = new Set<string>();
+
+  const { data: byUser, error: byUserError } = await db
+    .from("email_contacts")
+    .select("id")
+    .eq("user_id", params.userId);
+  if (byUserError) throw byUserError;
+  for (const row of byUser ?? []) contactIds.add(row.id);
+
+  if (normalized) {
+    const { data: byEmail, error: byEmailError } = await db
+      .from("email_contacts")
+      .select("id")
+      .eq("email_normalized", normalized);
+    if (byEmailError) throw byEmailError;
+    for (const row of byEmail ?? []) contactIds.add(row.id);
+  }
+
+  if (!contactIds.size) return 0;
+
+  const nowIso = new Date().toISOString();
+  const { data, error } = await db
+    .from("email_automation_enrollments")
+    .update({ status: "cancelled", updated_at: nowIso })
+    .in("contact_id", [...contactIds])
+    .eq("status", "active")
+    .select("id");
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
 /** Cancel active enrollment for a contact (user card «Отменить цепочку»). */
 export async function cancelEnrollmentForContact(
   db: SupabaseClient,
@@ -501,6 +531,16 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
       .maybeSingle();
 
     if (!contact || contact.marketing_status !== "active") {
+      await db
+        .from("email_automation_enrollments")
+        .update({ status: "cancelled", updated_at: nowIso })
+        .eq("id", enrollment.id);
+      skipped += 1;
+      continue;
+    }
+
+    // Account wipe leaves the contact but clears user_id — stop drips (no orphan sends).
+    if (!contact.user_id) {
       await db
         .from("email_automation_enrollments")
         .update({ status: "cancelled", updated_at: nowIso })

@@ -4,14 +4,17 @@
  * Обязательный порядок:
  * 1) отменить активные recurring-подписки во ВСЕХ платёжных провайдерах
  *    (`cancelActiveSubscriptionsForUser` → `cancelProviderSubscription`);
- * 2) снимок buyer_email на payment_contracts / payments (отчёты без user_id);
- * 3) auth.admin.deleteUser — PII каскадом; леджер остаётся (ON DELETE SET NULL).
+ * 2) отменить активные email-automation enrollments (цепочки не должны
+ *    продолжаться после wipe; повторная регистрация может стартовать заново);
+ * 3) снимок buyer_email на payment_contracts / payments (отчёты без user_id);
+ * 4) auth.admin.deleteUser — PII каскадом; леджер остаётся (ON DELETE SET NULL).
  *
  * Новый провайдер: добавить case в cancelProviderSubscription — иначе delete
  * упадёт (fail-closed), чтобы списания не продолжались после wipe.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { cancelActiveEmailAutomationsForUser } from "../_utils/emailAutomationRunner";
 import { cancelActiveSubscriptionsForUser } from "./cancelActiveSubscriptions";
 
 export async function wipeUserAccount(
@@ -24,6 +27,11 @@ export async function wipeUserAccount(
   }
 
   const { cancelledCount } = await cancelActiveSubscriptionsForUser(db, {
+    userId: params.userId,
+    email,
+  });
+
+  await cancelActiveEmailAutomationsForUser(db, {
     userId: params.userId,
     email,
   });

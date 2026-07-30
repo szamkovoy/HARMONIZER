@@ -1,3 +1,4 @@
+- 2026-07-31 (351): Trial no longer unlocks webinars (same paywall as free); account wipe cancels email automations; re-register restarts welcome drip + 1-day demo.
 - 2026-07-31 (350): App version **1.1.0** (`appVersionSource: local`, autoIncrement preview+production); Profile footer shows localized name + `vX.Y.Z (build)` + © year/holder above legal links.
 - 2026-07-31 (349): Breath practice «?» help — two new paragraphs (headphones for binaural sound; tap to adjust breathing-indicator speed); RU/EN + de–nl overlays.
 - 2026-07-31 (348): `SurfaceHelpModal` — body starts at the top and scrolls (finger / large Dynamic Type); card capped to ~90% viewport so long «?» tips are not vertically clipped.

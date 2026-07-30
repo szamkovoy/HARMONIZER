@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.7
-updated: 2026-07-29
+version: 1.8
+updated: 2026-07-31
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -61,10 +61,11 @@ code_refs:
 
 ## 3. Внутренняя архитектура
 
-- **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт полный набор фич по матрице `TIER_FEATURES`). Иначе базовый тариф из **`baseTierFromRow`** (`modules/access/core/paidAccess.ts`): значения `oracle` / `practitioner` / `master` из БД проходят как есть при непустом сроке (`membership_expires_at` NULL или в будущем); истёкший грант → `free`; legacy **`premium` маппится в `oracle`**; остальное — `free`.
+- **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт набор фич «Мастера», **кроме** вебинаров). Иначе базовый тариф из **`baseTierFromRow`** (`modules/access/core/paidAccess.ts`): значения `oracle` / `practitioner` / `master` из БД проходят как есть при непустом сроке (`membership_expires_at` NULL или в будущем); истёкший грант → `free`; legacy **`premium` маппится в `oracle`**; остальное — `free`.
 - **`modules/access/core/paidAccess.ts`** — единственный источник правила платного доступа по сырым полям `users` (`paidTierFromRow`, `hasActiveTrial`, `hasEffectivePremium`, `baseTierFromRow`, `accessModeFromRow`). Используется клиентом (`access.tsx`, `useDayContent`, `Communicator`) и сервером (`userModelTier.ts`, `global-content`) — vendored-копия для Vercel синхронизируется `scripts/sync-vercel-server-modules.mjs`; Edge-функция `precompute-daily-forecasts` держит зеркало (Deno bundler не резолвит `modules/`).
 - **`canUseFeature(tier, key)`** — включение ключа в `TIER_FEATURES[tier]` (список на тариф).
-- **Провайдер** мемоизирует `access` и замыкает `canUseFeature` на текущий `access.tier`.
+- **`canUseFeatureForAccess(access, key)`** — то же с учётом trial: при `access.isTrial` ключ **`webinar_community` всегда false** (paywall как у «Навигатора»; кабинет / разовая оплата). `AccessProvider.canUseFeature` делегирует сюда.
+- **Провайдер** мемоизирует `access` и замыкает `canUseFeature` через `canUseFeatureForAccess`.
  - **Потребители UI:** главный таб (`app/(tabs)/index.tsx`) — `personal_daily_forecast`, `assistant_dialog`, `calibration`, `AccountUpsellPanel`, `AccountGateDialog`; tab layout — скрытие вкладки «День», если нет `day_planning`; вкладка «Практики» видна всем (каталог — витрина), гейт стоит на «Начать практику»/«Открыть на телефоне»/«Открыть на ТВ» внутри `PracticeCatalogScreen` (по kind: `meditations`/`breath_practices`/`asana_practices`); вкладка «День» — тот же гейт на «Начать практику» у pending `PracticeCard` (`app/(tabs)/day.tsx`); профиль — `stats`, HARMONIZER v2 reports, dev-переключатель и кнопка «Личный кабинет» в карточке доступа; экран асаны — `asana_practices`; вебинары — `webinar_community`.
 - **Параллельный контур «free / premium / trial»** для кэша и загрузки дневного контента: `modules/home/useDayContent.ts` вычисляет `AccessMode` через общий **`accessModeFromRow`** (paidAccess), `services/globalContentClient.ts` — по ответу сервера (`membership_tier` + `has_premium_access`), без вызова `getEffectiveAccess`. Ключи кэша `services/dayContentCache.ts` включают `ProductTier` (`accessTier`), который главный экран пробрасывает из `useAccess().access.tier` — смена эффективного тарифа или dev override меняет scope кэша.
 
@@ -87,7 +88,7 @@ code_refs:
 ## 5. Известные ограничения и инварианты
 
 - **БД и клиент согласованы (с 2026-07-08):** constraint в БД хранит те же четыре `ProductTier`, что и клиент; правило платного доступа централизовано в `paidAccess.ts`. Осталось одно намеренное зеркало — Edge-функция `precompute-daily-forecasts` (Deno не резолвит `modules/`); при изменении правила синхронизировать вручную. Правило выбора активного платежа для записи в `users` дублируется в TS (`membershipFromPayments.ts`) и SQL (`recompute_user_membership`) — при смене `TIER_ORDER` синхронизировать оба.
-- **Trial → эффективный `master`:** активный trial в `getEffectiveAccess` даёт полный набор ключей как у тарифа `master`, независимо от значения `membership_tier` в БД (пока trial не истёк).
+- **Trial → эффективный `master` без вебинаров:** активный trial в `getEffectiveAccess` даёт ключи как у `master`, **кроме** `webinar_community` (`canUseFeatureForAccess`); в БД обычно `membership_tier=free` до истечения `trial_expires_at`.
 - **Dev override** хранится только в памяти процесса; на сервер и в Supabase не пишется.
 - **`webinar_community`** и часть ключей заложены в матрицу для будущего UX; фактическое ветвление UI по ним может быть неполным (см. план ниже).
 
