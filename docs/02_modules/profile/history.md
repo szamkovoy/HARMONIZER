@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-30 (EMAIL_OTP profiles):** OTP transport — `EMAIL_OTP` (`AMAZON_ZAMKOVOI_YOGA` production); legacy `AUTH_EMAIL_PROVIDER` fallback. См. `docs/04_workspace/email_providers.md`.
+
 - **2026-07-30 (geo place sync gaps):** `logAppOpen` всегда вызывает `maybeSyncUserGeoPlace` (троттлинг 30 мин только на insert/`last_seen_at`). Онбординг после GPS — см. onboarding history. Иначе админские `country_code`/`city` оставались null при уже заполненных `lat`/`lon`/`location_name`.
 
 - **2026-07-29 (profile polish):** Subtitle → «Здесь находится информация о вас и ряд полезных отчетов»; удалены блоки «Текущий доступ», DevTierSwitch (дубль Home), «Скоро здесь»; диагностика остаётся только при `HARMONIZER_TEST_MODE`.

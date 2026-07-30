@@ -13,6 +13,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-07-30 (EMAIL_MARKETING profiles):** Transport switch `EMAIL_MARKETING` = `RESEND_ZAMKOVOI_*` \| `AMAZON_ZAMKOVOI_*`. Default `RESEND_ZAMKOVOI_RU`. SES send + `POST /api/webhooks/ses-marketing` (SNS) пишут в те же счётчики; `resend_id` = provider message id. Suppressions cron no-op на Amazon. Ops: `docs/04_workspace/email_providers.md`.
+
 - **2026-07-30 (Demo = trial):** Чип «Демо» (`include_demo`) = активный `trial_expires_at`, как в Пользователях/пульсе. Старое «регистрация 24ч» вынесено в чип «Новые 24ч» (`include_new_24h`). «Навигатор» (`free`) не включает активный trial. Только админка/сегмент — доступ в приложении не меняется.
 
 - **2026-07-28 (edit confirms dirty name):** «Редактировать» на рассылке/шаге цепочки: при несохранённом названии — confirm «Новое название будет сохранено», затем save и открытие редактора.

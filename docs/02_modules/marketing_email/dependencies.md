@@ -19,7 +19,7 @@ code_refs:
 ## 1. Зависит от
 
 - **`admin_panel`** — UI `/admin/email*`, `/admin/email/automations/*/steps/*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
-- **`infra`** — Supabase tables/storage, Vercel env (`RESEND_ZAMKOVOI_RU_API_KEY`, webhook secret, `CRON_SECRET`, `EMAIL_PUBLIC_BASE_URL`, `EMAIL_UNSUBSCRIBE_SECRET` для подписи track-токенов), Resend (send + webhooks + Suppressions/Domains API); first-party open/click на том же публичном origin; pg_cron → `invoke_run_email_automations` → Vercel `/api/cron/email-automations`; daily `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync`.
+- **`infra`** — Supabase tables/storage, Vercel env (`EMAIL_MARKETING`, `RESEND_ZAMKOVOI_*` / `SES_*`, webhook secrets, `CRON_SECRET`, `EMAIL_PUBLIC_BASE_URL`, `EMAIL_UNSUBSCRIBE_SECRET`), Resend and/or Amazon SES; first-party open/click; pg_cron → email-automations + suppressions-sync (Resend-only when profile is Resend).
 - **`i18n`** — 8 content locales; exact copy per contact locale; admin translate (`type=post` reuse for subject/body HTML).
 - **`profile` / auth** — `email_contacts.user_id` → `users`; `auth.users.email_confirmed_at` для welcome; `skip_email_automations` / `last_seen_at` / `display_name`.
 - **`subscription` / payments** — C1 via `payment_contracts` / `payments.paid_until` / `membership_*` (любой paid tier); сегмент «Демо» читает `users.trial_expires_at` (как admin access-now).

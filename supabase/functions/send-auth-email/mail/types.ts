@@ -13,7 +13,9 @@ export type OutboundEmail = {
   html: string;
 };
 
-export type SendResult = { ok: true } | { ok: false; detail: string };
+export type SendResult =
+  | { ok: true; messageId?: string }
+  | { ok: false; detail: string };
 
 export type MailChannel = {
   id: MailChannelId;

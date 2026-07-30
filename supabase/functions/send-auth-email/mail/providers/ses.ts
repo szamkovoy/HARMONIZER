@@ -1,16 +1,8 @@
 /**
- * ═══════════════════════════════════════════════════════════════════════════
- * AMAZON SES TAIL — kept for easy switchback when SES leaves sandbox.
+ * Amazon SES send for OTP (and reusable by marketing on Vercel via @aws-sdk).
  *
- * Active provider is selected by AUTH_EMAIL_PROVIDER (default: resend).
- * To send OTP via SES again:
- *   npx supabase secrets set AUTH_EMAIL_PROVIDER=ses
- *   (keep SES_ACCESS_KEY_ID / SES_SECRET_ACCESS_KEY / SES_REGION set)
- *
- * To remove SES entirely later: delete this file, the "ses" branch in
- * send.ts, SES_* secrets, and the DNS records listed in
- * docs/04_workspace/email_providers.md § «SES DNS tails».
- * ═══════════════════════════════════════════════════════════════════════════
+ * Selected by EMAIL_OTP / EMAIL_MARKETING profile (AMAZON_ZAMKOVOI_*).
+ * Secrets: SES_ACCESS_KEY_ID, SES_SECRET_ACCESS_KEY, SES_REGION.
  */
 import { SESv2Client, SendEmailCommand } from "npm:@aws-sdk/client-sesv2@3.787.0";
 import type { OutboundEmail, SendResult } from "../types.ts";
@@ -35,7 +27,7 @@ export async function sendViaSes(mail: OutboundEmail): Promise<SendResult> {
   if (!accessKeyId || !secretAccessKey) {
     return {
       ok: false,
-      detail: "SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are required when AUTH_EMAIL_PROVIDER=ses",
+      detail: "SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are required for AMAZON_* email profiles",
     };
   }
 
@@ -45,7 +37,8 @@ export async function sendViaSes(mail: OutboundEmail): Promise<SendResult> {
   });
 
   try {
-    await client.send(
+    const configSet = Deno.env.get("SES_CONFIGURATION_SET")?.trim();
+    const out = await client.send(
       new SendEmailCommand({
         FromEmailAddress: formatFromEmailAddress(mail.fromName, mail.fromEmail),
         Destination: { ToAddresses: [mail.to] },
@@ -58,9 +51,10 @@ export async function sendViaSes(mail: OutboundEmail): Promise<SendResult> {
             },
           },
         },
+        ...(configSet ? { ConfigurationSetName: configSet } : {}),
       }),
     );
-    return { ok: true };
+    return { ok: true, messageId: out.MessageId?.trim() || undefined };
   } catch (error: any) {
     const detail = [
       error?.name,

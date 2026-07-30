@@ -1,3 +1,4 @@
+import { resolveMarketingTransportProfile } from "../../_utils/emailTransportProfile";
 import { syncResendSuppressionsToContacts } from "../../_utils/syncResendSuppressions";
 import { createServiceSupabase, errorResponse, json } from "../../_utils/supabase";
 
@@ -20,6 +21,16 @@ export async function POST(req: Request) {
   const unauthorized = assertCronSecret(req);
   if (unauthorized) return unauthorized;
   try {
+    const marketing = resolveMarketingTransportProfile({
+      EMAIL_MARKETING: process.env.EMAIL_MARKETING,
+    });
+    if (marketing.provider !== "resend") {
+      return json({
+        ok: true,
+        skipped: true,
+        reason: `EMAIL_MARKETING=${marketing.id} — Resend suppressions sync not applicable`,
+      });
+    }
     const result = await syncResendSuppressionsToContacts(createServiceSupabase(), {
       maxPages: 10,
     });

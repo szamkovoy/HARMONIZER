@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.6
-updated: 2026-07-28
+version: 1.7
+updated: 2026-07-30
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -21,7 +21,11 @@ code_refs:
     _legacy_web/app/api/cron/email-suppressions-sync/route.ts,
     supabase/migrations/20260727180000_email_suppressions_sync_cron.sql,
     _legacy_web/app/api/webhooks/resend-marketing/route.ts,
+    _legacy_web/app/api/webhooks/ses-marketing/route.ts,
     _legacy_web/app/api/_utils/marketingMail.ts,
+    _legacy_web/app/api/_utils/emailTransportProfile.ts,
+    _legacy_web/app/api/_utils/sesMarketingSend.ts,
+    _legacy_web/app/api/_utils/marketingDeliveryEvents.ts,
     _legacy_web/app/api/_utils/emailSegment.ts,
     _legacy_web/app/api/_utils/emailAutomationRunner.ts,
     _legacy_web/app/api/_utils/emailDeliverability.ts,
@@ -39,13 +43,13 @@ code_refs:
     _legacy_web/app/api/email/track/open/route.ts,
     _legacy_web/app/api/email/track/click/route.ts,
     _legacy_web/app/api/_utils/emailFirstPartyTracking.ts,
+    docs/04_workspace/email_providers.md,
   ]
 ---
 
 ## 1. Назначение (продукт)
 
-Админские маркетинговые письма с домена **`zamkovoi.ru`** (Resend key `RESEND_ZAMKOVOI_RU_API_KEY`).  
-OTP на `zamkovoi.yoga` изолирован и **не** использует этот ключ.
+Админские маркетинговые письма. Транспорт выбирается **`EMAIL_MARKETING`** (`RESEND_ZAMKOVOI_*` | `AMAZON_ZAMKOVOI_*` — см. `docs/04_workspace/email_providers.md`). Сейчас по умолчанию **`RESEND_ZAMKOVOI_RU`**. OTP изолирован (`EMAIL_OTP`, edge `send-auth-email`) и **не** использует marketing-ключ.
 
 **Фаза A–D + F (сейчас):** кампании, сегменты, блочный редактор, цепочки B2+C1/C2, user card, **deliverability** + auto-suppress; **F** — уведомления list-first как рассылки (черновик/`sent_at`); списки `/admin/email` и `/admin/notifications` с `?page=&limit=50&user_id=`.
 
@@ -69,23 +73,26 @@ OTP на `zamkovoi.yoga` изолирован и **не** использует �
 - `POST /api/admin/email/deliverability` — `{action:"suppress"|"unsuppress", email?}`
 - UI: `/admin/email/deliverability` (метрики + просмотр Resend list; без sync на GET); цифры статусов подписки (>0) → `/admin/email/contacts?status=`
 - `GET /api/admin/email/contacts?status=` — список контактов по `marketing_status` (до 200)
-- **Open/click:** Resend custom tracking недоступен для `.ru` (TLS). Считаем first-party: пиксель `GET /api/email/track/open` + редирект `GET /api/email/track/click` (desktop/mobile); ключи в `email_tracking_keys`; события `email.opened` / `email.clicked` в `email_events` (как у webhook). Bounce/complaint — только Resend webhook.
-- Cron daily `20 5 * * *` → `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync` — Resend suppressions → `email_contacts` (active→suppressed/complained). Жёсткий отказ/спам по-прежнему сразу через webhook.
+- **Open/click:** first-party пиксель `GET /api/email/track/open` + редирект `GET /api/email/track/click` (Resend tracking на `.ru` недоступен). Ключи в `email_tracking_keys`. Bounce/complaint — webhook провайдера (Resend и/или SES).
+- Cron daily `20 5 * * *` → `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync` — Resend suppressions → `email_contacts` **только если** `EMAIL_MARKETING` = Resend; иначе skip. Жёсткий отказ/спам — сразу через webhook.
 
-**Webhooks** `POST /api/webhooks/resend-marketing`:
+**Send:** `sendMarketingEmail()` → Resend или SES по `EMAIL_MARKETING`; provider message id пишется в `resend_id`.
 
-| Event | Действие |
+**Webhooks**
+
+- `POST /api/webhooks/resend-marketing` — Resend Svix/Bearer (`RESEND_MARKETING_WEBHOOK_SECRET`).
+- `POST /api/webhooks/ses-marketing?token=` — SES via SNS (`SES_MARKETING_WEBHOOK_SECRET`); SubscriptionConfirmation supported.
+
+Оба пути → `applyMarketingDeliveryEvent` (общие счётчики кампаний/шагов + local suppress). Match по `resend_id` (= Resend id или SES MessageId).
+
+| Event (Resend / SES) | Действие |
 | --- | --- |
-| sent/delivered/opened/clicked | counters + send status |
-| delivery_delayed | log only |
-| bounced (Permanent) | local `suppressed` + Resend suppressions.add |
-| bounced (Transient) | log, **no** suppress |
-| complained | local `complained` + Resend suppressions.add |
-| failed | log + send failed |
-| suppressed / suppression.added | local `suppressed` |
-| suppression.removed | local `suppressed`→`active` |
-
-Matched by `resend_id` on `email_campaign_sends` **or** `email_automation_sends`; fallback contact by `to[]` email.
+| sent / Send | send status |
+| delivered / Delivery | `delivered_count` |
+| opened/clicked / Open/Click | counters (обычно first-party) |
+| bounced Permanent / Bounce Permanent | `bounced_count` + local suppressed (+ Resend suppressions API if Resend) |
+| bounced Transient | bounce counter, **no** suppress |
+| complained / Complaint | `complained_count` + local complained |
 
 **Публично:** unsubscribe · webhook.
 

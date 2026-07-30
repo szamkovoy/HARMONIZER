@@ -1,17 +1,16 @@
 import { readResendApiKey, resolveChannel } from "./channels.ts";
+import { resolveOtpTransportProfile } from "./emailTransportProfile.ts";
 import { sendViaResend } from "./providers/resend.ts";
 import { sendViaSes } from "./providers/ses.ts";
 import type { MailChannelId, MailProviderId, OutboundEmail, SendResult } from "./types.ts";
 
 /**
- * Active transport for all channels.
- * - resend (default) — production while SES is in sandbox
- * - ses — AMAZON SES TAIL; flip AUTH_EMAIL_PROVIDER=ses to switch back
+ * Active OTP transport from EMAIL_OTP (preferred) or legacy AUTH_EMAIL_PROVIDER.
+ * Profiles: RESEND_ZAMKOVOI_* | AMAZON_ZAMKOVOI_* — see emailTransportProfile.ts
  */
 export function resolveProvider(): MailProviderId {
-  const raw = (Deno.env.get("AUTH_EMAIL_PROVIDER") ?? "resend").trim().toLowerCase();
-  if (raw === "ses" || raw === "amazon" || raw === "amazon_ses") return "ses";
-  return "resend";
+  const profile = resolveOtpTransportProfile();
+  return profile.provider === "amazon" ? "ses" : "resend";
 }
 
 export async function sendMail(
@@ -23,10 +22,10 @@ export async function sendMail(
     ...mail,
     fromEmail: mail.fromEmail || channel.fromEmail,
   };
-  const provider = resolveProvider();
+  const profile = resolveOtpTransportProfile();
+  const provider: MailProviderId = profile.provider === "amazon" ? "ses" : "resend";
 
   if (provider === "ses") {
-    // AMAZON SES TAIL path — same From address as Resend OTP channel.
     const result = await sendViaSes(outbound);
     return { ...result, provider, channel: channelId };
   }

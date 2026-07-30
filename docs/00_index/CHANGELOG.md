@@ -1,3 +1,4 @@
+- 2026-07-30 (339): Email transport profiles — `EMAIL_OTP` / `EMAIL_MARKETING` (Resend↔Amazon × yoga|ru); OTP default Amazon yoga; marketing default Resend ru; SES marketing webhook for future flip; shared delivery event apply.
 - 2026-07-30 (338): Client geo place — sync `country_code`/`city` after onboarding GPS and on every `logAppOpen` (even when event is throttled).
 - 2026-07-30 (337): Admin email segment — «Демо» = active trial (same as Users); new chip «Новые 24ч»; Навигатор excludes trial. Store app unchanged.
 - 2026-07-30 (336): Admin users — list/card badge shows effective access («Демо» while trial active), not raw free→«Навигатор»; filter order clarified. No membership/access change.

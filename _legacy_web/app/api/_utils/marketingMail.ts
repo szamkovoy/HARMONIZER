@@ -1,7 +1,12 @@
 /**
- * Marketing channel transport (Resend zamkovoi.ru).
- * Never used by Auth OTP — OTP stays on send-auth-email + yoga key.
+ * Marketing channel transport — Resend or Amazon SES via EMAIL_MARKETING profile.
+ * Never used by Auth OTP — OTP uses send-auth-email + EMAIL_OTP.
+ *
+ * `resendId` on send rows = provider message id (Resend id or SES MessageId).
  */
+
+import { resolveMarketingTransportProfile } from "./emailTransportProfile";
+import { sendMarketingEmailViaSes } from "./sesMarketingSend";
 
 export type MarketingSendInput = {
   to: string;
@@ -18,8 +23,6 @@ export type MarketingSendResult =
   | { ok: true; resendId: string }
   | { ok: false; detail: string };
 
-const DEFAULT_FROM = "sergei@zamkovoi.ru";
-
 /** Same rule as Auth OTP: RU Cyrillic name, otherwise Latin. */
 export function marketingSenderName(locale?: string | null): string {
   const loc = (locale ?? "ru").trim().toLowerCase().slice(0, 2);
@@ -35,21 +38,30 @@ function formatFrom(fromName: string, fromEmail: string): string {
   return `"${escaped}" <${fromEmail}>`;
 }
 
+export function getMarketingTransportProfile() {
+  return resolveMarketingTransportProfile({
+    EMAIL_MARKETING: process.env.EMAIL_MARKETING,
+  });
+}
+
 export function getMarketingFrom(locale?: string | null): {
   fromEmail: string;
   fromName: string;
 } {
+  const profile = getMarketingTransportProfile();
   // Display name always follows locale (same as OTP). Do not override with a
   // static env string — that would force one name for all languages.
   return {
     fromEmail:
-      process.env.MAIL_MARKETING_FROM_EMAIL?.trim() || DEFAULT_FROM,
+      process.env.MAIL_MARKETING_FROM_EMAIL?.trim() || profile.defaultFromEmail,
     fromName: marketingSenderName(locale),
   };
 }
 
 export function getMarketingApiKey(): string {
-  return (process.env.RESEND_ZAMKOVOI_RU_API_KEY ?? "").trim();
+  const profile = getMarketingTransportProfile();
+  if (profile.provider !== "resend" || !profile.resendApiKeyEnv) return "";
+  return (process.env[profile.resendApiKeyEnv] ?? "").trim();
 }
 
 export function getEmailPublicBaseUrl(): string {
@@ -75,14 +87,19 @@ export function htmlToPlaintext(html: string): string {
     .trim();
 }
 
-export async function sendMarketingEmail(
+async function sendViaResend(
   input: MarketingSendInput,
+  fromEmail: string,
+  fromName: string,
 ): Promise<MarketingSendResult> {
+  const profile = getMarketingTransportProfile();
   const apiKey = getMarketingApiKey();
   if (!apiKey) {
-    return { ok: false, detail: "RESEND_ZAMKOVOI_RU_API_KEY is not set" };
+    return {
+      ok: false,
+      detail: `${profile.resendApiKeyEnv ?? "RESEND_*_API_KEY"} is not set for EMAIL_MARKETING=${profile.id}`,
+    };
   }
-  const { fromEmail, fromName } = getMarketingFrom(input.locale);
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -124,7 +141,30 @@ export async function sendMarketingEmail(
   return { ok: true, resendId };
 }
 
-/** Soft rate limit between Resend calls. */
+export async function sendMarketingEmail(
+  input: MarketingSendInput,
+): Promise<MarketingSendResult> {
+  const profile = getMarketingTransportProfile();
+  const { fromEmail, fromName } = getMarketingFrom(input.locale);
+
+  if (profile.provider === "amazon") {
+    const result = await sendMarketingEmailViaSes({
+      fromName,
+      fromEmail,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      unsubscribeUrl: input.unsubscribeUrl,
+    });
+    if (!result.ok) return result;
+    return { ok: true, resendId: result.messageId };
+  }
+
+  return sendViaResend(input, fromEmail, fromName);
+}
+
+/** Soft rate limit between provider calls. */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

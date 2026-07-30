@@ -1,147 +1,147 @@
 ---
 id: 04_workspace/email_providers
-title: Email providers — OTP (zamkovoi.yoga) vs marketing (zamkovoi.ru)
-version: 1.0
-updated: 2026-07-23
-depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
+title: Email providers — OTP vs marketing (Resend ↔ Amazon)
+version: 2.0
+updated: 2026-07-30
+depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec, 02_modules/marketing_email/spec]
 code_refs:
   [
     supabase/functions/send-auth-email/index.ts,
     supabase/functions/send-auth-email/mail/send.ts,
-    supabase/functions/send-auth-email/mail/channels.ts,
+    supabase/functions/send-auth-email/mail/emailTransportProfile.ts,
     supabase/functions/send-auth-email/mail/providers/resend.ts,
     supabase/functions/send-auth-email/mail/providers/ses.ts,
+    _legacy_web/app/api/_utils/emailTransportProfile.ts,
+    _legacy_web/app/api/_utils/marketingMail.ts,
+    _legacy_web/app/api/_utils/sesMarketingSend.ts,
+    _legacy_web/app/api/webhooks/resend-marketing/route.ts,
+    _legacy_web/app/api/webhooks/ses-marketing/route.ts,
   ]
 ---
 
-# Email providers (OTP + future marketing)
+# Email providers (OTP + marketing)
 
-Operational map for transactional OTP and the future marketing branch.
-**Code is canonical**; this file is the cleanup / switch checklist.
+Operational map for transactional OTP and admin marketing.
+**Code is canonical**; this file is the switch / DNS / webhook checklist.
 
 ## 1. Channels (must stay separate)
 
-| Channel | Purpose | From | Resend API key env | Code entry |
+| Channel | Purpose | Env switch | Code entry |
+| --- | --- | --- | --- |
+| OTP | Sign-in codes (Supabase Send Email Hook) | **`EMAIL_OTP`** (Supabase secrets) | `send-auth-email` → `sendMail("auth_otp", …)` |
+| Marketing | Admin broadcasts / automations | **`EMAIL_MARKETING`** (Vercel) | `_legacy_web` → `sendMarketingEmail()` |
+
+Reputation on `zamkovoi.ru` must never affect OTP on `zamkovoi.yoga` (and vice versa). Use separate Resend API keys / SES identities per domain.
+
+## 2. Transport profiles (canonical)
+
+Both `EMAIL_OTP` and `EMAIL_MARKETING` accept **exactly one** of:
+
+| Value | Provider | Domain | Resend key env | Default From |
 | --- | --- | --- | --- | --- |
-| `auth_otp` | Sign-in OTP via Supabase Send Email Hook | `sergei@zamkovoi.yoga` (`MAIL_FROM_EMAIL`) | **`RESEND_ZAMKOVOI_YOGA_API_KEY`** | `sendMail("auth_otp", …)` in `send-auth-email` |
-| `marketing` | Admin broadcasts (`marketing_email`) | `sergei@zamkovoi.ru` (`MAIL_MARKETING_FROM_EMAIL`) | **`RESEND_ZAMKOVOI_RU_API_KEY`** | Vercel `_legacy_web/app/api/_utils/marketingMail.ts` (never Auth OTP hook) |
+| `RESEND_ZAMKOVOI_RU` | Resend | ru | `RESEND_ZAMKOVOI_RU_API_KEY` | `sergei@zamkovoi.ru` |
+| `RESEND_ZAMKOVOI_YOGA` | Resend | yoga | `RESEND_ZAMKOVOI_YOGA_API_KEY` | `sergei@zamkovoi.yoga` |
+| `AMAZON_ZAMKOVOI_RU` | Amazon SES | ru | — | `sergei@zamkovoi.ru` |
+| `AMAZON_ZAMKOVOI_YOGA` | Amazon SES | yoga | — | `sergei@zamkovoi.yoga` |
 
-Do **not** reuse the yoga key for marketing or the ru key for OTP.
-Reputation (spam / bulk) on `zamkovoi.ru` must never affect OTP deliverability on `zamkovoi.yoga`.
+Display names stay locale-driven (RU «Сергей Замковой» / else «Sergei Zamkovoi»). Optional overrides: `MAIL_FROM_EMAIL`, `MAIL_MARKETING_FROM_EMAIL`.
 
-## 2. Active transport switch
-
-| Env | Values | Default |
-| --- | --- | --- |
-| `AUTH_EMAIL_PROVIDER` | `resend` \| `ses` | `resend` |
+### Active production defaults (2026-07-30)
 
 ```bash
-# Current (SES sandbox blocked production recipients) — Resend for OTP:
-npx supabase secrets set AUTH_EMAIL_PROVIDER=resend
-npx supabase secrets set RESEND_ZAMKOVOI_YOGA_API_KEY=<from .env.local>
-
-# Switch back to Amazon SES after production access is approved:
-npx supabase secrets set AUTH_EMAIL_PROVIDER=ses
-# SES_* secrets must still be present (see §4 tails)
+EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA          # Supabase secrets
+EMAIL_MARKETING=RESEND_ZAMKOVOI_RU      # Vercel (+ _legacy_web/.env.local)
 ```
 
-Redeploy is optional after secret-only changes; after code changes:
+Later (when SES identity + events for `.ru` are ready):
 
 ```bash
+EMAIL_MARKETING=AMAZON_ZAMKOVOI_RU
+```
+
+### Legacy OTP fallback
+
+If `EMAIL_OTP` is unset: `AUTH_EMAIL_PROVIDER=ses|amazon|amazon_ses` → `AMAZON_ZAMKOVOI_YOGA`, else → `RESEND_ZAMKOVOI_YOGA`. Prefer setting `EMAIL_OTP` explicitly.
+
+## 3. Flip commands
+
+### OTP → Amazon (current)
+
+```bash
+npx supabase secrets set EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA
+# SES_* must already be present
 npx supabase functions deploy send-auth-email
 ```
 
-## 3. Resend DNS (active for OTP) — `zamkovoi.yoga`
+### OTP back to Resend yoga
 
-Added in Resend dashboard when the domain was verified (keep while OTP uses Resend):
+```bash
+npx supabase secrets set EMAIL_OTP=RESEND_ZAMKOVOI_YOGA
+npx supabase secrets set RESEND_ZAMKOVOI_YOGA_API_KEY=<key>
+npx supabase functions deploy send-auth-email
+```
+
+### Marketing stay on Resend ru (current)
+
+```bash
+# Vercel production
+npx vercel env add EMAIL_MARKETING production   # value: RESEND_ZAMKOVOI_RU
+# RESEND_ZAMKOVOI_RU_API_KEY + RESEND_MARKETING_WEBHOOK_SECRET already set
+```
+
+### Marketing → Amazon ru (when ready)
+
+Prerequisites:
+
+1. SES identity `zamkovoi.ru` (+ `sergei@zamkovoi.ru`) verified in production.
+2. DNS Easy DKIM / Custom MAIL FROM for `.ru` (mirror yoga §4).
+3. SES **Configuration Set** (e.g. `harmonizer-marketing`) with event destination → SNS → HTTPS  
+   `https://harmonizer-ten.vercel.app/api/webhooks/ses-marketing?token=<SES_MARKETING_WEBHOOK_SECRET>`  
+   Events: send, delivery, bounce, complaint (open/click optional — first-party preferred).
+4. Vercel: `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_REGION`, `SES_CONFIGURATION_SET`, `SES_MARKETING_WEBHOOK_SECRET`, then `EMAIL_MARKETING=AMAZON_ZAMKOVOI_RU`.
+5. Deploy `_legacy_web` production.
+
+## 4. Deliverability stats continuity
+
+KPI cards (sent / delivered / opened / clicks / bounce / spam) read **Supabase counters**, not Resend UI.
+
+| Metric | Source | After marketing → Amazon |
+| --- | --- | --- |
+| Sent | our send path | continues |
+| Opened / Clicks | first-party `/api/email/track/*` | continues |
+| Delivered / Bounce / Complaint | provider webhook → same counters | historical Resend rows stay; **new** SES events need §3 Configuration Set webhook |
+| Resend suppressions list in admin | Resend API | skipped when `EMAIL_MARKETING` is Amazon; local suppress still from SES bounce/complaint |
+
+Provider message id is stored in column `resend_id` (Resend id or SES `MessageId`).
+
+## 5. Resend DNS — `zamkovoi.yoga` (keep while any Resend yoga profile)
 
 | Type | Name | Value (typical) |
 | --- | --- | --- |
-| TXT | `resend._domainkey` | Resend DKIM public key (`p=MIGf…`) |
-| MX | `send` | `10 feedback-smtp.<region>.amazonses.com` (Resend MAIL FROM; region may vary) |
+| TXT | `resend._domainkey` | Resend DKIM public key |
+| MX | `send` | `10 feedback-smtp.<region>.amazonses.com` |
 | TXT | `send` | `v=spf1 include:amazonses.com ~all` |
 
-Resend signs OTP with DKIM selector **`s=resend`** and often uses Return-Path on **`send.zamkovoi.yoga`**.
-That is expected for Resend — do **not** confuse with Amazon SES Custom MAIL FROM (`sesmail`).
+## 6. Amazon SES DNS — `zamkovoi.yoga` (OTP)
 
-When removing Resend later: delete the three rows above from DNS **and** unset
-`RESEND_ZAMKOVOI_YOGA_API_KEY` / set `AUTH_EMAIL_PROVIDER=ses` (or another provider).
+Easy DKIM (three CNAMEs) + Custom MAIL FROM `sesmail.zamkovoi.yoga` — see history / AWS console. Keep while `AMAZON_ZAMKOVOI_YOGA` is used.
 
-## 4. AMAZON SES DNS tails (keep until SES is abandoned)
+## 7. Shared secrets
 
-These were added ~2026-07-16…17 for SES Easy DKIM + Custom MAIL FROM.
-**Leave them in DNS while SES code/secrets remain** so switchback is one secret flip.
-
-### 4.1 Easy DKIM (apex `zamkovoi.yoga`) — three CNAME
-
-| Type | Name | Value |
+| Secret | Where | Role |
 | --- | --- | --- |
-| CNAME | `ezx36odz3ufautxilps5jmzhxxtklf3q._domainkey` | `ezx36odz3ufautxilps5jmzhxxtklf3q.dkim.amazonses.com` |
-| CNAME | `oapze4knnhqq72qbelecla2ic2mtt7fq._domainkey` | `oapze4knnhqq72qbelecla2ic2mtt7fq.dkim.amazonses.com` |
-| CNAME | `hz46ulv5tnwtp4qx2bkukijomm57xrzn._domainkey` | `hz46ulv5tnwtp4qx2bkukijomm57xrzn.dkim.amazonses.com` |
+| `EMAIL_OTP` | Supabase | OTP profile |
+| `EMAIL_MARKETING` | Vercel | Marketing profile |
+| `SES_ACCESS_KEY_ID` / `SES_SECRET_ACCESS_KEY` / `SES_REGION` | Supabase + Vercel | Amazon send |
+| `SES_CONFIGURATION_SET` | Vercel (marketing) | Attach events to sends |
+| `SES_MARKETING_WEBHOOK_SECRET` | Vercel | Auth for `/api/webhooks/ses-marketing?token=` |
+| `RESEND_ZAMKOVOI_YOGA_API_KEY` | Supabase | Resend OTP |
+| `RESEND_ZAMKOVOI_RU_API_KEY` | Vercel | Resend marketing |
+| `RESEND_MARKETING_WEBHOOK_SECRET` | Vercel | Resend Svix / Bearer |
+| `SEND_EMAIL_HOOK_SECRET` | Supabase | Auth hook HMAC |
+| `MAIL_FROM_EMAIL` / `MAIL_MARKETING_FROM_EMAIL` | optional From overrides |
+| `EMAIL_PUBLIC_BASE_URL` / `EMAIL_UNSUBSCRIBE_SECRET` / `EMAIL_TRACKING_SECRET` | Vercel | track + unsubscribe |
 
-### 4.2 Custom MAIL FROM — `sesmail.zamkovoi.yoga`
+## 8. History note (2026-07-17 trap)
 
-Added after Yandex flagged Return-Path `@eu-west-1.amazonses.com` (must be set on
-**both** domain identity `zamkovoi.yoga` and email identity `sergei@zamkovoi.yoga` in SES console).
-
-| Type | Name | Value |
-| --- | --- | --- |
-| MX | `sesmail` | `10 feedback-smtp.eu-west-1.amazonses.com` |
-| TXT | `sesmail` | `v=spf1 include:amazonses.com ~all` |
-
-### 4.3 Not SES (do not delete as “SES cleanup”)
-
-| Record | Belongs to |
-| --- | --- |
-| `resend._domainkey`, MX/TXT `send` | **Resend** (active OTP) |
-| `mail._domainkey`, MX `@` → `mx.yandex.net`, SPF `redirect=_spf.yandex.net` | **Yandex 360** inbound mailbox |
-| `getcourse._domainkey`, SPF `gca.to`, CNAME `sergei` → GetCourse | GetCourse |
-| `smtp.bz._domainkey`, SPF `spf.smtp.bz`, CNAME `stats` | smtp.bz |
-
-### 4.4 SES secrets / code tails (Supabase)
-
-Keep until you decide to drop Amazon entirely:
-
-- Secrets: `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_REGION` (`eu-west-1`)
-- Code: `supabase/functions/send-auth-email/mail/providers/ses.ts` (marked **AMAZON SES TAIL**)
-- Switch: `AUTH_EMAIL_PROVIDER=ses`
-
-**Full SES removal checklist** (only when asked):
-
-1. DNS: delete §4.1 three CNAMEs + §4.2 `sesmail` MX/TXT.
-2. Supabase: `npx supabase secrets unset SES_ACCESS_KEY_ID SES_SECRET_ACCESS_KEY SES_REGION` (and drop `ses` from `AUTH_EMAIL_PROVIDER` usage).
-3. Code: delete `mail/providers/ses.ts` and the `ses` branch in `mail/send.ts`.
-4. AWS: optional — delete IAM user / SES identities / cancel production request.
-
-## 5. Shared secrets (both providers)
-
-| Secret | Role |
-| --- | --- |
-| `SEND_EMAIL_HOOK_SECRET` | Supabase Auth → edge hook HMAC |
-| `MAIL_FROM_EMAIL` | OTP From address (default `sergei@zamkovoi.yoga`) |
-| `MAIL_FROM_NAME` | Optional From display-name override |
-| `MAIL_MARKETING_FROM_EMAIL` | Marketing From (default `sergei@zamkovoi.ru`) |
-| `RESEND_ZAMKOVOI_RU_API_KEY` | Marketing Resend key — **Vercel** production (not OTP edge) |
-| `RESEND_MARKETING_WEBHOOK_SECRET` | Verify `POST /api/webhooks/resend-marketing` — Resend Svix `whsec_…` **or** `Authorization: Bearer <secret>` (plain hex OK for phase A) |
-| `EMAIL_UNSUBSCRIBE_SECRET` | HMAC for `/unsubscribe/email?t=` tokens |
-
-## 5b. Marketing DNS — `zamkovoi.ru` (ops checklist)
-
-1. Add domain in Resend dashboard (same account or separate — key must be RU key only).
-2. Publish DKIM / SPF / MX for Resend on `zamkovoi.ru` (mirror yoga pattern; values from Resend UI).
-3. Configure **custom tracking subdomain** (open/click) on `zamkovoi.ru` — avoid shared Resend tracking host.
-4. Point webhook to `https://harmonizer-ten.vercel.app/api/webhooks/resend-marketing`.  
-   **Events to enable:** `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.opened`, `email.clicked`, `email.bounced`, `email.complained`, `email.failed`, `email.suppressed`, `suppression.added`, `suppression.removed`.  
-   **Skip:** `email.received`, `email.scheduled` (not used).  
-   Put the Resend signing secret (`whsec_…`) into Vercel `RESEND_MARKETING_WEBHOOK_SECRET` (Svix headers).  
-   Hard bounce + complaint → local `email_contacts` suppress/complained **and** Resend `/suppressions` API. Soft (Transient) bounce does not suppress.
-5. Never put `RESEND_ZAMKOVOI_RU_API_KEY` into OTP-only secrets unless intentionally shared read — prefer Vercel-only for send path.
-
-## 6. History note (2026-07-17 trap)
-
-When switching Resend → SES the first time, OTP still went through Resend because
-`RESEND_API_KEY` remained in secrets while SES keys were missing. Headers showed
-`DKIM s=resend` and `Return-Path @send.zamkovoi.yoga` even though DNS for Resend
-had been removed. Always verify a fresh OTP source: Resend → `s=resend`; SES Easy
-DKIM → one of the three tokens in §4.1.
+Missing SES keys while an old Resend key remained made OTP look like SES but still send via Resend. Always verify a fresh message: Resend → DKIM `s=resend`; SES Easy DKIM → Amazon CNAMEs.
