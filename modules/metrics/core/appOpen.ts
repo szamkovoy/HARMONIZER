@@ -12,27 +12,30 @@ let lastLoggedAt = 0;
 
 export async function logAppOpen(userId: string): Promise<void> {
   const now = Date.now();
-  if (now - lastLoggedAt < MIN_INTERVAL_MS) return;
-  lastLoggedAt = now;
-
-  const supabase = getSupabase();
-  if (!supabase) return;
-  const nowIso = new Date().toISOString();
-  const [{ error: eventError }, { error: seenError }] = await Promise.all([
-    supabase.from("user_event_log").insert({
-      user_id: userId,
-      kind: "app_open",
-      payload: {},
-    }),
-    supabase.from("users").update({ last_seen_at: nowIso }).eq("id", userId),
-  ]);
-  if (eventError) {
-    lastLoggedAt = 0;
-    console.warn("[metrics] app_open log failed", eventError.message);
+  const throttled = now - lastLoggedAt < MIN_INTERVAL_MS;
+  if (!throttled) {
+    lastLoggedAt = now;
+    const supabase = getSupabase();
+    if (supabase) {
+      const nowIso = new Date().toISOString();
+      const [{ error: eventError }, { error: seenError }] = await Promise.all([
+        supabase.from("user_event_log").insert({
+          user_id: userId,
+          kind: "app_open",
+          payload: {},
+        }),
+        supabase.from("users").update({ last_seen_at: nowIso }).eq("id", userId),
+      ]);
+      if (eventError) {
+        lastLoggedAt = 0;
+        console.warn("[metrics] app_open log failed", eventError.message);
+      }
+      if (seenError) {
+        console.warn("[metrics] last_seen_at update failed", seenError.message);
+      }
+    }
   }
-  if (seenError) {
-    console.warn("[metrics] last_seen_at update failed", seenError.message);
-  }
-  // Страна/город — отдельно и не каждый раз: только если пусто или GPS сильно сдвинулся.
+  // Страна/город — даже при throttle события: координаты часто появляются
+  // после первого app_open (онбординг), а sync внутри needsRefresh сам no-op.
   void maybeSyncUserGeoPlace(userId);
 }

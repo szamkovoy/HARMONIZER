@@ -1,3 +1,4 @@
+- 2026-07-30 (338): Client geo place — sync `country_code`/`city` after onboarding GPS and on every `logAppOpen` (even when event is throttled).
 - 2026-07-30 (337): Admin email segment — «Демо» = active trial (same as Users); new chip «Новые 24ч»; Навигатор excludes trial. Store app unchanged.
 - 2026-07-30 (336): Admin users — list/card badge shows effective access («Демо» while trial active), not raw free→«Навигатор»; filter order clarified. No membership/access change.
 - 2026-07-30 (335): App variants — `APP_VARIANT` gives side-by-side «Harmonizer Expo» / «Harmonizer Test» / store ids so QR, internal test, and Play/TestFlight no longer overwrite each other.

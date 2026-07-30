@@ -45,6 +45,7 @@ import {
   WizardTitle,
   type GeoPlace,
 } from "@/modules/onboarding";
+import { scheduleGeoPlaceSyncAfterCoords } from "@/modules/location/syncUserGeoPlace";
 import {
   ddmmyyyyToIso,
   formatDateMask,
@@ -341,6 +342,7 @@ export default function OnboardingScreen() {
           .update({ tz, lat, lon })
           .eq("id", authUser.id);
         if (updErr) throw updErr;
+        scheduleGeoPlaceSyncAfterCoords(authUser.id);
         setGeoDenied(false);
         if (repairMode) {
           void finishOnboarding();
@@ -427,6 +429,7 @@ export default function OnboardingScreen() {
         .update({ tz, lat, lon })
         .eq("id", authUser.id);
       if (updErr) throw updErr;
+      scheduleGeoPlaceSyncAfterCoords(authUser.id);
       setGeoDenied(false);
 
       if (repairMode) {

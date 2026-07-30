@@ -10,6 +10,8 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-07-30 (geo place after onboard GPS):** После записи `lat`/`lon` в шаге 2 — `scheduleGeoPlaceSyncAfterCoords` (фон `country_code`/`city` через `/api/geo/reverse`). Раньше sync шёл только с `app_open`/`acquireAndPersist`, и часто не успевал, если первый `app_open` был до GPS.
+
 - **2026-07-28 (geo city settlement):** `GET /api/geo/reverse` — prefer town/city; если только деревня — второй Nominatim `zoom=10` (районный/городской центр). Shared `geoCity` + `geoReverseResolve`; admin GET silent-repair.
 
 - **2026-07-28 (geo city settlement, earlier):** `pickSettlementCity` без municipality/county «округ/район»; repair из `location_name`.

@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-30 (geo place sync gaps):** `logAppOpen` всегда вызывает `maybeSyncUserGeoPlace` (троттлинг 30 мин только на insert/`last_seen_at`). Онбординг после GPS — см. onboarding history. Иначе админские `country_code`/`city` оставались null при уже заполненных `lat`/`lon`/`location_name`.
+
 - **2026-07-29 (profile polish):** Subtitle → «Здесь находится информация о вас и ряд полезных отчетов»; удалены блоки «Текущий доступ», DevTierSwitch (дубль Home), «Скоро здесь»; диагностика остаётся только при `HARMONIZER_TEST_MODE`.
 
 - **2026-07-29 (test UI gate):** `DevTierSwitch` и блок «Диагностика ресурсов» только при `HARMONIZER_TEST_MODE` (не `__DEV__` / не OR с test mode).

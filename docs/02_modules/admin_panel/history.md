@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-07-30 (client geo place sync):** Документирован клиентский фикс: `country_code`/`city` после GPS в онбординге + `maybeSync` на каждом `logAppOpen` (не только вне throttle). Нужен новый мобильный билд; бэкенд не менялся.
+
 - **2026-07-30 (users Demo badge):** Список/карточка показывают **доступ сейчас** (`AccessNowBadge`: trial → «Демо»), а не сырой `membership_tier` (free всегда выглядел как «Навигатор»). Фильтр «Демо» уже был (`access=trial`); сырой тариф переименован в «Тариф в БД». Доступ пользователей не меняется — только админ-UI.
 
 - **2026-07-29 (post translate timeout):** `adminFetch({ timeoutMs })` для `/api/admin/translate` (180s); роут чанкует post-перевод; источник — активная вкладка; EN→все кроме RU.
