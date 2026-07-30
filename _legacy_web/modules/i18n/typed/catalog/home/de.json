@@ -1,0 +1,160 @@
+{
+  "appTitle": "Harmonizer",
+  "assistantTitle": "Assistent",
+  "astroChartModal": {
+    "titleTransit": "Natal- + Transitkarte",
+    "titleNatal": "Natal-Karte",
+    "titleGlobal": "Transit-Horoskop des Tages",
+    "subtitle": "Innerer Ring — Geburtsplaneten, äußerer Ring — Tages-Transite.",
+    "subtitleGlobal": "Zeigt nur die Transit-Planeten des Tages, Sternzeichen und Aspekte zwischen ihnen an.",
+    "housesHiddenHint": "Häuser nicht sichtbar: Genaue Häuserspitzen nur mit genauer Geburtszeit verfügbar.",
+    "mainAspectsTitle": "Hauptaspekte des Tages",
+    "planetStrengthsTitle": "Planetenstärken",
+    "planetPositionsTitle": "Planetenpositionen",
+    "toNatalConnector": "zum Natalen",
+    "orbPrefix": ", Orbis "
+  },
+  "birthDataMessage": "Um eine persönliche Tagesprognose zu erstellen, geben Sie Geburtsdatum, -zeit und -ort ein.",
+  "birthDataTitle": "Geburtsdatum erforderlich",
+  "chakraFlower": {
+    "title": "Navigator nach Archetypen",
+    "captionFree": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages",
+    "captionPersonal": "Ein psycho-archetypisches Modell, basierend auf der planetarischen Dynamik dieses Tages – persönlich für Sie",
+    "helpButtonAccessibilityLabel": "Erklärung zum archetypischen Navigator",
+    "helpModalTitle": "Wie man den Navigator benutzt",
+    "helpBody": "Die Größe der sieben Blütenblätter dieser Blume entspricht der astrologischen Kraft der Planeten an diesem Tag. Heute ist das Ihr Navigator. Seien Sie versichert, dass Sternbilder und Astrologie nicht von Mammutjägern erfunden wurden. Um von Boulevard-Vorhersagen zur Harmonisierung Ihrer Psyche und Ihres Lebens überzugehen, nutzen Sie diese Weisheit – betrachten Sie jeden Planeten nicht als Punkt im Horoskop, sondern als Archetyp. Indem Sie sich im Rhythmus der Planetenbewegungen mit den Zuständen der Archetypen verbinden, werden Sie die Knoten Ihrer Lebensumstände, die sich über viele Jahre verwickelt haben, wirksam entwirren."
+  },
+  "closeAssistantAccessibilityLabel": "Assistenten schließen",
+  "closeButton": "Schließen",
+  "defaultSystemPrompt": "Du bist ein empathischer Mentor der Harmonizer-App. Antworte kurz und auf den Punkt.",
+  "devLinks": {
+    "biofeedback": "Biofeedback",
+    "mandala": "Mandala",
+    "bindu": "Bindu",
+    "symbols": "Symbole",
+    "breath": "Atem",
+    "calibration": "Kalibrierung",
+    "biofeedbackParity": "Biofeedback Parity"
+  },
+  "devResetDayContent": "Aktualisieren",
+  "emptyTimeLabel": "—",
+  "enterBirthDataButton": "Geburtsdatum eingeben",
+  "eventBells": {
+    "title": "Glocken",
+    "empty": "Heute gibt es keine bevorstehenden Astro-Ereignisse mit genauer Zeit.",
+    "aspectTitle": "Aspekt"
+  },
+  "forecastErrorTitle": "Prognose konnte nicht geladen werden",
+  "headerHint": "Die wichtigste Tageseinstellung: Chakren, Fenster der Möglichkeiten und praktische Empfehlung.",
+  "locale": "de",
+  "locationErrorMessage": "Um die Möglichkeitenfenster zu berechnen, benötigen wir Ihren Standort. Bitte erlauben Sie den Zugriff auf die Geoposition und versuchen Sie es erneut.",
+  "locationErrorPermissionMessage": "Der Zugriff auf die Geoposition ist deaktiviert. Bitte öffnen Sie die App-Einstellungen, erlauben Sie die Ortung und kehren Sie hierher zurück.",
+  "locationErrorTimeoutMessage": "Der Standort konnte nicht schnell ermittelt werden. Bitte überprüfen Sie GPS oder WLAN und versuchen Sie es erneut.",
+  "locationErrorTitle": "Standort erforderlich",
+  "longExplanationModal": {
+    "title": "Details",
+    "subtitle": "Ausführliche Erklärung der Tagesempfehlung.",
+    "closeButton": "Schließen",
+    "mathButton": "Berechnungen und Formeln",
+    "mathButtonA11y": "Berechnungen und Formeln der Tagesempfehlung öffnen",
+    "mathCaption": "Exakte Mathematik der Planetenstärke und -harmonie, Aspektgewichte und Wahl des Tagesthemas."
+  },
+  "mathModal": {
+    "title": "Tagesmathematik",
+    "subtitle": "Formeln für Stärke, Harmonie, Transite und Auswahl des Tagesplaneten.",
+    "closeButton": "Schließen",
+    "emptyHint": "Mathematik-Block noch nicht mit Prognose vorhanden. Bitte Tagesprognose nach dem Deployment des Backend-Patches aktualisieren.",
+    "showChartButton": "Geburts- und Transitkarte anzeigen",
+    "showTransitChartButton": "Transit-Horoskop des Tages anzeigen",
+    "chartUnavailableHint": "Die Karte ist nur für Test-/Premium-Nutzer mit Geburtsprofil verfügbar."
+  },
+  "openSettingsButton": "Einstellungen öffnen",
+  "opportunityWindows": {
+    "title": "Fenster der Möglichkeiten",
+    "emptyDetail": "Heute ohne genaues Zeitfenster",
+    "windowTitles": {
+      "sunrise": "Sonnenaufgang",
+      "culmination": "Kulmination",
+      "exactAspect": "Exakter Aspekt"
+    },
+    "aspectLabels": {
+      "conjunction": "Konjunktion",
+      "opposition": "Opposition",
+      "square": "Quadrat",
+      "trine": "Trigon",
+      "sextile": "Sextil"
+    },
+    "reminderModalTitle": "Benachrichtigen",
+    "reminderTextLabel": "Benachrichtigungstext",
+    "reminderModeExact": "genau zu dieser Zeit",
+    "reminderModeBefore5": "5 Minuten vorher",
+    "reminderSave": "Speichern",
+    "reminderCancel": "Abbrechen",
+    "reminderBodyFiveMinPrefix": "5 Minuten vorher",
+    "reminderPastTitle": "Zeitpunkt bereits vorbei",
+    "reminderPastMessage": "Für ein vergangenes Fenster kann keine Benachrichtigung gesetzt werden.",
+    "reminderNotificationsUnavailableTitle": "Benachrichtigungen derzeit nicht verfügbar",
+    "reminderNeedPermissionTitle": "Benachrichtigungen erforderlich",
+    "reminderNeedPermissionMessage": "Erlaube Benachrichtigungen, damit Harmonizer an das Fenster der Möglichkeiten erinnern kann.",
+    "helpButtonAccessibilityLabel": "Erklärung zum Diagramm der Fenster der Möglichkeiten",
+    "helpModalTitle": "Wie man dieses Fenster liest",
+    "helpLoading": "Erläuterung wird geladen...",
+    "reminderNotificationsUnavailableMessage": "Die aktuelle App-Version läuft ohne das native Benachrichtigungsmodul. Nach einem neuen Dev-/Release-Build können die Glöckchen Systembenachrichtigungen einstellen.",
+    "subtitleTemplate": "Hauptthema: {planet}",
+    "paidIntroTemplate": "Heute leben Sie die Zustände, die {natalPlanet} aktiviert. Dabei öffnet {transitPlanet} besondere Fenster der Möglichkeiten.",
+    "sunriseDetailTemplate": "{planet} steigt über den Horizont",
+    "culminationDetailTemplate": "{planet} ist in maximaler Kraft",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} (Transit) und {natalPlanet} (Natal)",
+    "help": {
+      "freeOpening": "Der stärkste Planet des Tages ist {planet}. Das Diagramm zeigt, wann {planet} an Ihrem Standort über den Horizont steigt und den Zenit erreicht.",
+      "paidOpening": "Der stärkste Planet Ihrer Geburtshoroskopkarte ist heute {natalPlanet}. Diese Kraft entsteht vor allem durch die Wechselwirkung mit dem Transitplaneten {transitPlanet}, dessen Bewegung am Himmel besondere Fenster der Möglichkeiten für Sie öffnet.",
+      "paidOpeningNoTransit": "Heute zeigt das Diagramm ein allgemeines Fenster der Möglichkeiten ohne einen klar hervorgehobenen Transitplaneten.",
+      "sunriseLine": "Aufgang: {time} — {planet} steigt über den Horizont.",
+      "culminationLine": "Kulmination: {time} — {planet} im höchsten Punkt des Tageswegs.",
+      "exactAspectLine": "Exakter Aspekt: {time} — {aspect} {transitPlanet} (Transit) und {natalPlanet} (Natal).",
+      "closing": "Das sind Schlüsselmomente genau an Ihrem Standort. Nutzen Sie sie für spirituelle Praktiken, Affirmationen, Absichten, Meditation usw.",
+      "remindersHint": "Tippen Sie auf die Glocke unter dem Diagramm, um Erinnerungen ein- oder auszuschalten."
+    }
+  },
+  "planetBanner": {
+    "eyebrow": "Planet des Tages"
+  },
+  "planetLabels": {
+    "Sun": "Sonne",
+    "Moon": "Mond",
+    "Mercury": "Merkur",
+    "Venus": "Venus",
+    "Mars": "Mars",
+    "Jupiter": "Jupiter",
+    "Saturn": "Saturn"
+  },
+  "recommendation": {
+    "title": "Tagesempfehlungen",
+    "loading": "Empfehlung für heute wird geladen…",
+    "discussButton": "Was tun?",
+    "readMoreButton": "Mehr erfahren",
+    "helpButtonAccessibilityLabel": "Erklärung zu den Tagesempfehlungen",
+    "helpModalTitle": "Grundlage der Empfehlung",
+    "helpBody": "Diese Empfehlung beschreibt den stärksten Planeten dieses Tages als archetypisches Bild gemäß der analytischen Psychologie von Carl Jung. Dadurch wird Ihnen klar, auf welcher Welle von Zuständen es heute sinnvoll ist zu handeln.\\n\\nWenn Sie eine detaillierte astrologische Prognose interessiert, tippen Sie auf die Schaltfläche „Mehr erfahren“. Anschließend können Sie sich mit der Mathematik vertraut machen, die diesen Empfehlungen zugrunde liegt, und sogar das Horoskop einsehen.\\n\\nOder tippen Sie auf die Schaltfläche „Was tun?“, um die Ereignisse, die Ihnen an diesem Tag bevorstehen, durch die Augen dieses Archetyps zu sehen und den Tag in eine Reihe interessanter Psychopraktiken zu verwandeln. Und nach einer Woche der Nutzung dieser Funktion wird sich eine bistochastische Matrix Ihrer Zustände zusammenstellen, und die Empfehlungen werden dadurch präziser.",
+    "discussOpening": "Ich öffne den Assistenten…"
+  },
+  "refreshAccessibilityLabel": "Tagesprognose aktualisieren",
+  "refreshButton": "Aktualisieren",
+  "refreshingLabel": "...",
+  "retryButton": "Wiederholen",
+  "signOutButton": "Abmelden",
+  "signingOutButton": "Abmelden…",
+  "skeletonText": "Erstelle Tagesprognose und Fenster der Möglichkeiten...",
+  "staleContentMessage": "Aktuelle Daten konnten nicht geladen werden, daher wird die letzte gespeicherte Version für heute angezeigt.",
+  "staleContentTitle": "Zeige gespeicherte Prognose",
+  "toneLabels": {
+    "harmonic": "harmonisch",
+    "neutral": "neutral",
+    "dissonant": "dissonant"
+  },
+  "toneRecommendationVerb": {
+    "harmonic": "sanft verstärken",
+    "neutral": "ruhig einstimmen",
+    "dissonant": "behutsam stabilisieren"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "authRequiredMessage": "La sessione è scaduta. Chiudi e riapri l'app o accedi di nuovo.",
+  "authRequiredTitle": "Necessario effettuare di nuovo l'accesso",
+  "dismissButton": "Chiudi",
+  "genericMessage": "Impossibile completare la richiesta. Riprova più tardi.",
+  "genericTitle": "Qualcosa è andato storto",
+  "locale": "it",
+  "networkMessage": "Controlla la connessione Internet o Wi‑Fi e riprova.",
+  "networkTitle": "Impossibile connettersi al server",
+  "retryButton": "Riprova",
+  "serviceBusyMessage": "Attendi un minuto e riprova.",
+  "serviceBusyTitle": "Servizio momentaneamente occupato",
+  "timeoutMessage": "Il server non ha risposto in tempo. Riprova, per favore.",
+  "timeoutTitle": "La risposta sta impiegando troppo tempo"
+}

@@ -1,0 +1,23 @@
+{
+  "continueButton": "Weitermachen",
+  "densityAiry": "Leicht",
+  "densityBalanced": "Balance",
+  "densityDense": "Dicht",
+  "description": "Kurze visuelle Meditation, um die Aufmerksamkeit sanft umzulenken und zu harmonisieren.",
+  "finishA11y": "Übung beenden",
+  "finishButton": "Beenden",
+  "locale": "de",
+  "minutesShort": "Min.",
+  "moodBetter": "Besser",
+  "moodSame": "Gleich",
+  "moodWorse": "Schlechter",
+  "newLineButton": "Neue Linie",
+  "nextMandalaButton": "Nächstes Mandala",
+  "pauseButton": "Pause",
+  "ratingMessage": "Diese Bewertung hilft uns, die Übungen künftig besser auf dich abzustimmen.",
+  "ratingTitle": "Wie fühlst du dich?",
+  "resumeButton": "Fortsetzen",
+  "stopConfirmMessage": "Du kannst jetzt aufhören – die Übung wird sanft beendet und du kehrst zurück.",
+  "stopConfirmTitle": "Übung beenden?",
+  "title": "Blitz"
+}

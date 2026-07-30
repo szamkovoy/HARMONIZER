@@ -1,4 +1,12 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  cpSync,
+  rmSync,
+} from "node:fs";
 import { join } from "node:path";
 
 /** Extract `key: "value"` and one-level nested string objects from a TS const block. */
@@ -157,6 +165,31 @@ ${registryEntries.join("\n")}
 };
 `;
   writeFileSync(join(repoRoot, "modules/i18n/typed/generated-overlays.ts"), content, "utf8");
+  // Vercel builds from `_legacy_web/` — keep its typed overlays in lockstep with the Expo tree.
+  mirrorTypedOverlaysToLegacy(repoRoot);
+}
+
+/** Copy `modules/i18n/typed/{catalog,generated-overlays,manifest,.sync-meta}` → `_legacy_web/...`. */
+export function mirrorTypedOverlaysToLegacy(repoRoot) {
+  const src = join(repoRoot, "modules/i18n/typed");
+  const dest = join(repoRoot, "_legacy_web/modules/i18n/typed");
+  if (!existsSync(src) || !existsSync(join(repoRoot, "_legacy_web"))) return;
+
+  mkdirSync(dest, { recursive: true });
+  const catalogSrc = join(src, "catalog");
+  const catalogDest = join(dest, "catalog");
+  if (existsSync(catalogDest)) {
+    rmSync(catalogDest, { recursive: true, force: true });
+  }
+  if (existsSync(catalogSrc)) {
+    cpSync(catalogSrc, catalogDest, { recursive: true });
+  }
+  for (const name of ["generated-overlays.ts", "manifest.json", ".sync-meta.json", "merge.ts"]) {
+    const from = join(src, name);
+    if (existsSync(from)) {
+      cpSync(from, join(dest, name));
+    }
+  }
 }
 
 export function ensureCatalogDir(repoRoot, moduleId) {

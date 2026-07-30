@@ -1,0 +1,160 @@
+{
+  "appTitle": "Harmonizer",
+  "assistantTitle": "Asistente",
+  "astroChartModal": {
+    "titleTransit": "Carta natal + tránsito",
+    "titleNatal": "Carta natal",
+    "titleGlobal": "Horóscopo de tránsito del día",
+    "subtitle": "Anillo interior: planetas natales, exterior: tránsitos del día.",
+    "subtitleGlobal": "Se muestran solo los planetas en tránsito del día, signos zodiacales y aspectos entre ellos.",
+    "housesHiddenHint": "Las casas no se muestran: las cúspides exactas solo están disponibles con la hora de nacimiento precisa.",
+    "mainAspectsTitle": "Aspectos principales del día",
+    "planetStrengthsTitle": "Fuerza de los planetas",
+    "planetPositionsTitle": "Posiciones planetarias",
+    "toNatalConnector": "al natal",
+    "orbPrefix": ", orbe "
+  },
+  "birthDataMessage": "Para generar tu pronóstico personal del día, introduce fecha, hora y lugar de nacimiento.",
+  "birthDataTitle": "Se necesita fecha de nacimiento",
+  "chakraFlower": {
+    "title": "Navegador por arquetipos",
+    "captionFree": "Modelo psicoarquetípico basado en la dinámica planetaria de este día",
+    "captionPersonal": "Modelo psicoarquetípico basado en la dinámica planetaria de este día personalmente para ti",
+    "helpButtonAccessibilityLabel": "Explicación del navegador arquetípico",
+    "helpModalTitle": "Cómo usar el navegador",
+    "helpBody": "El tamaño de los siete pétalos de esta flor se corresponde con la fuerza astrológica de los planetas hoy. Hoy es tu navegador. Confía en que las constelaciones y la astrología no fueron inventadas por cazadores de mamuts. Para pasar de las predicciones sensacionalistas a armonizar tu psique y tu vida, usa esta sabiduría: considera cada planeta no como un punto en el horóscopo, sino como un arquetipo. Al sintonizar con los estados arquetípicos al ritmo del movimiento planetario, podrás desenredar eficazmente los nudos de las circunstancias vitales que llevaban años enredándose."
+  },
+  "closeAssistantAccessibilityLabel": "Cerrar asistente",
+  "closeButton": "Cerrar",
+  "defaultSystemPrompt": "Eres un mentor empático de la app Harmonizer. Responde de forma breve y al grano.",
+  "devLinks": {
+    "biofeedback": "Biofeedback",
+    "mandala": "Mandala",
+    "bindu": "Bindu",
+    "symbols": "Symbols",
+    "breath": "Breath",
+    "calibration": "Calibration",
+    "biofeedbackParity": "Biofeedback Parity"
+  },
+  "devResetDayContent": "Actualizar",
+  "emptyTimeLabel": "—",
+  "enterBirthDataButton": "Introduce tu fecha de nacimiento",
+  "eventBells": {
+    "title": "Campanas",
+    "empty": "Hoy no hay eventos astrológicos próximos con hora exacta.",
+    "aspectTitle": "Aspecto"
+  },
+  "forecastErrorTitle": "No se pudo cargar el pronóstico",
+  "headerHint": "Configuración principal del día: chakras, ventanas de oportunidades y recomendación práctica.",
+  "locale": "es",
+  "locationErrorMessage": "Para calcular las ventanas de oportunidad se necesita la geolocalización. Permita el acceso a la ubicación e inténtelo de nuevo.",
+  "locationErrorPermissionMessage": "El acceso a la ubicación está desactivado. Abra los ajustes de la aplicación, permita la geolocalización y vuelva aquí.",
+  "locationErrorTimeoutMessage": "No se pudo determinar la ubicación rápidamente. Compruebe el GPS o Wi‑Fi e inténtelo de nuevo.",
+  "locationErrorTitle": "Se necesita geolocalización",
+  "longExplanationModal": {
+    "title": "Más detalles",
+    "subtitle": "Explicación detallada de la recomendación del día.",
+    "closeButton": "Cerrar",
+    "mathButton": "Cálculos y fórmulas",
+    "mathButtonA11y": "Abrir cálculos y fórmulas de la recomendación del día",
+    "mathCaption": "Matemática precisa de la fuerza y armonía planetaria, pesos de los aspectos y selección del tema del día."
+  },
+  "mathModal": {
+    "title": "Matemática del día",
+    "subtitle": "Fórmulas de fuerza, armonía, tránsitos y selección del planeta del día.",
+    "closeButton": "Cerrar",
+    "emptyHint": "El bloque matemático aún no se ha recibido con el pronóstico. Actualiza el pronóstico después del despliegue del parche del backend.",
+    "showChartButton": "Mostrar carta natal y de tránsitos",
+    "showTransitChartButton": "Mostrar horóscopo de tránsito del día",
+    "chartUnavailableHint": "La carta está disponible solo para usuarios de prueba/premium con perfil natal."
+  },
+  "openSettingsButton": "Abrir configuración",
+  "opportunityWindows": {
+    "title": "Ventanas de oportunidades",
+    "emptyDetail": "Hoy sin ventana precisa",
+    "windowTitles": {
+      "sunrise": "Amanecer",
+      "culmination": "Culminación",
+      "exactAspect": "Aspecto exacto"
+    },
+    "aspectLabels": {
+      "conjunction": "conjunción",
+      "opposition": "oposición",
+      "square": "cuadratura",
+      "trine": "trígono",
+      "sextile": "sextil"
+    },
+    "reminderModalTitle": "Notificar",
+    "reminderTextLabel": "Texto de la notificación",
+    "reminderModeExact": "exactamente a esta hora",
+    "reminderModeBefore5": "5 minutos antes",
+    "reminderSave": "Guardar",
+    "reminderCancel": "Cancelar",
+    "reminderBodyFiveMinPrefix": "5 minutos antes",
+    "reminderPastTitle": "La hora ya pasó",
+    "reminderPastMessage": "No se puede poner una notificación para una ventana pasada.",
+    "reminderNotificationsUnavailableTitle": "Notificaciones no disponibles aún",
+    "reminderNeedPermissionTitle": "Se necesitan notificaciones",
+    "reminderNeedPermissionMessage": "Permite las notificaciones para que Harmonizer te recuerde la ventana de oportunidades.",
+    "helpButtonAccessibilityLabel": "Explicación del gráfico de las ventanas de oportunidades",
+    "helpModalTitle": "Cómo leer esta ventana",
+    "helpLoading": "Preparando la explicación...",
+    "reminderNotificationsUnavailableMessage": "La compilación actual de la aplicación se ejecuta sin el módulo nativo de notificaciones. Después de una nueva compilación de desarrollo/lanzamiento, las campanitas podrán programar notificaciones del sistema.",
+    "subtitleTemplate": "Tema principal: {planet}",
+    "paidIntroTemplate": "Hoy cultiven los estados que activa {natalPlanet}. Mientras tanto, {transitPlanet} abrirá ventanas especiales de oportunidades.",
+    "sunriseDetailTemplate": "{planet} se eleva sobre el horizonte",
+    "culminationDetailTemplate": "{planet} está en su máxima fuerza",
+    "exactAspectDetailTemplate": "{aspect} {transitPlanet} (tránsito) y {natalPlanet} (natal)",
+    "help": {
+      "freeOpening": "El planeta más fuerte del día es {planet}. El gráfico muestra cuándo {planet} sale y alcanza el cenit en tu ubicación.",
+      "paidOpening": "El planeta más fuerte de tu carta natal hoy es {natalPlanet}. Esta fuerza se debe en gran parte a la interacción con el planeta de tránsito {transitPlanet}, cuyo movimiento en el cielo abre para ti ventanas especiales de oportunidades.",
+      "paidOpeningNoTransit": "Hoy el gráfico muestra una ventana de oportunidades general sin un planeta de tránsito claramente destacado.",
+      "sunriseLine": "Amanecer: {time} — {planet} se eleva sobre el horizonte.",
+      "culminationLine": "Culminación: {time} — {planet} en el punto más alto de su recorrido diario.",
+      "exactAspectLine": "Aspecto exacto: {time} — {aspect} {transitPlanet} (tránsito) y {natalPlanet} (natal).",
+      "closing": "Estos son momentos clave específicamente para tu ubicación. Úsalos para prácticas espirituales, afirmaciones, intenciones, meditación, etc.",
+      "remindersHint": "Toca la campana bajo el gráfico para activar o desactivar los recordatorios."
+    }
+  },
+  "planetBanner": {
+    "eyebrow": "Planeta del día"
+  },
+  "planetLabels": {
+    "Sun": "Sol",
+    "Moon": "Luna",
+    "Mercury": "Mercurio",
+    "Venus": "Venus",
+    "Mars": "Marte",
+    "Jupiter": "Júpiter",
+    "Saturn": "Saturno"
+  },
+  "recommendation": {
+    "title": "Recomendaciones del día",
+    "loading": "Cargando la recomendación de hoy…",
+    "discussButton": "¿Qué hacer?",
+    "readMoreButton": "Leer más",
+    "helpButtonAccessibilityLabel": "Explicación de las recomendaciones del día",
+    "helpModalTitle": "Base de la recomendación",
+    "helpBody": "Esta recomendación describe el planeta más fuerte del día como una imagen arquetípica según la psicología analítica de Carl Jung. Gracias a esto, comprenderás en qué ola de estados es conveniente actuar hoy.\\n\\nSi te interesa un pronóstico astrológico detallado, pulsa el botón «Más información». Luego podrás conocer las matemáticas que subyacen a estas recomendaciones e incluso ver el horóscopo.\\n\\nO pulsa el botón «¿Qué hacer?» para ver los eventos que te esperan en este día a través de los ojos de este arquetipo, y convertir el día en un conjunto de prácticas psicológicas interesantes. Y tras una semana usando esta función, se formará una matriz biestocástica de tus estados, y las recomendaciones serán aún más precisas.",
+    "discussOpening": "Abriendo el asistente…"
+  },
+  "refreshAccessibilityLabel": "Actualizar pronóstico del día",
+  "refreshButton": "Actualizar",
+  "refreshingLabel": "...",
+  "retryButton": "Reintentar",
+  "signOutButton": "Salir",
+  "signingOutButton": "Saliendo...",
+  "skeletonText": "Estoy recopilando el pronóstico del día y las ventanas de oportunidades...",
+  "staleContentMessage": "Los datos recientes no se cargaron, por lo que muestro temporalmente la última versión guardada para hoy.",
+  "staleContentTitle": "Mostrando pronóstico guardado",
+  "toneLabels": {
+    "harmonic": "armónico",
+    "neutral": "neutral",
+    "dissonant": "tenso"
+  },
+  "toneRecommendationVerb": {
+    "harmonic": "reforzar suavemente",
+    "neutral": "ajustar con calma",
+    "dissonant": "estabilizar con cuidado"
+  }
+}

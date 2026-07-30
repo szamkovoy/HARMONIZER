@@ -1,0 +1,15 @@
+{
+  "authRequiredMessage": "La sesión ha expirado. Cierra y abre la aplicación o inicia sesión de nuevo.",
+  "authRequiredTitle": "Es necesario iniciar sesión de nuevo",
+  "dismissButton": "Cerrar",
+  "genericMessage": "No se pudo completar la solicitud. Inténtalo de nuevo más tarde.",
+  "genericTitle": "Algo salió mal",
+  "locale": "es",
+  "networkMessage": "Verifica tu conexión a internet o Wi‑Fi e inténtalo de nuevo.",
+  "networkTitle": "No se pudo contactar con el servidor",
+  "retryButton": "Reintentar",
+  "serviceBusyMessage": "Espera un minuto y vuelve a intentarlo.",
+  "serviceBusyTitle": "El servicio está temporalmente ocupado",
+  "timeoutMessage": "El servidor no respondió a tiempo. Por favor, inténtalo de nuevo.",
+  "timeoutTitle": "La respuesta está tardando demasiado"
+}
