@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.11
-updated: 2026-07-13
+version: 1.12
+updated: 2026-07-31
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -43,8 +43,8 @@ code_refs:
 - **`i18n` / `life-spheres`**  
   Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`, `profile.account.*`) + `setLocale` только после probe/confirm; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
 
-- **`onboarding` (legal)**  
-  Внизу `app/(tabs)/profile.tsx` — **`LegalFooter tone="links"`** (`modules/onboarding/wizard/LegalDocuments.tsx`); тексты `wizard.legal.*` из каталога i18n в текущей локали.
+- **`onboarding` (legal + about)**  
+  Внизу `app/(tabs)/profile.tsx` — **`LegalFooter tone="links"`** (`modules/onboarding/wizard/LegalDocuments.tsx`); версия/копирайт + тексты `wizard.legal.*` / `common.appName` / `profile.about.copyrightHolder` из каталога i18n; версия билда — `expo-application` + `expo-constants`.
 
 - **`charts`**  
   Donut-отчёты рендерятся через **`DonutChart`** (`modules/charts/`): сегменты, дуга баланса, центр `{balance}%`, scroll-triggered animation; **`app/(tabs)/profile.tsx`** — **`DonutVisibilityProvider`**, **`useDonutScrollProps`** на `ScrollView`, **`useDonutVisibilityRefresh`** + **`useFocusEffect`** при фокусе таба (как на Day tab).

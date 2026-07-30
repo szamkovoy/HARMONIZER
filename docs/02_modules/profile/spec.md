@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.32
-updated: 2026-07-29
+version: 1.33
+updated: 2026-07-31
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -93,7 +93,8 @@ code_refs:
   Клиент: `modules/profile/ui/ProfileReports.tsx` (`PracticeByChakraReportCard`, `LifeMatrixReportCard`, `LifeSpheresReportCard`, `LifeStatesReportCard`, `RangeTrendReportCard`, `useLifeMatrixReport`), `ProfileEmptyState`, `RangeTrendChart`. «Сферы жизни» и «Проживаемые состояния» рендерятся отдельными карточками в donut-формате; цвета сфер соответствуют цветам состояний с теми же номерами, нулевые элементы в легенде серые. Transport: `services/profileReports.ts` (Bearer JWT). Gate — ключ `stats`.
 - При **`HARMONIZER_TEST_MODE`:** блок диагностики (`runtimeDiagnostics`). `DevTierSwitch` — только на Home (дубль с Профиля убран).
 - Subtitle экрана: `profile.subtitle` — «Здесь находится информация о вас и ряд полезных отчетов» (i18n, 8 локалей). Заглушка «Скоро здесь» удалена.
-- **Юридические ссылки** в самом низу таба: **`LegalFooter tone="links"`** из `modules/onboarding` — «Пользовательское соглашение» / «Политика конфиденциальности» в активной локали приложения, та же `LegalDocumentModal`, что на шаге 1 мастера; закрытие модалки не сбрасывает скролл Профиля.
+- **Версия / копирайт / юридические ссылки** в самом низу таба: **`LegalFooter tone="links"`** из `modules/onboarding` — одной гарнитурой (`11/16`, `textFaint`) блок  
+  `{localizedAppName} v{expo.version} ({nativeBuildVersion})` + `© {currentYear} {copyrightHolder}` + ссылки «Пользовательское соглашение» / «Политика конфиденциальности». Имя приложения — `common.appName` (как в `plugins/appLocalesData` APP_NAMES); правообладатель — `profile.about.copyrightHolder` (RU: `ТОО "Сергей Замковой"`, остальные локали: `Sergei Zamkovoi, TOO`); год — `new Date().getFullYear()`. Маркетинговая версия из `Constants.expoConfig.version` (сейчас **1.1.0**), номер билда — `expo-application` `nativeBuildVersion` (монотонный, не сбрасывается при major). Та же `LegalDocumentModal`, что на шаге 1 мастера; закрытие модалки не сбрасывает скролл Профиля.
 
 ## 5. Конфигурация и параметры
 

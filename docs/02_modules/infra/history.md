@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.14
+version: 1.15
 updated: 2026-07-31
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-31 (app versioning):** Маркетинговая версия **1.1.0** (`app.json` / native); `eas.json` `appVersionSource: "local"`, `autoIncrement` на **production** и **preview** (build number монотонный, не сбрасывается при major). В Профиле видна строка `v{version} ({build})`.
 
 - **2026-07-31 (SurfaceHelpModal scroll):** «?» help modals (`SurfaceHelpModal`) vertically centered the whole card without a body `ScrollView`, so long copy / large system font pushed the opening lines off-screen and made the tip unreadable. Fix in shared UI: card `maxHeight` ≈ 90% viewport, sticky title/× + «Закрыть», scrollable body from the first line (`nestedScrollEnabled`, reset scroll on open).
 

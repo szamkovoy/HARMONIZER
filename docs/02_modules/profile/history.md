@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.34
-updated: 2026-07-29
+version: 1.35
+updated: 2026-07-31
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-07-31 (version + copyright footer):** В `LegalFooter tone="links"` над юрссылками — `{appName} v{version} ({build})` и `© {year} {holder}` тем же шрифтом, без доп. gap. `common.appName` / `profile.about.copyrightHolder` (RU vs `Sergei Zamkovoi, TOO`); год = текущий. Маркетинг **1.1.0**, build из native.
 
 - **2026-07-30 (practice stats stale on Profile):** «День» показывал 19 мин практик, «Статистика практик» — 8 мин (Audrone). В `user_daily_stats` сумма уже была верной; Профиль не перечитывал агрегаты при фокусе таба. Fix: `useFocusEffect` → `loadStats` + reload `practice-by-chakra`; scrub по умолчанию на последний день с практикой.
 

@@ -6,10 +6,12 @@
  * активная локаль приложения (мастер / Профиль — один и тот же store).
  *
  * `tone="consent"` — фраза «Продолжая, вы соглашаетесь…» (шаг 1 мастера).
- * `tone="links"` — только две ссылки (Профиль); модалка та же.
+ * `tone="links"` — версия/копирайт + две ссылки (Профиль); модалка та же.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Application from "expo-application";
+import Constants from "expo-constants";
 
 import { AppText } from "@/modules/ui/AppText";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -18,10 +20,20 @@ import { useTranslate } from "@/modules/i18n";
 
 type LegalDoc = "terms" | "privacy";
 
+function resolveAppVersionMeta(): { version: string; build: string } {
+  const fromConfig = Constants.expoConfig?.version?.trim();
+  const fromNative = Application.nativeApplicationVersion?.trim();
+  const version = fromConfig || fromNative || "0.0.0";
+  const build = Application.nativeBuildVersion?.trim() || "1";
+  return { version, build };
+}
+
 export function LegalFooter({ tone = "consent" }: { tone?: "consent" | "links" }) {
   const theme = useTheme();
   const { t } = useTranslate();
   const [openDoc, setOpenDoc] = useState<LegalDoc | null>(null);
+  const { version, build } = useMemo(() => resolveAppVersionMeta(), []);
+  const copyrightYear = new Date().getFullYear();
 
   const linkStyle = {
     color: theme.colors.accent,
@@ -39,6 +51,16 @@ export function LegalFooter({ tone = "consent" }: { tone?: "consent" | "links" }
 
   return (
     <View style={styles.wrap}>
+      {tone === "links" ? (
+        <>
+          <Text style={[baseStyle, styles.text]} accessibilityRole="text">
+            {`${t("common.appName")} v${version} (${build})`}
+          </Text>
+          <Text style={[baseStyle, styles.text]} accessibilityRole="text">
+            {`© ${copyrightYear} ${t("profile.about.copyrightHolder")}`}
+          </Text>
+        </>
+      ) : null}
       <Text style={[baseStyle, styles.text]} accessibilityRole="text">
         {tone === "consent" ? <Text>{t("wizard.legal.prefix")}</Text> : null}
         <Text

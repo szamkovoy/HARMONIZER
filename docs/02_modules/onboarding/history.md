@@ -1,14 +1,16 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.3
-updated: 2026-07-20
+version: 1.4
+updated: 2026-07-31
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
 
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-07-31 (LegalFooter about lines):** `tone="links"` (Профиль) — над юрссылками версия + © (см. profile history); consent на мастере без изменений.
 
 - **2026-07-30 (OTP send UX latency):** Пауза ~8 с на «Получить код» — длинные retry App Check. Укорочен бюджет getToken (~1.2 с) + prefetch на mount; кнопка `busy` с «Отправляется…» (без dim).
 

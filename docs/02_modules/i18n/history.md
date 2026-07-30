@@ -1,7 +1,7 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.17
+version: 1.18
 updated: 2026-07-31
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-31 (profile about / app name):** Каталог — `common.appName` (канон = `APP_NAMES` из `plugins/appLocalesData.js`) и `profile.about.copyrightHolder` (RU: `ТОО "Сергей Замковой"`, остальные: `Sergei Zamkovoi, TOO`).
 
 - **2026-07-31 (practices breathHelpBody):** Два новых абзаца в справке дыхательных практик (наушники / скорость индикатора); RU/EN в `practices.ts`, overlays de–nl через `fill --all`.
 

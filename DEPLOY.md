@@ -66,6 +66,12 @@ Optional environment variables:
 
 **Important:** Apple TestFlight always uses the **production** bundle id. Installing TestFlight will offer to replace the store/TestFlight app — that is normal. It must **not** replace «Harmonizer Expo» / «Harmonizer Test» once those use `.dev` / `.preview` ids (rebuild those profiles after this change).
 
+### App version (marketing + build)
+
+- **Marketing version** (`MAJOR.MINOR.PATCH`) — `expo.version` in `app.json` (also mirrored in iOS/Android native). Current: **1.1.0**. Bump manually when releasing a meaningful change (patch / minor / major by agreement).
+- **Build number** — `ios.buildNumber` / `android.versionCode` in `app.json` (+ native). Monotonic; **never reset** on major bumps (Play requires increasing `versionCode`). Shown in Profile as `v1.1.0 (3)`.
+- EAS: `cli.appVersionSource: "local"`; `autoIncrement: true` on **production** and **preview** so each store/Test APK build bumps the build number from the local project values.
+
 `.env.local` is **never** uploaded to EAS (cloud or local credential fetch still uses EAS env for `EXPO_PUBLIC_*` on profile). If a variable is only in `.env.local`, store builds will miss it (classic symptom: «Supabase is not configured»).
 
 ### Default: local EAS builds (not expo.dev cloud)
