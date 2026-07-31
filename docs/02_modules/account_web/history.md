@@ -5,6 +5,11 @@ version: 1.11
 updated: 2026-07-31
 ---
 
+## 2026-07-31 — Cancelled badge + YooKassa recurring gate
+
+- Кабинет: статус отменённой подписки — «отменена» / cancelled (8 локалей), не «неактивна».
+- Smoke: магазин ЮKassa отклонил `save_payment_method` (403) → `YOOKASSA_RECURRING_ENABLED=false` до включения автоплатежей менеджером; ошибка мапится в `yookassa_recurring_not_enabled`.
+
 ## 2026-07-31 — Payment gateway profiles RU/INT + YooKassa recurring
 
 - **Профили:** `PAYMENT_<GATEWAY>_ENABLED` + `_REGION` (`RU`|`INT`); выбор по `country` с fallback INT; fail-closed.

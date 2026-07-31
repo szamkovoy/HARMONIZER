@@ -1,3 +1,5 @@
+- 2026-07-31 (356): Account overview prefers active subscription over older cancelled; YooKassa webhook note in payment_gateways.md.
+- 2026-07-31 (355): Cabinet cancelled-sub badge «отменена»; YooKassa recurring off until shop allows save_payment_method (403 mapped).
 - 2026-07-31 (354): Communicator — reset stream on commit/initiate errors so mic is not stuck after empty/failed assistant hydration.
 - 2026-07-31 (353): Payment gateways RU/INT profiles (Lava/YooKassa); YooKassa recurring (save method, daily cron, revoke on cancel/wipe); cabinet passes `country`.
 - 2026-07-31 (352): Admin login — apply server session without browser→Auth `/user` (fixes «Failed to fetch» after successful password grant).

@@ -13,7 +13,7 @@
 | `YOOKASSA_SHOP_ID` | `1415612` | shopId магазина |
 | `YOOKASSA_SECRET_KEY` | secret | API secret (не в git) |
 | `YOOKASSA_RETURN_URL` | `https://zamkovoi.yoga/cabinet/?paid=1` | Return после оплаты |
-| `YOOKASSA_RECURRING_ENABLED` | `true` / `false` | `save_payment_method` + daily renew cron |
+| `YOOKASSA_RECURRING_ENABLED` | `true` / `false` | `save_payment_method` + daily renew cron. **Shop must allow recurring** — otherwise create payment → 403 «can't make recurring payments». Keep `false` until manager confirms автоплатежи; first payments still grant +30d. |
 | `YOOKASSA_WEBHOOK_SECRET` | опц. | Доп. проверка webhook |
 
 Legacy (если новых `PAYMENT_*_ENABLED` нет): `YOOKASSA_ENABLED` + `PAYMENT_GATEWAY_FOR_RUB=yookassa`.
@@ -30,6 +30,8 @@ Legacy (если новых `PAYMENT_*_ENABLED` нет): `YOOKASSA_ENABLED` + `P
 
 `https://harmonizer-ten.vercel.app/api/account/webhooks/yookassa`  
 События: `payment.succeeded`, `payment.canceled`.
+
+В кабинете ЮKassa → HTTP-уведомления этот URL **обязан** быть включён. Без вебхука return `?paid=1` показывает «Спасибо», но контракт остаётся `pending`, а в блоке подписки виден старый `cancelled` (Lava). Автоплатежи (`YOOKASSA_RECURRING_ENABLED`) — отдельно: нужен `save_payment_method` + разрешение магазина.
 
 ## Cron рекуррента
 

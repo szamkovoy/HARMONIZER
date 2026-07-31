@@ -97,6 +97,14 @@ export async function createYookassaPayment(
   });
   const text = await res.text();
   if (!res.ok) {
+    if (
+      res.status === 403
+      && /can'?t make recurring|recurring payments/i.test(text)
+    ) {
+      const err = new Error("yookassa_recurring_not_enabled");
+      (err as Error & { code?: string }).code = "yookassa_recurring_not_enabled";
+      throw err;
+    }
     throw new Error(`YooKassa create payment HTTP ${res.status}: ${text.slice(0, 400)}`);
   }
   const payment = JSON.parse(text) as YookassaPayment;

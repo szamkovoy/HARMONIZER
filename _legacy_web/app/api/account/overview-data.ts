@@ -149,15 +149,20 @@ export async function buildAccountOverview(
   const userLocale = typeof row.locale === "string" && row.locale ? row.locale : "ru";
 
   let subscription: AccountSubscription | null = null;
-  const { data: contractRow } = await db
+  // Prefer active over cancelled (cancelled Lava + new pending/active YooKassa
+  // must not show the older cancelled row as "current subscription").
+  const { data: contractRows } = await db
     .from("payment_contracts")
-    .select("contract_id,tier,currency,amount,status,current_period_end,cancelled_at")
+    .select("contract_id,tier,currency,amount,status,current_period_end,cancelled_at,created_at")
     .eq("user_id", userId)
     .eq("product_kind", "subscription")
     .in("status", ["active", "cancelled"])
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
+  const contractRow =
+    (contractRows ?? []).find((row) => row.status === "active")
+    ?? (contractRows ?? [])[0]
+    ?? null;
   if (contractRow) {
     subscription = {
       contractId: contractRow.contract_id,
