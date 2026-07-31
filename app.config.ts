@@ -16,6 +16,8 @@
  *      Плагины `@react-native-firebase/*` подключаются только когда для текущей
  *      платформы есть соответствующий файл — иначе prebuild падает
  *      (`Path to GoogleService-Info.plist is not defined`).
+ *      iOS autolinking gated the same way in `react-native.config.js` (иначе
+ *      pod install всё равно тянет RNFBAppCheck → AppCheckCore).
  *
  * Авторизация — только email-OTP (Supabase): нативные плагины Apple/Google
  * Sign-In удалены вместе с их entitlement/URL-scheme (см. modules/auth).

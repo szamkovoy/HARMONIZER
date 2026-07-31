@@ -125,7 +125,8 @@ Firebase Console checklist:
    - Firebase Console → iOS app `com.zamkovoi.harmonizer.app` → download `GoogleService-Info.plist`
    - Copy to repo root (gitignored; included in EAS archive via `.easignore`)
    - Upload file-env: `eas env:create --name GOOGLE_SERVICES_PLIST --type file --value ./GoogleService-Info.plist --environment production` (also preview/development as needed)
-   - Without it, `app.config.ts` skips `@react-native-firebase/*` on iOS builds so prebuild does not fail; App Check on device stays off
+   - Without it, `app.config.ts` skips Firebase config plugins and `react-native.config.js` disables iOS autolink so `pod install` does not pull AppCheckCore; App Check on device stays off
+   - If you *do* have the plist and CocoaPods still fails on `AppCheckCore`, run once: `pod repo update`
 
 Turnstile / invisible captcha: **not** used (RN WebView UX risk).
 

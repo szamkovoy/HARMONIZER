@@ -1,3 +1,4 @@
+- 2026-07-31 (358): iOS — disable RNFirebase autolink without plist (`react-native.config.js`) so `pod install` does not require AppCheckCore.
 - 2026-07-31 (357): iOS EAS prebuild — gate RNFirebase on `GoogleService-Info.plist` / `GOOGLE_SERVICES_PLIST`; `.easignore` keeps Firebase client configs in build archives.
 - 2026-07-31 (356): Account overview prefers active subscription over older cancelled; YooKassa webhook note in payment_gateways.md.
 - 2026-07-31 (355): Cabinet cancelled-sub badge «отменена»; YooKassa recurring off until shop allows save_payment_method (403 mapped).
