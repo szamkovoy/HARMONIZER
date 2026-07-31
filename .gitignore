@@ -41,11 +41,15 @@ yarn-error.*
 # выгрузки `vercel env pull` (часто содержат секреты / OIDC)
 .env.vercel*
 
-# FCM / Firebase Android client config — keep local only (GitHub secret scanning
+# FCM / Firebase client configs — keep local only (GitHub secret scanning
 # flags the embedded Google API key even when it is a restricted client key).
-# Download from Firebase Console → copy to repo root as `google-services.json`.
-# Template: `google-services.json.example`.
+# Download from Firebase Console → repo root:
+#   Android: `google-services.json` (template: `google-services.json.example`)
+#   iOS: `GoogleService-Info.plist` (template: `GoogleService-Info.plist.example`)
+# Local/cloud EAS archives still include these via `.easignore` (not listed there).
+# EAS file-env: `GOOGLE_SERVICES_JSON`, `GOOGLE_SERVICES_PLIST`.
 google-services.json
+GoogleService-Info.plist
 # FCM service account private key (upload to EAS only — never commit).
 fcm-service-account.json
 *-firebase-adminsdk-*.json

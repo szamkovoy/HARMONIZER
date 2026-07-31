@@ -10,7 +10,7 @@ code_refs: []
 
 ## `onboarding` / OTP App Check enforce (2026-07-30)
 
-- **Enforce временно снят (2026-07-30 вечер):** store OTP падал с `auth.otpAppCheckFailed` — клиент не успевал получить Play Integrity token (или token не доходил). `OTP_REQUIRE_APP_CHECK=false` на Vercel + edge; rate limits остаются. Клиент: retry `getToken` после cold start. Перед повторным enforce: убедиться в логах `otp-gate`, что store шлёт валидный `appCheckToken`; (a) iOS `GoogleService-Info.plist`; (b) Expo/Test — debug secret EAS↔Vercel.
+- **Enforce временно снят (2026-07-30 вечер):** store OTP падал с `auth.otpAppCheckFailed` — клиент не успевал получить Play Integrity token (или token не доходил). `OTP_REQUIRE_APP_CHECK=false` на Vercel + edge; rate limits остаются. Клиент: retry `getToken` после cold start. Перед повторным enforce: убедиться в логах `otp-gate`, что store шлёт валидный `appCheckToken`; (a) положить `GoogleService-Info.plist` + EAS file-env `GOOGLE_SERVICES_PLIST` и пересобрать IPA с RNFirebase; (b) Expo/Test — debug secret EAS↔Vercel. Без plist iOS-сборка пропускает Firebase plugins (App Check на iPhone off).
 
 ## `infra` / store submission checklist (2026-07-29)
 

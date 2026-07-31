@@ -15,6 +15,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 - **2026-07-30 (splash full-bleed):** Холодный старт: крошечный centered logo (Android 12 Splash API / iOS без legacy full-screen), пока `useFonts` держал `return null`. Fix: `EarlySplashCover` (cover) до шрифтов + сразу `hideAsync`; plugin `enableFullScreenImage_legacy: true` (iOS) + `imageWidth: 288` (макс. Android icon canvas). Полный full-bleed на Android 12+ системно недоступен — минимизируем время мелкого кадра.
 
+- **2026-07-31 (iOS GoogleService-Info.plist):** `app.config.ts` wires `ios.googleServicesFile` from `GOOGLE_SERVICES_PLIST` / local plist; RNFirebase plugins + `forceStaticLinking` only when the platform file exists (`EAS_BUILD_PLATFORM`). `.easignore` keeps Firebase client configs in EAS archives while gitignore excludes them. Unblocks iOS local production prebuild without hard-fail.
+
 - **2026-07-30 (APP_VARIANT side-by-side):** `APP_VARIANT` in `eas.json` + `app.config.ts` → distinct names/ids: Expo (`*.dev`), Test (`*.preview`), Store (production). Localized display names get « Expo» / « Test» via `buildLocales`. TestFlight still shares production id (Apple). See `DEPLOY.md`.
 
 - **2026-07-30 (store env bake-in):** Production/preview EAS envs were missing `EXPO_PUBLIC_SUPABASE_*` (only development had them) → store AAB/IPA crashed «Supabase is not configured». Synced URL+anon to production/preview + `EXPO_PUBLIC_APP_ENV`; `eas.json` binds profiles to environments + `autoIncrement` + iOS `ascAppId`; `scripts/check-eas-client-env.mjs` / `npm run check:eas-env`; restored direct `babel-preset-expo` for Metro/QR; documented three lanes in `DEPLOY.md`.

@@ -1,0 +1,74 @@
+# EAS upload ignore list. When this file exists, EAS does NOT also apply
+# `.gitignore` — so keep it in sync, but intentionally allow Firebase client
+# configs (`google-services.json`, `GoogleService-Info.plist`) into the archive
+# for local/cloud builds when those files are present on disk.
+
+Apple_AuthKey_SZG247VG98.p8
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+
+# Next.js / build artifacts
+.next/
+out/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native secrets / keystores
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+.env.vercel*
+
+# FCM service account private key (upload to EAS credentials only — never archive).
+fcm-service-account.json
+*-firebase-adminsdk-*.json
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# Ad-hoc OCR / Python experiments
+.tmp_ocr/
+__tmp_ocr/
+.vercel
+.vercel-home/
+
+docs/.sync-logs/
+docs/.sync-failures.log
+
+.git/CURSOR_PUSH_DIFF.txt
+.git/CURSOR_PUSH_STAT.txt
+.git/CURSOR_DOC_SYNC_PROMPT.txt
+
+supabase/backups/*.json
+
+# Agent / IDE noise
+.cursor/
+agent-transcripts/

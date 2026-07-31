@@ -20,7 +20,8 @@ code_refs:
 - **`subscription`** — сегмент `tier:<t>` фильтрует по сырому `users.membership_tier` (не effective tier — истёкший грант остаётся в своём тарифе до фикса данных).
 - **`infra`** — Supabase (`push_tokens`, `notifications`, `notification_deliveries`), weekly prune + minutely `notify-webinar-start` в `ensure_harmonizer_cron_jobs`, Expo Push, EAS `projectId`. Android remote: FCM.
 - **`services/localNotifications.ts`** — ленивый загрузчик `expo-notifications` (`getExpoNotificationsOrNull`), `ensureAndroidNotificationChannels` (`harmonizer_opportunity_high` / `harmonizer_remote`), общий с локальными напоминаниями.
-- **FCM (Android remote):** локальный `google-services.json` в корне (**gitignore**, шаблон `.example`) **и** EAS file-env `GOOGLE_SERVICES_JSON` (иначе remote build без FCM); FCM V1 key в EAS credentials (`scripts/upload-fcm-to-eas.mjs`); чекер `scripts/android-fcm-setup.mjs`. Project Firebase: `harmonizer-777`.
+- **FCM (Android remote):** локальный `google-services.json` в корне (**gitignore**, в архив EAS — через `.easignore`; шаблон `.example`) **и** EAS file-env `GOOGLE_SERVICES_JSON` (иначе cloud build без FCM); FCM V1 key в EAS credentials (`scripts/upload-fcm-to-eas.mjs`); чекер `scripts/android-fcm-setup.mjs`. Project Firebase: `harmonizer-777`.
+- **Firebase iOS (App Check):** `GoogleService-Info.plist` (gitignore + `.easignore`) / EAS file-env `GOOGLE_SERVICES_PLIST` → `ios.googleServicesFile`. Без файла iOS-сборка пропускает RNFirebase plugins.
 - **auth / i18n** — userId для токена и доставок; ключи `notifications.*`; язык remote push = exact `users.locale` via `resolveExactNotificationCopy` / `pickExactLocalizedText` (soft `pickLocalizedText` только для inbox).
 
 ## 2. От него зависят

@@ -91,6 +91,7 @@ Required EAS **production** (and usually **preview**) client vars:
 - `EXPO_PUBLIC_COMMUNICATOR_API_URL` — Vercel origin, no `/api` suffix
 - `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` — Android maps
 - `GOOGLE_SERVICES_JSON` — EAS file secret for FCM (+ Firebase App Check on Android)
+- `GOOGLE_SERVICES_PLIST` — EAS file secret for iOS Firebase App Check (`GoogleService-Info.plist`)
 - `EXPO_PUBLIC_APP_ENV` — e.g. `production`
 
 Also useful: `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`.
@@ -120,7 +121,11 @@ Firebase Console checklist:
 
 1. App Check → register Android (`com.zamkovoi.harmonizer`) Play Integrity + iOS App Attest
 2. Register debug tokens for Expo/Test devices (or use debug secret above)
-3. Add `GoogleService-Info.plist` for iOS when enabling App Check on iPhone builds
+3. iOS Firebase client file (required for App Check in the IPA):
+   - Firebase Console → iOS app `com.zamkovoi.harmonizer.app` → download `GoogleService-Info.plist`
+   - Copy to repo root (gitignored; included in EAS archive via `.easignore`)
+   - Upload file-env: `eas env:create --name GOOGLE_SERVICES_PLIST --type file --value ./GoogleService-Info.plist --environment production` (also preview/development as needed)
+   - Without it, `app.config.ts` skips `@react-native-firebase/*` on iOS builds so prebuild does not fail; App Check on device stays off
 
 Turnstile / invisible captcha: **not** used (RN WebView UX risk).
 

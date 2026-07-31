@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-07-31 (iOS Firebase plist gate):** Local iOS production prebuild падал: RNFirebase требовал `expo.ios.googleServicesFile`. Fix: `GoogleService-Info.plist` / EAS `GOOGLE_SERVICES_PLIST`; без файла `app.config.ts` пропускает `@react-native-firebase/*` на iOS. `.easignore` включает локальные Firebase client files в архив (gitignore их по-прежнему скрывает от git).
+
 - **2026-07-28 (фаза F list-first):** Список как рассылки: `GET` page/limit/`user_id`; `POST draft:true`; редактор `[id]` + send (`sent_at`); helper `sendNotification.ts`. Точечный push с карточки пользователя по-прежнему create+send без draft.
 
 - **2026-07-27 (detail locale tabs):** Карточка `/admin/notifications/[id]` — вкладки языков + зелёная точка по `title`/`title_i18n` и body (единообразие с рассылками).

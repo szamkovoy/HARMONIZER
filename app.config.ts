@@ -8,10 +8,14 @@
  *   2. Добавляем `NSLocationWhenInUseUsageDescription` — чтобы иметь право
  *      спрашивать геолокацию на онбординге (для эфемерид: восходы Солнца/Луны
  *      зависят от точных координат пользователя).
- *   3. Подключаем `android.googleServicesFile` для FCM (remote push):
- *      - локально: `./google-services.json` в корне (gitignore);
- *      - на EAS: file-env `GOOGLE_SERVICES_JSON` (путь подставляет билдер).
- *      Без этого Android не получает Expo push token → админ-пуши не уходят.
+ *   3. Firebase client configs (FCM + App Check):
+ *      - Android `googleServicesFile`: локально `./google-services.json` (gitignore),
+ *        на EAS — file-env `GOOGLE_SERVICES_JSON`.
+ *      - iOS `googleServicesFile`: локально `./GoogleService-Info.plist` (gitignore),
+ *        на EAS — file-env `GOOGLE_SERVICES_PLIST`.
+ *      Плагины `@react-native-firebase/*` подключаются только когда для текущей
+ *      платформы есть соответствующий файл — иначе prebuild падает
+ *      (`Path to GoogleService-Info.plist is not defined`).
  *
  * Авторизация — только email-OTP (Supabase): нативные плагины Apple/Google
  * Sign-In удалены вместе с их entitlement/URL-scheme (см. modules/auth).
@@ -32,7 +36,37 @@ const GOOGLE_SERVICES_FILE =
     : "");
 if (!GOOGLE_SERVICES_FILE) {
   console.warn(
-    "[app.config] google-services.json missing — Android remote push will not register an Expo token until the file is present locally or as EAS env GOOGLE_SERVICES_JSON.",
+    "[app.config] google-services.json missing — Android remote push / App Check will stay off until the file is present locally or as EAS env GOOGLE_SERVICES_JSON.",
+  );
+}
+
+/** iOS Firebase plist — required by `@react-native-firebase/app` during iOS prebuild. */
+const GOOGLE_SERVICES_PLIST =
+  (process.env.GOOGLE_SERVICES_PLIST || "").trim() ||
+  (fs.existsSync(path.join(__dirname, "GoogleService-Info.plist"))
+    ? "./GoogleService-Info.plist"
+    : "");
+if (!GOOGLE_SERVICES_PLIST) {
+  console.warn(
+    "[app.config] GoogleService-Info.plist missing — iOS App Check stays off until the file is present locally or as EAS env GOOGLE_SERVICES_PLIST.",
+  );
+}
+
+/**
+ * RNFirebase config plugins hard-fail if the platform file is absent.
+ * Gate on `EAS_BUILD_PLATFORM` so an iOS build without the plist can still ship
+ * (OTP App Check enforce is currently off — see DEPLOY.md).
+ */
+const EAS_PLATFORM = (process.env.EAS_BUILD_PLATFORM || "").trim();
+const INCLUDE_FIREBASE_PLUGINS =
+  EAS_PLATFORM === "ios"
+    ? Boolean(GOOGLE_SERVICES_PLIST)
+    : EAS_PLATFORM === "android"
+      ? Boolean(GOOGLE_SERVICES_FILE)
+      : Boolean(GOOGLE_SERVICES_FILE && GOOGLE_SERVICES_PLIST);
+if (!INCLUDE_FIREBASE_PLUGINS) {
+  console.warn(
+    `[app.config] Skipping @react-native-firebase plugins (platform=${EAS_PLATFORM || "local"}).`,
   );
 }
 /** Maps SDK for Android (`react-native-maps` / BirthPlaceMapModal). iOS uses Apple Maps. */
@@ -147,6 +181,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "com.apple.developer.usernotifications.time-sensitive": true,
         "com.apple.developer.healthkit": true,
       },
+      ...(GOOGLE_SERVICES_PLIST ? { googleServicesFile: GOOGLE_SERVICES_PLIST } : {}),
     },
     android: {
       ...base.android,
@@ -178,8 +213,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       ...(base.plugins ?? []),
       "expo-localization",
-      "@react-native-firebase/app",
-      "@react-native-firebase/app-check",
+      ...(INCLUDE_FIREBASE_PLUGINS
+        ? (["@react-native-firebase/app", "@react-native-firebase/app-check"] as const)
+        : []),
       [
         "expo-build-properties",
         {
@@ -194,7 +230,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           },
           ios: {
             useFrameworks: "static",
-            forceStaticLinking: ["RNFBApp", "RNFBAppCheck"],
+            ...(INCLUDE_FIREBASE_PLUGINS
+              ? { forceStaticLinking: ["RNFBApp", "RNFBAppCheck"] }
+              : {}),
           },
         },
       ],
