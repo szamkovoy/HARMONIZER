@@ -11,10 +11,10 @@
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#ffffff",
+      "backgroundColor": "#f7f7f7",
       "dark": {
         "image": "./assets/images/splash.png",
-        "backgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
         "resizeMode": "cover"
       }
     },
@@ -31,7 +31,7 @@
     },
     "android": {
       "package": "com.zamkovoi.harmonizer",
-      "versionCode": 5,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -61,12 +61,12 @@
         {
           "image": "./assets/images/splash.png",
           "resizeMode": "cover",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#f7f7f7",
           "enableFullScreenImage_legacy": true,
           "imageWidth": 288,
           "dark": {
             "image": "./assets/images/splash.png",
-            "backgroundColor": "#ffffff",
+            "backgroundColor": "#f7f7f7",
             "resizeMode": "cover"
           }
         }

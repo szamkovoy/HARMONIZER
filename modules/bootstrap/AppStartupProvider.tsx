@@ -251,15 +251,15 @@ function AppStartupSplashOverlay({
     <Animated.View
       pointerEvents="auto"
       style={[StyleSheet.absoluteFill, styles.splashOverlay, { opacity }]}
-      onLayout={notifyPainted}
     >
-      {/* Full-bleed cover at opacity 1 — never dim the art over white (was 0.58–0.74 “breath”). */}
-      <View style={[styles.splashImageWrap, { width: winW, height: winH }]}>
+      {/* Full-bleed cover at opacity 1 — never dim the art (was 0.58–0.74 “breath”). */}
+      <View style={styles.splashImageFill}>
         <Image
           source={splashImage}
-          style={{ width: winW, height: winH }}
+          style={StyleSheet.absoluteFillObject}
           resizeMode="cover"
           fadeDuration={0}
+          onLoad={notifyPainted}
         />
         <Animated.View
           pointerEvents="none"
@@ -298,15 +298,8 @@ function AppStartupSplashOverlay({
   );
 }
 
-export function AppStartupProvider({
-  children,
-  onSplashReady,
-}: {
-  children: ReactNode;
-  /** Fires once JS splash is painted (or skipped) — dismiss EarlySplashCover. */
-  onSplashReady?: () => void;
-}) {
-  const { initializing, profileLoading } = useAuth();
+export function AppStartupProvider({ children }: { children: ReactNode }) {
+  const { initializing, profileLoading, profile, session } = useAuth();
   const { locale } = useAppLocale();
   const appLocale = coerceAppLocale(locale);
 
@@ -322,24 +315,34 @@ export function AppStartupProvider({
     presentation: "splash",
   });
   const [jsSplashPainted, setJsSplashPainted] = useState(false);
-  const onSplashReadyRef = useRef(onSplashReady);
-  onSplashReadyRef.current = onSplashReady;
+
+  /** Session restored but `users` row not yet — RootLayoutNav shows a white gate; keep splash over it. */
+  const waitingForProfile = Boolean(session) && profileLoading && profile == null;
+  /**
+   * Cold-start segments are often `[]` before `(tabs)` — do not treat that as
+   * “left Home” or the splash collapses onto the white profile gate.
+   */
+  const coldStartHold = initializing || waitingForProfile;
+
   const markJsSplashPainted = useCallback(() => {
     setJsSplashPainted(true);
-    onSplashReadyRef.current?.();
   }, []);
 
-  const visible = initializing || (isHomeRoute && homeBootstrap.blocking);
+  const visible = coldStartHold || (isHomeRoute && homeBootstrap.blocking);
   /**
-   * Auth recovery всегда полная заставка.
+   * Auth recovery / first profile fetch всегда полная заставка.
    * Иначе — то, что выставил `beginHomeBootstrap` (cold start → splash по умолчанию;
    * после первого complete / явный `blockingReload` → day_card).
    */
-  const presentation: HomeBootstrapPresentation = initializing
+  const presentation: HomeBootstrapPresentation = coldStartHold
     ? "splash"
     : homeBootstrap.presentation;
 
-  const authStep = initializing ? "AUTH/secure_session" : profileLoading ? "AUTH/users_profile" : null;
+  const authStep = initializing
+    ? "AUTH/secure_session"
+    : waitingForProfile || profileLoading
+      ? "AUTH/users_profile"
+      : null;
   const footerStep = authStep ?? homeBootstrap.step;
 
   const beginHomeBootstrap = useCallback(
@@ -390,12 +393,12 @@ export function AppStartupProvider({
   }, []);
 
   useEffect(() => {
-    if (initializing) {
+    if (coldStartHold) {
       setHomeBootstrap((current) => ({
         ...current,
         blocking: true,
-        phase: "initializing",
-        step: "AUTH/secure_session",
+        phase: initializing ? "initializing" : "app_loading",
+        step: initializing ? "AUTH/secure_session" : "AUTH/users_profile",
         presentation: "splash",
       }));
       return;
@@ -403,12 +406,12 @@ export function AppStartupProvider({
     if (!isHomeRoute) {
       setHomeBootstrap((current) => ({ ...current, blocking: false }));
     }
-  }, [initializing, isHomeRoute]);
+  }, [coldStartHold, initializing, isHomeRoute]);
 
   const splashVisible = visible && presentation === "splash";
   const dayCardVisible = visible && presentation === "day_card";
 
-  // If we never show the full splash (e.g. day_card), still release the native splash.
+  // day_card / no full splash: still release the native SplashScreen.
   useEffect(() => {
     if (!splashVisible) markJsSplashPainted();
   }, [splashVisible, markJsSplashPainted]);
@@ -460,12 +463,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   splashOverlay: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#f7f7f7",
   },
-  splashImageWrap: {
-    position: "absolute",
-    left: 0,
-    top: 0,
+  splashImageFill: {
+    ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
   },
   shimmerStripe: {

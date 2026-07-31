@@ -1,3 +1,5 @@
+- 2026-07-31 (363): Android cold start — revert transparent splash icon (white hang); hide native after image load; hold splash on profile gate; auth sets `profileLoading` before `initializing=false`.
+- 2026-07-31 (362): Android cold start — keep splash while profile gate is open (fix white hang after splash handoff).
 - 2026-07-31 (361): Splash — remove image opacity “breath” (white flicker); keep `EarlySplashCover` until JS splash paints.
 - 2026-07-31 (360): Android splash — hide system centered icon via `withFinalizedMod` (`with-android-splash-hide-icon`); hand off to full-bleed `EarlySplashCover` after image load.
 - 2026-07-31 (359): Profile crash — fix `expo-application` import in `LegalFooter` (`import * as Application`); add direct dependency.

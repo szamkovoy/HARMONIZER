@@ -7,8 +7,8 @@ import {
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Platform, StyleSheet, View, type GestureResponderEvent } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Platform, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
@@ -39,7 +39,7 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 0, fade: false });
 
-/** After fonts: keep native hidden only once the JS startup splash has painted. */
+/** Hide native splash once the JS startup splash has a real image (or is skipped). */
 function NativeSplashBridge() {
   const { jsSplashPainted } = useAppStartup();
   useEffect(() => {
@@ -58,16 +58,11 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
   const nativeHiddenRef = useRef(false);
-  const [earlyCoverVisible, setEarlyCoverVisible] = useState(true);
 
   const hideNativeSplash = useCallback(() => {
     if (nativeHiddenRef.current) return;
     nativeHiddenRef.current = true;
     void SplashScreen.hideAsync();
-  }, []);
-
-  const dismissEarlyCover = useCallback(() => {
-    setEarlyCoverVisible(false);
   }, []);
 
   useEffect(() => {
@@ -79,48 +74,35 @@ export default function RootLayout() {
     configureLocalNotifications();
   }, []);
 
-  // Keep EarlySplashCover mounted across the fonts→providers handoff so Android
-  // never flashes white between the early cover and AppStartupSplashOverlay.
+  // Until fonts load: full-bleed JS cover over the native splash (keeps branded pixels).
+  if (!loaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#f7f7f7" }}>
+        <EarlySplashCover onPainted={hideNativeSplash} />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.root}>
-      {loaded ? (
-        <SafeAreaProvider>
-          <UiThemeProvider value={uiTheme}>
-            <AuthProvider>
-              <AppStartupProvider onSplashReady={dismissEarlyCover}>
-                <RemotePlayProvider>
-                  <AccessBridge>
-                    {earlyCoverVisible ? <NativeSplashBridge /> : null}
-                    <PushRegistrationBridge />
-                    <StorySessionBootstrap />
-                    <MembershipEventsBridge />
-                    <RootLayoutNav />
-                  </AccessBridge>
-                </RemotePlayProvider>
-              </AppStartupProvider>
-            </AuthProvider>
-          </UiThemeProvider>
-        </SafeAreaProvider>
-      ) : null}
-      {earlyCoverVisible ? (
-        <View style={styles.earlyCover} pointerEvents="auto">
-          <EarlySplashCover onPainted={hideNativeSplash} />
-        </View>
-      ) : null}
-    </View>
+    <SafeAreaProvider>
+      <UiThemeProvider value={uiTheme}>
+        <AuthProvider>
+          <AppStartupProvider>
+            <RemotePlayProvider>
+              <AccessBridge>
+                <NativeSplashBridge />
+                <PushRegistrationBridge />
+                <StorySessionBootstrap />
+                <MembershipEventsBridge />
+                <RootLayoutNav />
+              </AccessBridge>
+            </RemotePlayProvider>
+          </AppStartupProvider>
+        </AuthProvider>
+      </UiThemeProvider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-  },
-  earlyCover: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 100,
-  },
-});
 
 function AccessBridge({ children }: { children: ReactNode }) {
   const { profile, authUser } = useAuth();
@@ -250,7 +232,7 @@ function RootLayoutNav() {
     });
   };
 
-  // Пока читаем сессию / профиль — белый фон как у сплэша (не dark screenBg),
+  // Пока читаем сессию / профиль — фон как у сплэша (не dark screenBg),
   // иначе на Android с тёмной системной темой мигает чёрный кадр под оверлеем.
   // Сплэш-скрин Expo уже скрыт (fonts loaded); JS-оверлей рисует картинку сверху.
   if (initializing || waitingForProfile) {
@@ -258,7 +240,7 @@ function RootLayoutNav() {
       <View
         style={{
           flex: 1,
-          backgroundColor: "#ffffff",
+          backgroundColor: "#f7f7f7",
         }}
       />
     );

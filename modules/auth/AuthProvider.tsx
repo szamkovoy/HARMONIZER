@@ -247,6 +247,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       rememberSupabaseSession(next);
       sessionRef.current = next;
+      // Raise profileLoading before initializing=false so RootLayout / splash
+      // never see a one-tick gap (session set, profile still null, loading false)
+      // that collapses the startup splash onto a blank white gate on Android.
+      if (next?.user) {
+        setProfileLoading(true);
+      }
       setAuthCore({ session: next, initializing: false });
       void syncProfile(next?.user ?? null).catch((error: unknown) => {
         // eslint-disable-next-line no-console

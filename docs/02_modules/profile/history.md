@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-07-31 (cold-start profileLoading gap):** `completeBootstrap` теперь ставит `profileLoading=true` до `initializing=false` при наличии session — иначе один тик `session && !profileLoading && !profile` снимал splash на белый gate (Android). См. infra history.
+
 - **2026-07-31 (LegalFooter crash on Profile):** Store/TestFlight — таб «Профиль» падал на `nativeApplicationVersion` of undefined (неверный default-import `expo-application` в `LegalDocuments.tsx`). См. onboarding history.
 
 - **2026-07-31 (version + copyright footer):** В `LegalFooter tone="links"` над юрссылками — `{appName} v{version} ({build})` и `© {year} {holder}` тем же шрифтом, без доп. gap. `common.appName` / `profile.about.copyrightHolder` (RU vs `Sergei Zamkovoi, TOO`); год = текущий. Маркетинг **1.1.0**, build из native.
