@@ -182,7 +182,6 @@ function AppStartupSplashOverlay({
   const { width: winW, height: winH } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(1)).current;
   const progress = useRef(new Animated.Value(0)).current;
-  const logoBreath = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(true);
   const paintedRef = useRef(false);
@@ -193,32 +192,6 @@ function AppStartupSplashOverlay({
     paintedRef.current = true;
     onFirstPaint?.();
   }, [onFirstPaint]);
-
-  useEffect(() => {
-    if (!visible) {
-      logoBreath.stopAnimation();
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoBreath, {
-          toValue: 1,
-          duration: 7200,
-          easing: Easing.inOut(Easing.quad),
-          /* opacity родителя + Image.cover: при true на iOS/Fabric возможен неверный scale (виден лишний край). */
-          useNativeDriver: false,
-        }),
-        Animated.timing(logoBreath, {
-          toValue: 0,
-          duration: 7200,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [logoBreath, visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -264,11 +237,6 @@ function AppStartupSplashOverlay({
 
   if (!mounted) return null;
 
-  const logoOpacity = logoBreath.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.58, 0.74],
-  });
-
   const shimmerTranslate = shimmer.interpolate({
     inputRange: [0, 1],
     outputRange: [-winW * 0.85, winW * 0.85],
@@ -285,18 +253,14 @@ function AppStartupSplashOverlay({
       style={[StyleSheet.absoluteFill, styles.splashOverlay, { opacity }]}
       onLayout={notifyPainted}
     >
-      {/* Полный кадр как expo.splash (resizeMode: cover): явные размеры экрана — надёжнее, чем absoluteFill для cover */}
-      <Animated.View
-        style={[
-          styles.splashImageWrap,
-          {
-            width: winW,
-            height: winH,
-            opacity: logoOpacity,
-          },
-        ]}
-      >
-        <Image source={splashImage} style={{ width: winW, height: winH }} resizeMode="cover" />
+      {/* Full-bleed cover at opacity 1 — never dim the art over white (was 0.58–0.74 “breath”). */}
+      <View style={[styles.splashImageWrap, { width: winW, height: winH }]}>
+        <Image
+          source={splashImage}
+          style={{ width: winW, height: winH }}
+          resizeMode="cover"
+          fadeDuration={0}
+        />
         <Animated.View
           pointerEvents="none"
           style={[
@@ -310,7 +274,7 @@ function AppStartupSplashOverlay({
             },
           ]}
         />
-      </Animated.View>
+      </View>
 
       <View style={styles.bottomStage}>
         <View style={styles.track}>
@@ -334,7 +298,14 @@ function AppStartupSplashOverlay({
   );
 }
 
-export function AppStartupProvider({ children }: { children: ReactNode }) {
+export function AppStartupProvider({
+  children,
+  onSplashReady,
+}: {
+  children: ReactNode;
+  /** Fires once JS splash is painted (or skipped) — dismiss EarlySplashCover. */
+  onSplashReady?: () => void;
+}) {
   const { initializing, profileLoading } = useAuth();
   const { locale } = useAppLocale();
   const appLocale = coerceAppLocale(locale);
@@ -351,7 +322,12 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
     presentation: "splash",
   });
   const [jsSplashPainted, setJsSplashPainted] = useState(false);
-  const markJsSplashPainted = useCallback(() => setJsSplashPainted(true), []);
+  const onSplashReadyRef = useRef(onSplashReady);
+  onSplashReadyRef.current = onSplashReady;
+  const markJsSplashPainted = useCallback(() => {
+    setJsSplashPainted(true);
+    onSplashReadyRef.current?.();
+  }, []);
 
   const visible = initializing || (isHomeRoute && homeBootstrap.blocking);
   /**

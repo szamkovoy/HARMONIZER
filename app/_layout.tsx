@@ -8,7 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Platform, View, type GestureResponderEvent } from "react-native";
+import { Platform, StyleSheet, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
@@ -58,13 +58,16 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
   const nativeHiddenRef = useRef(false);
-  const [earlySplashDone, setEarlySplashDone] = useState(false);
+  const [earlyCoverVisible, setEarlyCoverVisible] = useState(true);
 
   const hideNativeSplash = useCallback(() => {
     if (nativeHiddenRef.current) return;
     nativeHiddenRef.current = true;
     void SplashScreen.hideAsync();
-    setEarlySplashDone(true);
+  }, []);
+
+  const dismissEarlyCover = useCallback(() => {
+    setEarlyCoverVisible(false);
   }, []);
 
   useEffect(() => {
@@ -76,36 +79,48 @@ export default function RootLayout() {
     configureLocalNotifications();
   }, []);
 
-  // Until fonts load: full-bleed cover replaces the tiny native Android/iOS logo splash.
-  if (!loaded) {
-    return (
-      <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
-        <EarlySplashCover onPainted={hideNativeSplash} />
-      </View>
-    );
-  }
-
+  // Keep EarlySplashCover mounted across the fonts→providers handoff so Android
+  // never flashes white between the early cover and AppStartupSplashOverlay.
   return (
-    <SafeAreaProvider>
-      <UiThemeProvider value={uiTheme}>
-        <AuthProvider>
-          <AppStartupProvider>
-            <RemotePlayProvider>
-              <AccessBridge>
-                {/* If early cover already hid native, bridge is a no-op after paint. */}
-                {!earlySplashDone ? <NativeSplashBridge /> : null}
-                <PushRegistrationBridge />
-                <StorySessionBootstrap />
-                <MembershipEventsBridge />
-                <RootLayoutNav />
-              </AccessBridge>
-            </RemotePlayProvider>
-          </AppStartupProvider>
-        </AuthProvider>
-      </UiThemeProvider>
-    </SafeAreaProvider>
+    <View style={styles.root}>
+      {loaded ? (
+        <SafeAreaProvider>
+          <UiThemeProvider value={uiTheme}>
+            <AuthProvider>
+              <AppStartupProvider onSplashReady={dismissEarlyCover}>
+                <RemotePlayProvider>
+                  <AccessBridge>
+                    {earlyCoverVisible ? <NativeSplashBridge /> : null}
+                    <PushRegistrationBridge />
+                    <StorySessionBootstrap />
+                    <MembershipEventsBridge />
+                    <RootLayoutNav />
+                  </AccessBridge>
+                </RemotePlayProvider>
+              </AppStartupProvider>
+            </AuthProvider>
+          </UiThemeProvider>
+        </SafeAreaProvider>
+      ) : null}
+      {earlyCoverVisible ? (
+        <View style={styles.earlyCover} pointerEvents="auto">
+          <EarlySplashCover onPainted={hideNativeSplash} />
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  earlyCover: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+  },
+});
 
 function AccessBridge({ children }: { children: ReactNode }) {
   const { profile, authUser } = useAuth();

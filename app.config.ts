@@ -253,6 +253,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "./plugins/with-android-location-permission-merge.js",
       "react-native-health-connect",
       "./plugins/with-native-health.js",
+      // After expo-splash-screen (in app.json): hide Android 12+ centered icon.
+      "./plugins/with-android-splash-hide-icon.js",
     ],
   };
 };

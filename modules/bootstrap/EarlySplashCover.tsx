@@ -1,9 +1,10 @@
 /**
  * Full-bleed splash shown before fonts / providers mount.
- * Hides the native SplashScreen (often a tiny centered logo on Android 12+)
- * as soon as this cover paints — so the user sees the large art immediately.
+ * Hides the native SplashScreen once the cover image is ready — so Android 12+
+ * (solid color, no icon; see `with-android-splash-hide-icon`) hands off to the
+ * large art without a small→large jump.
  */
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Image, StyleSheet, useWindowDimensions, View } from "react-native";
 
 import splashImage from "@/assets/splashSource";
@@ -17,9 +18,21 @@ export function EarlySplashCover({ onPainted }: { onPainted: () => void }) {
     onPainted();
   }, [onPainted]);
 
+  // Fallback if onLoadEnd never fires (should be rare for bundled assets).
+  useEffect(() => {
+    const t = setTimeout(notify, 400);
+    return () => clearTimeout(t);
+  }, [notify]);
+
   return (
-    <View style={[styles.root, { width, height }]} onLayout={notify}>
-      <Image source={splashImage} style={{ width, height }} resizeMode="cover" />
+    <View style={[styles.root, { width, height }]}>
+      <Image
+        source={splashImage}
+        style={{ width, height }}
+        resizeMode="cover"
+        fadeDuration={0}
+        onLoadEnd={notify}
+      />
     </View>
   );
 }

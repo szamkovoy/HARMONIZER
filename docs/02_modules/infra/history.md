@@ -15,6 +15,10 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 - **2026-07-30 (splash full-bleed):** Холодный старт: крошечный centered logo (Android 12 Splash API / iOS без legacy full-screen), пока `useFonts` держал `return null`. Fix: `EarlySplashCover` (cover) до шрифтов + сразу `hideAsync`; plugin `enableFullScreenImage_legacy: true` (iOS) + `imageWidth: 288` (макс. Android icon canvas). Полный full-bleed на Android 12+ системно недоступен — минимизируем время мелкого кадра.
 
+- **2026-07-31 (Android splash no small icon):** QA: на Android мелькал маленький centered splash, затем большой кадр (iOS уже full-bleed). Android 12+ не даёт full-bleed image. Fix: `with-android-splash-hide-icon` → прозрачный `windowSplashScreenAnimatedIcon`; `EarlySplashCover` ждёт `onLoadEnd` перед `hideAsync`.
+- **2026-07-31 (Android splash plugin order):** Первый проход плагина не патчил `styles.xml` (`withAndroidStyles` / `withDangerousMod` шли до записи темы `expo-splash-screen`). Переведено на `withFinalizedMod` — патч после всех модов.
+- **2026-07-31 (splash white flicker):** После скрытия мелкой иконки QA: большая заставка «дышала» в белый. Причина — `logoBreath` opacity 0.58–0.74 на `#fff` + размонтирование `EarlySplashCover` до paint `AppStartupSplashOverlay`. Fix: картинка всегда opacity 1; early cover до `onSplashReady`.
+
 - **2026-07-31 (iOS Firebase autolink gate):** After config-plugin skip, `pod install` still failed: CocoaPods resolved `RNFBAppCheck` → missing `AppCheckCore (~> 11.3)`. Added `react-native.config.js` to disable iOS autolink for `@react-native-firebase/*` when plist/`GOOGLE_SERVICES_PLIST` is absent (matches plugin gate).
 
 - **2026-07-31 (iOS GoogleService-Info.plist):** `app.config.ts` wires `ios.googleServicesFile` from `GOOGLE_SERVICES_PLIST` / local plist; RNFirebase plugins + `forceStaticLinking` only when the platform file exists (`EAS_BUILD_PLATFORM`). `.easignore` keeps Firebase client configs in EAS archives while gitignore excludes them. Unblocks iOS local production prebuild without hard-fail.
