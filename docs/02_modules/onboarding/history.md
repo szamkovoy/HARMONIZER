@@ -10,6 +10,8 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-07-31 (LegalFooter import crash):** TestFlight Profile crash — `Cannot read property 'nativeApplicationVersion' of undefined` из-за `import Application from "expo-application"` (нет default export). Fix: `import * as Application`; `expo-application` — direct dependency.
+
 - **2026-07-31 (LegalFooter about lines):** `tone="links"` (Профиль) — над юрссылками версия + © (см. profile history); consent на мастере без изменений.
 
 - **2026-07-30 (OTP send UX latency):** Пауза ~8 с на «Получить код» — длинные retry App Check. Укорочен бюджет getToken (~1.2 с) + prefetch на mount; кнопка `busy` с «Отправляется…» (без dim).

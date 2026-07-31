@@ -10,7 +10,7 @@
  */
 import { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Application from "expo-application";
+import * as Application from "expo-application";
 import Constants from "expo-constants";
 
 import { AppText } from "@/modules/ui/AppText";
@@ -21,6 +21,7 @@ import { useTranslate } from "@/modules/i18n";
 type LegalDoc = "terms" | "privacy";
 
 function resolveAppVersionMeta(): { version: string; build: string } {
+  // Named exports only — default import is undefined and crashes Profile (`tone="links"`).
   const fromConfig = Constants.expoConfig?.version?.trim();
   const fromNative = Application.nativeApplicationVersion?.trim();
   const version = fromConfig || fromNative || "0.0.0";
