@@ -20,6 +20,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **2026-07-31 (splash white flicker):** После скрытия мелкой иконки QA: большая заставка «дышала» в белый. Причина — `logoBreath` opacity 0.58–0.74 на `#fff` + размонтирование `EarlySplashCover` до paint `AppStartupSplashOverlay`. Fix: картинка всегда opacity 1; early cover до `onSplashReady`.
 - **2026-07-31 (Android white hang):** После splash-фикса cold start залипал на белом. Гонка: пустые `segments` → `!isHomeRoute` → splash off, под ним белый `waitingForProfile`. Fix: hold splash while profile gate; не снимать blocking на cold-start.
 - **2026-07-31 (Android white hang v2):** QA: снова белый экран после AAB. Прозрачный `windowSplashScreenAnimatedIcon` + ранний `hideAsync` = blank native без fallback. Откат hide-icon плагина; hide native только после `Image.onLoad`; splash bg `#f7f7f7`; truecolor PNG; auth поднимает `profileLoading` до `initializing=false`.
+- **2026-07-31 (Android splash reset):** QA: mini → огромная растянутая. Reset: iOS снова EarlySplashCover + `useWindowDimensions`; Android без EarlySplashCover (native → AppStartup с явными winW/winH); overlay bg `#ffffff`; без absoluteFill Image.
 
 - **2026-07-31 (iOS Firebase autolink gate):** After config-plugin skip, `pod install` still failed: CocoaPods resolved `RNFBAppCheck` → missing `AppCheckCore (~> 11.3)`. Added `react-native.config.js` to disable iOS autolink for `@react-native-firebase/*` when plist/`GOOGLE_SERVICES_PLIST` is absent (matches plugin gate).
 

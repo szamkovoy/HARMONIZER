@@ -7,7 +7,7 @@ import {
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
@@ -39,7 +39,7 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 0, fade: false });
 
-/** Hide native splash once the JS startup splash has a real image (or is skipped). */
+/** After fonts: keep native hidden only once the JS startup splash has painted. */
 function NativeSplashBridge() {
   const { jsSplashPainted } = useAppStartup();
   useEffect(() => {
@@ -58,11 +58,13 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
   const nativeHiddenRef = useRef(false);
+  const [earlySplashDone, setEarlySplashDone] = useState(false);
 
   const hideNativeSplash = useCallback(() => {
     if (nativeHiddenRef.current) return;
     nativeHiddenRef.current = true;
     void SplashScreen.hideAsync();
+    setEarlySplashDone(true);
   }, []);
 
   useEffect(() => {
@@ -74,13 +76,18 @@ export default function RootLayout() {
     configureLocalNotifications();
   }, []);
 
-  // Until fonts load: full-bleed JS cover over the native splash (keeps branded pixels).
+  // iOS: full-bleed JS cover before fonts (native legacy splash → large art).
+  // Android: keep the system splash until AppStartup Image.onLoad — no EarlySplashCover
+  // (avoids mini icon → stretched intermediate frame).
   if (!loaded) {
-    return (
-      <View style={{ flex: 1, backgroundColor: "#f7f7f7" }}>
-        <EarlySplashCover onPainted={hideNativeSplash} />
-      </View>
-    );
+    if (Platform.OS === "ios") {
+      return (
+        <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
+          <EarlySplashCover onPainted={hideNativeSplash} />
+        </View>
+      );
+    }
+    return null;
   }
 
   return (
@@ -90,7 +97,8 @@ export default function RootLayout() {
           <AppStartupProvider>
             <RemotePlayProvider>
               <AccessBridge>
-                <NativeSplashBridge />
+                {/* iOS early cover may already have hidden native; Android uses bridge. */}
+                {!earlySplashDone ? <NativeSplashBridge /> : null}
                 <PushRegistrationBridge />
                 <StorySessionBootstrap />
                 <MembershipEventsBridge />
@@ -232,7 +240,7 @@ function RootLayoutNav() {
     });
   };
 
-  // Пока читаем сессию / профиль — фон как у сплэша (не dark screenBg),
+  // Пока читаем сессию / профиль — белый фон как у сплэша (не dark screenBg),
   // иначе на Android с тёмной системной темой мигает чёрный кадр под оверлеем.
   // Сплэш-скрин Expo уже скрыт (fonts loaded); JS-оверлей рисует картинку сверху.
   if (initializing || waitingForProfile) {
@@ -240,7 +248,7 @@ function RootLayoutNav() {
       <View
         style={{
           flex: 1,
-          backgroundColor: "#f7f7f7",
+          backgroundColor: "#ffffff",
         }}
       />
     );

@@ -252,11 +252,11 @@ function AppStartupSplashOverlay({
       pointerEvents="auto"
       style={[StyleSheet.absoluteFill, styles.splashOverlay, { opacity }]}
     >
-      {/* Full-bleed cover at opacity 1 — never dim the art (was 0.58–0.74 “breath”). */}
-      <View style={styles.splashImageFill}>
+      {/* Explicit window size — absoluteFill + cover mis-scales on Fabric/Android. */}
+      <View style={[styles.splashImageWrap, { width: winW, height: winH }]}>
         <Image
           source={splashImage}
-          style={StyleSheet.absoluteFillObject}
+          style={{ width: winW, height: winH }}
           resizeMode="cover"
           fadeDuration={0}
           onLoad={notifyPainted}
@@ -463,10 +463,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   splashOverlay: {
-    backgroundColor: "#f7f7f7",
+    backgroundColor: "#FFFFFF",
   },
-  splashImageFill: {
-    ...StyleSheet.absoluteFillObject,
+  splashImageWrap: {
+    position: "absolute",
+    left: 0,
+    top: 0,
     overflow: "hidden",
   },
   shimmerStripe: {
