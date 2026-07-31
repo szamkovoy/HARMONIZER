@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.10
-updated: 2026-07-22
+version: 1.11
+updated: 2026-07-31
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -64,7 +64,7 @@ code_refs:
 **Авторизация (реализовано, этап 0):**
 
 - **`requireAdmin(req): Promise<string>`** (`_legacy_web/app/api/_utils/supabase.ts`) — гейт каждого роута `app/api/admin/*`: `requireUser` (JWT) + проверка `public.user_roles.role = 'admin'` через service client. 401 без токена, 403 без роли, 503 если Auth/API недоступны. `requireUser` сначала валидирует JWT через PostgREST (без `/auth/v1/user`), затем один `getUser` с таймаутом 8s — чтобы зависание Auth не блокировало всю админку.
-- **`POST /api/admin/login`** — серверный password-grant (обход зависаний browser → Supabase Auth): body `{ email, password }` → `{ access_token, refresh_token, ... }` или 401/403/504. Клиент кладёт токены через `setSession`.
+- **`POST /api/admin/login`** — серверный password-grant (обход зависаний browser → Supabase Auth): body `{ email, password }` → `{ access_token, refresh_token, user, ... }` или 401/403/504. Клиент применяет токены через `applyAdminServerSession` (stubs browser → `/auth/v1/user` during `setSession` — тот же хрупкий edge, что ломал password-grant; роль admin уже проверена на сервере).
 - **`GET /api/admin/me`** — проба «я админ» для клиентского гейта: `{ userId, displayName }` или 401/403.
 
 **Сторис (реализовано, этап 1, доработано 2026-07-10):** `GET /api/admin/stories`, `POST /api/admin/stories/process`, `PATCH/DELETE /api/admin/stories/[id]`, `POST /api/admin/stories/cleanup`, UI `/admin/stories`. `GET /api/admin/stories` теперь opportunistically запускает cleanup истёкших published non-evergreen stories перед возвратом списка, а регулярное удаление поддерживается тем же helper + hourly cron invoke `cleanup-expired-stories`. Контракт и данные — в `02_modules/author_presence/spec.md` (владелец функциональности).

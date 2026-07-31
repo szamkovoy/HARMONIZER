@@ -4,15 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { LockKeyhole } from "lucide-react";
 
-import { getBrowserSupabase, resetBrowserSupabase } from "../_lib/supabaseBrowser";
+import {
+  applyAdminServerSession,
+  resetBrowserSupabase,
+  type AdminServerSession,
+} from "../_lib/supabaseBrowser";
 
 const SIGN_IN_TIMEOUT_MS = 30_000;
-
-type LoginSession = {
-  access_token: string;
-  refresh_token: string;
-  error?: string;
-};
 
 function mapLoginError(status: number, message: string): string {
   const msg = message.toLowerCase();
@@ -20,7 +18,9 @@ function mapLoginError(status: number, message: string): string {
     return "Слишком много попыток входа — подождите минуту и попробуйте снова";
   }
   if (status === 403) return "У этого аккаунта нет прав администратора";
-  if (status === 401 || msg.includes("invalid")) return "Неверный email или пароль";
+  if (status === 401 || msg.includes("invalid") || msg.includes("неверный")) {
+    return "Неверный email или пароль";
+  }
   if (status === 504 || msg.includes("timeout") || msg.includes("вовремя")) {
     return "Сервер авторизации не ответил вовремя — обновите страницу и попробуйте снова";
   }
@@ -51,11 +51,13 @@ export default function AdminLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmedEmail, password }),
       }).then(async (res) => {
-        const data = (await res.json().catch(() => ({}))) as LoginSession;
+        const data = (await res.json().catch(() => ({}))) as AdminServerSession & {
+          error?: string;
+        };
         if (!res.ok) {
           throw new Error(mapLoginError(res.status, data.error || res.statusText || "Не удалось войти"));
         }
-        if (!data.access_token || !data.refresh_token) {
+        if (!data.access_token || !data.refresh_token || !data.user?.id) {
           throw new Error("Сервер не вернул сессию");
         }
         return data;
@@ -76,16 +78,11 @@ export default function AdminLoginPage() {
         }),
       ]);
 
-      const supabase = getBrowserSupabase();
-      const { error: setErr } = await supabase.auth.setSession({
-        access_token: timed.access_token,
-        refresh_token: timed.refresh_token,
-      });
-      if (setErr) throw new Error(setErr.message || "Не удалось сохранить сессию");
-
+      await applyAdminServerSession(timed);
       router.replace("/admin");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось войти");
+      const raw = err instanceof Error ? err.message : "Не удалось войти";
+      setError(mapLoginError(0, raw));
     } finally {
       setBusy(false);
     }

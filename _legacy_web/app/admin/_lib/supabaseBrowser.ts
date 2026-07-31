@@ -198,6 +198,86 @@ export function getBrowserSupabase(): SupabaseClient {
   return client;
 }
 
+export type AdminServerSession = {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number | null;
+  expires_at?: number | null;
+  user: { id: string; email?: string | null };
+};
+
+/**
+ * Persist tokens from `POST /api/admin/login` without browser → Auth `/user`.
+ * `setSession` always calls `_getUser`; that edge path is the same flaky one
+ * that made password-grant hang (valid apikey, 0 bytes / Failed to fetch).
+ * User was already verified server-side (password + admin role).
+ */
+export async function applyAdminServerSession(session: AdminServerSession): Promise<void> {
+  if (!session.access_token?.trim() || !session.refresh_token?.trim() || !session.user?.id) {
+    throw new Error("Сервер не вернул сессию");
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if (!url || !apiKey) {
+    throw new Error("Не настроены ключи Supabase в клиенте");
+  }
+
+  resetBrowserSupabase({ clearStorage: true });
+
+  const userJson = JSON.stringify({
+    id: session.user.id,
+    aud: "authenticated",
+    role: "authenticated",
+    email: session.user.email ?? undefined,
+    app_metadata: { provider: "email", providers: ["email"] },
+    user_metadata: {},
+    created_at: new Date(0).toISOString(),
+  });
+
+  const baseFetch = browserFetchWithSafeApiKey(apiKey);
+  installSupabaseAuthConsoleFilter();
+  client = createClient(url, apiKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+    },
+    global: {
+      fetch: (input, init) => {
+        const href =
+          typeof input === "string"
+            ? input
+            : input instanceof Request
+              ? input.url
+              : String(input);
+        if (/\/auth\/v1\/user(?:\?|$)/.test(href)) {
+          return Promise.resolve(
+            new Response(userJson, {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        return baseFetch(input, init);
+      },
+    },
+  });
+
+  const { error } = await client.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  });
+  if (error) {
+    resetBrowserSupabase({ clearStorage: true });
+    throw new Error(error.message || "Не удалось сохранить сессию");
+  }
+
+  // Session is in localStorage; drop the stubbed fetch for later refresh attempts.
+  client = null;
+  getBrowserSupabase();
+}
+
 /**
  * Drop the singleton client (and optionally wipe stored auth).
  * Needed when getSession/refresh hangs: supabase-js keeps an internal lock,

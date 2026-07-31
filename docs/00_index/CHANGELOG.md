@@ -1,3 +1,4 @@
+- 2026-07-31 (352): Admin login — apply server session without browser→Auth `/user` (fixes «Failed to fetch» after successful password grant).
 - 2026-07-31 (351): Trial no longer unlocks webinars (same paywall as free); account wipe cancels email automations; re-register restarts welcome drip + 1-day demo.
 - 2026-07-31 (350): App version **1.1.0** (`appVersionSource: local`, autoIncrement preview+production); Profile footer shows localized name + `vX.Y.Z (build)` + © year/holder above legal links.
 - 2026-07-31 (349): Breath practice «?» help — two new paragraphs (headphones for binaural sound; tap to adjust breathing-indicator speed); RU/EN + de–nl overlays.

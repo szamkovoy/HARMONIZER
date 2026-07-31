@@ -1,13 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.2
-updated: 2026-07-21
+version: 1.3
+updated: 2026-07-31
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-07-31 (login Failed to fetch):** Prod: `POST /api/admin/login` → 200, затем UI «Failed to fetch». Причина: `setSession` → browser `_getUser` (`/auth/v1/user`) на том же хрупком Auth edge. Fix: `applyAdminServerSession` подставляет user локально при apply; ошибки сети мапятся в RU copy.
 
 - **2026-07-30 (client geo place sync):** Документирован клиентский фикс: `country_code`/`city` после GPS в онбординге + `maybeSync` на каждом `logAppOpen` (не только вне throttle). Нужен новый мобильный билд; бэкенд не менялся.
 
