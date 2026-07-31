@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 
-import { isYookassaRecurringEnabled } from "./selectPaymentProvider";
+import { isYookassaRecurringEnabled } from "./paymentGatewayProfile";
 
 const YOOKASSA_API = "https://api.yookassa.ru/v3";
 
@@ -44,6 +44,7 @@ export type YookassaPayment = {
   };
   metadata?: Record<string, string>;
   created_at?: string;
+  cancellation_details?: { party?: string; reason?: string };
 };
 
 function truncateDescription(text: string): string {
@@ -120,4 +121,59 @@ export async function fetchYookassaPayment(paymentId: string): Promise<YookassaP
     throw new Error(`YooKassa get payment HTTP ${res.status}: ${text.slice(0, 400)}`);
   }
   return JSON.parse(text) as YookassaPayment;
+}
+
+export type YookassaRenewChargeParams = {
+  contractId: string;
+  userId: string;
+  tier: string;
+  amount: number;
+  paymentMethodId: string;
+  /** current_period_end ISO — часть Idempotence-Key */
+  periodKey: string;
+  description: string;
+};
+
+/**
+ * Безакцептное списание по сохранённому payment_method_id (автоплатёж).
+ * Без confirmation — пользователь не подтверждает UI.
+ */
+export async function chargeYookassaSavedMethod(
+  params: YookassaRenewChargeParams,
+): Promise<YookassaPayment> {
+  const amountValue = params.amount.toFixed(2);
+  const idempotenceKey = `renew:${params.contractId}:${params.periodKey}`.slice(0, 64);
+
+  const body = {
+    amount: { value: amountValue, currency: "RUB" },
+    capture: true,
+    payment_method_id: params.paymentMethodId,
+    description: truncateDescription(params.description),
+    metadata: {
+      contractId: params.contractId,
+      userId: params.userId,
+      tier: params.tier,
+      kind: "renewal",
+      periodKey: params.periodKey,
+    },
+  };
+
+  const res = await fetch(`${YOOKASSA_API}/payments`, {
+    method: "POST",
+    headers: {
+      Authorization: basicAuthHeader(),
+      "Content-Type": "application/json",
+      "Idempotence-Key": idempotenceKey,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`YooKassa renew charge HTTP ${res.status}: ${text.slice(0, 400)}`);
+  }
+  const payment = JSON.parse(text) as YookassaPayment;
+  if (!payment.id) {
+    throw new Error("YooKassa renew charge: missing payment id");
+  }
+  return payment;
 }

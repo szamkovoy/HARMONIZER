@@ -17,7 +17,11 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const currency = url.searchParams.get("currency") ?? undefined;
-    const overview = await buildAccountOverview(createServiceSupabase(), userId, { currency });
+    const country = url.searchParams.get("country") ?? undefined;
+    const overview = await buildAccountOverview(createServiceSupabase(), userId, {
+      currency,
+      country,
+    });
     return corsJson({ overview });
   } catch (error) {
     return withCors(errorResponse(error));

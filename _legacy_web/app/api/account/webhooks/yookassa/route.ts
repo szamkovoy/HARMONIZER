@@ -2,9 +2,11 @@ import { createServiceSupabase, errorResponse, json } from "../../../_utils/supa
 import {
   findPaymentContract,
   fulfillFirstPaymentSuccess,
+  fulfillYookassaRenewal,
   markContractCancelled,
   markContractFailed,
 } from "../../fulfillPaymentContract";
+import { handleYookassaRenewalFailure } from "../../yookassaRenewals";
 import { fetchYookassaPayment, type YookassaPayment } from "../../yookassa";
 
 /**
@@ -15,8 +17,7 @@ import { fetchYookassaPayment, type YookassaPayment } from "../../yookassa";
  * или заголовок X-Yookassa-Signature с тем же секретом. Всегда перечитываем
  * платёж через API (источник правды) перед активацией.
  *
- * Чеки 54-ФЗ в первом релизе не передаём. Рекуррент — задел (сохранение
- * payment_method_id при наличии в ответе API).
+ * metadata.kind=renewal → продление; иначе первый платёж.
  */
 export const runtime = "nodejs";
 
@@ -89,7 +90,7 @@ async function persistPaymentMethodIfAny(
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<Response> {
   try {
     if (!authorized(req)) {
       return json({ error: "Unauthorized" }, { status: 401 });
@@ -102,18 +103,20 @@ export async function POST(req: Request) {
       return json({ error: "Malformed webhook body" }, { status: 400 });
     }
 
-    // Источник правды — GET /v3/payments/{id}
     const payment = await fetchYookassaPayment(objectId);
     const contractId =
       payment.metadata?.contractId?.trim() ||
       body.object?.metadata?.contractId?.trim() ||
       "";
+    const metaKind =
+      payment.metadata?.kind?.trim() || body.object?.metadata?.kind?.trim() || "";
 
     console.log("[yookassa-webhook]", event, {
       paymentId: payment.id,
       status: payment.status,
       paid: payment.paid ?? null,
       contractId: contractId || null,
+      kind: metaKind || null,
     });
 
     if (!contractId) {
@@ -128,7 +131,6 @@ export async function POST(req: Request) {
       return json({ ok: true, unknownContract: true });
     }
 
-    // Связываем внешний payment id с контрактом (идемпотентно).
     if (payment.id) {
       await db
         .from("payment_contracts")
@@ -140,12 +142,25 @@ export async function POST(req: Request) {
         .is("provider_payment_id", null);
     }
 
+    const isRenewal = metaKind === "renewal";
+
     if (event === "payment.succeeded" || payment.status === "succeeded") {
       if (payment.status !== "succeeded") {
         return json({ ok: true, ignored: "notification ahead of status" });
       }
 
       await persistPaymentMethodIfAny(db, contractId, contract.user_id, payment);
+
+      if (isRenewal) {
+        const result = await fulfillYookassaRenewal(db, {
+          contract,
+          amount: parseAmount(payment),
+          currency: payment.amount?.currency ?? "RUB",
+          paidAt: payment.created_at ?? new Date().toISOString(),
+          logTag: "yookassa-webhook",
+        });
+        return json(result);
+      }
 
       const result = await fulfillFirstPaymentSuccess(db, {
         contract,
@@ -159,8 +174,17 @@ export async function POST(req: Request) {
     }
 
     if (event === "payment.canceled" || payment.status === "canceled") {
+      if (isRenewal) {
+        const outcome = await handleYookassaRenewalFailure(db, {
+          contractId,
+          userId: contract.user_id,
+          paymentMethodId: payment.payment_method?.id ?? contract.payment_method_id,
+          reason: payment.cancellation_details?.reason ?? "canceled",
+        });
+        return json({ ok: true, renewalFailed: true, ...outcome });
+      }
+
       await markContractFailed(db, contractId);
-      // Если уже был active — cancelled (редкий кейс refund/cancel после успеха).
       if (contract.status === "active") {
         await markContractCancelled(db, contractId);
       }

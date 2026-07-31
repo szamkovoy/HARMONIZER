@@ -1724,6 +1724,7 @@ export function Communicator({
           ]);
           return;
         }
+        resetChatStream();
         reportError(err);
       }
     },
@@ -1781,6 +1782,7 @@ export function Communicator({
           resetChatStream();
           return;
         }
+        resetChatStream();
         reportError(err);
       }
     },
@@ -1831,6 +1833,9 @@ export function Communicator({
       if (result == null) return;
       await commitAssistantTurn(result, { replaceAll: true });
     } catch (e) {
+      // Stream status stays "typing" until reset — without this, mic stays dead (ignore).
+      resetChatStream();
+      setPhase("idle");
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
     }
@@ -1839,6 +1844,7 @@ export function Communicator({
     commitAssistantTurn,
     entrySource,
     reportError,
+    resetChatStream,
     responseLocale,
     runChatStream,
     buildRequestTriggerMeta,

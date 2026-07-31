@@ -4,7 +4,10 @@ import { baseTierFromRow, hasActiveTrial } from "../../../modules/access/core/pa
 import { VISIBLE_PAID_PRODUCT_TIERS, TIER_ORDER, type ProductTier } from "../../../modules/access/core/tiers";
 import { isLavaCurrency, resolveLavaPrice, type LavaCurrency, type LavaPeriodicity, type SellableTier } from "./lava";
 import { resolveCatalogPrice, type CatalogTier } from "./paymentCatalog";
-import { selectPaymentProvider } from "./selectPaymentProvider";
+import {
+  resolvePaymentGateway,
+  type PaymentProviderId,
+} from "./paymentGatewayProfile";
 
 /**
  * Данные для страницы Личного кабинета. Страница локализует названия уровней
@@ -76,6 +79,13 @@ export type AccountOverview = {
   webinar: AccountWebinarPurchase;
   /** Разовая покупка книги (ONE_TIME). */
   book: AccountBookPurchase;
+  /** Выбор шлюза по стране; available=false → fail-closed (кнопки оплаты скрыть). */
+  paymentGateway: {
+    available: boolean;
+    provider: PaymentProviderId | null;
+    country: string;
+    error?: "payment_gateway_unavailable";
+  };
 };
 
 /**
@@ -89,7 +99,7 @@ function resolvePurchaseMode(_currency: LavaCurrency): AccountPurchaseMode {
 async function resolvePriceForProvider(
   db: SupabaseClient,
   params: {
-    provider: ReturnType<typeof selectPaymentProvider>;
+    provider: PaymentProviderId;
     tier: CatalogTier | SellableTier;
     userLocale: string;
     currency: LavaCurrency;
@@ -100,7 +110,7 @@ async function resolvePriceForProvider(
     return resolveCatalogPrice(db, {
       provider: "yookassa",
       tier: params.tier as CatalogTier,
-      currency: params.currency,
+      currency: "RUB",
     });
   }
   try {
@@ -119,7 +129,7 @@ async function resolvePriceForProvider(
 export async function buildAccountOverview(
   db: SupabaseClient,
   userId: string,
-  options?: { currency?: string },
+  options?: { currency?: string; country?: string },
 ): Promise<AccountOverview> {
   const { data: row, error } = await db
     .from("users")
@@ -167,13 +177,13 @@ export async function buildAccountOverview(
       ? [...VISIBLE_PAID_PRODUCT_TIERS]
       : VISIBLE_PAID_PRODUCT_TIERS.filter((tier) => TIER_ORDER[tier] > TIER_ORDER[baseTier]);
 
-  // Валюта цен — из ?currency= (приложение передаёт по гео); fallback EUR.
+  // Валюта/страна — из query (приложение передаёт по гео); fallback EUR.
   const currencyParam = options?.currency?.trim().toUpperCase() ?? "";
   const currency: LavaCurrency = isLavaCurrency(currencyParam) ? currencyParam : "EUR";
+  const country = options?.country?.trim().toUpperCase() ?? "";
   const purchaseMode = resolvePurchaseMode(currency);
-  const provider = selectPaymentProvider(currency);
+  const gateway = resolvePaymentGateway({ country: country || null, currency });
 
-  // Ближайший опубликованный вебинар (параллельно с ценами).
   const nearestWebinarPromise = db
     .from("webinars")
     .select("id")
@@ -183,8 +193,43 @@ export async function buildAccountOverview(
     .limit(1)
     .maybeSingle();
 
-  // Цены: Lava products (кэш 10 мин) или payment_catalog для ЮKassa/RUB.
   const sellableUpgradeTiers = candidateTiers.filter((tier) => tier !== "practitioner");
+
+  if (!gateway.ok) {
+    const nearestWebinar = await nearestWebinarPromise;
+    const emptyPurchase: AccountPurchase = { mode: purchaseMode, price: null, url: null };
+    return {
+      userId,
+      displayName: row.display_name ?? null,
+      email,
+      registeredAt: row.created_at ?? null,
+      locale: userLocale,
+      tier: visibleTier,
+      trialActive: hasActiveTrial(row),
+      trialExpiresAt: row.trial_expires_at ?? null,
+      membershipExpiresAt: row.membership_expires_at ?? null,
+      upgradeTiers: sellableUpgradeTiers.map((tier) => ({
+        tier,
+        purchase: emptyPurchase,
+      })),
+      subscription,
+      webinar: {
+        webinarId: nearestWebinar.data?.id ?? null,
+        purchase: emptyPurchase,
+      },
+      book: { purchase: emptyPurchase },
+      paymentGateway: {
+        available: false,
+        provider: null,
+        country: country || (currency === "RUB" ? "RU" : ""),
+        error: "payment_gateway_unavailable",
+      },
+    };
+  }
+
+  const provider = gateway.provider;
+  const priceCurrency: LavaCurrency = provider === "yookassa" ? "RUB" : currency;
+
   const [upgradePrices, nearestWebinar, bookPrice] = await Promise.all([
     Promise.all(
       sellableUpgradeTiers.map((tier) =>
@@ -192,7 +237,7 @@ export async function buildAccountOverview(
           provider,
           tier: tier as SellableTier,
           userLocale,
-          currency,
+          currency: priceCurrency,
           periodicity: "MONTHLY",
         }),
       ),
@@ -202,7 +247,7 @@ export async function buildAccountOverview(
       provider,
       tier: "book",
       userLocale,
-      currency,
+      currency: priceCurrency,
       periodicity: "ONE_TIME",
     }),
   ]);
@@ -219,7 +264,7 @@ export async function buildAccountOverview(
       provider,
       tier: "webinar",
       userLocale,
-      currency,
+      currency: priceCurrency,
       periodicity: "ONE_TIME",
     });
   }
@@ -242,6 +287,11 @@ export async function buildAccountOverview(
     },
     book: {
       purchase: { mode: purchaseMode, price: bookPrice, url: null },
+    },
+    paymentGateway: {
+      available: true,
+      provider,
+      country: country || (currency === "RUB" ? "RU" : ""),
     },
   };
 }

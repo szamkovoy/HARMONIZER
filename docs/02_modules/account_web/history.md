@@ -1,9 +1,15 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.10
+version: 1.11
 updated: 2026-07-31
 ---
+
+## 2026-07-31 — Payment gateway profiles RU/INT + YooKassa recurring
+
+- **Профили:** `PAYMENT_<GATEWAY>_ENABLED` + `_REGION` (`RU`|`INT`); выбор по `country` с fallback INT; fail-closed.
+- **ЮKassa:** shop approved + автоплатежи; `save_payment_method`, cron `yookassa-renewals`, fail×2 / permission_revoked → cancel + method inactive; cancel/wipe гасит methods.
+- **Клиент:** `resolveBillingGeo` → `currency`+`country` в кабинет; `payment_gateways.md`.
 
 ## 2026-07-31 — Wipe cancels email automations
 

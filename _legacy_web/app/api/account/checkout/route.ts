@@ -14,13 +14,16 @@ import {
   type SellableTier,
 } from "../lava";
 import { resolveCatalogOffer } from "../paymentCatalog";
-import { selectPaymentProvider, type PaymentProviderId } from "../selectPaymentProvider";
+import {
+  resolvePaymentGateway,
+  type PaymentProviderId,
+} from "../paymentGatewayProfile";
 import { createYookassaPayment } from "../yookassa";
 import { TIER_ORDER } from "../../../../modules/access/core/tiers";
 
 // Создание платёжного контракта.
 // kind: subscription | webinar | book (см. комментарии ранее).
-// Провайдер: selectPaymentProvider(currency) — RUB→ЮKassa при флаге, иначе Lava.
+// Провайдер: resolvePaymentGateway({ country, currency }) — RU/INT профили.
 // Кабинет всегда получает { paymentUrl, contractId }.
 export const runtime = "nodejs";
 
@@ -35,6 +38,7 @@ type CheckoutBody = {
   tier?: string;
   webinarId?: string;
   currency?: string;
+  country?: string;
 };
 
 export async function POST(req: Request) {
@@ -51,6 +55,7 @@ export async function POST(req: Request) {
     if (!isLavaCurrency(currency)) {
       return corsJson({ error: "currency must be one of: RUB, USD, EUR" }, { status: 400 });
     }
+    const country = body?.country?.trim().toUpperCase() || undefined;
 
     const db = createServiceSupabase();
     const { data: row, error } = await db
@@ -77,7 +82,19 @@ export async function POST(req: Request) {
     }
 
     const userLocale = typeof row.locale === "string" && row.locale.trim() ? row.locale : "ru";
-    const provider = selectPaymentProvider(currency);
+    const gateway = resolvePaymentGateway({ country, currency });
+    if (!gateway.ok) {
+      return corsJson(
+        {
+          error: "payment_gateway_unavailable",
+          message: "No payment provider is enabled for this region.",
+        },
+        { status: 503 },
+      );
+    }
+    const provider = gateway.provider;
+    const checkoutCurrency =
+      provider === "yookassa" ? ("RUB" as const) : (currency as "RUB" | "USD" | "EUR");
 
     if (kind === "webinar") {
       return await startWebinarCheckout(
@@ -85,13 +102,13 @@ export async function POST(req: Request) {
         userId,
         email,
         userLocale,
-        currency,
+        checkoutCurrency,
         provider,
         body?.webinarId,
       );
     }
     if (kind === "book") {
-      return await startBookCheckout(db, userId, email, userLocale, currency, provider);
+      return await startBookCheckout(db, userId, email, userLocale, checkoutCurrency, provider);
     }
 
     return await startSubscriptionCheckout(
@@ -99,7 +116,7 @@ export async function POST(req: Request) {
       userId,
       email,
       userLocale,
-      currency,
+      checkoutCurrency,
       provider,
       body?.tier,
     );

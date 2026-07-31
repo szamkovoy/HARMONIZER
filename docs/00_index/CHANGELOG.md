@@ -1,3 +1,5 @@
+- 2026-07-31 (354): Communicator — reset stream on commit/initiate errors so mic is not stuck after empty/failed assistant hydration.
+- 2026-07-31 (353): Payment gateways RU/INT profiles (Lava/YooKassa); YooKassa recurring (save method, daily cron, revoke on cancel/wipe); cabinet passes `country`.
 - 2026-07-31 (352): Admin login — apply server session without browser→Auth `/user` (fixes «Failed to fetch» after successful password grant).
 - 2026-07-31 (351): Trial no longer unlocks webinars (same paywall as free); account wipe cancels email automations; re-register restarts welcome drip + 1-day demo.
 - 2026-07-31 (350): App version **1.1.0** (`appVersionSource: local`, autoIncrement preview+production); Profile footer shows localized name + `vX.Y.Z (build)` + © year/holder above legal links.

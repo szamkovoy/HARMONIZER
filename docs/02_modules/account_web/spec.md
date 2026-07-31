@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.12
-updated: 2026-07-24
+version: 1.13
+updated: 2026-07-31
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -19,7 +19,12 @@ code_refs:
     _legacy_web/app/api/account/lava.ts,
     _legacy_web/app/api/account/yookassa.ts,
     _legacy_web/app/api/account/selectPaymentProvider.ts,
+    _legacy_web/app/api/account/paymentGatewayProfile.ts,
+    _legacy_web/app/api/account/yookassaRenewals.ts,
+    _legacy_web/app/api/cron/yookassa-renewals/route.ts,
     _legacy_web/app/api/account/paymentCatalog.ts,
+    docs/04_workspace/payment_gateways.md,
+    supabase/migrations/20260731120000_yookassa_renewals_cron.sql,
     _legacy_web/app/api/account/fulfillPaymentContract.ts,
     _legacy_web/app/api/account/overview-data.ts,
     _legacy_web/app/api/account/ott/route.ts,
@@ -76,11 +81,11 @@ code_refs:
 | --- | --- | --- |
 | `POST /api/account/ott` | Bearer JWT Supabase (приложение) | Выдаёт OTT: 32 байта base64url, в БД только sha256-хэш, TTL 5 мин |
 | `POST /api/account/session` | без auth, body `{ ott }`, CORS = origin сайта | Атомарно гасит OTT (`UPDATE … WHERE used_at IS NULL`), возвращает `{ sessionToken, overview }` |
-| `GET /api/account/overview` | Bearer кабинетной сессии, query `?currency=` | Свежий `overview`; цены: Lava products (USD/EUR и RUB→Lava) или `payment_catalog` (RUB→ЮKassa) |
-| `POST /api/account/checkout` | Bearer кабинетной сессии, body `{ kind, tier?, webinarId?, currency }` | `selectPaymentProvider(currency)` → Lava или ЮKassa. Lava: invoice + `provider=lavatop`; buyer email нормализуется; отказ Lava `Incorrect email to purchase` → `400 { error: "lava_buyer_email_rejected" }`. ЮKassa (RUB при флагах): pending `payment_contracts` (`provider=yookassa`, `contract_id` = наш uuid) + `POST /v3/payments` → `{ paymentUrl: confirmation_url, contractId }`. Политики kind/апгрейда те же. |
+| `GET /api/account/overview` | Bearer кабинетной сессии, query `?currency=&country=` | Свежий `overview`; `paymentGateway` (available/provider); цены по выбранному шлюзу. Нет шлюза → prices null + `payment_gateway_unavailable` |
+| `POST /api/account/checkout` | Bearer кабинетной сессии, body `{ kind, tier?, webinarId?, currency, country? }` | `resolvePaymentGateway({ country, currency })`. Нет шлюза → `503 payment_gateway_unavailable`. Lava / ЮKassa как раньше; ЮKassa всегда RUB. |
 | `GET /api/account/purchases/last` | Bearer JWT Supabase (приложение) | Последняя активная one_time-покупка (`{ kind, productRef, createdAt, contractId }` | null). Приложение сверяет `createdAt` с `cabinetVisit` и благодарит за покупку (`gate.bookPaid.*`). Таблица `payment_contracts` закрыта для клиента — чтение только service role |
 | `GET /api/account/subscription` | Bearer кабинетной сессии | Последний контракт со статусом active/cancelled |
-| `DELETE /api/account/subscription` | Bearer кабинетной сессии | Отмена через `cancelActiveSubscriptionsForUser` (`lavatop` → Lava DELETE; `yookassa` → DB-only, автосписаний пока нет) + статус cancelled; доступ до `current_period_end` / `membership_expires_at`. |
+| `DELETE /api/account/subscription` | Bearer кабинетной сессии | Отмена через `cancelActiveSubscriptionsForUser` (`lavatop` → Lava DELETE; `yookassa` → methods `inactive` + сброс `payment_method_id`) + статус cancelled; доступ до `current_period_end` / `membership_expires_at`. |
 | `DELETE /api/account/delete` | Bearer JWT Supabase (приложение) | Удаление аккаунта через `wipeUserAccount`: (1) email из user JWT (`requireUser`); (2) `cancelActiveSubscriptionsForUser` → `cancelProviderSubscription` (Lava API; ЮKassa — DB-only до рекуррента; unknown provider → fail-closed); (3) `cancelActiveEmailAutomationsForUser` — активные email-цепочки → `cancelled` (повторная регистрация может стартовать welcome заново); (4) снимок `buyer_email`; (5) `auth.admin.deleteUser` — леджер остаётся (`ON DELETE SET NULL`). Ответ `{ deleted: true }`. Тот же wipe — `DELETE /api/admin/users/[id]`. |
 | `POST /api/account/webhooks/lava` | заголовок `X-Api-Key` = `LAVATOP_WEBHOOK_SECRET` | Приём событий Lava (см. §3.1) |
 | `POST /api/account/webhooks/yookassa` | опц. `YOOKASSA_WEBHOOK_SECRET` + всегда GET payment у API | События ЮKassa (см. §3.3) |
@@ -131,33 +136,29 @@ code_refs:
 4. Источник котировок: **Т-Банк** (`DebitCardsOperations`) → **ЦБ РФ**. При коммерческом курсе 2% не вычитаются; при fallback на ЦБ итог × **0,98**. Округление `round` до 2 знаков. Курс кэшируется **на московный день (Europe/Moscow)** в `fx_daily_quotes`: внешний запрос не чаще раза в сутки. Если Т-Банк в этот день не ответил — до завтра только ЦБ (без повторных попыток к Т-Банку).
 5. Пишет строку в `payment_settlements` (идемпотентно) и зеркалит nets на `payment_contracts` (latest). Миграция `20260722020000_payment_settlements_fx_nets.sql`.
 
-### 3.3 ЮKassa (RUB)
+### 3.3 ЮKassa + профили шлюзов
 
-Маршрутизация (`selectPaymentProvider`):
+Маршрутизация — `resolvePaymentGateway` ([`paymentGatewayProfile.ts`](_legacy_web/app/api/account/paymentGatewayProfile.ts)); ops — [`docs/04_workspace/payment_gateways.md`](docs/04_workspace/payment_gateways.md).
 
 ```
-currency === "RUB"
-  && YOOKASSA_ENABLED === "true"
-  && PAYMENT_GATEWAY_FOR_RUB === "yookassa"   # default lavatop
-→ yookassa
-иначе → lavatop
+enabled gateway REGION === country  →  that gateway
+else enabled REGION=INT             →  INT gateway
+else                                →  fail-closed
 ```
 
-USD/EUR всегда Lava. Выключение — env без деплоя кода.
+1. Overview/checkout принимают `country` (+ `currency`). ЮKassa → цены `payment_catalog` / checkout RUB.
+2. Первый платёж: `POST /v3/payments` redirect; подписки + `YOOKASSA_RECURRING_ENABLED` → `save_payment_method`; webhook пишет `yookassa_payment_methods`.
+3. Renewal: cron `yookassa-renewals` → `chargeYookassaSavedMethod` (`payment_method_id`, metadata.kind=`renewal`) → webhook/cron → `fulfillYookassaRenewal` (+30d + grace + settlement). Fail: `renew_fail_count`; 2 fails или `permission_revoked` → cancel + method inactive.
+4. Cancel/wipe: methods → `inactive` (ЮKassa не удаляет method API-side).
+5. Чеки 54-ФЗ не передаём.
 
-1. Overview для RUB+ЮKassa берёт цены из `payment_catalog` (не Lava feed).
-2. Checkout: pending contract (`contract_id` = uuid) → `POST https://api.yookassa.ru/v3/payments` (Basic `shopId:secret`, `capture:true`, `confirmation.redirect`, `return_url=YOOKASSA_RETURN_URL`, metadata `{contractId,userId,tier,kind,webinarId?}`, Idempotence-Key = contractId). Подписки: `payment_method_data.type=bank_card`; разовые — Умный платёж. При `YOOKASSA_RECURRING_ENABLED=true` — ещё `save_payment_method` (сейчас false: доступ = 30 дней grant без автосписания).
-3. Webhook `payment.succeeded`: GET payment у API → `fulfillFirstPaymentSuccess` (membership +30d+48h grace / webinar upsert / book) + `settlePayment(..., provider:'yookassa')`. `payment.canceled` → pending→failed. Идемпотентность по active contract / settlement.
-4. Чеки 54-ФЗ в первом релизе **не** передаём. Cron рекуррента — вне этого релиза; поля `payment_method_id` / `yookassa_payment_methods` уже есть.
-5. Return: `YOOKASSA_RETURN_URL` (напр. `https://zamkovoi.yoga/cabinet/?paid=1`) — thanks в кабинете + подсказка вернуться в приложение.
-
-**Runbook:** миграция `20260722120000` → env на Vercel → в кабинете ЮKassa HTTP-уведомления на `https://harmonizer-ten.vercel.app/api/account/webhooks/yookassa` (`payment.succeeded`, `payment.canceled`) → smoke-тест одного RUB платежа.
+**Runbook:** env (`PAYMENT_*` + `YOOKASSA_*`) → webhook URL → выложить `cabinet/` с `country` → smoke RU/INT.
 
 ## 4. Конфигурация
 
 - Vercel env (Lava): `ACCOUNT_CABINET_SECRET`, `ACCOUNT_CABINET_ALLOWED_ORIGIN` (default `https://zamkovoi.yoga`), `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID`, `LAVATOP_TARIFF_3_ID`. Опционально: `LAVA_GATEWAY_FEE_RATE`, `YANDEX_GATEWAY_FEE_RATE`.
-- Vercel env (ЮKassa): `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `YOOKASSA_RETURN_URL`, `YOOKASSA_ENABLED` (`true`/`false`), `PAYMENT_GATEWAY_FOR_RUB` (`lavatop`\|`yookassa`), `YOOKASSA_RECURRING_ENABLED` (`false` до включения автоплатежей в магазине), опц. `YOOKASSA_WEBHOOK_SECRET`.
-- Приложение: `EXPO_PUBLIC_ACCOUNT_CABINET_URL` (default `https://zamkovoi.yoga/cabinet/`).
+- Vercel env (шлюзы): `PAYMENT_LAVATOP_ENABLED`, `PAYMENT_LAVATOP_REGION=INT`, `PAYMENT_YOOKASSA_ENABLED`, `PAYMENT_YOOKASSA_REGION=RU`, `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `YOOKASSA_RETURN_URL`, `YOOKASSA_RECURRING_ENABLED`, опц. `YOOKASSA_WEBHOOK_SECRET`. Legacy: `YOOKASSA_ENABLED` + `PAYMENT_GATEWAY_FOR_RUB`.
+- Приложение: `EXPO_PUBLIC_ACCOUNT_CABINET_URL` (default `https://zamkovoi.yoga/cabinet/`); OTT URL передаёт `currency` + `country`.
 - Страница: константа `API_BASE` в `web_cabinet/cabinet/index.html` (origin Vercel); оферта — `{API_BASE}/cabinet/offer/{lang}.json`.
 - Kill-switch: `update app_config set value='false' where key='account_links_enabled'` перед отправкой сборки на ревью; `'true'` после прохождения. Без релиза приложения (кэш клиента — до 5 минут). Ключ `account_links_enabled` читается и анонимом (политика `20260719000000`), остальные ключи `app_config` — только для authenticated/админов.
 
@@ -167,4 +168,4 @@ USD/EUR всегда Lava. Выключение — env без деплоя ко
 
 ## 6. Текущее состояние и планируемое
 
-Реализовано: OTT-цепочка, kill-switch, Realtime/foreground-подхват, модалки, оплата через Lava.top (USD/EUR и RUB по умолчанию) и ЮKassa для RUB при env-флагах (30-дневный grant без автосписания; задел `YOOKASSA_RECURRING_ENABLED`), разовая оплата вебинара/книги, отмена подписки, цены по геовалюте, `purchase.mode=checkout` для обоих шлюзов. Планируется: читалка книги; курсы/интенсивы; годовая периодичность Lava; включение рекуррента ЮKassa (менеджер магазина + флаг + cron); чеки 54-ФЗ.
+Реализовано: OTT-цепочка, kill-switch, Realtime/foreground-подхват, модалки, профили шлюзов RU/INT (Lava/ЮKassa), ЮKassa recurring (save method + daily cron + revoke на cancel/wipe), разовая оплата вебинара/книги, цены по гео. Планируется: читалка книги; курсы/интенсивы; годовая периодичность Lava; чеки 54-ФЗ.

@@ -7,8 +7,8 @@
  *
  * Провайдеры:
  * - `lavatop` — Lava DELETE /api/v1/subscriptions
- * - `yookassa` — пока DB-only (нет автосписаний); при YOOKASSA_RECURRING_ENABLED
- *   здесь ОБЯЗАТЕЛЬНО отозвать saved payment_method / отменить подписку у API
+ * - `yookassa` — пометить saved payment methods inactive (ЮKassa не удаляет
+ *   method на своей стороне; мы перестаём слать charge)
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -21,25 +21,45 @@ export type ActiveSubscriptionContract = {
 };
 
 /**
- * Отмена у шлюза (без обновления строки в БД). Для yookassa без saved method — no-op.
+ * Отмена у шлюза (без обновления строки в БД).
  */
 export async function cancelProviderSubscription(params: {
   provider: string;
   contractId: string;
   email: string;
+  userId?: string;
+  db?: SupabaseClient;
 }): Promise<void> {
   switch (params.provider) {
     case "lavatop":
       await cancelLavaSubscription({ contractId: params.contractId, email: params.email });
       return;
-    case "yookassa":
-      // Сейчас: 30-дневный grant без автосписания → gateway cancel не нужен.
-      // TODO(YOOKASSA_RECURRING): при включении рекуррента — отозвать
-      // payment_method_id / отменить подписку в ЮKassa API до return.
-      // Иначе wipeUserAccount пометит cancelled в БД, а списания продолжатся.
+    case "yookassa": {
+      // ЮKassa: удаление method только на нашей стороне (docs: stop using payment_method_id).
+      const db = params.db;
+      const userId = params.userId;
+      if (!db || !userId) {
+        console.warn(
+          "[cancel] yookassa cancel without db/userId — methods may stay active until wipe path",
+        );
+        return;
+      }
+      const nowIso = new Date().toISOString();
+      const { error: methodsError } = await db
+        .from("yookassa_payment_methods")
+        .update({ status: "inactive", updated_at: nowIso })
+        .eq("user_id", userId)
+        .in("status", ["active", "pending"]);
+      if (methodsError) throw methodsError;
+
+      const { error: contractError } = await db
+        .from("payment_contracts")
+        .update({ payment_method_id: null, updated_at: nowIso })
+        .eq("contract_id", params.contractId);
+      if (contractError) throw contractError;
       return;
+    }
     default:
-      // Не молчим: иначе пользователь потеряет аккаунт, а списания продолжатся.
       throw new Error(`Unsupported payment provider for cancel: ${params.provider}`);
   }
 }
@@ -47,7 +67,6 @@ export async function cancelProviderSubscription(params: {
 /**
  * Находит active subscription-контракты пользователя, отменяет их у провайдера
  * и помечает `cancelled` в БД. One-time покупки не трогает.
- * Возвращает число успешно отменённых контрактов.
  */
 export async function cancelActiveSubscriptionsForUser(
   db: SupabaseClient,
@@ -61,7 +80,6 @@ export async function cancelActiveSubscriptionsForUser(
   if (error) throw error;
 
   const subscriptions = (data ?? []).filter((row) => {
-    // До миграции one_time product_kind мог быть null → считаем subscription.
     const kind = row.product_kind ?? "subscription";
     return kind === "subscription";
   }) as ActiveSubscriptionContract[];
@@ -74,6 +92,8 @@ export async function cancelActiveSubscriptionsForUser(
       provider: contract.provider || "lavatop",
       contractId: contract.contract_id,
       email: params.email,
+      userId: params.userId,
+      db,
     });
 
     const { error: updateError } = await db
@@ -87,6 +107,14 @@ export async function cancelActiveSubscriptionsForUser(
     if (updateError) throw updateError;
     cancelledCount += 1;
   }
+
+  // На всякий случай гасим все active methods пользователя (orphan после wipe).
+  const { error: orphanMethodsError } = await db
+    .from("yookassa_payment_methods")
+    .update({ status: "inactive", updated_at: now })
+    .eq("user_id", params.userId)
+    .in("status", ["active", "pending"]);
+  if (orphanMethodsError) throw orphanMethodsError;
 
   return { cancelledCount };
 }

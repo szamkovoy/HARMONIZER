@@ -13,6 +13,7 @@
  * Параметры ссылки:
  *   - lang: язык интерфейса кабинета (= локаль приложения);
  *   - currency: валюта цен по геолокации (RU→RUB, US→USD, иначе EUR);
+ *   - country: ISO страны для выбора шлюза (RU → ЮKassa при region=RU; иначе INT);
  *   - ctx: контекст перехода — что кабинет поднимает наверх
  *     ("tier" | "webinar:<id>" | "course:<id>"). Задел под вебинары/курсы.
  *
@@ -24,7 +25,7 @@ import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 
 import { readAccountFlag, writeAccountFlag } from "@/modules/account/core/accountFlagsStore";
-import { resolveBillingCurrency } from "@/modules/account/core/billingCurrency";
+import { resolveBillingGeo } from "@/modules/account/core/billingCurrency";
 import { getResponseLocale } from "@/modules/i18n";
 import { getCommunicatorApiBaseUrl } from "@/services/communicatorConfig";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
@@ -105,12 +106,13 @@ export async function openAccountCabinet(ctx: CabinetContext = "tier"): Promise<
   const session = await getSupabaseSessionSnapshot();
   const userId = session?.user?.id ?? null;
   try {
-    // currency: кэш/таймаут ≤800мс — не блокируем openURL долгим reverse-geocode.
-    const [ott, currency] = await Promise.all([requestOneTimeToken(), resolveBillingCurrency(userId)]);
+    // geo: кэш/таймаут ≤800мс — не блокируем openURL долгим reverse-geocode.
+    const [ott, geo] = await Promise.all([requestOneTimeToken(), resolveBillingGeo(userId)]);
     const url = new URL(getAccountCabinetUrl());
     url.searchParams.set("ott", ott);
     url.searchParams.set("lang", getResponseLocale());
-    url.searchParams.set("currency", currency);
+    url.searchParams.set("currency", geo.currency);
+    if (geo.country) url.searchParams.set("country", geo.country);
     url.searchParams.set("ctx", ctx);
     if (userId) await markCabinetVisit(userId, ctx);
     // Custom Tabs / SFSafariViewController — still an external browser (App Store /
@@ -119,7 +121,12 @@ export async function openAccountCabinet(ctx: CabinetContext = "tier"): Promise<
       createTask: Platform.OS === "android" ? false : undefined,
       showInRecents: true,
     });
-    logRuntimeEvent("cabinet:opened", { ctx, currency, platform: Platform.OS });
+    logRuntimeEvent("cabinet:opened", {
+      ctx,
+      currency: geo.currency,
+      country: geo.country || null,
+      platform: Platform.OS,
+    });
   } catch (error) {
     logRuntimeEvent(
       "cabinet:open_failed",

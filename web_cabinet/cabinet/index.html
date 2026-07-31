@@ -139,6 +139,8 @@
     if (el) el.textContent = LOADING[lang] || LOADING.ru;
     var currency = (params.get("currency") || "EUR").toUpperCase();
     if (currency !== "RUB" && currency !== "USD" && currency !== "EUR") currency = "EUR";
+    var country = (params.get("country") || "").toUpperCase();
+    if (country && !/^[A-Z]{2}$/.test(country)) country = "";
     var ott = params.get("ott");
     var paidReturn = params.get("paid") === "1";
     var API_BASE = "https://harmonizer-ten.vercel.app";
@@ -148,12 +150,12 @@
       window.history.replaceState(null, "", clean.toString());
     } catch (e) {}
     try { document.documentElement.lang = (lang in LOADING) ? lang : "ru"; } catch (e) {}
-    window.__hzBoot = { lang: lang, currency: currency, ott: ott, paidReturn: paidReturn, apiBase: API_BASE };
+    window.__hzBoot = { lang: lang, currency: currency, country: country, ott: ott, paidReturn: paidReturn, apiBase: API_BASE };
     if (ott) {
       window.__hzSessionPromise = fetch(API_BASE + "/api/account/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ott: ott, currency: currency })
+        body: JSON.stringify({ ott: ott, currency: currency, country: country || undefined })
       });
     } else {
       window.__hzSessionPromise = null;
@@ -188,6 +190,7 @@
       copyrightName:"Сергей Замковой",
       payErr:"Не удалось перейти к оплате. Обновите страницу и попробуйте ещё раз.",
       payErrEmail:"Этот email нельзя использовать для оплаты (часто — email продавца в платёжном сервисе). Войдите в приложение другим email или напишите в поддержку.",
+      payGatewayOff:"Оплата временно недоступна. Попробуйте позже или напишите в поддержку.",
       redirecting:"Переходим к оплате…",
       paidThanksTitle:"Спасибо за оплату",
       paidThanksBody:"Вернитесь в приложение Harmonizer — там уже доступны новые возможности. Если оплачивали вебинар, ссылка на комнату появится в карточке вебинара.",
@@ -220,6 +223,7 @@
       copyrightName:"Sergei Zamkovoi",
       payErr:"Could not proceed to payment. Reload the page and try again.",
       payErrEmail:"This email cannot be used for purchase (often the seller account email). Sign in with another email or contact support.",
+      payGatewayOff:"Payments are temporarily unavailable. Try again later or contact support.",
       redirecting:"Redirecting to payment…",
       paidThanksTitle:"Thank you for your payment",
       paidThanksBody:"Return to the Harmonizer app — new features are already available there. If you paid for a webinar, the room link will appear on the webinar card.",
@@ -253,6 +257,7 @@
       copyrightName:"Sergei Zamkovoi",
       payErr:"Zahlung konnte nicht gestartet werden. Laden Sie die Seite neu und versuchen Sie es erneut.",
       payErrEmail:"Diese E-Mail kann nicht für den Kauf verwendet werden (häufig die Verkäufer-E-Mail). Melden Sie sich mit einer anderen E-Mail an oder kontaktieren Sie den Support.",
+      payGatewayOff:"Zahlungen sind vorübergehend nicht verfügbar. Versuchen Sie es später erneut oder kontaktieren Sie den Support.",
       redirecting:"Weiterleitung zur Zahlung…",
       paidThanksTitle:"Danke für Ihre Zahlung",
       paidThanksBody:"Kehren Sie zur Harmonizer-App zurück — neue Funktionen sind dort bereits verfügbar. Bei Webinar-Zahlung erscheint der Raumlink auf der Webinar-Karte.",
@@ -285,6 +290,7 @@
       copyrightName:"Sergei Zamkovoi",
       payErr:"Impossible d'accéder au paiement. Rechargez la page et réessayez.",
       payErrEmail:"Cet e-mail ne peut pas servir à l'achat (souvent l'e-mail du vendeur). Connectez-vous avec un autre e-mail ou contactez le support.",
+      payGatewayOff:"Les paiements sont temporairement indisponibles. Réessayez plus tard ou contactez le support.",
       redirecting:"Redirection vers le paiement…",
       paidThanksTitle:"Merci pour votre paiement",
       paidThanksBody:"Revenez dans l'application Harmonizer — de nouvelles fonctionnalités y sont déjà disponibles. Pour un webinaire, le lien de la salle apparaîtra sur la carte du webinaire.",
@@ -317,6 +323,7 @@
       copyrightName:"Sergei Zamkovoi",
       payErr:"Impossibile procedere al pagamento. Ricarica la pagina e riprova.",
       payErrEmail:"Questa e-mail non può essere usata per l'acquisto (spesso è l'e-mail del venditore). Accedi con un'altra e-mail o contatta l'assistenza.",
+      payGatewayOff:"I pagamenti sono temporaneamente non disponibili. Riprova più tardi o contatta l'assistenza.",
       redirecting:"Reindirizzamento al pagamento…",
       paidThanksTitle:"Grazie per il pagamento",
       paidThanksBody:"Torna nell'app Harmonizer: le nuove funzioni sono già disponibili. Per un webinar, il link della stanza apparirà sulla scheda del webinar.",
@@ -349,6 +356,7 @@
       copyrightName:"Sergei Zamkovoi",
       payErr:"No se pudo continuar con el pago. Recarga la página e inténtalo de nuevo.",
       payErrEmail:"Este correo no se puede usar para la compra (a menudo es el del vendedor). Inicia sesión con otro correo o contacta con soporte.",
+      payGatewayOff:"Los pagos no están disponibles temporalmente. Inténtalo más tarde o contacta con soporte.",
       redirecting:"Redirigiendo al pago…",
       paidThanksTitle:"Gracias por tu pago",
       paidThanksBody:"Vuelve a la app Harmonizer: allí ya están disponibles las nuevas funciones. Si pagaste un webinar, el enlace de la sala aparecerá en la tarjeta del webinar.",
@@ -381,6 +389,7 @@
       copyrightName:"Sergei Zamkovoi",
       payErr:"Não foi possível avançar para o pagamento. Recarregue a página e tente novamente.",
       payErrEmail:"Este e-mail não pode ser usado para compra (muitas vezes é o e-mail do vendedor). Entre com outro e-mail ou contacte o suporte.",
+      payGatewayOff:"Os pagamentos estão temporariamente indisponíveis. Tente mais tarde ou contacte o suporte.",
       redirecting:"A redirecionar para o pagamento…",
       paidThanksTitle:"Obrigado pelo pagamento",
       paidThanksBody:"Volte à app Harmonizer — as novas funções já estão disponíveis. Se pagou um webinar, o link da sala aparecerá no cartão do webinar.",
@@ -413,6 +422,7 @@
       copyrightName:"Sergei Zamkovoi",
       payErr:"Kan niet doorgaan naar de betaling. Vernieuw de pagina en probeer het opnieuw.",
       payErrEmail:"Dit e-mailadres kan niet worden gebruikt voor aankoop (vaak het verkopersaccount). Log in met een ander e-mailadres of neem contact op met support.",
+      payGatewayOff:"Betalingen zijn tijdelijk niet beschikbaar. Probeer het later opnieuw of neem contact op met support.",
       redirecting:"Doorsturen naar betaling…",
       paidThanksTitle:"Bedankt voor je betaling",
       paidThanksBody:"Ga terug naar de Harmonizer-app — nieuwe functies zijn daar al beschikbaar. Bij een webinar verschijnt de zaallink op de webinarkaart.",
@@ -431,8 +441,10 @@
     var T = I18N[lang] || I18N.ru;
     var LOCALE_TAG = lang in I18N ? lang : "ru";
 
-    var CURRENCY = (params.get("currency") || "EUR").toUpperCase();
+    var CURRENCY = (params.get("currency") || (window.__hzBoot && window.__hzBoot.currency) || "EUR").toUpperCase();
     if (CURRENCY !== "RUB" && CURRENCY !== "USD" && CURRENCY !== "EUR") CURRENCY = "EUR";
+    var COUNTRY = (params.get("country") || (window.__hzBoot && window.__hzBoot.country) || "").toUpperCase();
+    if (COUNTRY && !/^[A-Z]{2}$/.test(COUNTRY)) COUNTRY = "";
     var CTX = params.get("ctx") || "tier";
     var CTX_WEBINAR_ID = "";
     if (CTX.indexOf("webinar:") === 0) CTX_WEBINAR_ID = CTX.slice("webinar:".length).trim();
@@ -443,9 +455,19 @@
     function saveSession(token) {
       try {
         sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-          sessionToken: token, currency: CURRENCY, lang: LOCALE_TAG, savedAt: Date.now()
+          sessionToken: token, currency: CURRENCY, country: COUNTRY, lang: LOCALE_TAG, savedAt: Date.now()
         }));
       } catch (e) {}
+    }
+    function checkoutBody(extra) {
+      var body = Object.assign({ currency: CURRENCY }, extra || {});
+      if (COUNTRY) body.country = COUNTRY;
+      return body;
+    }
+    function overviewUrl() {
+      var q = "/api/account/overview?currency=" + encodeURIComponent(CURRENCY);
+      if (COUNTRY) q += "&country=" + encodeURIComponent(COUNTRY);
+      return q;
     }
     function loadStoredSession() {
       try {
@@ -502,7 +524,7 @@
 
     function refreshOverview() {
       if (!window.__hzSession) return;
-      apiFetch("/api/account/overview?currency=" + encodeURIComponent(CURRENCY), { method:"GET" })
+      apiFetch(overviewUrl(), { method:"GET" })
         .then(function (res) { return res.ok ? res.json() : null; })
         .then(function (data) { if (data && data.overview) render(data.overview); })
         .catch(function () {});
@@ -540,7 +562,7 @@
       if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
       if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
       gotoPayment(apiFetch("/api/account/checkout", {
-        method:"POST", body: JSON.stringify({ kind:"subscription", tier: tier, currency: CURRENCY })
+        method:"POST", body: JSON.stringify(checkoutBody({ kind:"subscription", tier: tier }))
       }), btn);
     };
 
@@ -548,7 +570,7 @@
       var wid = CTX_WEBINAR_ID || (window.__hzWebinarId || "");
       if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
       if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
-      var body = { kind:"webinar", currency: CURRENCY };
+      var body = checkoutBody({ kind:"webinar" });
       if (wid) body.webinarId = wid;
       gotoPayment(apiFetch("/api/account/checkout", { method:"POST", body: JSON.stringify(body) }), btn);
     };
@@ -556,7 +578,7 @@
     window.hzStartBook = function (purchase, btn) {
       if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
       if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
-      gotoPayment(apiFetch("/api/account/checkout", { method:"POST", body: JSON.stringify({ kind:"book", currency: CURRENCY }) }), btn);
+      gotoPayment(apiFetch("/api/account/checkout", { method:"POST", body: JSON.stringify(checkoutBody({ kind:"book" })) }), btn);
     };
 
     window.hzCancelSub = function (btn) {
@@ -629,6 +651,7 @@
 
   function render(overview) {
       window.__hzWebinarId = (overview.webinar && overview.webinar.webinarId) || "";
+      var gatewayOk = !(overview.paymentGateway && overview.paymentGateway.available === false);
 
       var name = overview.displayName || overview.email || "";
       var tier = overview.tier || "free";
@@ -697,7 +720,7 @@
       html += '</section>';
 
       /* ── Другие тарифы (скрыто для Мастера) ── */
-      if (!isMaster) {
+      if (!isMaster && gatewayOk) {
         var upgrades = overview.upgradeTiers || [];
         if (sub && sub.status === "active") {
           upgrades = upgrades.filter(function (u) { return u.tier !== sub.tier; });
@@ -723,13 +746,15 @@
           });
           html += '</section>';
         }
+      } else if (!isMaster && !gatewayOk) {
+        html += '<section class="hz-section"><div class="hz-block"><div class="hz-value">' + esc(T.payGatewayOff || T.payErr) + '</div></div></section>';
       }
 
       /* ── Дополнительно ── */
       html += '<section class="hz-section">';
       html += '<div class="hz-section-title">' + esc(T.additionalTitle) + '</div>';
 
-      if (!isMaster) {
+      if (!isMaster && gatewayOk) {
         var wp = overview.webinar || { webinarId:null, purchase:{ mode:"checkout", price:null, url:null } };
         var hasWebinar = !!(CTX_WEBINAR_ID || wp.webinarId);
         if (hasWebinar) {
@@ -742,7 +767,7 @@
         }
       }
 
-      {
+      if (gatewayOk) {
         var bp = overview.book || { purchase:{ mode:"checkout", price:null, url:null } };
         var bprice = priceText(bp.purchase && bp.purchase.price, false);
         var bbtn = T.buyBtn + (bprice ? " — " + bprice : "");
@@ -803,7 +828,8 @@
     function bootWithStoredSession(stored) {
       window.__hzSession = stored.sessionToken;
       if (stored.currency) CURRENCY = stored.currency;
-      apiFetch("/api/account/overview?currency=" + encodeURIComponent(CURRENCY), { method: "GET" })
+      if (stored.country) COUNTRY = stored.country;
+      apiFetch(overviewUrl(), { method: "GET" })
         .then(function (res) {
           if (res.status === 401) { fail(T.errExpired); return null; }
           if (!res.ok) throw new Error("HTTP " + res.status);
@@ -833,7 +859,7 @@
       sessionP = fetch(API_BASE + "/api/account/session", {
         method:"POST",
         headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ ott: ott, currency: CURRENCY })
+        body: JSON.stringify({ ott: ott, currency: CURRENCY, country: COUNTRY || undefined })
       });
     }
     sessionP

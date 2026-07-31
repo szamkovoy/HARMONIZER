@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.50
-updated: 2026-07-29
+version: 2.51
+updated: 2026-07-31
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-07-31 (mic stuck busy):** После ошибки `commitAssistantTurn` / пустой hydration стрим оставался `typing` → `streamBusy` → mic `ignore`. Fix: `resetChatStream()` в catch initiate / text / voice. QA: audrone.leisenberger — trial был активен; user-turns в БД не было.
 
 - **2026-07-29 (test UI gate):** Model badge и `Export dialog to JSON` переведены с `__DEV__` на `HARMONIZER_TEST_MODE` (единый продуктовый QA-флаг).
 

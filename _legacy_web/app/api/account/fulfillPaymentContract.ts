@@ -18,6 +18,11 @@ export type FulfillContractRow = {
   product_kind: string | null;
   product_ref: string | null;
   provider: string | null;
+  current_period_end?: string | null;
+  payment_method_id?: string | null;
+  renew_fail_count?: number | null;
+  amount?: number | null;
+  currency?: string | null;
 };
 
 export async function findPaymentContract(
@@ -26,7 +31,9 @@ export async function findPaymentContract(
 ): Promise<FulfillContractRow | null> {
   const { data, error } = await db
     .from("payment_contracts")
-    .select("user_id,contract_id,tier,status,product_kind,product_ref,provider")
+    .select(
+      "user_id,contract_id,tier,status,product_kind,product_ref,provider,current_period_end,payment_method_id,renew_fail_count,amount,currency",
+    )
     .eq("contract_id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -95,6 +102,8 @@ async function cancelOtherActiveSubscriptions(
         provider: other.provider || "lavatop",
         contractId: other.contract_id,
         email,
+        userId,
+        db,
       });
       const { error: cancelError } = await db
         .from("payment_contracts")
@@ -212,6 +221,63 @@ export async function fulfillFirstPaymentSuccess(
   await cancelOtherActiveSubscriptions(db, contract.user_id, contractId, params.logTag);
 
   return { ok: true, activated: contractId };
+}
+
+/**
+ * Продление подписки ЮKassa после успешного автосписания (зеркало Lava renewal).
+ */
+export async function fulfillYookassaRenewal(
+  db: SupabaseClient,
+  params: {
+    contract: FulfillContractRow;
+    amount?: number | null;
+    currency?: string | null;
+    paidAt?: string | null;
+    logTag?: string;
+  },
+): Promise<Record<string, unknown>> {
+  const logTag = params.logTag ?? "yookassa-renewal";
+  const { contract } = params;
+  if (contract.status === "cancelled") {
+    return { ok: true, skipped: "cancelled" };
+  }
+
+  const paidAt = params.paidAt ? new Date(params.paidAt) : new Date();
+  const periodEnd = nextPeriodEnd(Number.isNaN(paidAt.getTime()) ? new Date() : paidAt);
+  const nowIso = new Date().toISOString();
+
+  const { error: contractError } = await db
+    .from("payment_contracts")
+    .update({
+      status: "active",
+      current_period_end: periodEnd.toISOString(),
+      renew_fail_count: 0,
+      updated_at: nowIso,
+    })
+    .eq("contract_id", contract.contract_id);
+  if (contractError) throw contractError;
+
+  await settleChargeSafe(db, {
+    contractId: contract.contract_id,
+    eventType: "subscription.recurring.payment.success",
+    amount: params.amount,
+    currency: params.currency ?? "RUB",
+    paidAt: params.paidAt ?? nowIso,
+    userId: contract.user_id,
+    provider: "yookassa",
+    logTag,
+  });
+
+  const { error: userError } = await db
+    .from("users")
+    .update({
+      membership_tier: contract.tier,
+      membership_expires_at: new Date(periodEnd.getTime() + RENEWAL_GRACE_MS).toISOString(),
+    })
+    .eq("id", contract.user_id);
+  if (userError) throw userError;
+
+  return { ok: true, renewed: contract.contract_id };
 }
 
 export async function markContractFailed(

@@ -1,14 +1,8 @@
 /**
- * Валюта цен Личного кабинета по геолокации пользователя.
+ * Валюта и страна биллинга Личного кабинета по геолокации.
  *
- * Правило продукта (2026-07-15): Россия -> RUB, США -> USD, весь остальной
- * мир -> EUR. Страна определяется обратным геокодированием координат,
- * которые приложение уже получило для «Окон возможностей» (без гео
- * приложение не работает). Fallback при недоступном геокодере — EUR.
- *
- * Открытие кабинета не ждёт долгий reverse-geocode: есть in-memory кэш,
- * персистентный флаг и жёсткий таймаут (иначе Safari открывается с большой
- * белой паузой до openURL).
+ * Правило продукта: Россия -> RUB + country RU; США -> USD; иначе EUR.
+ * Страна (ISO) уходит в кабинет для выбора платёжного шлюза (RU/INT).
  */
 import * as Location from "expo-location";
 
@@ -18,11 +12,18 @@ import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 export type BillingCurrency = "RUB" | "USD" | "EUR";
 
-const GEO_TIMEOUT_MS = 800;
-const PERSIST_KEY = "billingCurrency";
+export type BillingGeo = {
+  currency: BillingCurrency;
+  /** ISO-3166 alpha-2; empty if unknown. */
+  country: string;
+};
 
-/** Кэш на сессию: страна пользователя не меняется между открытиями кабинета. */
-let cachedCurrency: BillingCurrency | null = null;
+const GEO_TIMEOUT_MS = 800;
+const PERSIST_CURRENCY_KEY = "billingCurrency";
+const PERSIST_COUNTRY_KEY = "billingCountry";
+
+/** Кэш на сессию. */
+let cachedGeo: BillingGeo | null = null;
 
 function isBillingCurrency(value: string | null | undefined): value is BillingCurrency {
   return value === "RUB" || value === "USD" || value === "EUR";
@@ -35,12 +36,13 @@ function currencyForCountry(isoCountryCode: string | null | undefined): BillingC
   return "EUR";
 }
 
-async function persistCurrency(currency: BillingCurrency): Promise<void> {
-  cachedCurrency = currency;
-  await writeAccountFlag(PERSIST_KEY, currency);
+async function persistGeo(geo: BillingGeo): Promise<void> {
+  cachedGeo = geo;
+  await writeAccountFlag(PERSIST_CURRENCY_KEY, geo.currency);
+  await writeAccountFlag(PERSIST_COUNTRY_KEY, geo.country);
 }
 
-async function resolveFromGeo(userId: string | null): Promise<BillingCurrency> {
+async function resolveFromGeo(userId: string | null): Promise<BillingGeo> {
   let coords = userId ? await loadCachedUserCoords(userId) : null;
   if (!coords) {
     const last = await Location.getLastKnownPositionAsync({ maxAge: 24 * 60 * 60 * 1000 });
@@ -48,21 +50,18 @@ async function resolveFromGeo(userId: string | null): Promise<BillingCurrency> {
   }
   if (!coords) {
     logRuntimeEvent("billing:currency_no_coords", {}, "warn");
-    return "EUR";
+    return { currency: "EUR", country: "" };
   }
   const places = await Location.reverseGeocodeAsync({ latitude: coords.lat, longitude: coords.lng });
-  const currency = currencyForCountry(places[0]?.isoCountryCode);
-  logRuntimeEvent("billing:currency_resolved", {
-    country: places[0]?.isoCountryCode ?? null,
-    currency,
-  });
-  return currency;
+  const country = (places[0]?.isoCountryCode ?? "").trim().toUpperCase();
+  const currency = currencyForCountry(country || null);
+  logRuntimeEvent("billing:currency_resolved", { country: country || null, currency });
+  return { currency, country };
 }
 
-/** Фоновое уточнение валюты после быстрого ответа (не блокирует openURL). */
-function followGeoInBackground(geoPromise: Promise<BillingCurrency>): void {
+function followGeoInBackground(geoPromise: Promise<BillingGeo>): void {
   void geoPromise
-    .then((currency) => persistCurrency(currency))
+    .then((geo) => persistGeo(geo))
     .catch((error) => {
       logRuntimeEvent(
         "billing:currency_error",
@@ -72,38 +71,48 @@ function followGeoInBackground(geoPromise: Promise<BillingCurrency>): void {
     });
 }
 
-export async function resolveBillingCurrency(userId: string | null): Promise<BillingCurrency> {
-  if (cachedCurrency) return cachedCurrency;
+export async function resolveBillingGeo(userId: string | null): Promise<BillingGeo> {
+  if (cachedGeo) return cachedGeo;
 
-  const stored = await readAccountFlag(PERSIST_KEY);
-  if (isBillingCurrency(stored)) {
-    cachedCurrency = stored;
+  const storedCurrency = await readAccountFlag(PERSIST_CURRENCY_KEY);
+  const storedCountry = (await readAccountFlag(PERSIST_COUNTRY_KEY))?.trim().toUpperCase() ?? "";
+  if (isBillingCurrency(storedCurrency)) {
+    cachedGeo = {
+      currency: storedCurrency,
+      country: storedCountry || (storedCurrency === "RUB" ? "RU" : ""),
+    };
     followGeoInBackground(resolveFromGeo(userId));
-    return stored;
+    return cachedGeo;
   }
 
   const geoPromise = resolveFromGeo(userId);
   try {
-    const currency = await Promise.race([
+    const geo = await Promise.race([
       geoPromise,
       new Promise<null>((resolve) => {
         setTimeout(() => resolve(null), GEO_TIMEOUT_MS);
       }),
     ]);
-    if (currency) {
-      await persistCurrency(currency);
-      return currency;
+    if (geo) {
+      await persistGeo(geo);
+      return geo;
     }
     logRuntimeEvent("billing:currency_geo_timeout", { ms: GEO_TIMEOUT_MS }, "warn");
     followGeoInBackground(geoPromise);
-    await persistCurrency("EUR");
-    return "EUR";
+    const fallback: BillingGeo = { currency: "EUR", country: "" };
+    await persistGeo(fallback);
+    return fallback;
   } catch (error) {
     logRuntimeEvent(
       "billing:currency_error",
       { message: error instanceof Error ? error.message : String(error) },
       "warn",
     );
-    return "EUR";
+    return { currency: "EUR", country: "" };
   }
+}
+
+export async function resolveBillingCurrency(userId: string | null): Promise<BillingCurrency> {
+  const geo = await resolveBillingGeo(userId);
+  return geo.currency;
 }
