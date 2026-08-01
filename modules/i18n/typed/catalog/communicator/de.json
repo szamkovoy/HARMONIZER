@@ -37,5 +37,6 @@
   "transcriptionReviewSend": "Senden",
   "transcriptionReviewTitle": "Überprüfe die Transkription",
   "voiceTranscribeFailedBubble": "Sprachnachricht konnte nicht erkannt werden.",
-  "voiceUserBubblePending": "Stimme wird transkribiert…"
+  "voiceUserBubblePending": "Stimme wird transkribiert…",
+  "voiceTooShortMessage": "Die Nachricht war zu kurz. Tippe auf das Mikrofon, sprich einen Satz und tippe erneut zum Senden."
 }

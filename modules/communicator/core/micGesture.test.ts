@@ -137,7 +137,7 @@ describe("micGesture", () => {
       ).toEqual({ type: "stop_and_send" });
     });
 
-    it("hold: release during arming after long press cancels warmup", () => {
+    it("arming: long release still enters tap_toggle (never cancel warmup)", () => {
       expect(
         resolveMicPressOut({
           pressDurationMs: 900,
@@ -147,7 +147,20 @@ describe("micGesture", () => {
           micWarmup: true,
           awaitingMicPermission: false,
         }),
-      ).toEqual({ type: "cancel_warmup" });
+      ).toEqual({ type: "enter_tap_toggle" });
+    });
+
+    it("arming: permission dialog pressOut is noop", () => {
+      expect(
+        resolveMicPressOut({
+          pressDurationMs: 400,
+          phase: "arming",
+          captureMode: null,
+          hasActiveRecording: false,
+          micWarmup: true,
+          awaitingMicPermission: true,
+        }),
+      ).toEqual({ type: "noop" });
     });
   });
 

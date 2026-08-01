@@ -1,3 +1,4 @@
+- 2026-08-02 (381): Communicator mic — no warmup cancel on early release/AppState; alert on too-short takes (Samsung).
 - 2026-08-01 (380): Math of the day — localize planet/aspect names to profile locale (cron + cached markdown).
 - 2026-08-01 (379): Home ChakraFlower — dark center ring matches read-stories ring (`storiesRingStrokes.read`).
 - 2026-08-01 (378): Communicator mic footer — pad ≈30% mic diameter; bg=`screenBg` (match header/chat); no top divider.

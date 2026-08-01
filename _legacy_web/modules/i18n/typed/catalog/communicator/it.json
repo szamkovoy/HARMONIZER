@@ -37,5 +37,6 @@
   "transcriptionReviewSend": "Invia",
   "transcriptionReviewTitle": "Verifica la trascrizione",
   "voiceTranscribeFailedBubble": "Impossibile trascrivere il messaggio vocale.",
-  "voiceUserBubblePending": "Trascrivendo la voce…"
+  "voiceUserBubblePending": "Trascrivendo la voce…",
+  "voiceTooShortMessage": "Messaggio troppo corto. Tocca il microfono, di' una frase e tocca di nuovo per inviare."
 }

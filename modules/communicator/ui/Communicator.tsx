@@ -1944,16 +1944,14 @@ export function Communicator({
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "background") {
-        if (micWarmupRef.current) {
-          cancelMicWarmup();
-          return;
-        }
-        void discardRecording();
-      }
+      if (next !== "background" && next !== "inactive") return;
+      // Permission sheets / One UI overlays briefly background the app. Killing
+      // warmup there is why Samsung users saw "mic does nothing" after Allow.
+      if (awaitingMicPermissionRef.current || micWarmupRef.current) return;
+      void discardRecording();
     });
     return () => sub.remove();
-  }, [cancelMicWarmup, discardRecording]);
+  }, [discardRecording]);
 
   /** Запросить доступ к микрофону заранее, чтобы первый жест «удержать» не совпадал с системным диалогом. */
   useEffect(() => {
@@ -2176,12 +2174,22 @@ export function Communicator({
       suppressAbortAfterRecordRef.current = false;
     }, 450);
 
-    if (!uri) return;
+    if (!uri) {
+      Alert.alert(strings.sendErrorTitle, strings.voiceTooShortMessage, [
+        { text: strings.alertOk },
+      ]);
+      return;
+    }
 
     try {
       const info = await getInfoAsync(uri);
       const size = info.exists && !info.isDirectory ? info.size : 0;
-      if (isVoiceRecordingFileTooSmall(size, durationMs, MIN_VOICE_MS)) return;
+      if (isVoiceRecordingFileTooSmall(size, durationMs, MIN_VOICE_MS)) {
+        Alert.alert(strings.sendErrorTitle, strings.voiceTooShortMessage, [
+          { text: strings.alertOk },
+        ]);
+        return;
+      }
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
@@ -2189,7 +2197,16 @@ export function Communicator({
     }
 
     await processVoiceFromUri(uri, durationMs);
-  }, [bumpMicPressReset, processVoiceFromUri, reportError, resetRecordingAudioMode, runExclusiveRecordingOp]);
+  }, [
+    bumpMicPressReset,
+    processVoiceFromUri,
+    reportError,
+    resetRecordingAudioMode,
+    runExclusiveRecordingOp,
+    strings.alertOk,
+    strings.sendErrorTitle,
+    strings.voiceTooShortMessage,
+  ]);
 
   const onMicPressIn = useCallback(() => {
     micFingerDownRef.current = true;

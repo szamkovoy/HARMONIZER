@@ -77,10 +77,12 @@ export function resolveMicPressOut(input: {
     return { type: "stop_and_send" };
   }
 
+  // During arming/prepare never cancel on finger-up: Samsung/One UI often
+  // releases early (permission dialog, slow createAsync, spurious pressOut).
+  // Keep going and lock tap-to-stop — like Telegram/WhatsApp.
   if (input.micWarmup) {
     if (input.awaitingMicPermission) return { type: "noop" };
-    if (quickTap) return { type: "enter_tap_toggle" };
-    return { type: "cancel_warmup" };
+    return { type: "enter_tap_toggle" };
   }
 
   return { type: "reset_pressable" };

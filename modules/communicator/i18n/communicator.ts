@@ -33,6 +33,8 @@ export interface CommunicatorStrings {
   alertOk: string;
   recorderPrepareErrorMessage: string;
   microphonePermissionError: string;
+  /** Too-short / empty capture — shown instead of silently dropping the take. */
+  voiceTooShortMessage: string;
   transcribingStatus: string;
   thinkingStatus: string;
   respondingStatus: string;
@@ -179,6 +181,8 @@ const ru: CommunicatorStrings = {
   alertOk: "OK",
   recorderPrepareErrorMessage: "Не удалось включить запись. Попробуйте ещё раз.",
   microphonePermissionError: "Нет доступа к микрофону",
+  voiceTooShortMessage:
+    "Сообщение слишком короткое. Нажмите микрофон, скажите фразу и нажмите ещё раз, чтобы отправить.",
   transcribingStatus: "Расшифровка",
   thinkingStatus: "Думаю",
   respondingStatus: "Отвечаю",
@@ -232,6 +236,8 @@ const en: CommunicatorStrings = {
   alertOk: "OK",
   recorderPrepareErrorMessage: "Could not start recording. Please try again.",
   microphonePermissionError: "Microphone access is not available",
+  voiceTooShortMessage:
+    "That message was too short. Tap the mic, say a phrase, then tap again to send.",
   transcribingStatus: "Transcribing",
   thinkingStatus: "Thinking",
   respondingStatus: "Responding",

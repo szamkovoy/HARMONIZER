@@ -37,5 +37,6 @@
   "transcriptionReviewSend": "Verzenden",
   "transcriptionReviewTitle": "Controleer de transcriptie",
   "voiceTranscribeFailedBubble": "Stembericht kon niet worden herkend.",
-  "voiceUserBubblePending": "Stem wordt omgezet…"
+  "voiceUserBubblePending": "Stem wordt omgezet…",
+  "voiceTooShortMessage": "Bericht te kort. Tik op de microfoon, zeg een zin en tik opnieuw om te versturen."
 }
