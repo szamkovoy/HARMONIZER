@@ -34,8 +34,9 @@ const REVEAL_DURATION_MS = 850;
 /**
  * Ring-only colors (shared iOS/Android). Slightly softer than the first Android
  * contrast bump; still stronger than theme `surfaceBorder` for viewed segments.
+ * Also used by Home `ChakraFlower` center ring (dark = read stroke).
  */
-function storiesRingStrokes(scheme: PaletteScheme): { unread: string; read: string } {
+export function storiesRingStrokes(scheme: PaletteScheme): { unread: string; read: string } {
   if (scheme === "light") {
     return { unread: "#9756E6", read: "rgba(15, 23, 42, 0.30)" };
   }

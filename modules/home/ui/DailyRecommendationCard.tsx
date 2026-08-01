@@ -109,6 +109,7 @@ export function DailyRecommendationCard({
         forecast={forecast}
         accessMode={accessMode}
         mathStrings={strings.mathModal}
+        contentLocale={strings.locale}
         chartStrings={{
           planetLabels: strings.planetLabels,
           closeButton: strings.closeButton,

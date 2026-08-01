@@ -23,7 +23,8 @@ code_refs:
 
 ## Decision Log
 
-- **2026-08-01 (ChakraFlower dark ring):** Центральное кольцо вокруг процента/планеты в тёмной палитре — `surfaceBorder` поверх непрозрачного `surface` (светлее заливки карточки, как рамка блоков), не `screenBg`. Светлая палитра без изменений (`screenBg`).
+- **2026-08-01 (math planet locale):** «Математика дня» показывала `Sun`/`Moon` при RU-тексте: cron `buildMathLevelForCron` писал сырые planet/aspect keys. Fix: `t.planetLabel` / `t.aspectLabel` в precompute; `localizeMathLevelMarkdown` на cache→payload и в `ModalMathLevel` (все 8 локалей).
+- **2026-08-01 (ChakraFlower dark ring):** Центральное кольцо вокруг процента/планеты в тёмной палитре — цвет read-кольца сториз (`storiesRingStrokes(scheme).read`, сейчас `rgba(255,255,255,0.34)`) поверх непрозрачного `surface`. Светлая палитра без изменений (`screenBg`).
 
 - **2026-07-29 (test UI gate):** Подпись `model: …` в `DailyRecommendationCard` снова за `HARMONIZER_TEST_MODE` (не `__DEV__`), в линии с остальным product QA UI.
 

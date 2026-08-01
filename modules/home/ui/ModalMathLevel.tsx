@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { Modal, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { localizeMathLevelMarkdown } from "@/_legacy_web/app/api/_utils/mathLevelI18n";
 import type { NatalProfile, Planet } from "@/modules/astro-core";
 import type { AspectType, DailyForecast } from "@/modules/daily-engine";
 import type { HomeStrings } from "@/modules/home/i18n/home";
@@ -23,6 +25,8 @@ interface ModalMathLevelProps {
   forecast?: DailyForecast | null;
   accessMode: AccessMode;
   strings: HomeStrings["mathModal"];
+  /** Active UI/content locale — used to localize planet/aspect tokens in cached markdown. */
+  contentLocale: HomeStrings["locale"];
   /** `stackLayer` — content only, slide animation handled by parent stack. */
   presentation?: "modal" | "stackLayer";
 }
@@ -68,6 +72,7 @@ export function ModalMathLevel({
   forecast,
   accessMode,
   strings,
+  contentLocale,
   presentation = "modal",
 }: ModalMathLevelProps) {
   const theme = useTheme();
@@ -76,6 +81,13 @@ export function ModalMathLevel({
   const hasTransitChart = Boolean(forecast?.transitChart?.planets);
   const canShowChart = isGlobalForecast ? hasTransitChart : Boolean(natalProfile && hasTransitChart);
   const chartButtonLabel = isGlobalForecast ? strings.showTransitChartButton : strings.showChartButton;
+  const localizedMarkdown = useMemo(
+    () =>
+      mathLevel?.markdown
+        ? localizeMathLevelMarkdown(mathLevel.markdown, contentLocale)
+        : null,
+    [contentLocale, mathLevel?.markdown],
+  );
 
   if (!visible) return null;
 
@@ -91,8 +103,8 @@ export function ModalMathLevel({
     >
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <SurfaceCardView tone="elevated" style={styles.card}>
-          {mathLevel?.markdown ? (
-            <MarkdownText source={mathLevel.markdown} />
+          {localizedMarkdown ? (
+            <MarkdownText source={localizedMarkdown} />
           ) : (
             <AppText variant="screenHint" tone="muted">
               {strings.emptyHint}

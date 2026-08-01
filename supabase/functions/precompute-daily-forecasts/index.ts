@@ -276,7 +276,7 @@ function buildMathLevelForCron(
     const natalPlanet = natalProfile.planets[planet];
     const sCal = calibration?.s_calibrated?.[planet];
     const hCal = calibration?.h_calibrated?.[planet];
-    md.push(`\n**${planet}** ${t.chakraLabel(PLANET_TO_CHAKRA[planet].number)}:`);
+    md.push(`\n**${t.planetLabel(planet)}** ${t.chakraLabel(PLANET_TO_CHAKRA[planet].number)}:`);
     md.push(`- ${t.natalS}: ${natalPlanet.S_initial.toFixed(2)}`);
     md.push(`- ${t.natalH}: ${natalPlanet.H_initial.toFixed(2)}`);
     if (sCal !== undefined && Math.abs(sCal - natalPlanet.S_initial) > 0.01) {
@@ -306,7 +306,13 @@ function buildMathLevelForCron(
       const aspectCoef = ASPECT_COEF[contribution.aspect.type] ?? 0.5;
       const transitWeight = TRANSIT_WEIGHT[contribution.transitPlanet] ?? 0.5;
       const activation = Math.round(contribution.value * 1000) / 1000;
-      md.push(t.transitLine(contribution.transitPlanet, contribution.aspect.type, contribution.natalPlanet));
+      md.push(
+        t.transitLine(
+          t.planetLabel(contribution.transitPlanet),
+          t.aspectLabel(contribution.aspect.type),
+          t.planetLabel(contribution.natalPlanet),
+        ),
+      );
       md.push(t.orbLine(contribution.aspect.orb.toFixed(2), String(aspectCoef), String(transitWeight)));
       md.push(t.activationLine(activation.toFixed(3)));
       structured.main_aspects.push({
@@ -326,7 +332,9 @@ function buildMathLevelForCron(
     const sEff = calibration?.s_calibrated?.[planet] ?? natalProfile.planets[planet].S_initial;
     const activation = forecast.activation?.[planet] ?? 0;
     const importance = forecast.importance?.[planet] ?? 0;
-    md.push(t.importanceLine(planet, activation.toFixed(3), sEff.toFixed(2), importance.toFixed(3)));
+    md.push(
+      t.importanceLine(t.planetLabel(planet), activation.toFixed(3), sEff.toFixed(2), importance.toFixed(3)),
+    );
     structured.importance_breakdown.push({
       planet,
       activation: Math.round(activation * 1000) / 1000,
@@ -336,9 +344,14 @@ function buildMathLevelForCron(
   }
   const planetOfTheDay = forecast.planetOfTheDay ?? (forecast.rankedPlanets?.[0] ?? PLANETS_7[0]);
   md.push(`\n${t.section4Title}`);
-  md.push(t.winnerLine(planetOfTheDay, (forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)));
+  md.push(t.winnerLine(t.planetLabel(planetOfTheDay), (forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)));
   if (forecast.isAlternativeChoice) {
-    md.push(t.alternativeLine(forecast.alternativeReasonText ?? "сработало правило разнообразия тем"));
+    md.push(
+      t.alternativeLine(
+        forecast.alternativeReasonText ??
+          (locale === "en" ? "diversity rule applied" : "сработало правило разнообразия тем"),
+      ),
+    );
   }
   if (calibration) {
     md.push(t.section5Title);

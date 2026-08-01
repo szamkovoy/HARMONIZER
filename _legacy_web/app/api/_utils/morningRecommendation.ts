@@ -8,6 +8,7 @@ import { resolveContentLocale, type AppContentLocale } from "./contentLocales";
 import { formatAuthorVoiceForPrompt, getAuthorVoice } from "./authorVoice";
 import { generateGeminiJson, getModelByHint } from "./gemini";
 import { buildMathLevel } from "./mathLevelBuilder";
+import { localizeMathLevelMarkdown } from "./mathLevelI18n";
 import { normalizeRecommendationFields } from "./recommendationText";
 import {
   buildOutputLanguageBlock,
@@ -48,11 +49,19 @@ function payloadFromCachedMorning(
   responseLocale: AppContentLocale,
 ): MorningRecommendationPayload {
   const normalized = normalizeRecommendationFields(cached, responseLocale);
+  const mathLevel = normalized.math_level as ReturnType<typeof buildMathLevel> | null | undefined;
+  const localizedMath =
+    mathLevel && typeof mathLevel.markdown === "string"
+      ? {
+          ...mathLevel,
+          markdown: localizeMathLevelMarkdown(mathLevel.markdown, responseLocale),
+        }
+      : mathLevel;
   return {
     slogan: String(normalized.slogan ?? "").trim(),
     short_text: String(normalized.short_text ?? "").trim(),
     long_explanation: String(normalized.long_explanation ?? "").trim(),
-    math_level: normalized.math_level as ReturnType<typeof buildMathLevel>,
+    math_level: localizedMath as ReturnType<typeof buildMathLevel>,
     modelUsed: typeof normalized.modelUsed === "string" ? normalized.modelUsed : null,
   };
 }

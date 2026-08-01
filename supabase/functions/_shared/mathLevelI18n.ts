@@ -272,3 +272,25 @@ export function getMathLevelStrings(locale: AppContentLocale = "ru"): MathLevelS
   if (locale === "nl") return mathLevelNl;
   return en;
 }
+
+const MATH_PLANET_KEYS = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
+const MATH_ASPECT_KEYS = ["conjunction", "opposition", "square", "trine", "sextile"] as const;
+
+/** Rewrites English planet/aspect tokens left by older cron math builds. */
+export function localizeMathLevelMarkdown(markdown: string, locale: AppContentLocale): string {
+  if (!markdown) return markdown;
+  const t = getMathLevelStrings(locale);
+  let out = markdown;
+  for (const planet of MATH_PLANET_KEYS) {
+    const label = t.planetLabel(planet);
+    if (label === planet) continue;
+    out = out.split(`**${planet}**`).join(`**${label}**`);
+    out = out.replace(new RegExp(`(^|\\n)- ${planet}:`, "g"), `$1- ${label}:`);
+  }
+  for (const aspect of MATH_ASPECT_KEYS) {
+    const label = t.aspectLabel(aspect);
+    if (label === aspect) continue;
+    out = out.split(` ${aspect} `).join(` ${label} `);
+  }
+  return out;
+}

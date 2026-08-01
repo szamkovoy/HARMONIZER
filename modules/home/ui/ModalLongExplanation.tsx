@@ -31,6 +31,7 @@ interface ModalLongExplanationProps {
   forecast?: DailyForecast | null;
   accessMode?: AccessMode;
   mathStrings?: HomeStrings["mathModal"];
+  contentLocale?: HomeStrings["locale"];
   chartStrings?: Pick<HomeStrings, "planetLabels" | "closeButton" | "opportunityWindows" | "astroChartModal">;
 }
 
@@ -47,6 +48,7 @@ export function ModalLongExplanation({
   forecast,
   accessMode = "premium",
   mathStrings,
+  contentLocale = "ru",
   chartStrings,
 }: ModalLongExplanationProps) {
   const theme = useTheme();
@@ -93,6 +95,7 @@ export function ModalLongExplanation({
             forecast={forecast}
             accessMode={accessMode}
             strings={mathStrings}
+            contentLocale={contentLocale}
             presentation="stackLayer"
           />
         </SlideUpModalLayer>

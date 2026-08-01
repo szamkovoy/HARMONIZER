@@ -10,6 +10,7 @@ import { getPlanetChakraMap } from "@/modules/home/planetChakra";
 import { AppText } from "@/modules/ui/AppText";
 import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
+import { storiesRingStrokes } from "@/modules/stories/ui/StoriesRing";
 import { useTheme } from "@/modules/ui/theme";
 import type { AccessMode } from "@/services/globalContentClient";
 import { PLANET_ORDER } from "../planetChakra";
@@ -20,7 +21,7 @@ const LEGEND_PLANET_ORDER: Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars"
 const DESIGN_SIZE = 248;
 /** Enlarged canvas; legend is right-aligned so short planet names leave room on the left. */
 const CANVAS_SIZE = 214;
-/** Center ring outer diameter (design px); light=screenBg, dark=surfaceBorder over surface. */
+/** Center ring outer diameter (design px); light=screenBg, dark=read-stories ring over surface. */
 const CENTER_OUTER_SIZE = 82;
 /** Colored fill — enlarged so long planet names fit without shrinking the type. */
 const CENTER_INNER_SIZE = 68;
@@ -96,6 +97,7 @@ function formatPlanetStrength(strength: number, tone: TodayTone): string {
 
 export function ChakraFlower({ forecast, strings, accessMode, natalProfile }: ChakraFlowerProps) {
   const theme = useTheme();
+  const darkCenterRingFill = storiesRingStrokes(theme.scheme).read;
   const [helpVisible, setHelpVisible] = useState(false);
   const t = strings.chakraFlower;
   const chakraLocale: ChakraLocale = strings.locale;
@@ -219,7 +221,7 @@ export function ChakraFlower({ forecast, strings, accessMode, natalProfile }: Ch
                   style={[
                     styles.centerOuter,
                     {
-                      backgroundColor: theme.colors.surfaceBorder,
+                      backgroundColor: darkCenterRingFill,
                       borderColor: hexToRgba(selectedColor, 0.24),
                       height: centerOuter,
                       left: center - centerOuterRadius,
