@@ -42,7 +42,7 @@
   "ppgWeakSignalMessage": "Señal débil, no se detecta el pulso",
   "practiceMinutesShort": "min",
   "practiceName": {
-    "coherent": "Respiración coherente",
+    "coherent": "Respiración completa",
     "square": "Respiración cuadrada",
     "nadi-shodhana": "Respiración alternada por las fosas nasales",
     "surya-bhedana": "Respiración por la fosa nasal derecha",
@@ -60,7 +60,7 @@
     "triangle-up": "Visama Vritti · Bahir Kumbhaka",
     "triangle-down": "Visama Vritti · Antar Kumbhaka"
   },
-  "practiceTitle": "Respiración coherente",
+  "practiceTitle": "Respiración completa",
   "pulseOnlyResultsNote": "La señal del dedo resultó demasiado inestable para la biometría final: la práctica continuó con el pulso, pero las métricas finales están ocultas.",
   "qcFailedContinueWithoutSensor": "Continuar sin pulsómetro",
   "qcFailedDialogMessage": "No se ha obtenido una señal estable. No muevas el dedo ni presiones demasiado fuerte el lente. Puedes intentar activar de nuevo el pulsómetro o realizar la práctica sin biorretroalimentación.",

@@ -42,7 +42,7 @@
   "ppgWeakSignalMessage": "Sinal fraco, pulso não detectado",
   "practiceMinutesShort": "min",
   "practiceName": {
-    "coherent": "Respiração Coerente",
+    "coherent": "Respiração completa",
     "square": "Respiração Quadrada",
     "nadi-shodhana": "Respiração alternada pelas narinas",
     "surya-bhedana": "Respiração pela narina direita",
@@ -60,7 +60,7 @@
     "triangle-up": "Visama Vritti · Bahir Kumbhaka",
     "triangle-down": "Visama Vritti · Antar Kumbhaka"
   },
-  "practiceTitle": "Respiração Coerente",
+  "practiceTitle": "Respiração completa",
   "pulseOnlyResultsNote": "O sinal do dedo ficou muito instável para a biometria final: a prática continuou com o pulso, mas as métricas finais estão ocultas.",
   "qcFailedContinueWithoutSensor": "Continuar sem o sensor de batimentos",
   "qcFailedDialogMessage": "Sinal estável não foi obtido. Não mova o dedo nem pressione a lente com muita força. Você pode tentar ativar o pulsômetro novamente ou realizar a prática sem o uso de biofeedback.",

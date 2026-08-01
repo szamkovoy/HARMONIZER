@@ -17,7 +17,7 @@ const MODEL_CARD_BLURB_MAX_LENGTH = 700;
 /** Краткие карточные тексты по slug дыхательных практик (RU) — согласованы с семью типами в каталоге. */
 const BREATH_CARD_RU: Record<string, string> = {
   coherent:
-    "Когерентное дыхание мягко синхронизирует ритм вдоха и выдоха с вариабельностью сердечного ритма и помогает снять напряжение нервной системы.",
+    "Полное дыхание мягко синхронизирует ритм вдоха и выдоха с вариабельностью сердечного ритма и помогает снять напряжение нервной системы.",
   "nadi-shodhana":
     "Нади Шодхана выравнивает потоки между полушариями и каналами — хороший выбор, когда нужна ясность и внутренняя симметрия.",
   "surya-bhedana":
@@ -34,7 +34,7 @@ const BREATH_CARD_RU: Record<string, string> = {
 
 const BREATH_CARD_EN: Record<string, string> = {
   coherent:
-    "Coherent breathing gently aligns inhale/exhale with heart-rate variability and helps the nervous system settle.",
+    "Full breathing gently aligns inhale/exhale with heart-rate variability and helps the nervous system settle.",
   "nadi-shodhana":
     "Nadi Shodhana balances the hemispheres and channels—useful when you need clarity and inner symmetry.",
   "surya-bhedana":

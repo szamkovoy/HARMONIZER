@@ -1,3 +1,4 @@
+- 2026-08-01 (376): Breath catalog — «Когерентное дыхание» → «Полное дыхание»; phone-camera results show one measured pulse chart.
 - 2026-08-01 (375): AppButton busy — fixed 3 dots color-pulse; summarizing — no empty auto-close; tighter silence STT guard.
 - 2026-08-01 (374): Mic — unload Recording on Communicator unmount; gray X inert; unlock mic at deferred reveal; AppButton busy animated ellipsis.
 - 2026-08-01 (373): Mic cancel — white `cancel.svg` on drawn `#a8a8a8` circle (`MicCancelButton`).

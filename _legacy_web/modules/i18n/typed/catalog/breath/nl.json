@@ -42,7 +42,7 @@
   "ppgWeakSignalMessage": "Zwak signaal, hartslag niet detecteerbaar",
   "practiceMinutesShort": "min",
   "practiceName": {
-    "coherent": "Coherente ademhaling",
+    "coherent": "Volledige ademhaling",
     "square": "Vierkantademhaling",
     "nadi-shodhana": "Afwisselende neusgatademhaling",
     "surya-bhedana": "Ademhaling door het rechter neusgat",
@@ -60,7 +60,7 @@
     "triangle-up": "Visama Vritti · Bahir Kumbhaka",
     "triangle-down": "Visama Vritti · Antar Kumbhaka"
   },
-  "practiceTitle": "Coherente ademhaling",
+  "practiceTitle": "Volledige ademhaling",
   "pulseOnlyResultsNote": "Het vingersignaal was helaas te onstabiel voor een volledige biometrie. De oefening is op hartslag voortgezet, maar de gedetailleerde meetwaarden zijn niet opgeslagen.",
   "qcFailedContinueWithoutSensor": "Doorgaan zonder hartslagmeter",
   "qcFailedDialogMessage": "Geen stabiel signaal verkregen. Beweeg je vinger niet en druk niet te hard op de lens. Je kunt opnieuw proberen de hartslagmeter te activeren of de oefening uitvoeren zonder biofeedback.",

@@ -42,7 +42,7 @@
   "ppgWeakSignalMessage": "Segnale debole, il battito non viene rilevato",
   "practiceMinutesShort": "minuti",
   "practiceName": {
-    "coherent": "Respirazione coerente",
+    "coherent": "Respirazione completa",
     "square": "Respirazione quadrata",
     "nadi-shodhana": "Respirazione a narici alternate",
     "surya-bhedana": "Respirazione dalla narice destra",
@@ -60,7 +60,7 @@
     "triangle-up": "Visama Vritti · Bahir Kumbhaka",
     "triangle-down": "Visama Vritti · Antar Kumbhaka"
   },
-  "practiceTitle": "Respirazione coerente",
+  "practiceTitle": "Respirazione completa",
   "pulseOnlyResultsNote": "Il segnale del dito è risultato troppo instabile per la biometria finale: la pratica è continuata con il polso, ma le metriche finali sono nascoste.",
   "qcFailedContinueWithoutSensor": "Continua senza pulsometro",
   "qcFailedDialogMessage": "Segnale stabile non ricevuto. Non muovere il dito e non premere troppo forte sulla lente. Puoi riprovare ad attivare il cardiofrequenzimetro o svolgere la pratica senza biofeedback.",

@@ -238,7 +238,7 @@ const ru: CoherenceBreathStrings = {
   hold: "ЗАДЕРЖКА",
   secondsShortLabel: "сек",
   beatsShortLabel: (count: number) => `${count} уд.пульса`,
-  practiceTitle: "Когерентное дыхание",
+  practiceTitle: "Полное дыхание",
   calibrationTitle: "Калибровка пульса",
   warmupTitle: "Прогрев датчика",
   warmupHint: "Держите палец на камере со вспышкой. Идёт прогрев — запись сессии ещё не ведётся.",
@@ -374,7 +374,7 @@ const ru: CoherenceBreathStrings = {
   wearablePickerFaultyMessage:
     "Выбранный пульсометр работает некорректно. Чтобы продолжить практику, выберите другой пульсометр.",
   practiceName: {
-    coherent: "Когерентное дыхание",
+    coherent: "Полное дыхание",
     "nadi-shodhana": "Попеременное дыхание ноздрями",
     "surya-bhedana": "Дыхание правой ноздрёй",
     "chandra-bhedana": "Дыхание левой ноздрёй",
@@ -422,7 +422,7 @@ const en: CoherenceBreathStrings = {
   hold: "HOLD",
   secondsShortLabel: "sec",
   beatsShortLabel: (count: number) => `${count} pulse beats`,
-  practiceTitle: "Coherence breath",
+  practiceTitle: "Full breathing",
   calibrationTitle: "Pulse calibration",
   warmupTitle: "Sensor warmup",
   warmupHint: "Keep your finger on the camera with flash. Warmup in progress — session logging has not started.",
@@ -558,7 +558,7 @@ const en: CoherenceBreathStrings = {
   wearablePickerFaultyMessage:
     "The selected heart-rate monitor is not working correctly. Choose another monitor to continue the practice.",
   practiceName: {
-    coherent: "Coherent breathing",
+    coherent: "Full breathing",
     "nadi-shodhana": "Alternate nostril breathing",
     "surya-bhedana": "Right-nostril breathing",
     "chandra-bhedana": "Left-nostril breathing",

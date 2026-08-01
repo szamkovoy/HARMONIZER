@@ -5869,9 +5869,13 @@ function ResultsView(props: {
     () => resultsGraphs?.guidancePulseHighlights ?? [],
     [resultsGraphs?.guidancePulseHighlights],
   );
+  // Phone camera: only the measured-pulse chart (guidance is a derived pacing
+  // series and looked like a confusing second “pulse” graph). BLE/wearable can
+  // still show both when they diverge or when the debug flag is on.
   const showSeparateGuidancePulseGraph =
-    SHOW_BOTH_PULSE_RESULT_GRAPHS ||
-    seriesDifferMeaningfully(measuredPulseGraphPoints, guidancePulseGraphPoints);
+    !cameraGuidanceOnlyMode &&
+    (SHOW_BOTH_PULSE_RESULT_GRAPHS ||
+      seriesDifferMeaningfully(measuredPulseGraphPoints, guidancePulseGraphPoints));
   const coherenceGraphPoints = useMemo(
     () => (
       !cameraGuidanceOnlyMode

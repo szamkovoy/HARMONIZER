@@ -65,8 +65,8 @@ const STATIC_COHERENT_BREATH: PracticeCandidate = {
   slug: "coherent",
   kind: "breath",
   title: {
-    ru: "Когерентное дыхание",
-    en: "Coherent breathing",
+    ru: "Полное дыхание",
+    en: "Full breathing",
   },
   description: {
     ru: "Мягкая дыхательная практика для быстрого выравнивания ритма и возврата к спокойной собранности.",

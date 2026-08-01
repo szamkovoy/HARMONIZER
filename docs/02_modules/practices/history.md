@@ -17,6 +17,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-01 (полное дыхание + один график пульса):** Каталог/карточки/assistant fallback: «Когерентное дыхание» → «Полное дыхание» (RU + EN Full breathing + EU overlays). Results на пульсе с телефона: не показывать второй (guidance) pulse chart — только measured.
 - **2026-07-31 (asana not credited):** Audrone: 20 мин асан не попали в статистику + текст «не будет засчитаны». Причина: экран брал `stopConfirmMessage` у дыхания и писал `practice_sessions` только при Vimeo `ended`/`time` в хвосте 10 с; при молчании WebView-bridge даже досмотр давал диалог «не засчитаны» и выход без записи. Fix: wall-clock с `ready`/`play`, `duration` от плеера, `asanaSessionCredit.ts`, свои `stopConfirm*` у асан; обновить `web_cabinet/asana-embed.html` на zamkovoi.yoga.
 
 - **2026-07-31 (breath help copy):** В `breathHelpBody` (каталог «?» на дыхательных карточках) добавлены два абзаца: наушники для бинаурального звука; тап по экрану → скорость индикатора дыхания на всплывающей панели. RU/EN inline + typed overlays de–nl (`fill --all`).

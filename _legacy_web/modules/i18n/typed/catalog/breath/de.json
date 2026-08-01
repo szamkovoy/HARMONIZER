@@ -42,7 +42,7 @@
   "ppgWeakSignalMessage": "Schwaches Signal, Puls nicht erkennbar",
   "practiceMinutesShort": "Min",
   "practiceName": {
-    "coherent": "Kohärentes Atmen",
+    "coherent": "Vollatmung",
     "square": "Quadratatmung",
     "nadi-shodhana": "Wechselatmung",
     "surya-bhedana": "Rechtsnasenatmung",
@@ -60,7 +60,7 @@
     "triangle-up": "Vishama Vritti · Bahir Kumbhaka",
     "triangle-down": "Vishama Vritti · Antar Kumbhaka"
   },
-  "practiceTitle": "Kohärentes Atmen",
+  "practiceTitle": "Vollatmung",
   "pulseOnlyResultsNote": "Das Fingersignal war zu instabil für die abschließende Biometrie: Die Praxis wurde mit dem Puls fortgesetzt, aber die endgültigen Metriken sind ausgeblendet.",
   "qcFailedContinueWithoutSensor": "Ohne Pulsmesser fortfahren",
   "qcFailedDialogMessage": "Kein stabiles Signal erhalten. Bewegen Sie den Finger nicht und drücken Sie nicht zu stark auf die Linse. Sie können erneut versuchen, den Pulsmesser zu aktivieren, oder die Übung ohne Biofeedback durchführen.",

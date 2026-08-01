@@ -39,7 +39,7 @@ describe("buildPracticeCardSummary", () => {
       userMessage: "тревога",
       modelCardBlurb: null,
     });
-    expect(s).toContain("Когерентное");
+    expect(s).toContain("Полное дыхание");
     expect(s).not.toMatch(/Рядом с вашим|запросом/i);
   });
 
@@ -52,7 +52,7 @@ describe("buildPracticeCardSummary", () => {
       userMessage: "stress",
       modelCardBlurb: null,
     });
-    expect(s.toLowerCase()).toContain("coherent");
+    expect(s.toLowerCase()).toContain("breathing");
   });
 
   it("prefers validated model card blurb when present", () => {
@@ -79,7 +79,7 @@ describe("buildPracticeCardSummary", () => {
       modelCardBlurb:
         '<b>Когерентное дыхание</b> помогает успокоиться и собраться. Выполняя эту практику, удерживайте внимание на ясности, мягкости и устойчивости. Если вы владеете пранаямой, дышите через Анахату.',
     });
-    expect(s).toContain("Когерентное");
+    expect(s).toContain("Полное дыхание");
     expect(s).not.toContain("<b>");
   });
 });

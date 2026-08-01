@@ -42,7 +42,7 @@
   "ppgWeakSignalMessage": "Signal faible, le pouls n’est pas détectable",
   "practiceMinutesShort": "min",
   "practiceName": {
-    "coherent": "Respiration cohérente",
+    "coherent": "Respiration complète",
     "square": "Respiration « Carré »",
     "nadi-shodhana": "Respiration alternée par les narines",
     "surya-bhedana": "Respiration par la narine droite",
@@ -60,7 +60,7 @@
     "triangle-up": "Visama Vritti · Bahir Kumbhaka",
     "triangle-down": "Visama Vritti · Antar Kumbhaka"
   },
-  "practiceTitle": "Respiration cohérente",
+  "practiceTitle": "Respiration complète",
   "pulseOnlyResultsNote": "Le signal du doigt était trop instable pour la biométrie finale : la pratique s'est poursuivie sur le pouls, mais les métriques finales sont masquées.",
   "qcFailedContinueWithoutSensor": "Continuer sans le capteur cardiaque",
   "qcFailedDialogMessage": "Aucun signal stable reçu. Ne bougez pas le doigt et n'appuyez pas trop fort sur l'objectif. Vous pouvez réessayer d'activer le capteur de pouls ou effectuer la pratique sans biofeedback.",

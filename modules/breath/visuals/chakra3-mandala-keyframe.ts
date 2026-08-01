@@ -36,7 +36,7 @@ export function buildChakra3CoherenceKeyframe(): MeditationPresetKeyframe {
 export const CHAKRA3_COHERENCE_SCENARIO: MeditationPresetScenario = {
   id: "breath-coherence-chakra3",
   title: "Breath — Chakra 3",
-  description: "Когерентное дыхание, мандала солнечного сплетения.",
+  description: "Полное дыхание, мандала солнечного сплетения.",
   durationSeconds: 120,
   keyframes: [buildChakra3CoherenceKeyframe()],
 };
