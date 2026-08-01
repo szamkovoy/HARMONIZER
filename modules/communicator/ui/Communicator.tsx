@@ -118,7 +118,18 @@ import { useAsanaRemotePlayLauncher } from "@/modules/practices/ui/useAsanaRemot
 import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 
 import { AssistantBubble } from "./AssistantBubble";
-import { MicCancelButton, MicRecordButton } from "./MicRecordButton";
+import {
+  MIC_BUTTON_RECORDING_SCALE,
+  MIC_BUTTON_SIZE,
+  MicCancelButton,
+  MicRecordButton,
+} from "./MicRecordButton";
+
+const MIC_BUTTON_LAYOUT_SIZE = MIC_BUTTON_SIZE * MIC_BUTTON_RECORDING_SCALE;
+/** Gap from visible idle circle to panel edge ≈ 30% of diameter (footer + layout wrap). */
+const MIC_FOOTER_EDGE_PAD = Math.round(
+  MIC_BUTTON_SIZE * 0.3 - (MIC_BUTTON_LAYOUT_SIZE - MIC_BUTTON_SIZE) / 2,
+);
 import { ModeToggle } from "./ModeToggle";
 import { ScrollDownHint } from "./ScrollDownHint";
 import { StreamingAssistantLines } from "./StreamingAssistantLines";
@@ -2302,7 +2313,7 @@ export function Communicator({
   );
 
   const borderColor = theme.colors.surfaceBorder;
-  const footerBg = theme.colors.surface;
+  const footerBg = theme.colors.screenBg;
 
   const handlePracticeLaunch = useCallback(
     (practice: PracticePicked, configured: PracticeSummary) => {
@@ -2750,16 +2761,13 @@ export function Communicator({
       </View>
 
       <View
-        style={[
-          styles.footer,
-          {
-            borderTopColor: borderColor,
-            backgroundColor: footerBg,
-            paddingBottom: Math.max(10, insets.bottom),
-            paddingLeft: Math.max(12, insets.left),
-            paddingRight: Math.max(12, insets.right),
-          },
-        ]}
+        style={{
+          backgroundColor: footerBg,
+          paddingTop: MIC_FOOTER_EDGE_PAD,
+          paddingBottom: MIC_FOOTER_EDGE_PAD + insets.bottom,
+          paddingLeft: Math.max(12, insets.left),
+          paddingRight: Math.max(12, insets.right),
+        }}
       >
         {HARMONIZER_TEST_MODE ? (
           <View style={styles.debugActions}>
@@ -2952,10 +2960,6 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  footer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 8,
-  },
   footerRow: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -3012,9 +3016,8 @@ const styles = StyleSheet.create({
   },
   voiceCol: {
     flex: 1,
-    minHeight: 108,
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "center",
     gap: 4,
   },
   hintRow: {
@@ -3040,8 +3043,8 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   micHit: {
-    width: 120,
-    height: 120,
+    width: MIC_BUTTON_LAYOUT_SIZE,
+    height: MIC_BUTTON_LAYOUT_SIZE,
     alignItems: "center",
     justifyContent: "center",
   },

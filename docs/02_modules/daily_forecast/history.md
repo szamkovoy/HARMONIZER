@@ -23,6 +23,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-01 (ChakraFlower dark ring):** Центральное кольцо вокруг процента/планеты в тёмной палитре — `surfaceBorder` поверх непрозрачного `surface` (светлее заливки карточки, как рамка блоков), не `screenBg`. Светлая палитра без изменений (`screenBg`).
+
 - **2026-07-29 (test UI gate):** Подпись `model: …` в `DailyRecommendationCard` снова за `HARMONIZER_TEST_MODE` (не `__DEV__`), в линии с остальным product QA UI.
 
 - **2026-07-29 (cold bootstrap retry):** После OTP/login без phone-cache первый `daily-forecast`/`global-content` мог упасть транзиентно → `completeHomeBootstrap()` + Home «Could not reach the server», хотя «Try again» сразу чинил. Fix: при `shouldBlockSplash` держим splash/day_card и до 3 silent retry (1s/2s/4s) на network/timeout/service_busy/auth; error UI только после исчерпания. Параллельно Home CTA birth data → `enterBirthDataButton` (i18n).

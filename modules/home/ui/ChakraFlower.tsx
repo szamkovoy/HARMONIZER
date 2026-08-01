@@ -20,7 +20,7 @@ const LEGEND_PLANET_ORDER: Planet[] = ["Sun", "Moon", "Mercury", "Venus", "Mars"
 const DESIGN_SIZE = 248;
 /** Enlarged canvas; legend is right-aligned so short planet names leave room on the left. */
 const CANVAS_SIZE = 214;
-/** White ring outer diameter (design px). */
+/** Center ring outer diameter (design px); light=screenBg, dark=surfaceBorder over surface. */
 const CENTER_OUTER_SIZE = 82;
 /** Colored fill — enlarged so long planet names fit without shrinking the type. */
 const CENTER_INNER_SIZE = 68;
@@ -200,19 +200,50 @@ export function ChakraFlower({ forecast, strings, accessMode, natalProfile }: Ch
                 </View>
               );
             })}
-            <View
-              style={[
-                styles.centerOuter,
-                {
-                  backgroundColor: theme.colors.screenBg,
-                  borderColor: hexToRgba(selectedColor, 0.24),
-                  height: centerOuter,
-                  left: center - centerOuterRadius,
-                  top: center - centerOuterRadius,
-                  width: centerOuter,
-                },
-              ]}
-            />
+            {theme.scheme === "dark" ? (
+              <>
+                {/* Opaque underlay so petal tips don't show through the translucent frame tint. */}
+                <View
+                  style={[
+                    styles.centerOuter,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      height: centerOuter,
+                      left: center - centerOuterRadius,
+                      top: center - centerOuterRadius,
+                      width: centerOuter,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.centerOuter,
+                    {
+                      backgroundColor: theme.colors.surfaceBorder,
+                      borderColor: hexToRgba(selectedColor, 0.24),
+                      height: centerOuter,
+                      left: center - centerOuterRadius,
+                      top: center - centerOuterRadius,
+                      width: centerOuter,
+                    },
+                  ]}
+                />
+              </>
+            ) : (
+              <View
+                style={[
+                  styles.centerOuter,
+                  {
+                    backgroundColor: theme.colors.screenBg,
+                    borderColor: hexToRgba(selectedColor, 0.24),
+                    height: centerOuter,
+                    left: center - centerOuterRadius,
+                    top: center - centerOuterRadius,
+                    width: centerOuter,
+                  },
+                ]}
+              />
+            )}
             <View
               style={[
                 styles.centerInner,

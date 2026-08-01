@@ -20,6 +20,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-01 (mic footer height):** Панель с микрофоном: вертикальный inset ≈ 30% диаметра кнопки над/под кругом (`MIC_FOOTER_EDGE_PAD` + layout wrap); убраны `voiceCol.minHeight: 108` и hit-box 120×120. Область чата (`flex: 1`) автоматически выше. Фон футера = `screenBg` (как шапка «Ассистент дня» и лента чата); разделитель `borderTop` убран.
 - **2026-08-01 (Samsung mic hold-to-talk):** QA: на Samsung One UI кнопка микрофона «не работает», на Pixel — ок. Known: RN `Pressable` + Fabric часто сразу шлёт `onPressOut` после `onPressIn` на Samsung (ломает hold / warmup). Fix: `react-native-gesture-handler` + `GestureHandlerRootView`, mic = `GHPressable` на Android; aura ~2×. Native rebuild required.
 - **2026-08-01 (Pixel mic dead after GH):** После GH-mic QA: на Pixel mic не нажимается. Cause: Communicator в RN `Modal` вне app root — GH Pressable без root внутри Modal мёртв. Fix: `GestureHandlerRootView` в `AssistantModalShell` (home/day).
 - **2026-08-01 (mic aura + recording race):** QA: огромный dim-круг / тонкая рамка вместо soft aura; raw expo-av «Only one Recording object…» при частых cancel/start. Fix: soft filled aura + metering-first; mic ~+20%; serialize prepare/stop; map singleton error → `recorderPrepareErrorMessage`. Home: снять `BlockingStatusToast` сразу после открытия Modal (bubble spinner остаётся).
