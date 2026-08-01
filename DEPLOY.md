@@ -126,7 +126,7 @@ Firebase Console checklist:
    - Copy to repo root (gitignored; included in EAS archive via `.easignore`)
    - Upload file-env: `eas env:create --name GOOGLE_SERVICES_PLIST --type file --value ./GoogleService-Info.plist --environment production` (also preview/development as needed)
    - Without it, `app.config.ts` skips Firebase config plugins and `react-native.config.js` disables iOS autolink so `pod install` does not pull AppCheckCore; App Check on device stays off
-   - If you *do* have the plist and CocoaPods still fails on `AppCheckCore`, run once: `pod repo update`
+   - If you *do* have the plist and CocoaPods still fails on `AppCheckCore`, run: `node scripts/refresh-cocoapods-appcheck-cdn.mjs` (stale CDN etag can hide 11.3.x; iOS local build scripts + Podfile preamble plugin do this automatically)
 
 Turnstile / invisible captcha: **not** used (RN WebView UX risk).
 

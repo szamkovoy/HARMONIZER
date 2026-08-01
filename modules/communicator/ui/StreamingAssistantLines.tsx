@@ -56,7 +56,7 @@ export function StreamingAssistantLines({
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       cbRef.current?.();
-    }, 300);
+    }, 80);
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);

@@ -666,7 +666,8 @@ export default function HomeScreen() {
       setCommunicatorDismissAnimation("slide");
       setCommunicatorMounted(true);
       setCommunicatorVisible(true);
-      // Spinner stays until Communicator reports first visible assistant text.
+      // Dialog bubble spinner covers LLM wait; drop center toast once modal is up.
+      setAssistantOpening(false);
     } catch (loadError) {
       console.warn("[Home] Failed to check day plan before assistant", loadError);
       setHomeDayPractices([]);
@@ -677,6 +678,7 @@ export default function HomeScreen() {
       setCommunicatorDismissAnimation("slide");
       setCommunicatorMounted(true);
       setCommunicatorVisible(true);
+      setAssistantOpening(false);
     }
   }, [appLocale, authUser?.id, canUseFeature]);
 

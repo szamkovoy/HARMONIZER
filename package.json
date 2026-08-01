@@ -16,13 +16,14 @@
     "doctor:ios:biofeedback": "./scripts/doctor-ios-biofeedback.sh",
     "build:android:dev": "npm run check:eas-env -- development && npx eas-cli build --platform android --profile development --local --output dist/harmonizer-development.apk",
     "build:android:prod": "npm run check:eas-env -- production && npx eas-cli build --platform android --profile production --local --output dist/harmonizer-production.aab",
-    "build:ios:dev:local": "npm run check:eas-env -- development && EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile development --local --output dist/harmonizer-development.ipa",
-    "build:ios:prod": "npm run check:eas-env -- production && EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile production --local --output dist/harmonizer-production.ipa",
+    "build:ios:dev:local": "npm run check:eas-env -- development && node scripts/refresh-cocoapods-appcheck-cdn.mjs && EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile development --local --output dist/harmonizer-development.ipa",
+    "build:ios:prod": "npm run check:eas-env -- production && node scripts/refresh-cocoapods-appcheck-cdn.mjs && EXPO_NO_CAPABILITY_SYNC=1 npx eas-cli build --platform ios --profile production --local --output dist/harmonizer-production.ipa",
     "submit:android": "npx eas-cli submit --platform android --path dist/harmonizer-production.aab",
     "submit:ios": "npx eas-cli submit --platform ios --path dist/harmonizer-production.ipa",
     "web": "expo start --web",
     "test": "vitest run",
-    "deploy:vercel": "vercel --prod --yes"
+    "deploy:vercel": "vercel --prod --yes",
+    "eas-build-post-install": "node scripts/refresh-cocoapods-appcheck-cdn.mjs"
   },
   "expo": {
     "install": {
@@ -72,6 +73,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-health-connect": "^3.5.3",
     "react-native-maps": "1.20.1",
     "react-native-nitro-modules": "^0.35.9",

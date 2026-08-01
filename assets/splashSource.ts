@@ -3,11 +3,11 @@
  * берут один и тот же файл `assets/images/splash.png`.
  *
  * iOS: `enableFullScreenImage_legacy: true` + `EarlySplashCover` (явные
- * `useWindowDimensions`, cover) до шрифтов.
- * Android 12+: native centered icon ≤288dp до `AppStartupSplashOverlay`
- * (без EarlySplashCover — иначе mini → растянутый кадр). Full-bleed JS с
- * явными width/height. Не подменять native icon прозрачным drawable.
- * Смена PNG / опций плагина → native rebuild.
+ * `useWindowDimensions`, cover) до / через handoff к AppStartup.
+ * Android 12+: `with-android-splash-hide-icon` (прозрачный system icon) +
+ * тот же EarlySplashCover; hide native только после Image.onLoadEnd.
+ * Full-bleed JS с явными width/height (не absoluteFill).
+ * Смена PNG / опций плагина / hide-icon → native rebuild.
  */
 import type { ImageSourcePropType } from "react-native";
 

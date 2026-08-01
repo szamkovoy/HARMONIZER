@@ -171,6 +171,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ...(base.ios?.infoPlist ?? {}),
         ...(config.ios?.infoPlist ?? {}),
         CFBundleLocalizations: LANGS,
+        // iOS 14+: without these keys there is no Settings → Local Network toggle,
+        // and Harmonizer Expo cannot reach Metro on LAN (Android still works).
+        NSLocalNetworkUsageDescription:
+          "Harmonizer Expo подключается к компьютеру разработчика в локальной сети, чтобы загружать приложение во время разработки.",
+        NSBonjourServices: ["_expo._tcp", "_http._tcp"],
         NSBluetoothAlwaysUsageDescription:
           "Harmonizer использует Bluetooth для подключения нагрудных пульсометров и синхронизации дыхательной практики с сердечным ритмом.",
         NSLocationWhenInUseUsageDescription:
@@ -218,6 +223,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...(INCLUDE_FIREBASE_PLUGINS
         ? (["@react-native-firebase/app", "@react-native-firebase/app-check"] as const)
         : []),
+      // Stale CocoaPods CDN shard can omit AppCheckCore 11.3.x → Install pods exit 31.
+      ...(INCLUDE_FIREBASE_PLUGINS
+        ? (["./plugins/with-ios-appcheckcore-cdn-refresh.js"] as const)
+        : []),
       [
         "expo-build-properties",
         {
@@ -253,8 +262,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "./plugins/with-android-location-permission-merge.js",
       "react-native-health-connect",
       "./plugins/with-native-health.js",
-      // NOTE: do NOT hide Android 12 splash icon with a transparent drawable —
-      // that made cold start a blank white screen whenever JS art lagged.
+      // After expo-splash-screen (in app.json): hide Android 12+ centered icon.
+      // Must pair with EarlySplashCover hide-only-after Image.onLoadEnd.
+      "./plugins/with-android-splash-hide-icon.js",
     ],
   };
 };

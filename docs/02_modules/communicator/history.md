@@ -20,6 +20,13 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-01 (Samsung mic hold-to-talk):** QA: на Samsung One UI кнопка микрофона «не работает», на Pixel — ок. Known: RN `Pressable` + Fabric часто сразу шлёт `onPressOut` после `onPressIn` на Samsung (ломает hold / warmup). Fix: `react-native-gesture-handler` + `GestureHandlerRootView`, mic = `GHPressable` на Android; aura ~2×. Native rebuild required.
+- **2026-08-01 (Pixel mic dead after GH):** После GH-mic QA: на Pixel mic не нажимается. Cause: Communicator в RN `Modal` вне app root — GH Pressable без root внутри Modal мёртв. Fix: `GestureHandlerRootView` в `AssistantModalShell` (home/day).
+- **2026-08-01 (mic aura + recording race):** QA: огромный dim-круг / тонкая рамка вместо soft aura; raw expo-av «Only one Recording object…» при частых cancel/start. Fix: soft filled aura + metering-first; mic ~+20%; serialize prepare/stop; map singleton error → `recorderPrepareErrorMessage`. Home: снять `BlockingStatusToast` сразу после открытия Modal (bubble spinner остаётся).
+- **2026-08-01 (mic composed button):** Иконка `assets/icons/microphone.svg` (белый глиф) + круг `#0d74f1` в `MicRecordButton`; idle = прежний диаметр кнопки, recording/arming = +20% + soft aura по metering. Cancel-busy по-прежнему `mic_button_off.png`.
+- **2026-08-01 (mic cancel composed):** Cancel-busy — `assets/icons/cancel.svg` (белый X) на круге `#a8a8a8` (`MicCancelButton`); PNG `mic_button_off` больше не используется в Communicator.
+- **2026-08-01 (mic reopen + inert X):** QA: после 2–3 open/close «Не удалось включить запись» + зелёный mic iOS — leak Recording/audio mode на unmount. Fix: unload + `allowsRecordingIOS: false` в cleanup. Gray X больше не abort’ит стрим (`disabled`); mic разблокируется при `pendingRevealGoal` (раньше полного `resetChatStream`); reveal settle 300→80 ms.
+- **2026-08-01 (silence STT → false summary):** `isSpuriousTranscription` режет пустые/короткие/типичные silence-галлюцинации Whisper, чтобы тихий mic не уходил в summarizing turn.
 - **2026-07-31 (mic stuck busy):** После ошибки `commitAssistantTurn` / пустой hydration стрим оставался `typing` → `streamBusy` → mic `ignore`. Fix: `resetChatStream()` в catch initiate / text / voice. QA: audrone.leisenberger — trial был активен; user-turns в БД не было.
 
 - **2026-07-29 (test UI gate):** Model badge и `Export dialog to JSON` переведены с `__DEV__` на `HARMONIZER_TEST_MODE` (единый продуктовый QA-флаг).

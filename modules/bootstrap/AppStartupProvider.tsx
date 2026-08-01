@@ -298,7 +298,14 @@ function AppStartupSplashOverlay({
   );
 }
 
-export function AppStartupProvider({ children }: { children: ReactNode }) {
+export function AppStartupProvider({
+  children,
+  onSplashReady,
+}: {
+  children: ReactNode;
+  /** Fires once JS splash is painted (or skipped) — dismiss EarlySplashCover. */
+  onSplashReady?: () => void;
+}) {
   const { initializing, profileLoading, profile, session } = useAuth();
   const { locale } = useAppLocale();
   const appLocale = coerceAppLocale(locale);
@@ -315,6 +322,8 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
     presentation: "splash",
   });
   const [jsSplashPainted, setJsSplashPainted] = useState(false);
+  const onSplashReadyRef = useRef(onSplashReady);
+  onSplashReadyRef.current = onSplashReady;
 
   /** Session restored but `users` row not yet — RootLayoutNav shows a white gate; keep splash over it. */
   const waitingForProfile = Boolean(session) && profileLoading && profile == null;
@@ -326,6 +335,7 @@ export function AppStartupProvider({ children }: { children: ReactNode }) {
 
   const markJsSplashPainted = useCallback(() => {
     setJsSplashPainted(true);
+    onSplashReadyRef.current?.();
   }, []);
 
   const visible = coldStartHold || (isHomeRoute && homeBootstrap.blocking);

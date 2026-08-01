@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 
 ## Decision Log
 
+- **2026-08-01 (summary empty auto-close):** QA Day «Подытожить» → вопрос → Close / тихий mic → действие исчезало (overdue `deleteAfterPersist`). Root: FSM ветка `summaryAsked≥1` без маркера писала `persistSummarizedEvent` с пустыми `outcome_cells`. Close сам по себе events не трогает; ложный user-turn (тишина Whisper) + auto-close. Fix: убрать empty auto-close — ждать marker / did-not-happen / thin+marker; клиент жёстче режет silence-галлюцинации STT.
+
 - **2026-07-20 (9):** Day-tab add-flow QA `текст-42FE…`: mid-turn visible reply корректно видел «оперу» и «книгу», но server keyword-inference параллельно писал «Самые интересные действия нужно совершать сразу» в `planned_events`; финал лишь перечислял уже сохранённое. Root: dual path — model markers vs `inferPlannedEventsFromUserHistory` merge. Fix: `resolveAddFlowPlanningMarkers` — в add-flow канон = уже сохранённые rows беседы + `[PLANNED_EVENT]` модели; keyword-inference для add-flow отключён; salvage на finalize только backfill recommendations (`allowSalvageOnlyAdditions: false`), без новых card. Полный summarizing→planning не менялся.
 
 - **2026-07-20 (8):** Day-tab add-flow QA `текст-49DC…`: «Подумал, что стоит добавить что-нибудь из сферы отдыха» всё ещё становилось `planned_event` (слово «отдых» давало leisure daypart). Fix: расширен `isMetaPlanningIntentDescription` (abstract add + domain cue); для `fsm.noGreeting` — `isAddFlowPlanningScaffoldDescription` + `addFlow` в inference/`filterPersistablePlanningMarkers`. Полный summarizing→planning→practice без `addFlow` не ужесточается. Промпт не трогали.

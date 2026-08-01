@@ -1,11 +1,16 @@
 import type { ReactNode } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AssistantPracticeHandoffCover } from "@/modules/practices/ui/AssistantPracticeHandoffCover";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
+/**
+ * Android RN Modal is outside the app root view tree — RNGH (mic GHPressable)
+ * needs its own GestureHandlerRootView inside the Modal window.
+ */
 export function AssistantModalShell({
   visible,
   title,
@@ -38,32 +43,34 @@ export function AssistantModalShell({
       onRequestClose={onClose}
       onDismiss={onDismiss}
     >
-      {handoffVisible ? (
-        <AssistantPracticeHandoffCover />
-      ) : (
-        <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
-          <View
-            style={[
-              styles.header,
-              {
-                paddingTop: insets.top + 10,
-                borderBottomColor: theme.colors.surfaceBorder,
-              },
-            ]}
-          >
-            <AppText variant="sectionTitle">{title}</AppText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={closeAccessibilityLabel ?? closeLabel}
-              onPress={onClose}
-              style={[styles.close, { backgroundColor: theme.colors.controlButtonBg }]}
+      <GestureHandlerRootView style={styles.root}>
+        {handoffVisible ? (
+          <AssistantPracticeHandoffCover />
+        ) : (
+          <View style={[styles.root, { backgroundColor: theme.colors.screenBg }]}>
+            <View
+              style={[
+                styles.header,
+                {
+                  paddingTop: insets.top + 10,
+                  borderBottomColor: theme.colors.surfaceBorder,
+                },
+              ]}
             >
-              <AppText variant="buttonLabel">{closeLabel}</AppText>
-            </Pressable>
+              <AppText variant="sectionTitle">{title}</AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={closeAccessibilityLabel ?? closeLabel}
+                onPress={onClose}
+                style={[styles.close, { backgroundColor: theme.colors.controlButtonBg }]}
+              >
+                <AppText variant="buttonLabel">{closeLabel}</AppText>
+              </Pressable>
+            </View>
+            <View style={styles.body}>{children}</View>
           </View>
-          <View style={styles.body}>{children}</View>
-        </View>
-      )}
+        )}
+      </GestureHandlerRootView>
     </Modal>
   );
 }

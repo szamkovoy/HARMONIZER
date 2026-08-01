@@ -2001,40 +2001,22 @@ export async function POST(req: Request) {
               } else {
                 turnMode = "inquiry";
               }
-            } else if (!isOpening && currentEvent && summaryAskedCount(fsmAtTurnStart, currentEvent.id) >= 1) {
-              const summarizedItem = await persistSummarizedEvent({
-                db: routeDb,
-                userId: routeUserId,
-                event: currentEvent,
-                outcomeText: userMessage.trim() || null,
-                outcomeCells: [],
-                nowIso,
-                deleteAfterPersist: currentEvent.planned_local_date < context.localDate,
-              });
-              conversationMeta = appendSummarySessionItem(conversationMeta, {
-                id: summarizedItem.id,
-                description: summarizedItem.title,
-                planned_local_date: currentEvent.planned_local_date,
-                display_order: summarizedItem.displayOrder,
-                summarized_at: summarizedItem.summarizedAt,
-                applied_to_matrix: summarizedItem.appliedToMatrix,
-                outcome_cells: summarizedItem.outcomeCells,
-                outcome_text: userMessage.trim() || null,
-              });
-              const persistenceRow = toSummaryPersistenceRow(summarizedItem, userMessage.trim() || null);
-              planningPersistence.summarized = [persistenceRow];
-              turnRelatedEventIds = [summarizedItem.id];
-              if (remainingAfterCurrent <= 0) {
-                nextFsm = advanceBranch(fsmAtTurnStart);
-                if (nextFsm.branch === "done") {
-                  turnMode = "final_without_practice";
-                  shouldClose = true;
-                } else {
-                  turnMode = "inquiry";
-                }
-              } else {
-                turnMode = "inquiry";
-              }
+            } else if (
+              // Previously: any 2nd user turn with summaryAsked≥1 and no marker
+              // auto-closed the event with empty outcome_cells (and deleted overdue
+              // rows). That treated silence / abandoned mic / Close-after-noise as a
+              // real summary. Keep the event open until an explicit marker,
+              // did-not-happen, or thin-after-clarify+marker path above.
+              !isOpening
+              && currentEvent
+              && summaryAskedCount(fsmAtTurnStart, currentEvent.id) >= 1
+              && !summaryMarker
+            ) {
+              console.warn(
+                "[DIALOG_FSM] Summary still open after clarify — waiting for marker or clear non-occurrence (no empty auto-close)",
+                JSON.stringify({ conversationId: conversation.id, eventId: currentEvent.id }),
+              );
+              turnMode = "inquiry";
             } else if (
               !isOpening
               && currentEvent

@@ -6,8 +6,8 @@
  * Когда нужно «в ряд», оборачивайте несколько кнопок в `flexDirection: row` и задавайте
  * `flex: 1` через `style`.
  */
-import type { ReactNode } from "react";
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { useEffect, useState, type ReactNode } from "react";
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -27,6 +27,47 @@ interface AppButtonProps {
   testID?: string;
 }
 
+/**
+ * Always reserves three dots (no layout jump). Visible count cycles 0→1→2→3 by
+ * painting “hidden” dots in the button background color so they disappear in place.
+ */
+function BusyLabel({
+  label,
+  textColor,
+  hiddenDotColor,
+}: {
+  label: string;
+  textColor: string;
+  hiddenDotColor: string;
+}) {
+  const base = label.replace(/[.…]+$/u, "").trimEnd();
+  /** 0 = none lit, 1..3 = that many dots in textColor. */
+  const [lit, setLit] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLit((n) => (n + 1) % 4);
+    }, 420);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <View style={styles.busyRow}>
+      <AppText variant="buttonLabel" style={{ color: textColor }}>
+        {base}
+      </AppText>
+      {[0, 1, 2].map((i) => (
+        <AppText
+          key={i}
+          variant="buttonLabel"
+          style={{ color: i < lit ? textColor : hiddenDotColor }}
+        >
+          .
+        </AppText>
+      ))}
+    </View>
+  );
+}
+
 export function AppButton({
   label,
   children,
@@ -41,11 +82,14 @@ export function AppButton({
   const theme = useTheme();
   const isPrimary = variant === "primary";
   const inactive = Boolean(disabled || busy);
+  const buttonBg = isPrimary ? theme.colors.buttonPrimaryBg : theme.colors.screenBg;
+  const labelColor = isPrimary ? theme.colors.buttonPrimaryFg : theme.colors.buttonSecondaryFg;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled: inactive, busy: Boolean(busy) }}
       onPress={onPress}
       disabled={inactive}
       testID={testID}
@@ -64,21 +108,29 @@ export function AppButton({
         style,
       ]}
     >
-      {children ?? (
-        <AppText
-          variant="buttonLabel"
-          tone={isPrimary ? "accentOn" : "primary"}
-          style={styles.label}
-        >
-          {label}
-        </AppText>
-      )}
+      {children ??
+        (busy && label ? (
+          <BusyLabel label={label} textColor={labelColor} hiddenDotColor={buttonBg} />
+        ) : (
+          <AppText
+            variant="buttonLabel"
+            tone={isPrimary ? "accentOn" : "primary"}
+            style={styles.label}
+          >
+            {label}
+          </AppText>
+        ))}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  busyRow: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },

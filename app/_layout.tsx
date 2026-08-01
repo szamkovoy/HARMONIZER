@@ -1,3 +1,4 @@
+import "react-native-gesture-handler";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   DarkTheme,
@@ -8,7 +9,8 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Platform, View, type GestureResponderEvent } from "react-native";
+import { Platform, StyleSheet, View, type GestureResponderEvent } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
@@ -58,13 +60,16 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
   const nativeHiddenRef = useRef(false);
-  const [earlySplashDone, setEarlySplashDone] = useState(false);
+  const [earlyCoverVisible, setEarlyCoverVisible] = useState(true);
 
   const hideNativeSplash = useCallback(() => {
     if (nativeHiddenRef.current) return;
     nativeHiddenRef.current = true;
     void SplashScreen.hideAsync();
-    setEarlySplashDone(true);
+  }, []);
+
+  const dismissEarlyCover = useCallback(() => {
+    setEarlyCoverVisible(false);
   }, []);
 
   useEffect(() => {
@@ -76,41 +81,49 @@ export default function RootLayout() {
     configureLocalNotifications();
   }, []);
 
-  // iOS: full-bleed JS cover before fonts (native legacy splash → large art).
-  // Android: keep the system splash until AppStartup Image.onLoad — no EarlySplashCover
-  // (avoids mini icon → stretched intermediate frame).
-  if (!loaded) {
-    if (Platform.OS === "ios") {
-      return (
-        <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
+  // Keep EarlySplashCover mounted across fonts→providers so Android never
+  // flashes white between the early cover and AppStartupSplashOverlay.
+  // Native hide only after Image.onLoadEnd (transparent Android 12 icon).
+  return (
+    <GestureHandlerRootView style={styles.root}>
+      {loaded ? (
+        <SafeAreaProvider>
+          <UiThemeProvider value={uiTheme}>
+            <AuthProvider>
+              <AppStartupProvider onSplashReady={dismissEarlyCover}>
+                <RemotePlayProvider>
+                  <AccessBridge>
+                    {earlyCoverVisible ? <NativeSplashBridge /> : null}
+                    <PushRegistrationBridge />
+                    <StorySessionBootstrap />
+                    <MembershipEventsBridge />
+                    <RootLayoutNav />
+                  </AccessBridge>
+                </RemotePlayProvider>
+              </AppStartupProvider>
+            </AuthProvider>
+          </UiThemeProvider>
+        </SafeAreaProvider>
+      ) : null}
+      {earlyCoverVisible ? (
+        <View style={styles.earlyCover} pointerEvents="auto">
           <EarlySplashCover onPainted={hideNativeSplash} />
         </View>
-      );
-    }
-    return null;
-  }
-
-  return (
-    <SafeAreaProvider>
-      <UiThemeProvider value={uiTheme}>
-        <AuthProvider>
-          <AppStartupProvider>
-            <RemotePlayProvider>
-              <AccessBridge>
-                {/* iOS early cover may already have hidden native; Android uses bridge. */}
-                {!earlySplashDone ? <NativeSplashBridge /> : null}
-                <PushRegistrationBridge />
-                <StorySessionBootstrap />
-                <MembershipEventsBridge />
-                <RootLayoutNav />
-              </AccessBridge>
-            </RemotePlayProvider>
-          </AppStartupProvider>
-        </AuthProvider>
-      </UiThemeProvider>
-    </SafeAreaProvider>
+      ) : null}
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  earlyCover: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+  },
+});
 
 function AccessBridge({ children }: { children: ReactNode }) {
   const { profile, authUser } = useAuth();

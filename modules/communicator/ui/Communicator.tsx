@@ -12,7 +12,6 @@ import {
   Alert,
   Animated,
   AppState,
-  Image,
   InteractionManager,
   KeyboardAvoidingView,
   LayoutChangeEvent,
@@ -25,8 +24,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+/** Samsung/One UI + Fabric: RN Pressable often fires onPressOut immediately — kills hold-to-talk. */
+const MicPressable = Platform.OS === "android" ? GHPressable : Pressable;
 
 import type { DayHealthContext } from "@/services/dayHealthContext";
 import { loadDayPlan, type DayPracticeLog } from "@/services/dayPlan";
@@ -115,14 +118,12 @@ import { useAsanaRemotePlayLauncher } from "@/modules/practices/ui/useAsanaRemot
 import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 
 import { AssistantBubble } from "./AssistantBubble";
+import { MicCancelButton, MicRecordButton } from "./MicRecordButton";
 import { ModeToggle } from "./ModeToggle";
 import { ScrollDownHint } from "./ScrollDownHint";
 import { StreamingAssistantLines } from "./StreamingAssistantLines";
 import { UserBubble } from "./UserBubble";
 import { useCommunicatorStream } from "./useCommunicatorStream";
-
-const micOn = require("@/assets/icons/mic_button_on.png");
-const micOff = require("@/assets/icons/mic_button_off.png");
 
 function resolveUiMode(props: {
   mode?: CommunicatorModePolicy;
@@ -543,7 +544,9 @@ function isGeminiJsonError(error: Error): boolean {
 }
 
 function isRecorderPrepareError(error: Error): boolean {
-  return /prepare.*recorder|recorder not prepared|prepareToRecord/i.test(error.message);
+  return /prepare.*recorder|recorder not prepared|prepareToRecord|only one recording object/i.test(
+    error.message,
+  );
 }
 
 function tierLabelFromProfile(profile: MembershipRow): string {
@@ -560,33 +563,6 @@ function ModelBadge({ model, accessTier }: { model?: string; accessTier: string 
         model: {model ?? accessTier}
       </AppText>
     </View>
-  );
-}
-
-function RecordingAura({ level }: { level: Animated.Value }) {
-  const theme = useTheme();
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.recordingAura,
-        {
-          borderColor: theme.colors.accent,
-          opacity: level.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.18, 0.42],
-          }),
-          transform: [
-            {
-              scale: level.interpolate({
-                inputRange: [0, 1],
-                outputRange: [1.05, 1.35],
-              }),
-            },
-          ],
-        },
-      ]}
-    />
   );
 }
 
@@ -809,6 +785,16 @@ export function Communicator({
   /** Пока ждём ответ в системном диалоге разрешения микрофона — нельзя отменять warmup по onPressOut (палец уже не на кнопке). */
   const awaitingMicPermissionRef = useRef(false);
   const startRecordingGenerationRef = useRef(0);
+  /** Serialize prepare/stop — expo-av allows only one prepared Recording at a time. */
+  const recordingGateRef = useRef(Promise.resolve());
+  const runExclusiveRecordingOp = useCallback(<T,>(op: () => Promise<T>): Promise<T> => {
+    const run = recordingGateRef.current.then(op, op);
+    recordingGateRef.current = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }, []);
   /** Сброс нативного «залипания» Pressable после отмены / отказа в разрешениях */
   const [micPressResetKey, setMicPressResetKey] = useState(0);
   const phaseRef = useRef(phase);
@@ -893,8 +879,19 @@ export function Communicator({
     return latestAssistant?.meta?.shouldClose === true;
   }, [messages]);
 
+  /**
+   * SSE finished + deferred reveal: unlock mic as soon as `pendingRevealGoal` is set
+   * (text may still paint). Keep text/send locked until `streamBusy` clears.
+   */
+  const micStreamLocked = streamBusy && pendingRevealGoal == null;
   const isBusy =
     phase === "arming" || phase === "recording" || phase === "transcribing" || streamBusy || dialogWindDown;
+  const micInteractionLocked =
+    phase === "arming" ||
+    phase === "recording" ||
+    phase === "transcribing" ||
+    micStreamLocked ||
+    dialogWindDown;
 
   useEffect(() => {
     if (profileLoading) return;
@@ -1101,6 +1098,25 @@ export function Communicator({
 
   useEffect(() => {
     return () => {
+      // Drop any in-flight / leaked Recording — otherwise iOS keeps the green mic
+      // indicator and the next dialog open fails with prepare/singleton errors.
+      startRecordingGenerationRef.current += 1;
+      micWarmupRef.current = false;
+      const leaked = recordingRef.current;
+      recordingRef.current = null;
+      if (leaked) {
+        void leaked.stopAndUnloadAsync().catch(() => undefined);
+      }
+      void Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        playThroughEarpieceAndroid: false,
+      }).catch(() => undefined);
+
       abortChatStream();
       const conversationIdToFlush = activeConversationIdRef.current;
       if (!conversationIdToFlush || streamBusyRef.current || !hasQueuedPlanningArtifacts(messagesRef.current)) return;
@@ -1795,17 +1811,6 @@ export function Communicator({
     ],
   );
 
-  const abortRequest = useCallback(() => {
-    abortChatStream();
-    if (pendingAssistantCommitRef.current) {
-      flushPendingAssistantCommit();
-    } else {
-      setPendingRevealGoal(null);
-      resetChatStream();
-    }
-    onAbort?.();
-  }, [abortChatStream, flushPendingAssistantCommit, onAbort, resetChatStream]);
-
   /**
    * Initiate dialog: when the session is new (empty), request the
    * orchestrator's opening message from the server without sending
@@ -1894,8 +1899,9 @@ export function Communicator({
     }
   }, []);
 
-  const discardRecording = useCallback(async () => {
+  const unloadActiveRecording = useCallback(async () => {
     const rec = recordingRef.current;
+    recordingRef.current = null;
     if (!rec) {
       await resetRecordingAudioMode();
       return;
@@ -1907,9 +1913,14 @@ export function Communicator({
     } finally {
       await resetRecordingAudioMode();
     }
-    recordingRef.current = null;
-    setPhase("idle");
   }, [resetRecordingAudioMode]);
+
+  const discardRecording = useCallback(async () => {
+    await runExclusiveRecordingOp(async () => {
+      await unloadActiveRecording();
+      setPhase("idle");
+    });
+  }, [runExclusiveRecordingOp, unloadActiveRecording]);
 
   const cancelMicWarmup = useCallback(() => {
     startRecordingGenerationRef.current += 1;
@@ -1953,7 +1964,7 @@ export function Communicator({
   }, [uiMode]);
 
   const startRecording = useCallback(async () => {
-    if (phase !== "idle" || uiMode !== "VOICE" || streamBusy || micWarmupRef.current || recordingRef.current) return;
+    if (phase !== "idle" || uiMode !== "VOICE" || micStreamLocked || micWarmupRef.current || recordingRef.current) return;
     const generation = ++startRecordingGenerationRef.current;
     micWarmupRef.current = true;
     setPhase("arming");
@@ -1979,7 +1990,7 @@ export function Communicator({
     };
 
     const prepareRecordingSession = async () => {
-      await discardRecording();
+      await unloadActiveRecording();
       await Audio.setIsEnabledAsync(true);
       await applyRecordingAudioMode();
       await sleep(Platform.OS === "ios" ? 180 : 70);
@@ -2017,9 +2028,10 @@ export function Communicator({
         return created.recording;
       };
 
+      // Metering first (voice aura); fall back if a device rejects metering prepare.
       const recordingVariants = [
-        whisperRecordingOptions({ isMeteringEnabled: false }),
         whisperRecordingOptions({ isMeteringEnabled: true }),
+        whisperRecordingOptions({ isMeteringEnabled: false }),
         communicatorRecordingFallbackOptions(),
       ] as const;
 
@@ -2027,26 +2039,34 @@ export function Communicator({
       let lastErr: unknown;
       outer: for (let attempt = 0; attempt < 3; attempt += 1) {
         if (wipeStale()) return;
-        await prepareRecordingSession();
-        if (wipeStale()) return;
-        for (let vi = 0; vi < recordingVariants.length; vi += 1) {
-          if (wipeStale()) return;
-          const variantOptions = recordingVariants[vi];
-          try {
-            recording = await createStartedRecording(variantOptions, {
-              awaitIdleQueue: attempt > 0 || vi > 0,
-            });
-            break outer;
-          } catch (e) {
-            lastErr = e;
-            /* Нельзя оставлять allowsRecordingIOS: false между пресетами — следующий createAsync падает с «Recording not allowed». */
+        const created = await runExclusiveRecordingOp(async () => {
+          if (wipeStale()) return null;
+          await prepareRecordingSession();
+          if (wipeStale()) return null;
+          for (let vi = 0; vi < recordingVariants.length; vi += 1) {
+            if (wipeStale()) return null;
+            const variantOptions = recordingVariants[vi];
             try {
-              await applyRecordingAudioMode();
-            } catch {
-              /* ignore */
+              return await createStartedRecording(variantOptions, {
+                awaitIdleQueue: attempt > 0 || vi > 0,
+              });
+            } catch (e) {
+              lastErr = e;
+              /* Нельзя оставлять allowsRecordingIOS: false между пресетами — следующий createAsync падает с «Recording not allowed». */
+              try {
+                await applyRecordingAudioMode();
+              } catch {
+                /* ignore */
+              }
+              await sleep(Platform.OS === "ios" ? 110 : 70);
             }
-            await sleep(Platform.OS === "ios" ? 110 : 70);
           }
+          return null;
+        });
+        if (wipeStale()) return;
+        if (created) {
+          recording = created;
+          break outer;
         }
         if (attempt < 2) {
           await sleep(attempt === 0 ? 200 : 360);
@@ -2100,7 +2120,17 @@ export function Communicator({
       const err = e instanceof Error ? e : new Error(String(e));
       reportError(err);
     }
-  }, [bumpMicPressReset, discardRecording, phase, reportError, resetRecordingAudioMode, streamBusy, strings.microphonePermissionError, uiMode]);
+  }, [
+    bumpMicPressReset,
+    micStreamLocked,
+    phase,
+    reportError,
+    resetRecordingAudioMode,
+    runExclusiveRecordingOp,
+    strings.microphonePermissionError,
+    uiMode,
+    unloadActiveRecording,
+  ]);
 
   const stopRecordingAndSend = useCallback(async () => {
     const rec = recordingRef.current;
@@ -2112,15 +2142,17 @@ export function Communicator({
     recordingRef.current = null;
     let uri: string | null = null;
     try {
-      await rec.stopAndUnloadAsync();
-      uri = rec.getURI() ?? null;
+      await runExclusiveRecordingOp(async () => {
+        await rec.stopAndUnloadAsync();
+        uri = rec.getURI() ?? null;
+        await resetRecordingAudioMode();
+      });
     } catch {
       await resetRecordingAudioMode();
       setPhase("idle");
       bumpMicPressReset();
       return;
     }
-    await resetRecordingAudioMode();
 
     const durationMs = Date.now() - recordStartRef.current;
     setPhase("idle");
@@ -2146,7 +2178,7 @@ export function Communicator({
     }
 
     await processVoiceFromUri(uri, durationMs);
-  }, [bumpMicPressReset, processVoiceFromUri, reportError, resetRecordingAudioMode]);
+  }, [bumpMicPressReset, processVoiceFromUri, reportError, resetRecordingAudioMode, runExclusiveRecordingOp]);
 
   const onMicPressIn = useCallback(() => {
     micFingerDownRef.current = true;
@@ -2155,7 +2187,7 @@ export function Communicator({
       uiMode,
       phase: phaseRef.current,
       captureMode: micCaptureModeRef.current,
-      streamBusy,
+      streamBusy: micStreamLocked,
       dialogWindDown,
     });
 
@@ -2169,7 +2201,7 @@ export function Communicator({
     micPressStartedAtRef.current = Date.now();
     micCaptureModeRef.current = null;
     void startRecording();
-  }, [dialogWindDown, startRecording, stopRecordingAndSend, streamBusy, uiMode]);
+  }, [dialogWindDown, micStreamLocked, startRecording, stopRecordingAndSend, uiMode]);
 
   const onMicPressOut = useCallback(() => {
     micFingerDownRef.current = false;
@@ -2204,10 +2236,10 @@ export function Communicator({
   }, [bumpMicPressReset, cancelMicWarmup, stopRecordingAndSend]);
 
   const onMicPress = useCallback(() => {
+    // Busy/cancel (gray X) is display-only — do not abort the assistant stream.
     if (suppressClickRef.current || suppressAbortAfterRecordRef.current) return;
     if (phaseRef.current === "recording" || phaseRef.current === "arming") return;
-    if (isBusy) abortRequest();
-  }, [abortRequest, isBusy]);
+  }, []);
 
   const sendText = useCallback(async () => {
     const t = txtDraft.trim();
@@ -2240,7 +2272,7 @@ export function Communicator({
     setUiMode((m) => (m === "VOICE" ? "TXT" : "VOICE"));
   }, [canSwitchInputMode, isBusy]);
 
-  const micShowsBusyAsset = isBusy && phase !== "recording" && phase !== "arming";
+  const micShowsBusyAsset = micInteractionLocked && phase !== "recording" && phase !== "arming";
 
   const onScrollViewLayout = useCallback((e: LayoutChangeEvent) => {
     setScrollViewH(e.nativeEvent.layout.height);
@@ -2817,30 +2849,34 @@ export function Communicator({
                 </View>
               ) : null}
               <ModelBadge model={modelUsed} accessTier={modelAccessTier} />
-              <Pressable
+              <MicPressable
                 key={micPressResetKey}
                 accessibilityRole="button"
+                accessibilityState={{ disabled: micShowsBusyAsset }}
                 accessibilityLabel={
-                  isBusy ? strings.cancelRequestAccessibilityLabel : strings.holdToRecordAccessibilityLabel
+                  micShowsBusyAsset
+                    ? strings.respondingStatus
+                    : strings.holdToRecordAccessibilityLabel
                 }
-                onPressIn={onMicPressIn}
-                onPressOut={onMicPressOut}
-                onPress={onMicPress}
+                disabled={micShowsBusyAsset}
+                onPressIn={micShowsBusyAsset ? undefined : onMicPressIn}
+                onPressOut={micShowsBusyAsset ? undefined : onMicPressOut}
+                onPress={micShowsBusyAsset ? undefined : onMicPress}
+                hitSlop={12}
                 style={({ pressed }) => [
                   styles.micHit,
-                  pressed && phase === "idle" && !streamBusy ? styles.micHitPressed : null,
+                  pressed && phase === "idle" && !micInteractionLocked ? styles.micHitPressed : null,
                 ]}
               >
-                {phase === "recording" || phase === "arming" ? <RecordingAura level={voiceLevel} /> : null}
-                <Image
-                  source={micShowsBusyAsset ? micOff : micOn}
-                  style={styles.micImg}
-                  resizeMode="contain"
-                />
-                {phase === "recording" || phase === "arming" ? (
-                  <View style={styles.micDim} />
-                ) : null}
-              </Pressable>
+                {micShowsBusyAsset ? (
+                  <MicCancelButton />
+                ) : (
+                  <MicRecordButton
+                    active={phase === "recording" || phase === "arming"}
+                    level={voiceLevel}
+                  />
+                )}
+              </MicPressable>
             </View>
           ) : (
             <View
@@ -2976,7 +3012,7 @@ const styles = StyleSheet.create({
   },
   voiceCol: {
     flex: 1,
-    minHeight: 72,
+    minHeight: 108,
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 4,
@@ -3004,29 +3040,13 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   micHit: {
-    width: 72,
-    height: 72,
+    width: 120,
+    height: 120,
     alignItems: "center",
     justifyContent: "center",
   },
   micHitPressed: {
     opacity: 0.88,
-  },
-  recordingAura: {
-    position: "absolute",
-    width: 76,
-    height: 76,
-    borderRadius: 999,
-    borderWidth: 8,
-  },
-  micImg: {
-    width: 56,
-    height: 56,
-  },
-  micDim: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.35)",
   },
   txtBar: {
     flex: 1,

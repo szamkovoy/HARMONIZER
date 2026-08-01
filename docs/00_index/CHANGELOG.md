@@ -1,3 +1,14 @@
+- 2026-08-01 (375): AppButton busy — fixed 3 dots color-pulse; summarizing — no empty auto-close; tighter silence STT guard.
+- 2026-08-01 (374): Mic — unload Recording on Communicator unmount; gray X inert; unlock mic at deferred reveal; AppButton busy animated ellipsis.
+- 2026-08-01 (373): Mic cancel — white `cancel.svg` on drawn `#a8a8a8` circle (`MicCancelButton`).
+- 2026-08-01 (372): Mic button — white `microphone.svg` glyph on drawn `#0d74f1` circle; +20% diameter + soft aura while recording.
+- 2026-08-01 (371): Mic soft volume aura + modest size; serialize expo-av Recording ops; hide Home BlockingStatusToast once communicator modal opens.
+- 2026-08-01 (370): Android mic — GestureHandlerRootView inside AssistantModalShell (GH Pressable was dead in RN Modal; Pixel + Samsung).
+- 2026-08-01 (369): iOS splash — soft first-frame veil on EarlySplashCover; Android mic — RNGH Pressable + GestureHandlerRootView (Samsung/One UI hold-to-talk); recording aura ~2×.
+- 2026-08-01 (368): Android splash — restore transparent system icon + EarlySplashCover handoff (hide after Image.onLoadEnd) to kill mini→large jump.
+- 2026-08-01 (367): iOS dev-client — add `NSLocalNetworkUsageDescription` + Bonjour services so Metro LAN works (Settings → Local Network appears).
+- 2026-07-31 (366): iOS EAS AppCheckCore — stale CocoaPods CDN shard (etag stuck at 11.2.0); refresh script + Podfile preamble plugin; local iOS build scripts call refresh first.
+- 2026-07-31 (365): iOS EAS — `eas-build-post-install` runs `pod repo update` so Firebase `AppCheckCore (~> 11.3)` resolves (fixes Install pods exit 31).
 - 2026-07-31 (364): Android splash reset — iOS keeps EarlySplashCover; Android skips it (native→AppStartup); explicit window cover (no absoluteFill stretch).
 - 2026-07-31 (363): Android cold start — revert transparent splash icon (white hang); hide native after image load; hold splash on profile gate; auth sets `profileLoading` before `initializing=false`.
 - 2026-07-31 (362): Android cold start — keep splash while profile gate is open (fix white hang after splash handoff).
