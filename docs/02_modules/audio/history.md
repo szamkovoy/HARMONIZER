@@ -9,6 +9,8 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 ## Decision Log
 
+- **2026-08-02 (shorter session fades):** Fade-in/out практики сокращены с ~2 s / ~2.5 s до ~0.6 s / ~0.8 s (`MandalaSoundProvider` + дефолты `AmbientLoopEngine`) — длинный вход/выход ощущался слишком затянутым.
+
 - **2026-08-02:** Добавлены взаимоисключающие nature sound beds для breath/meditation. Почему: нужен выбор спокойного фона вместо Neuro-sync без слоя поверх binaural. Что изменилось: `AmbientLoopEngine` + `assets/audio/ambient/*.m4a` (seamless 4 s crossfade), prop `soundBed` у `MandalaSoundProvider`, fade in/out на старте и штатном/досрочном стопе; visual sync по-прежнему от timeline даже на nature bed.
 
 - **2026-08-02 (ambient cuts v2):** Перезборка лупов по таблице заказчика (`sources.json`): rain 0:10–2:45, water_splash целиком, waves 0:07–1:50, creek 4:00–5:30, cat_purr 4:30–6:00, wind 4:15–5:25, forest_birds/birdsong 0:00–1:39, fireplace 0:05–1:15. Подписи RU/EN обновлены; EU overlays — fill PREMIUM.

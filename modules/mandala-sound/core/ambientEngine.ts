@@ -71,7 +71,7 @@ export class AmbientLoopEngine {
   ): Promise<void> {
     if (this.started) return;
     this.started = true;
-    const fadeInMs = options?.fadeInMs ?? 2000;
+    const fadeInMs = options?.fadeInMs ?? 600;
     this.targetVolume = Math.max(0, Math.min(1, options?.targetVolume ?? DEFAULT_TARGET_VOLUME));
     const staysActiveInBackground = options?.staysActiveInBackground === true;
     this.asset = AMBIENT_SOUND_ASSETS[bedId];
@@ -117,7 +117,7 @@ export class AmbientLoopEngine {
   }
 
   async stop(options?: { fadeOutMs?: number }): Promise<void> {
-    const fadeOutMs = options?.fadeOutMs ?? 2500;
+    const fadeOutMs = options?.fadeOutMs ?? 800;
     const wasStarted = this.started;
     if (!wasStarted && !this.active && !this.idle) return;
     this.started = false;

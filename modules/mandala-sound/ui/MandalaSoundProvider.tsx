@@ -28,8 +28,8 @@ import type {
 
 const CONTROL_TICK_MS = 250;
 const DEFAULT_DURATION_MS = 5 * 60_000;
-const FADE_IN_MS = 2000;
-const FADE_OUT_MS = 2500;
+const FADE_IN_MS = 600;
+const FADE_OUT_MS = 800;
 const DEFAULT_FRAME: MandalaSoundSyncFrame = buildMandalaSoundFrame({
   startedAtMs: 0,
   nowMs: 0,

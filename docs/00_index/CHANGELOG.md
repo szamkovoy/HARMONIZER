@@ -1,3 +1,5 @@
+- 2026-08-02 (386): Communicator mic cancel — circle `#bdbdbd` (lighter gray).
+- 2026-08-02 (385): Mandala sound — shorter practice fade-in/out (~0.6 s / ~0.8 s).
 - 2026-08-02 (384): Practices — «Спокойствие» (Calm): catalog card, image+sound screen, no reports/assistant; background audio.
 - 2026-08-02 (383): Ambient beds — rebuild cuts from author table; RU/EN/EU bed names refreshed (PREMIUM fill).
 - 2026-08-02 (382): Breath/meditation — ComboBox sound bed (Neuro-sync + 8 nature loops); fade in/out via MandalaSoundProvider.

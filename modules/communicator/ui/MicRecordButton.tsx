@@ -5,7 +5,7 @@ import Svg, { Path } from "react-native-svg";
 export const MIC_BUTTON_SIZE = 67;
 export const MIC_BUTTON_RECORDING_SCALE = 1.2;
 export const MIC_BUTTON_COLOR = "#0d74f1";
-export const MIC_CANCEL_COLOR = "#a8a8a8";
+export const MIC_CANCEL_COLOR = "#bdbdbd";
 
 const ICON_SIZE = 34;
 const CANCEL_ICON_SIZE = 28;
