@@ -66,8 +66,10 @@ import {
   captureModeWhenRecordingStarts,
   isInvalidTranscriptionMediaError,
   isVoiceRecordingFileTooSmall,
+  MIC_APPSTATE_SETTLE_MS,
   resolveMicPressIn,
   resolveMicPressOut,
+  shouldDiscardMicOnAppState,
   type MicCaptureMode,
 } from "@/modules/communicator/core/micGesture";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
@@ -800,10 +802,14 @@ export function Communicator({
   const recordStartRef = useRef(0);
   const suppressClickRef = useRef(false);
   const suppressAbortAfterRecordRef = useRef(false);
-  /** true от старта startRecording до момента, пока запись реально не пошла (в т.ч. показ системного окна разрешений) */
+  /** true от pressIn/startRecording до момента, пока запись реально не пошла (в т.ч. показ системного окна разрешений) */
   const micWarmupRef = useRef(false);
   /** Пока ждём ответ в системном диалоге разрешения микрофона — нельзя отменять warmup по onPressOut (палец уже не на кнопке). */
   const awaitingMicPermissionRef = useRef(false);
+  /** После createAsync — игнор AppState discard (Samsung/OEM blip). */
+  const micIgnoreAppStateUntilRef = useRef(0);
+  /** Serialize overlapping startRecording calls (pressIn may set warmup before the async body runs). */
+  const micStartInFlightRef = useRef(false);
   const startRecordingGenerationRef = useRef(0);
   /** Serialize prepare/stop — expo-av allows only one prepared Recording at a time. */
   const recordingGateRef = useRef(Promise.resolve());
@@ -1122,6 +1128,8 @@ export function Communicator({
       // indicator and the next dialog open fails with prepare/singleton errors.
       startRecordingGenerationRef.current += 1;
       micWarmupRef.current = false;
+      micStartInFlightRef.current = false;
+      micIgnoreAppStateUntilRef.current = 0;
       const leaked = recordingRef.current;
       recordingRef.current = null;
       if (leaked) {
@@ -1937,6 +1945,8 @@ export function Communicator({
   const cancelMicWarmup = useCallback(() => {
     startRecordingGenerationRef.current += 1;
     micWarmupRef.current = false;
+    micStartInFlightRef.current = false;
+    micIgnoreAppStateUntilRef.current = 0;
     micCaptureModeRef.current = null;
     void discardRecording();
     setPhase("idle");
@@ -1945,10 +1955,20 @@ export function Communicator({
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
-      if (next !== "background" && next !== "inactive") return;
-      // Permission sheets / One UI overlays briefly background the app. Killing
-      // warmup there is why Samsung users saw "mic does nothing" after Allow.
-      if (awaitingMicPermissionRef.current || micWarmupRef.current) return;
+      // Permission sheets / One UI mic-privacy blips briefly leave "active".
+      // Discarding there = one-frame arming jerk ("like photographing") and no ring.
+      if (
+        !shouldDiscardMicOnAppState({
+          nextState: next,
+          platform: Platform.OS,
+          awaitingMicPermission: awaitingMicPermissionRef.current,
+          micWarmup: micWarmupRef.current,
+          ignoreAppStateUntilMs: micIgnoreAppStateUntilRef.current,
+          nowMs: Date.now(),
+        })
+      ) {
+        return;
+      }
       void discardRecording();
     });
     return () => sub.remove();
@@ -1974,8 +1994,24 @@ export function Communicator({
   }, [uiMode]);
 
   const startRecording = useCallback(async () => {
-    if (phase !== "idle" || uiMode !== "VOICE" || micStreamLocked || micWarmupRef.current || recordingRef.current) return;
+    const abortPreArming = () => {
+      micWarmupRef.current = false;
+      micStartInFlightRef.current = false;
+      if (phaseRef.current === "arming") setPhase("idle");
+    };
+    if (uiMode !== "VOICE" || micStreamLocked || recordingRef.current) {
+      abortPreArming();
+      return;
+    }
+    // pressIn may already have set arming/warmup to win the Samsung pressOut race.
+    if (phaseRef.current !== "idle" && phaseRef.current !== "arming") {
+      abortPreArming();
+      return;
+    }
+    if (micStartInFlightRef.current) return;
+
     const generation = ++startRecordingGenerationRef.current;
+    micStartInFlightRef.current = true;
     micWarmupRef.current = true;
     setPhase("arming");
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -1983,6 +2019,7 @@ export function Communicator({
     const wipeStale = (): boolean => {
       if (generation === startRecordingGenerationRef.current) return false;
       micWarmupRef.current = false;
+      micStartInFlightRef.current = false;
       setPhase("idle");
       return true;
     };
@@ -2017,6 +2054,7 @@ export function Communicator({
       if (wipeStale()) return;
       if (!perm.granted) {
         micWarmupRef.current = false;
+        micStartInFlightRef.current = false;
         setPhase("idle");
         reportError(new Error(strings.microphonePermissionError));
         bumpMicPressReset();
@@ -2097,11 +2135,16 @@ export function Communicator({
         }
         await resetRecordingAudioMode();
         micWarmupRef.current = false;
+        micStartInFlightRef.current = false;
         setPhase("idle");
         return;
       }
-      micWarmupRef.current = false;
       recordingRef.current = recording;
+      // Keep warmup until after the recording ref is live, then settle-grace
+      // AppState so OEM privacy/audio-focus blips cannot discard the take.
+      micIgnoreAppStateUntilRef.current = Date.now() + MIC_APPSTATE_SETTLE_MS;
+      micWarmupRef.current = false;
+      micStartInFlightRef.current = false;
       recording.setOnRecordingStatusUpdate((status) => {
         const metering = "metering" in status && typeof status.metering === "number" ? status.metering : null;
         const fallbackPulse = 0.28 + 0.12 * Math.sin(Date.now() / 180);
@@ -2120,8 +2163,12 @@ export function Communicator({
       );
       setPhase("recording");
     } catch (e) {
-      if (generation !== startRecordingGenerationRef.current) return;
+      if (generation !== startRecordingGenerationRef.current) {
+        micStartInFlightRef.current = false;
+        return;
+      }
       micWarmupRef.current = false;
+      micStartInFlightRef.current = false;
       micCaptureModeRef.current = null;
       recordingRef.current = null;
       await resetRecordingAudioMode();
@@ -2133,7 +2180,6 @@ export function Communicator({
   }, [
     bumpMicPressReset,
     micStreamLocked,
-    phase,
     reportError,
     resetRecordingAudioMode,
     runExclusiveRecordingOp,
@@ -2229,6 +2275,10 @@ export function Communicator({
 
     micPressStartedAtRef.current = Date.now();
     micCaptureModeRef.current = null;
+    // Win the Samsung race: pressOut can fire before startRecording's sync body.
+    // Warmup must already be true so pressOut → enter_tap_toggle, not reset.
+    micWarmupRef.current = true;
+    setPhase("arming");
     void startRecording();
   }, [dialogWindDown, micStreamLocked, startRecording, stopRecordingAndSend, uiMode]);
 
@@ -2249,7 +2299,8 @@ export function Communicator({
         return;
       case "enter_tap_toggle":
         micCaptureModeRef.current = "tap_toggle";
-        bumpMicPressReset();
+        // Remounting Pressable during arming flashes the footer (page "jerk").
+        if (phaseRef.current !== "arming") bumpMicPressReset();
         return;
       case "stop_and_send":
         bumpMicPressReset();

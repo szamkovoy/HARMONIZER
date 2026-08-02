@@ -1,6 +1,13 @@
 /** Quick tap vs hold — same threshold as common messenger UX. */
 export const MIC_TAP_LOCK_THRESHOLD_MS = 250;
 
+/**
+ * After MediaRecorder starts, some Android OEMs (Samsung One UI, Huawei, Oppo…)
+ * briefly flip AppState to inactive/background. Discarding there looks like a
+ * one-frame “shutter” jerk of the communicator page with no lasting mic ring.
+ */
+export const MIC_APPSTATE_SETTLE_MS = 1_000;
+
 /** AAC/M4A containers smaller than this are almost always corrupt or empty. */
 export const MIN_VOICE_FILE_BYTES = 256;
 
@@ -96,4 +103,28 @@ export function captureModeWhenRecordingStarts(
   if (pendingMode === "tap_toggle") return "tap_toggle";
   if (fingerDown) return "hold";
   return "tap_toggle";
+}
+
+export type MicAppStatePlatform = "ios" | "android" | "web" | "windows" | "macos";
+
+/**
+ * Whether an AppState change should tear down an in-flight / active mic session.
+ * Pure helper so OEM quirks stay unit-tested.
+ */
+export function shouldDiscardMicOnAppState(input: {
+  nextState: string;
+  platform: MicAppStatePlatform | string;
+  awaitingMicPermission: boolean;
+  micWarmup: boolean;
+  /** Date.now() deadline — ignore discard while settling after createAsync. */
+  ignoreAppStateUntilMs: number;
+  nowMs: number;
+}): boolean {
+  if (input.awaitingMicPermission || input.micWarmup) return false;
+  if (input.nowMs < input.ignoreAppStateUntilMs) return false;
+  if (input.nextState !== "background" && input.nextState !== "inactive") return false;
+  // Android: inactive is almost always a system overlay / privacy indicator /
+  // audio-focus blip — not the user leaving the dialog.
+  if (input.platform === "android" && input.nextState === "inactive") return false;
+  return true;
 }

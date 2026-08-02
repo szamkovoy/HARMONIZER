@@ -5,10 +5,12 @@ import {
   isInvalidTranscriptionMediaError,
   isQuickMicTap,
   isVoiceRecordingFileTooSmall,
+  MIC_APPSTATE_SETTLE_MS,
   MIC_TAP_LOCK_THRESHOLD_MS,
   MIN_VOICE_FILE_BYTES,
   resolveMicPressIn,
   resolveMicPressOut,
+  shouldDiscardMicOnAppState,
 } from "./micGesture";
 
 describe("micGesture", () => {
@@ -172,6 +174,75 @@ describe("micGesture", () => {
     it("finger up after quick tap arming → tap_toggle", () => {
       expect(captureModeWhenRecordingStarts(false, "tap_toggle")).toBe("tap_toggle");
       expect(captureModeWhenRecordingStarts(false, null)).toBe("tap_toggle");
+    });
+  });
+
+  describe("shouldDiscardMicOnAppState", () => {
+    const base = {
+      awaitingMicPermission: false,
+      micWarmup: false,
+      ignoreAppStateUntilMs: 0,
+      nowMs: 10_000,
+    };
+
+    it("keeps session during warmup / permission", () => {
+      expect(
+        shouldDiscardMicOnAppState({
+          ...base,
+          nextState: "inactive",
+          platform: "android",
+          micWarmup: true,
+        }),
+      ).toBe(false);
+      expect(
+        shouldDiscardMicOnAppState({
+          ...base,
+          nextState: "background",
+          platform: "ios",
+          awaitingMicPermission: true,
+        }),
+      ).toBe(false);
+    });
+
+    it("ignores Android inactive (OEM privacy / audio-focus blip)", () => {
+      expect(
+        shouldDiscardMicOnAppState({
+          ...base,
+          nextState: "inactive",
+          platform: "android",
+        }),
+      ).toBe(false);
+    });
+
+    it("still discards on Android background after settle", () => {
+      expect(
+        shouldDiscardMicOnAppState({
+          ...base,
+          nextState: "background",
+          platform: "android",
+        }),
+      ).toBe(true);
+    });
+
+    it("honors settle grace after createAsync", () => {
+      expect(
+        shouldDiscardMicOnAppState({
+          ...base,
+          nextState: "background",
+          platform: "android",
+          ignoreAppStateUntilMs: base.nowMs + MIC_APPSTATE_SETTLE_MS,
+        }),
+      ).toBe(false);
+    });
+
+    it("discards on iOS inactive (phone call / leave)", () => {
+      expect(
+        shouldDiscardMicOnAppState({
+          ...base,
+          nextState: "inactive",
+          platform: "ios",
+        }),
+      ).toBe(true);
     });
   });
 });
