@@ -13,7 +13,7 @@
  *  - применение изменений «базового числа ударов на фазу» к планировщику.
  *
  * Центральный дисплей настройки ритма параметризован как `displayMode`: одиночная
- * цифра для когерентного дыхания или кортеж через дефис для «треугольник/квадрат».
+ * цифра для линейных/квадрата или тройка через « : » для треугольников.
  */
 
 import { Platform, Pressable, StyleSheet, View } from "react-native";
@@ -31,7 +31,7 @@ const CONTROL_CHIP_PRESSED_BG =
 /**
  * Что именно рисуется в центральной «пилюле» панели.
  *  - `single` — одна цифра (например, `5` для симметричного когерентного дыхания).
- *  - `triple` — три значения через дефис (например, `4-16-8` для треугольника).
+ *  - `triple` — три значения через « : » (например, `4 : 8 : 16` для треугольника).
  * Если `highlightIndex` указан и позиция соответствует «нормальному» значению —
  * эта часть числа подсвечивается акцентным цветом темы. Для рисунков без
  * оптимального ритма оставляйте `highlightIndex = null`.
@@ -75,20 +75,20 @@ function BeatsDisplay({
       </AppText>
     );
   }
-  const dash = (
+  const sep = (
     <AppText
       variant="sectionTitle"
       tone="primary"
       style={[styles.beatsValue, { color: regular }]}
     >
-      -
+      {" : "}
     </AppText>
   );
   return (
     <View style={styles.tripleRow}>
       {beats.values.map((value, index) => (
         <View key={index} style={styles.tripleRow}>
-          {index > 0 ? dash : null}
+          {index > 0 ? sep : null}
           <AppText
             variant="sectionTitle"
             tone="primary"
@@ -150,26 +150,28 @@ export function BreathOverlayControlPanel(props: BreathOverlayControlPanelProps)
         </AppText>
       </Pressable>
       <View style={styles.beatsGroup} accessibilityLabel={accessibilityLabel}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            onInteraction();
-            if (canDecrement) onDecrement!();
-          }}
-          disabled={!canDecrement}
-          style={({ pressed }) => [
-            styles.chevBtn,
-            pressed && {
-              backgroundColor: CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
-            },
-            !canDecrement && styles.chevDisabled,
-          ]}
-          hitSlop={10}
-        >
-          <AppText variant="sectionTitle" tone="primary" style={styles.chev}>
-            ‹
-          </AppText>
-        </Pressable>
+        {canDecrement ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              onInteraction();
+              onDecrement!();
+            }}
+            style={({ pressed }) => [
+              styles.chevBtn,
+              pressed && {
+                backgroundColor: CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
+              },
+            ]}
+            hitSlop={10}
+          >
+            <AppText variant="sectionTitle" tone="primary" style={styles.chev}>
+              ‹
+            </AppText>
+          </Pressable>
+        ) : (
+          <View style={styles.chevSpacer} />
+        )}
         <View
           style={[
             styles.beatsPill,
@@ -187,26 +189,28 @@ export function BreathOverlayControlPanel(props: BreathOverlayControlPanelProps)
             regular={theme.colors.textPrimary}
           />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            onInteraction();
-            if (canIncrement) onIncrement!();
-          }}
-          disabled={!canIncrement}
-          style={({ pressed }) => [
-            styles.chevBtn,
-            pressed && {
-              backgroundColor: CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
-            },
-            !canIncrement && styles.chevDisabled,
-          ]}
-          hitSlop={10}
-        >
-          <AppText variant="sectionTitle" tone="primary" style={styles.chev}>
-            ›
-          </AppText>
-        </Pressable>
+        {canIncrement ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              onInteraction();
+              onIncrement!();
+            }}
+            style={({ pressed }) => [
+              styles.chevBtn,
+              pressed && {
+                backgroundColor: CONTROL_CHIP_BG ?? theme.colors.controlButtonBg,
+              },
+            ]}
+            hitSlop={10}
+          >
+            <AppText variant="sectionTitle" tone="primary" style={styles.chev}>
+              ›
+            </AppText>
+          </Pressable>
+        ) : (
+          <View style={styles.chevSpacer} />
+        )}
       </View>
     </View>
   );
@@ -255,8 +259,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 14,
   },
-  chevDisabled: {
-    opacity: 0.35,
+  /** Keeps the tempo pill centered when an edge arrow is hidden. */
+  chevSpacer: {
+    width: 28,
   },
   chev: {
     fontSize: 22,

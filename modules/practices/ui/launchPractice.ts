@@ -19,6 +19,7 @@ function paramsForCatalogLaunch(launch: PracticeLaunchParams): Record<string, st
       durationMs: String(launch.durationMs),
       chakra: String(launch.chakra),
       ...(launch.soundBed ? { soundBed: launch.soundBed } : {}),
+      ...(launch.tempo ? { tempo: launch.tempo } : {}),
       ...(launch.sensorMode ? { sensorMode: launch.sensorMode } : {}),
       ...(launch.deviceId ? { deviceId: launch.deviceId } : {}),
       ...(launch.deviceName ? { deviceName: launch.deviceName } : {}),

@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Animated, Image, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useAuth } from "@/modules/auth";
@@ -13,6 +13,7 @@ import {
   refreshStoryFeedInBackground,
   rememberStoryViewedLocally,
   ensureStoryReadyToOpen,
+  peekStoryFeedForUi,
   subscribeStoryFeed,
   areStoryFeedsEqual,
   type StoryItem,
@@ -85,7 +86,13 @@ export function StoriesRing() {
   const { authUser } = useAuth();
   const userId = authUser?.id ?? null;
 
-  const [stories, setStories] = useState<StoryItem[]>([]);
+  const [stories, setStories] = useState<StoryItem[]>(() =>
+    userId ? peekStoryFeedForUi(userId) : [],
+  );
+  /** False until the first settled fetch (or warm paint) — avoids "no stories" avatar on cold start. */
+  const [feedReady, setFeedReady] = useState(() =>
+    Boolean(userId && peekStoryFeedForUi(userId).length > 0),
+  );
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [revealProgress, setRevealProgress] = useState(1);
   const [openingViewer, setOpeningViewer] = useState(false);
@@ -122,16 +129,27 @@ export function StoriesRing() {
     }).start();
 
     if (!userId) {
-      setStories([]);
+      // Auth can briefly be null while the session hydrates — do not wipe a warm feed.
       return () => {
         isFocusedRef.current = false;
         reveal.stopAnimation();
       };
     }
 
+    // Paint warm cache immediately (stale-while-revalidate), then refresh.
+    const warm = peekStoryFeedForUi(userId);
+    if (warm.length > 0) {
+      setStories(warm);
+      setFeedReady(true);
+    } else {
+      setFeedReady(false);
+    }
+
     let cancelled = false;
     void refreshStoryFeedInBackground(userId).then((items) => {
-      if (!cancelled && isFocusedRef.current) setStories(items);
+      if (cancelled || !isFocusedRef.current) return;
+      setStories(items);
+      setFeedReady(true);
     });
 
     return () => {
@@ -146,6 +164,7 @@ export function StoriesRing() {
   useEffect(() => {
     if (!userId) return;
     return subscribeStoryFeed((items) => {
+      setFeedReady(true);
       setStories((prev) => {
         const viewedIds = new Set(prev.filter((story) => story.isViewed).map((story) => story.id));
         const merged =
@@ -210,7 +229,11 @@ export function StoriesRing() {
   if (!stories.length) {
     return (
       <View style={styles.plainAvatar}>
-        <BrandAvatar />
+        {!feedReady ? (
+          <ActivityIndicator color={theme.colors.accent} />
+        ) : (
+          <BrandAvatar />
+        )}
       </View>
     );
   }

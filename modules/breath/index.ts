@@ -27,3 +27,10 @@ export type { Chakra } from "@/modules/breath/core/chakra";
 export type { BreathPracticeId, BreathLocale } from "@/modules/breath/i18n/coherence";
 export { BREATH_PRACTICES, getBreathPracticeById } from "@/modules/breath/core/practices";
 export type { BreathPracticeDescriptor } from "@/modules/breath/core/practices";
+export {
+  buildShapeForTempo,
+  cardTempoOptionKeys,
+  defaultTempoKey,
+  formatTempoLabel,
+  resolveTempoKey,
+} from "@/modules/breath/core/breath-tempo";

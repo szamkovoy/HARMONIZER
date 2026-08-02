@@ -59,6 +59,8 @@ export interface PracticeCatalogStrings {
   chakraLabel: string;
   soundLabel: string;
   soundBeds: Record<SoundBedId, string>;
+  /** ComboBox header + a11y for breath tempo (`Темп:` / `Tempo:`). */
+  tempoLabel: string;
   pulseLabel: string;
   sensorCameraOption: string;
   /** When VisionCamera finger PPG plugin is missing (e.g. Android until native port). */
@@ -170,6 +172,7 @@ const ru: PracticeCatalogStrings = {
   durationLabel: "Длительность",
   chakraLabel: "Чакра",
   soundLabel: "Звук",
+  tempoLabel: "Темп:",
   soundBeds: {
     "neuro-sync": "Нейро-ритмы",
     creek: "Ручей",
@@ -311,6 +314,7 @@ const en: PracticeCatalogStrings = {
   durationLabel: "Duration",
   chakraLabel: "Chakra",
   soundLabel: "Sound",
+  tempoLabel: "Tempo:",
   soundBeds: {
     "neuro-sync": "Neuro-rhythms",
     creek: "Creek",

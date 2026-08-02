@@ -1,3 +1,10 @@
+- 2026-08-02 (397): Stories cold-start spinner + retry; breath QC fail dialog ~3s before ring «0».
+- 2026-08-02 (396): Stories ring — keep warm feed on RPC/network errors (no brand-avatar flash over existing stories).
+- 2026-08-02 (395): Breath camera QC — fail dialog aligned with countdown «0» (wall deadline + hopeless early fail at T−5s).
+- 2026-08-02 (394): Breath camera activation — wall-clock hang watchdog so empty PPG no longer sticks on «waiting for signal».
+- 2026-08-02 (393): Breath tempo on practice card + triangle phase presets; ComboBox header «Темп:»; per-practice prefs after start.
+- 2026-08-02 (392): Breath camera results — R–R chart from live merged beats (guidance-only had empty analyzed beats).
+- 2026-08-02 (391): Breath results — R–R interval chart under pulse (display-only; BLE + camera).
 - 2026-08-02 (390): Meditation cards — «?» help for Flash/Calm (SurfaceHelpModal); EU PREMIUM fill.
 - 2026-08-02 (389): Practices sound bed — localize Neuro-sync → «Нейро-ритмы» (+ EU overlays).
 - 2026-08-02 (388): Asana phone player — faster Vimeo poster path; no RN spinner overlay (blocked play).

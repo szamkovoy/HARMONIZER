@@ -114,5 +114,6 @@
   "yogaLateHint": "Supabase sta rispondendo più lentamente del solito. Il catalogo è già aperto e le asana appariranno qui automaticamente.",
   "yogaLateLoading": "Caricamento...",
   "yogaLateLoadingTitle": "Le asana sono ancora in caricamento",
-  "yogaTitlePrefix": "Pratica"
+  "yogaTitlePrefix": "Pratica",
+  "tempoLabel": "Tempo:"
 }

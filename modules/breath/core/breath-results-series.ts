@@ -703,6 +703,56 @@ export function dropPostGapMeasuredArtifacts(
   return out;
 }
 
+/**
+ * Display-only tachogram: consecutive beat deltas as R–R (ms).
+ * Does **not** share gates with dense HRV / RMSSD / stress builders — only a hard
+ * physiologic range and the same non-live gap mask as other result charts.
+ */
+export const RR_CHART_MIN_MS = 300;
+export const RR_CHART_MAX_MS = 1500;
+
+/**
+ * Camera guidance-only keeps `mergedBeats` trimmed (~2 min) and does not fill
+ * `beatTimestampsMsAnalyzed` / HRV accumulator. Append any beats in the current
+ * merged window that are newer than the last kept timestamp so the results R–R
+ * chart can cover the full practice without enabling metric capture.
+ */
+export function appendNewerBeatsForRrChart(
+  existing: number[],
+  mergedWindow: readonly number[],
+): void {
+  if (mergedWindow.length === 0) return;
+  const last =
+    existing.length > 0 ? existing[existing.length - 1]! : Number.NEGATIVE_INFINITY;
+  for (const beat of mergedWindow) {
+    if (beat > last) existing.push(beat);
+  }
+}
+
+export function buildRrIntervalChartSeries(
+  beatTimestampsMs: readonly number[],
+  sessionStartMs: number,
+  practiceTotalMs: number,
+  nonLiveIntervals: readonly NonLiveInterval[] = [],
+): BreathResultsSeriesPoint[] {
+  if (beatTimestampsMs.length < 2) return [];
+  const beats = [...beatTimestampsMs].sort((a, b) => a - b);
+  const insideGap = (tMs: number) =>
+    nonLiveIntervals.some((iv) => tMs >= iv.startMs && tMs <= iv.endMs);
+  const out: BreathResultsSeriesPoint[] = [];
+  for (let i = 1; i < beats.length; i += 1) {
+    const prev = beats[i - 1]!;
+    const curr = beats[i]!;
+    const rr = curr - prev;
+    if (rr < RR_CHART_MIN_MS || rr > RR_CHART_MAX_MS) continue;
+    const tMs = curr - sessionStartMs;
+    if (tMs < 0 || tMs > practiceTotalMs) continue;
+    if (insideGap(tMs)) continue;
+    out.push({ tMs, value: rr });
+  }
+  return out;
+}
+
 export function buildMeasuredPulseChartSeries(
   entries: readonly CoherencePulseLogEntry[],
   sessionStartWallMs: number,

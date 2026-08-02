@@ -74,6 +74,8 @@ export interface CoherenceBreathStrings {
   resultsMeasuredPulseLabel: string;
   /** График пульса, по которому практика фактически вела дыхание. */
   resultsGuidancePulseLabel: string;
+  /** Тахограмма R–R (мс) под графиком пульса — только отображение. */
+  resultsRrIntervalsLabel: string;
   /** Заголовок колонки «в начале практики» в таблице результатов. */
   resultsWindowStartLabel: string;
   /** Заголовок колонки «в конце практики» в таблице результатов. */
@@ -276,6 +278,7 @@ const ru: CoherenceBreathStrings = {
   avgBpmLabel: "Средний пульс",
   resultsMeasuredPulseLabel: "Пульс (измерение)",
   resultsGuidancePulseLabel: "Пульс (ведение практики)",
+  resultsRrIntervalsLabel: "R-R интервалы",
   resultsWindowStartLabel: "В начале",
   resultsWindowEndLabel: "В конце",
   resultsWindowDurationLabel: (m, s) =>
@@ -460,6 +463,7 @@ const en: CoherenceBreathStrings = {
   avgBpmLabel: "Average pulse",
   resultsMeasuredPulseLabel: "Pulse (measured)",
   resultsGuidancePulseLabel: "Pulse (guidance)",
+  resultsRrIntervalsLabel: "R-R intervals",
   resultsWindowStartLabel: "Start",
   resultsWindowEndLabel: "End",
   resultsWindowDurationLabel: (m, s) =>

@@ -7,7 +7,31 @@ export type ComboBoxOption<T extends string = string> = {
   value: T;
   label: string;
   disabled?: boolean;
+  /**
+   * Non-selectable section title. Tap closes the menu without changing the
+   * value and without the gray “disabled” look used for unavailable options.
+   * When present, the closed trigger shows `${header.label} ${selected}`
+   * (e.g. «Темп: 6»); lists without a header stay unchanged.
+   */
+  header?: boolean;
 };
+
+function closedTriggerDisplayValue<T extends string>(
+  options: ReadonlyArray<ComboBoxOption<T>>,
+  value: T,
+  displayValue?: string,
+): string {
+  const selected = options.find((option) => option.value === value);
+  const selectedLabel = displayValue ?? selected?.label ?? String(value);
+  const header = options.find((option) => option.header === true);
+  if (!header) return selectedLabel;
+  const prefix = header.label.trimEnd();
+  if (!prefix) return selectedLabel;
+  if (selectedLabel === prefix || selectedLabel.startsWith(`${prefix} `)) {
+    return selectedLabel;
+  }
+  return `${prefix} ${selectedLabel}`;
+}
 
 export type ComboBoxVariant = "pill" | "field";
 
@@ -98,13 +122,18 @@ function ComboBoxMenu<T extends string>(props: {
       ]}
     >
       {props.options.map((option) => {
-        const active = option.value === props.value;
+        const isHeader = option.header === true;
+        const active = !isHeader && option.value === props.value;
         return (
           <Pressable
             key={option.value}
-            accessibilityRole="button"
-            disabled={option.disabled}
+            accessibilityRole={isHeader ? "text" : "button"}
+            disabled={option.disabled === true && !isHeader}
             onPress={() => {
+              if (isHeader) {
+                props.onClose();
+                return;
+              }
               if (option.disabled) return;
               props.onChange(option.value);
               props.onClose();
@@ -112,16 +141,19 @@ function ComboBoxMenu<T extends string>(props: {
             style={({ pressed }) => [
               styles.option,
               {
-                opacity: option.disabled ? 0.45 : 1,
+                opacity: !isHeader && option.disabled ? 0.45 : 1,
                 backgroundColor: active
                   ? theme.colors.buttonPrimaryBg
-                  : pressed
+                  : pressed && !isHeader
                     ? theme.colors.controlButtonPressedBg
                     : "transparent",
               },
             ]}
           >
-            <AppText variant="statPillLabel" tone={active ? "accentOn" : "primary"}>
+            <AppText
+              variant="statPillLabel"
+              tone={isHeader ? "muted" : active ? "accentOn" : "primary"}
+            >
               {option.label}
             </AppText>
           </Pressable>
@@ -161,13 +193,16 @@ export function ComboBoxRow<T extends string>(props: {
       <View style={styles.triggersRow}>
         {props.items.map((item) => {
           const open = props.openId === item.id;
-          const selected = item.options.find((option) => option.value === item.value);
           return (
             <ComboBoxTrigger
               key={item.id}
               variant={variant}
               label={item.label}
-              displayValue={item.displayValue ?? selected?.label ?? String(item.value)}
+              displayValue={closedTriggerDisplayValue(
+                item.options,
+                item.value,
+                item.displayValue,
+              )}
               open={open}
               onToggle={() => props.onOpenIdChange(open ? null : item.id)}
             />

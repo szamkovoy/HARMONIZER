@@ -128,10 +128,16 @@ export const QC_MIN_BEATS = 6;
 export const QC_BPM_STDEV_MAX = 6;
 
 /**
- * Общая длительность warmup + QC для прогресс-индикатора обратного отсчёта на экране.
- * UI показывает круговой таймер 20 с = 10 warmup + 10 QC.
+ * Полный бюджет активации для кругового таймера: warmup + max QC.
+ * Должен совпадать с моментом fail-диалога (иначе кольцо уже «0», а QC ещё ждёт).
  */
 export const COHERENCE_PREP_TOTAL_MS = COHERENCE_WARMUP_MS + COHERENCE_QUALITY_WINDOW_MS;
+
+/**
+ * Fail-диалог «Пульс не распознан» за столько до конца кольца (wall clock),
+ * если QC ещё не прошёл — без ожидания «0» и без отставания camera-clock.
+ */
+export const COHERENCE_QC_FAIL_LEAD_MS = 3_000;
 
 /** Предупреждение о доле артефактов RR в пранаяме — только если ≥ этого порога (мягкая очистка). */
 export const RR_COHERENCE_WARN_FRACTION = 0.15;

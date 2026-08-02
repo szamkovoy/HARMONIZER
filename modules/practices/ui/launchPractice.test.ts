@@ -43,6 +43,35 @@ describe("launchPractice", () => {
     });
   });
 
+  it("launches catalog breath with tempo", () => {
+    expect(
+      launchPractice(
+        {
+          kind: "breath",
+          route: "/breath-coherence",
+          practiceId: "triangle-down",
+          durationMs: 600_000,
+          chakra: 4,
+          tempo: "5:10:10",
+          sensorMode: "fingerCamera",
+        },
+        { launchSource: "catalog" },
+      ),
+    ).toBe(true);
+
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/breath-coherence",
+      params: {
+        practiceId: "triangle-down",
+        durationMs: "600000",
+        chakra: "4",
+        tempo: "5:10:10",
+        sensorMode: "fingerCamera",
+        launchSource: "catalog",
+      },
+    });
+  });
+
   it("launches catalog meditation with duration, chakra, soundBed and launchSource", () => {
     expect(
       launchPractice(

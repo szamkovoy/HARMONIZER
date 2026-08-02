@@ -87,6 +87,7 @@ import { peekHeldLivePacketAgeMs } from "@/modules/biofeedback/wearables/wearabl
 import {
   COHERENCE_PREFLIGHT_BUFFER_MS,
   COHERENCE_PREP_TOTAL_MS,
+  COHERENCE_QC_FAIL_LEAD_MS,
   COHERENCE_QUALITY_WINDOW_EARLY_SUCCESS_MS,
   COHERENCE_QUALITY_WINDOW_MS,
   COHERENCE_WARMUP_MS,
@@ -113,8 +114,10 @@ import {
   BREATH_SESSION_SIGNAL_ABORT_MS,
 } from "@/modules/breath/core/breath-session-signal-policy";
 import {
+  appendNewerBeatsForRrChart,
   buildGuidancePulseChartSeries,
   buildMeasuredPulseChartSeries,
+  buildRrIntervalChartSeries,
   collectGuidancePulseHighlightIntervals,
   collectMeasuredPulseHighlightIntervals,
   collectNonLiveIntervalsFromLog,
@@ -130,6 +133,23 @@ import {
   splitPulseChartSeriesSegments,
   type NonLiveInterval,
 } from "@/modules/breath/core/breath-results-series";
+import {
+  buildShapeForTempo,
+  canStepTriangleTempo,
+  formatTempoLabel,
+  isDefaultTempoKey,
+  isTriangleBreathPracticeId,
+  LINEAR_OVERLAY_MAX_BEATS,
+  LINEAR_OVERLAY_MIN_BEATS,
+  parseTempoKey,
+  resolveTempoKey,
+  stepLinearTempoKey,
+  stepTriangleTempoKey,
+} from "@/modules/breath/core/breath-tempo";
+import {
+  getBreathTempoForPractice,
+  updateBreathTempoPreference,
+} from "@/modules/breath/core/breathTempoPreferences";
 import {
   DEBUG_ACTIVATION_EXPORT_ENABLED,
   PERF_DIAGNOSTICS_ENABLED,
@@ -602,6 +622,8 @@ type BreathResultsGraphsSnapshot = {
   guidancePulseBpm: BreathResultsSeriesPoint[];
   measuredPulseHighlights: NonLiveInterval[];
   guidancePulseHighlights: NonLiveInterval[];
+  /** Display-only tachogram from analyzed beats (not used by metric algorithms). */
+  rrIntervalMs: BreathResultsSeriesPoint[];
   coherencePercent: BreathResultsSeriesPoint[];
   rmssdMs: BreathResultsSeriesPoint[];
   stressPercent: BreathResultsSeriesPoint[];
@@ -785,6 +807,7 @@ function CoherenceBreathScreenInner({
   durationMs,
   chakra,
   soundBed = SOUND_BED_NEURO_SYNC,
+  initialTempoKey,
   launchSource,
   sensorMode,
   deviceId,
@@ -800,6 +823,8 @@ function CoherenceBreathScreenInner({
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
   soundBed?: SoundBedId;
+  /** Tempo key from the practice card / launch (`6` or `4:4:4`). */
+  initialTempoKey?: string;
   launchSource?: string;
   sensorMode?: BreathSensorMode;
   deviceId?: string;
@@ -1190,21 +1215,39 @@ function CoherenceBreathScreenInner({
   );
 
   /**
-   * Базовое число ударов пульса на фазу дыхания. Для большинства практик это
-   * симметричное 5 (вдох 5, выдох 5 и т.п.). Для дерева задержек/треугольников то же
-   * число становится общим масштабом для всех фаз.
+   * Темп практики: одно число (`6`) или тройка для треугольников (`4:8:16`).
+   * Источник — launch/карточка; во время running меняется стрелками оверлея.
    */
-  const [baseBeats, setBaseBeats] = useState<number>(TIMING.inhaleBeats);
-  // Сбрасываем baseBeats при смене практики на «нормальное» значение, чтобы пользователь
-  // видел сразу корректную подсветку и рисунок без ручной корректировки.
+  const [tempoKey, setTempoKey] = useState<string>(() =>
+    resolveTempoKey(practice.id, initialTempoKey ?? getBreathTempoForPractice(practice.id)),
+  );
+  // Reset tempo when the practice (or launch tempo) changes.
   useEffect(() => {
-    setBaseBeats(practice.normalBaseBeats);
-  }, [practice.id, practice.normalBaseBeats]);
+    setTempoKey(
+      resolveTempoKey(practice.id, initialTempoKey ?? getBreathTempoForPractice(practice.id)),
+    );
+  }, [practice.id, initialTempoKey]);
 
   const coherenceShape = useMemo(
-    () => practice.buildShape(baseBeats),
-    [practice, baseBeats],
+    () => buildShapeForTempo(practice, tempoKey),
+    [practice, tempoKey],
   );
+  const isTriangleTempo = isTriangleBreathPracticeId(practice.id);
+  const parsedTempo = parseTempoKey(tempoKey);
+  const singleTempoBeats =
+    parsedTempo?.mode === "single" ? parsedTempo.beats : practice.normalBaseBeats;
+  const tripleTempoBeats =
+    parsedTempo?.mode === "triple"
+      ? ([parsedTempo.beats[0], parsedTempo.beats[1], parsedTempo.beats[2]] as [
+          number,
+          number,
+          number,
+        ])
+      : ([practice.normalBaseBeats, practice.normalBaseBeats, practice.normalBaseBeats] as [
+          number,
+          number,
+          number,
+        ]);
   const coherenceShapeRef = useRef(coherenceShape);
   coherenceShapeRef.current = coherenceShape;
   /** Стабильный ref на текущий practice.id — чтобы читать его в finalize без пересоздания эффекта. */
@@ -1221,6 +1264,13 @@ function CoherenceBreathScreenInner({
   const protocolStartedAtMs = useRef<number | null>(null);
   const qcStartLogicalMsRef = useRef<number | null>(null);
   const pulseLogRef = useRef<CoherencePulseLogEntry[]>([]);
+  /**
+   * Display-only beat timestamps for the camera guidance-only R–R chart.
+   * Camera mode pauses HRV capture and never opens a coherence session, so
+   * `beatTimestampsMsAnalyzed` stays empty; `mergedBeats` is also trimmed to
+   * ~2 min. We append newer merged beats here across the full practice.
+   */
+  const displayRrBeatsRef = useRef<number[]>([]);
   const qcPulseSamplesRef = useRef<QcPulseSample[]>([]);
   const opticalPreviewBufferRef = useRef<RawOpticalSample[]>([]);
   const lastOpticalPreviewRefreshWallMsRef = useRef(0);
@@ -2189,6 +2239,14 @@ function CoherenceBreathScreenInner({
           runningLiveBeatSeenRef.current = true;
         }
       }
+      // Camera guidance-only: accumulate display R–R beats while metrics stay paused.
+      if (
+        phaseRef.current === "running" &&
+        pipeline.isMetricsCapturePaused() &&
+        mergedBeats.length > 0
+      ) {
+        appendNewerBeatsForRrChart(displayRrBeatsRef.current, mergedBeats);
+      }
       if (phaseRef.current === "warmup" || phaseRef.current === "qualityCheck") {
         qcPulseSamplesRef.current.push({
           cameraTimestampMs,
@@ -2412,6 +2470,8 @@ function CoherenceBreathScreenInner({
     if (phase !== "qualityCheck" || useSimulatedPpg || isWearableMode) return;
     const id = setInterval(() => {
       const camTs = pipeline.getLastSourceTimestampMs();
+      // Without a camera clock the QC window cannot advance — hang watchdog
+      // (wall clock) surfaces the retry dialog. Keep the countdown idle here.
       if (camTs <= 0) {
         setQcSecondsLeft(null);
         return;
@@ -2426,13 +2486,20 @@ function CoherenceBreathScreenInner({
       const remainingMs = COHERENCE_QUALITY_WINDOW_MS - elapsed;
       setQcSecondsLeft(Math.max(0, Math.ceil(remainingMs / 1000)));
 
+      // Wall clock drives the visible ring; fail a few seconds before «0» so the
+      // dialog is not gated on lagging camera elapsed after the ring empties.
+      const wallElapsed = Date.now() - (protocolStartedAtMs.current ?? Date.now());
+      const wallForceFinal =
+        wallElapsed >= COHERENCE_PREP_TOTAL_MS - COHERENCE_QC_FAIL_LEAD_MS;
+
       // Ранний успех: после 10 с QC-окна проверяем, достаточно ли устойчив сигнал.
-      //  - если да → сразу в практику (короткий путь: warmup 10 + QC 10 = 20 с);
-      //  - если нет → ждём до полного окна (COHERENCE_QUALITY_WINDOW_MS = 20 с);
-      //  - по истечении полного окна: успех или диалог «не распознан».
-      const isEarlyCheck = elapsed < COHERENCE_QUALITY_WINDOW_MS;
-      const isFinalCheck = elapsed >= COHERENCE_QUALITY_WINDOW_MS;
-      if (!isFinalCheck && elapsed < COHERENCE_QUALITY_WINDOW_EARLY_SUCCESS_MS) return;
+      //  - если да → сразу в практику;
+      //  - иначе ждём до camera-window ИЛИ wall fail-lead (чуть раньше «0» на кольце).
+      const isEarlyCheck = elapsed < COHERENCE_QUALITY_WINDOW_MS && !wallForceFinal;
+      const isFinalCheck = elapsed >= COHERENCE_QUALITY_WINDOW_MS || wallForceFinal;
+      if (!isFinalCheck && elapsed < COHERENCE_QUALITY_WINDOW_EARLY_SUCCESS_MS) {
+        return;
+      }
 
       const probeEnd = Math.min(camTs, qcStart + COHERENCE_QUALITY_WINDOW_MS);
       const beatsInWin = pipeline
@@ -2632,7 +2699,7 @@ function CoherenceBreathScreenInner({
         setElapsedMs(0);
         setPhase("running");
       } else if (isFinalCheck) {
-        // Полное окно прошло, сигнал всё ещё не устойчивый — показываем диалог.
+        // Camera window done OR wall fail-lead (~3 s before ring «0»).
         // Важно: НЕ вызываем здесь автоматический экспорт JSON, потому что
         // `setInterval(…, 250)` продолжает тикать пока диалог не закрыт, и
         // авто-вызов начинал бы всплывать Share-диалог на каждом тике (баг
@@ -2768,6 +2835,30 @@ function CoherenceBreathScreenInner({
     wearableRuntime.lastHeartRateBpm,
     wearableRuntime.state,
   ]);
+
+  /**
+   * Camera activation hang watchdog.
+   *
+   * QC progress is gated on `pipeline.getLastSourceTimestampMs()` (camera clock).
+   * If optical frames never arrive (permission / frame-processor / torch / dead
+   * capture session), that clock stays 0, the QC window never starts, and the UI
+   * could sit forever on «Ожидание устойчивого сигнала…» with an empty preview —
+   * the same screen Audrone reported. Wall-clock failsafe opens the same
+   * retry / continue-without-sensor dialog that a failed QC would show.
+   */
+  useEffect(() => {
+    if (isWearableMode || useSimulatedPpg) return;
+    if (phase !== "warmup" && phase !== "qualityCheck") return;
+    const hangLimitMs = COHERENCE_PREP_TOTAL_MS + 2_000;
+    const id = setInterval(() => {
+      if (showQcFailedDialog) return;
+      const prepStartedAt = protocolStartedAtMs.current ?? Date.now();
+      if (Date.now() - prepStartedAt <= hangLimitMs) return;
+      qcOutcomeRef.current = "retry_failed";
+      setShowQcFailedDialog(true);
+    }, 500);
+    return () => clearInterval(id);
+  }, [isWearableMode, phase, showQcFailedDialog, useSimulatedPpg]);
 
   // ─── Круговой обратный отсчёт прогрев+QC (warmup 10 с + QC 10 с = 20 с) ───
 
@@ -3683,11 +3774,30 @@ function CoherenceBreathScreenInner({
       const rsaSeries = filterIsolatedMetricSpikes(
         filterOutlierMetricPoints(rsaSource, RSA_RESULTS_OUTLIER_BPM),
       );
+      // Display-only R–R tachogram — does not feed RMSSD/stress/coherence builders.
+      // Camera guidance-only leaves beatTimestampsMsAnalyzed empty (no coherence session /
+      // paused HRV accumulator); use the live-collected display beat stream instead.
+      if (pipeline.isMetricsCapturePaused()) {
+        appendNewerBeatsForRrChart(displayRrBeatsRef.current, pipeline.getMergedBeats());
+      }
+      const rrBeatSource =
+        finalRes.beatTimestampsMsAnalyzed.length >= 2
+          ? finalRes.beatTimestampsMsAnalyzed
+          : displayRrBeatsRef.current.length >= 2
+            ? displayRrBeatsRef.current
+            : pipeline.getMergedBeats();
+      const rrIntervalSeries = buildRrIntervalChartSeries(
+        rrBeatSource,
+        sessionStartLogicalMs,
+        practiceTotalMs,
+        nonLiveIntervals,
+      );
       setResultsGraphs({
         measuredPulseBpm: decimateSeries(measuredPulseSeries, 240),
         guidancePulseBpm: decimateSeries(guidancePulseSeries, 240),
         measuredPulseHighlights: measuredPulseHighlights,
         guidancePulseHighlights: guidancePulseHighlights,
+        rrIntervalMs: decimateSeries(rrIntervalSeries, 360),
         coherencePercent: decimateSeries(coherenceSeries, 240),
         rmssdMs: decimateSeries(rmssdSeries, 120),
         stressPercent: decimateSeries(stressSeries, 120),
@@ -4096,6 +4206,7 @@ function CoherenceBreathScreenInner({
     lastFreshBeatSourceTsRef.current = null;
     lastFreshBeatWallClockRef.current = null;
     runningLiveBeatSeenRef.current = false;
+    displayRrBeatsRef.current = [];
     finalPulseLogExportRef.current = null;
     clearOverlayTimer();
     setOverlayVisible(false);
@@ -4262,12 +4373,28 @@ function CoherenceBreathScreenInner({
   }, [scheduleOverlayHide]);
 
   const handleIncrementBeats = useCallback(() => {
-    setBaseBeats((prev) => Math.min(practice.maxBaseBeats, prev + 1));
-  }, [practice.maxBaseBeats]);
+    setTempoKey((prev) => {
+      if (practice.id === "triangle-up" || practice.id === "triangle-down") {
+        return stepTriangleTempoKey(practice.id, prev, 1) ?? prev;
+      }
+      return stepLinearTempoKey(prev, 1);
+    });
+  }, [practice.id]);
 
   const handleDecrementBeats = useCallback(() => {
-    setBaseBeats((prev) => Math.max(practice.minBaseBeats, prev - 1));
-  }, [practice.minBaseBeats]);
+    setTempoKey((prev) => {
+      if (practice.id === "triangle-up" || practice.id === "triangle-down") {
+        return stepTriangleTempoKey(practice.id, prev, -1) ?? prev;
+      }
+      return stepLinearTempoKey(prev, -1);
+    });
+  }, [practice.id]);
+
+  // Persist tempo only once the practice is actually running (not card-only tweaks).
+  useEffect(() => {
+    if (phase !== "running") return;
+    void updateBreathTempoPreference(practice.id, tempoKey);
+  }, [phase, practice.id, tempoKey]);
 
   const handleRequestStop = useCallback(() => {
     clearOverlayTimer();
@@ -4379,6 +4506,7 @@ function CoherenceBreathScreenInner({
     const sub = AppState.addEventListener("change", (next) => {
       if (next !== "background") return;
       pulseLogRef.current = [];
+      displayRrBeatsRef.current = [];
       lastFreshBeatSourceTsRef.current = null;
       lastFreshBeatWallClockRef.current = null;
       runningLiveBeatSeenRef.current = false;
@@ -4401,6 +4529,7 @@ function CoherenceBreathScreenInner({
       fingerAbsentAccumMsRef.current = 0;
       lastSampleMsRef.current = null;
       pulseLogRef.current = [];
+      displayRrBeatsRef.current = [];
       finalPulseLogExportRef.current = null;
       qcPulseSamplesRef.current = [];
       opticalPreviewBufferRef.current = [];
@@ -5419,20 +5548,48 @@ function CoherenceBreathScreenInner({
                   totalMs={practiceTotalMs}
                   elapsedMs={elapsedMs}
                   minutesShortLabel={str.practiceMinutesShort}
-                  beatsDisplay={{
-                    type: "single",
-                    value: baseBeats,
-                    isHighlighted: baseBeats === practice.normalBaseBeats,
-                  }}
+                  beatsDisplay={
+                    isTriangleTempo
+                      ? {
+                          type: "triple",
+                          values: tripleTempoBeats,
+                          highlightIndex: null,
+                        }
+                      : {
+                          type: "single",
+                          value: singleTempoBeats,
+                          isHighlighted: isDefaultTempoKey(practice.id, tempoKey),
+                        }
+                  }
                   onIncrement={
-                    baseBeats < practice.maxBaseBeats ? handleIncrementBeats : undefined
+                    isTriangleTempo
+                      ? canStepTriangleTempo(
+                          practice.id as "triangle-up" | "triangle-down",
+                          tempoKey,
+                          1,
+                        )
+                        ? handleIncrementBeats
+                        : undefined
+                      : singleTempoBeats < LINEAR_OVERLAY_MAX_BEATS
+                        ? handleIncrementBeats
+                        : undefined
                   }
                   onDecrement={
-                    baseBeats > practice.minBaseBeats ? handleDecrementBeats : undefined
+                    isTriangleTempo
+                      ? canStepTriangleTempo(
+                          practice.id as "triangle-up" | "triangle-down",
+                          tempoKey,
+                          -1,
+                        )
+                        ? handleDecrementBeats
+                        : undefined
+                      : singleTempoBeats > LINEAR_OVERLAY_MIN_BEATS
+                        ? handleDecrementBeats
+                        : undefined
                   }
                   onRequestClose={handleRequestStop}
                   onInteraction={handleOverlayInteraction}
-                  accessibilityLabel={str.baseBeatsAccessibilityLabel}
+                  accessibilityLabel={`${str.baseBeatsAccessibilityLabel}: ${formatTempoLabel(tempoKey)}`}
                 />
               }
               center={
@@ -5878,6 +6035,10 @@ function ResultsView(props: {
     () => resultsGraphs?.guidancePulseHighlights ?? [],
     [resultsGraphs?.guidancePulseHighlights],
   );
+  const rrIntervalGraphPoints = useMemo(
+    () => resultsGraphs?.rrIntervalMs ?? [],
+    [resultsGraphs?.rrIntervalMs],
+  );
   // Phone camera: only the measured-pulse chart (guidance is a derived pacing
   // series and looked like a confusing second “pulse” graph). BLE/wearable can
   // still show both when they diverge or when the debug flag is on.
@@ -6267,6 +6428,17 @@ function ResultsView(props: {
                 continuousAcrossGaps
               />
             ) : null}
+            {rrIntervalGraphPoints.length >= 2 ? (
+              <ResultsMetricChart
+                title={str.resultsRrIntervalsLabel}
+                points={rrIntervalGraphPoints}
+                color="#38bdf8"
+                unit="ms"
+                highlightIntervals={measuredPulseHighlights}
+                domainStartMs={0}
+                domainEndMs={practiceTotalMs}
+              />
+            ) : null}
             {coherenceGraphPoints.length >= 2 ? (
               <ResultsMetricChart
                 title={str.coherenceAvgLabel}
@@ -6361,6 +6533,8 @@ export interface CoherenceBreathScreenProps {
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
   soundBed?: SoundBedId;
+  /** Tempo key from launch (`6` or `4:4:4`). */
+  tempo?: string;
   launchSource?: string;
   sensorMode?: BreathSensorMode;
   deviceId?: string;
@@ -6378,6 +6552,7 @@ export function CoherenceBreathScreen({
   durationMs,
   chakra,
   soundBed = SOUND_BED_NEURO_SYNC,
+  tempo,
   launchSource,
   sensorMode,
   deviceId,
@@ -6398,6 +6573,7 @@ export function CoherenceBreathScreen({
           durationMs={durationMs}
           chakra={chakra}
           soundBed={soundBed}
+          initialTempoKey={tempo}
           launchSource={launchSource}
           sensorMode={sensorMode}
           deviceId={deviceId}

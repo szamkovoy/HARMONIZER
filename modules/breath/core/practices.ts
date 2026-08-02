@@ -74,7 +74,8 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     // вариабельности HRV для большинства взрослых.
     normalBaseBeats: 6,
     minBaseBeats: 1,
-    maxBaseBeats: 10,
+    // Card list is 2–12; overlay may go higher (see LINEAR_OVERLAY_MAX_BEATS).
+    maxBaseBeats: 60,
   },
   {
     id: "nadi-shodhana",
@@ -94,7 +95,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     }),
     normalBaseBeats: 6,
     minBaseBeats: 1,
-    maxBaseBeats: 10,
+    maxBaseBeats: 60,
   },
   {
     id: "surya-bhedana",
@@ -103,7 +104,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     buildShape: (n) => equalPair("inhale", "exhale", n, "right", "right"),
     normalBaseBeats: 6,
     minBaseBeats: 1,
-    maxBaseBeats: 10,
+    maxBaseBeats: 60,
   },
   {
     id: "chandra-bhedana",
@@ -112,7 +113,7 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     buildShape: (n) => equalPair("inhale", "exhale", n, "left", "left"),
     normalBaseBeats: 6,
     minBaseBeats: 1,
-    maxBaseBeats: 10,
+    maxBaseBeats: 60,
   },
   {
     id: "square",
@@ -133,16 +134,15 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
     }),
     normalBaseBeats: 4,
     minBaseBeats: 1,
-    maxBaseBeats: 10,
+    maxBaseBeats: 60,
   },
   {
     id: "triangle-up",
     indicatorKind: "triangle-up",
     channelMode: "both",
     // Висама-Вритти · Бахир Кумбхака: вдох → выдох → задержка после выдоха.
-    // 5 ударов на сторону — средний темп: 3 фазы × 5 = 15 ударов ≈ 15 с
-    // при 60 bpm. Быстрее, чем квадрат 4 (16 с), медленнее когерентного 6
-    // (12 с на цикл).
+    // Equal-n fallback for legacy callers; live tempo uses fixed presets via
+    // `buildShapeForTempo` (default 4:4:4, plus asymmetric ratios).
     buildShape: (n) => ({
       phases: [
         { kind: "inhale", beats: n, channel: "both" },
@@ -151,9 +151,9 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
       ],
       baseIndex: 0,
     }),
-    normalBaseBeats: 5,
+    normalBaseBeats: 4,
     minBaseBeats: 1,
-    maxBaseBeats: 10,
+    maxBaseBeats: 60,
   },
   {
     id: "triangle-down",
@@ -168,9 +168,9 @@ export const BREATH_PRACTICES: BreathPracticeDescriptor[] = [
       ],
       baseIndex: 0,
     }),
-    normalBaseBeats: 5,
+    normalBaseBeats: 4,
     minBaseBeats: 1,
-    maxBaseBeats: 10,
+    maxBaseBeats: 60,
   },
 ];
 

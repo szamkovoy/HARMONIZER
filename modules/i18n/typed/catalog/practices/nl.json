@@ -114,5 +114,6 @@
   "yogaLateHint": "Supabase reageert trager dan normaal. De catalogus is al geopend en de asana's verschijnen hier automatisch.",
   "yogaLateLoading": "laden...",
   "yogaLateLoadingTitle": "Asana's worden nog geladen",
-  "yogaTitlePrefix": "Praktijk"
+  "yogaTitlePrefix": "Praktijk",
+  "tempoLabel": "Tempo:"
 }

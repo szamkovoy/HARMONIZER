@@ -85,6 +85,7 @@
   "resultsMoodQuestion": "Wie hat sich Ihr Zustand verändert?",
   "resultsMoodSame": "unverändert",
   "resultsMoodWorse": "schlechter",
+  "resultsRrIntervalsLabel": "R-R-Intervalle",
   "resultsWindowEndLabel": "Am Ende",
   "resultsWindowStartLabel": "Am Anfang",
   "rmssdLabel": "RMSSD",

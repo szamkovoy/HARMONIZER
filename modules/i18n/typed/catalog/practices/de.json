@@ -114,5 +114,6 @@
   "yogaLateHint": "Supabase antwortet langsamer als gewöhnlich. Der Katalog ist bereits geöffnet und die Asanas erscheinen hier automatisch.",
   "yogaLateLoading": "wird geladen...",
   "yogaLateLoadingTitle": "Asanas werden noch geladen",
-  "yogaTitlePrefix": "Übung"
+  "yogaTitlePrefix": "Übung",
+  "tempoLabel": "Tempo:"
 }

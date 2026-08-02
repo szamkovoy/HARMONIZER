@@ -3,6 +3,13 @@ import { Alert, Image, Platform, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import {
+  cardTempoOptionKeys,
+  formatTempoLabel,
+  TEMPO_HEADER_OPTION_VALUE,
+} from "@/modules/breath/core/breath-tempo";
+import { useBreathTempoForPractice } from "@/modules/breath/core/breathTempoPreferences";
+import type { BreathPracticeId } from "@/modules/breath/i18n/coherence";
+import {
   NATURE_SOUND_BED_IDS,
   SOUND_BED_NEURO_SYNC,
   type SoundBedId,
@@ -41,7 +48,27 @@ import { shouldDemoteUnavailableBleToNone } from "./breathSensorDefault";
 
 const CHAKRA_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 const SOUND_BED_OPTIONS: readonly SoundBedId[] = [SOUND_BED_NEURO_SYNC, ...NATURE_SOUND_BED_IDS];
-type SelectField = "duration" | "chakra" | "pulse" | "sound" | null;
+type SelectField = "duration" | "chakra" | "pulse" | "sound" | "tempo" | null;
+
+const BREATH_PRACTICE_IDS = new Set<string>([
+  "coherent",
+  "nadi-shodhana",
+  "surya-bhedana",
+  "chandra-bhedana",
+  "square",
+  "triangle-up",
+  "triangle-down",
+]);
+
+function breathPracticeIdFromSummary(practice: PracticeSummary): BreathPracticeId | null {
+  if (practice.kind !== "breath") return null;
+  const fromLaunch =
+    practice.launch?.kind === "breath" ? practice.launch.practiceId : undefined;
+  if (fromLaunch && BREATH_PRACTICE_IDS.has(fromLaunch)) return fromLaunch;
+  if (BREATH_PRACTICE_IDS.has(practice.slug)) return practice.slug as BreathPracticeId;
+  if (BREATH_PRACTICE_IDS.has(practice.id)) return practice.id as BreathPracticeId;
+  return null;
+}
 
 function durationLabel(practice: PracticeSummary, strings: ReturnType<typeof getPracticeCatalogStrings>): string {
   if (!practice.defaultDurationSec) {
@@ -132,6 +159,10 @@ export const PracticeCard = memo(function PracticeCard({
   const [selectedSoundBed, setSelectedSoundBed] = useState<SoundBedId>(() =>
     isCalm ? calmPreferences.soundBed : SOUND_BED_NEURO_SYNC,
   );
+  const breathPracticeId = useMemo(() => breathPracticeIdFromSummary(practice), [practice]);
+  const storedBreathTempo = useBreathTempoForPractice(breathPracticeId ?? undefined);
+  const [selectedTempoKey, setSelectedTempoKey] = useState<string>(storedBreathTempo);
+  const tempoTouchedRef = useRef(false);
   const [bleWarmLaunching, setBleWarmLaunching] = useState(false);
   const [androidLiveDeviceId, setAndroidLiveDeviceId] = useState<string | null>(null);
   const [openField, setOpenField] = useState<SelectField>(null);
@@ -146,11 +177,17 @@ export const PracticeCard = memo(function PracticeCard({
   useFocusEffect(
     useCallback(() => {
       setOpenField(null);
-    }, []),
+      // Refresh tempo from the last started practice (card-only edits are not prefs).
+      tempoTouchedRef.current = false;
+      if (breathPracticeId) {
+        setSelectedTempoKey(storedBreathTempo);
+      }
+    }, [breathPracticeId, storedBreathTempo]),
   );
 
   useEffect(() => {
     durationTouchedRef.current = false;
+    tempoTouchedRef.current = false;
     setSelectedSoundBed(isCalmPractice(practice) ? calmPreferences.soundBed : SOUND_BED_NEURO_SYNC);
   }, [calmPreferences.soundBed, practice.id, practice.slug]);
 
@@ -158,6 +195,12 @@ export const PracticeCard = memo(function PracticeCard({
     if (practice.kind !== "breath") return;
     setSelectedSensorMode(wearablePreferences.preferredSensorMode);
   }, [practice.id, practice.kind, wearablePreferences.preferredSensorMode]);
+
+  useEffect(() => {
+    if (!breathPracticeId) return;
+    if (tempoTouchedRef.current) return;
+    setSelectedTempoKey(storedBreathTempo);
+  }, [breathPracticeId, storedBreathTempo]);
 
   useEffect(() => {
     if (practice.kind === "yoga" || !selectableDurations.length) return;
@@ -409,6 +452,7 @@ export const PracticeCard = memo(function PracticeCard({
         ...(isCalm ? {} : { chakra: selectedChakra }),
         ...(practice.kind === "breath"
           ? {
+              tempo: selectedTempoKey,
               sensorMode: selectedSensorMode,
               deviceId:
                 selectedSensorMode === "ble" ? wearablePreferences.lastDeviceId ?? undefined : undefined,
@@ -613,7 +657,14 @@ export const PracticeCard = memo(function PracticeCard({
               variant="pill"
               openId={openField}
               onOpenIdChange={(id) => {
-                if (id === "duration" || id === "chakra" || id === "pulse" || id === "sound" || id === null) {
+                if (
+                  id === "duration" ||
+                  id === "chakra" ||
+                  id === "pulse" ||
+                  id === "sound" ||
+                  id === "tempo" ||
+                  id === null
+                ) {
                   setOpenField(id);
                 }
               }}
@@ -632,6 +683,32 @@ export const PracticeCard = memo(function PracticeCard({
                     setSelectedDurationMin(Number(next));
                   },
                 },
+                ...(breathPracticeId
+                  ? [
+                      {
+                        id: "tempo",
+                        label: strings.tempoLabel,
+                        value: selectedTempoKey,
+                        displayValue: formatTempoLabel(selectedTempoKey),
+                        options: [
+                          {
+                            value: TEMPO_HEADER_OPTION_VALUE,
+                            label: strings.tempoLabel,
+                            header: true,
+                          },
+                          ...cardTempoOptionKeys(breathPracticeId).map((key) => ({
+                            value: key,
+                            label: formatTempoLabel(key),
+                          })),
+                        ],
+                        onChange: (next: string) => {
+                          if (next === TEMPO_HEADER_OPTION_VALUE) return;
+                          tempoTouchedRef.current = true;
+                          setSelectedTempoKey(next);
+                        },
+                      },
+                    ]
+                  : []),
                 ...(!isCalm
                   ? [
                       {

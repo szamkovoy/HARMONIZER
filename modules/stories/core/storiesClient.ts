@@ -312,7 +312,9 @@ async function fetchStoryFeedDirect(userId: string): Promise<StoryItem[]> {
 
 async function fetchStoryFeedFromRpc(userId: string): Promise<StoryItem[]> {
   const supabase = getSupabase();
-  if (!supabase) return [];
+  if (!supabase) {
+    throw new Error("Supabase client unavailable");
+  }
   const { data, error } = await supabase.rpc("get_story_feed", { p_user_id: userId });
   if (error) {
     if (isMissingStoryFeedRpc(error)) {
@@ -321,8 +323,7 @@ async function fetchStoryFeedFromRpc(userId: string): Promise<StoryItem[]> {
       }
       return fetchStoryFeedDirect(userId);
     }
-    if (__DEV__) console.warn("[stories] feed fetch failed", error.message);
-    return [];
+    throw error;
   }
   return (data ?? []).map(normalizeStory).filter(isPlayableStory);
 }
@@ -372,19 +373,39 @@ function registerFirstSeenAt(items: StoryItem[], isFirstSession: boolean): void 
 function saveWarmFeed(userId: string, items: StoryItem[]): StoryItem[] {
   const previousSignature =
     warmFeedSnapshot?.userId === userId ? storyFeedSignature(warmFeedSnapshot.items) : "";
-  if (items.length > 0) {
-    const isFirstSession = warmFeedSnapshot === null || warmFeedSnapshot.userId !== userId;
-    registerFirstSeenAt(items, isFirstSession);
-    scheduleHoldExpiry(items);
-    warmFeedSnapshot = { userId, items, fetchedAt: Date.now() };
-    void rememberSessionThumb(userId, items);
-    const nextSignature = storyFeedSignature(items);
-    if (nextSignature !== previousSignature) {
-      void prefetchStoryItems(items);
-      emitStoryFeed(items);
+  if (items.length === 0) {
+    // Confirmed empty feed (successful fetch) — clear warm cache and UI.
+    const hadItems = Boolean(warmFeedSnapshot?.userId === userId && warmFeedSnapshot.items.length > 0);
+    warmFeedSnapshot = { userId, items: [], fetchedAt: Date.now() };
+    if (hadItems || previousSignature !== "") {
+      emitStoryFeed([]);
     }
+    return [];
+  }
+  const isFirstSession = warmFeedSnapshot === null || warmFeedSnapshot.userId !== userId;
+  registerFirstSeenAt(items, isFirstSession);
+  scheduleHoldExpiry(items);
+  warmFeedSnapshot = { userId, items, fetchedAt: Date.now() };
+  void rememberSessionThumb(userId, items);
+  const nextSignature = storyFeedSignature(items);
+  if (nextSignature !== previousSignature) {
+    void prefetchStoryItems(items);
+    emitStoryFeed(items);
   }
   return filterStoriesForDisplay(items);
+}
+
+function warmItemsForUser(userId: string): StoryItem[] {
+  if (!warmFeedSnapshot || warmFeedSnapshot.userId !== userId) return [];
+  return warmFeedSnapshot.items;
+}
+
+/**
+ * Stale-while-revalidate peek for UI mount: ignore TTL so a remount during a
+ * slow/failed refetch does not flash the brand avatar over a known feed.
+ */
+export function peekStoryFeedForUi(userId: string): StoryItem[] {
+  return filterStoriesForDisplay(warmItemsForUser(userId));
 }
 
 function scheduleHoldExpiry(items: StoryItem[]): void {
@@ -421,7 +442,17 @@ export async function primeStoryFeedSession(userId: string): Promise<void> {
     return;
   }
   warmFeedUserId = userId;
-  warmFeedPromise = fetchStoryFeedFromRpc(userId).then((items) => saveWarmFeed(userId, items));
+  warmFeedPromise = fetchStoryFeedFromRpc(userId)
+    .then((items) => saveWarmFeed(userId, items))
+    .catch((error) => {
+      if (__DEV__) {
+        console.warn(
+          "[stories] prime feed failed, keeping warm cache",
+          error instanceof Error ? error.message : error,
+        );
+      }
+      return peekStoryFeedForUi(userId);
+    });
   try {
     await warmFeedPromise;
   } finally {
@@ -438,19 +469,65 @@ export async function fetchStoryFeed(
     const warm = readWarmFeed(userId);
     if (warm) return warm;
   }
+  try {
+    const fetched = await fetchStoryFeedFromRpc(userId);
+    const previous = options?.previousItems?.length
+      ? options.previousItems
+      : warmItemsForUser(userId);
+    const merged = previous.length ? mergeViewedState(fetched, previous) : fetched;
+    return saveWarmFeed(userId, merged);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn(
+        "[stories] feed fetch failed, keeping warm cache",
+        error instanceof Error ? error.message : error,
+      );
+    }
+    const previous = options?.previousItems?.length
+      ? options.previousItems
+      : warmItemsForUser(userId);
+    return previous.length > 0 ? filterStoriesForDisplay(previous) : [];
+  }
+}
+
+async function loadAndSaveStoryFeed(userId: string, previous: StoryItem[]): Promise<StoryItem[]> {
   const fetched = await fetchStoryFeedFromRpc(userId);
-  const merged = options?.previousItems?.length
-    ? mergeViewedState(fetched, options.previousItems)
-    : fetched;
+  const merged = mergeViewedState(fetched, previous);
   return saveWarmFeed(userId, merged);
 }
 
 /** Периодическое обновление feed (новые сторис из админки) + prefetch первой непросмотренной. */
 export async function refreshStoryFeedInBackground(userId: string): Promise<StoryItem[]> {
-  const previous = warmFeedSnapshot?.userId === userId ? warmFeedSnapshot.items : [];
-  const fetched = await fetchStoryFeedFromRpc(userId);
-  const merged = mergeViewedState(fetched, previous);
-  return saveWarmFeed(userId, merged);
+  const previous = warmItemsForUser(userId);
+  try {
+    return await loadAndSaveStoryFeed(userId, previous);
+  } catch (error) {
+    // Transient RPC/network errors used to return [] and wipe the ring to the brand avatar.
+    if (__DEV__) {
+      console.warn(
+        "[stories] feed refresh failed, keeping warm cache",
+        error instanceof Error ? error.message : error,
+      );
+    }
+    if (previous.length > 0) {
+      return filterStoriesForDisplay(previous);
+    }
+    // Cold start (no warm cache): one short retry before settling on empty/avatar.
+    try {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 450);
+      });
+      return await loadAndSaveStoryFeed(userId, previous);
+    } catch (retryError) {
+      if (__DEV__) {
+        console.warn(
+          "[stories] feed refresh retry failed",
+          retryError instanceof Error ? retryError.message : retryError,
+        );
+      }
+      return [];
+    }
+  }
 }
 
 export { FEED_POLL_INTERVAL_MS };

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  appendNewerBeatsForRrChart,
   applyPulseChartVerticalSteps,
   bridgeSeriesAcrossNonLiveGaps,
   buildMeasuredPulseChartSeries,
   buildPulseSeriesFromLog,
+  buildRrIntervalChartSeries,
   collectGuidancePulseHighlightIntervals,
   collectMeasuredPulseHighlightIntervals,
   collectSharedPulseHighlightIntervals,
@@ -288,5 +290,32 @@ describe("breath-results-series", () => {
       { tMs: 13_000, value: 0 },
       { tMs: 20_000, value: 84 },
     ]);
+  });
+
+  it("buildRrIntervalChartSeries maps beat deltas and skips gaps / non-physiologic RR", () => {
+    const start = 10_000;
+    const beats = [
+      start + 0,
+      start + 800,
+      start + 1_600,
+      start + 5_000, // 3400 ms gap — out of physiologic range, skipped
+      start + 5_800,
+      start + 6_600,
+    ];
+    const gaps: NonLiveInterval[] = [{ startMs: 5_500, endMs: 7_000 }];
+    const series = buildRrIntervalChartSeries(beats, start, 10_000, gaps);
+    expect(series).toEqual([
+      { tMs: 800, value: 800 },
+      { tMs: 1_600, value: 800 },
+      // 5000→5800 and 5800→6600 land inside the non-live gap mask
+    ]);
+  });
+
+  it("appendNewerBeatsForRrChart keeps full-session beats across a trimmed merged window", () => {
+    const kept: number[] = [];
+    appendNewerBeatsForRrChart(kept, [1_000, 1_800, 2_600]);
+    appendNewerBeatsForRrChart(kept, [2_600, 3_400, 4_200]); // overlap + newer
+    appendNewerBeatsForRrChart(kept, [4_200]); // no-op
+    expect(kept).toEqual([1_000, 1_800, 2_600, 3_400, 4_200]);
   });
 });

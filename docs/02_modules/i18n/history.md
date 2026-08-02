@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-02 (practices tempoLabel):** `tempoLabel` («Темп:» / «Tempo:» + EU overlays) for breath tempo ComboBox header on practice cards.
+
 - **2026-07-31 (profile about / app name):** Каталог — `common.appName` (канон = `APP_NAMES` из `plugins/appLocalesData.js`) и `profile.about.copyrightHolder` (RU: `ТОО "Сергей Замковой"`, остальные: `Sergei Zamkovoi, TOO`).
 
 - **2026-07-31 (practices breathHelpBody):** Два новых абзаца в справке дыхательных практик (наушники / скорость индикатора); RU/EN в `practices.ts`, overlays de–nl через `fill --all`.

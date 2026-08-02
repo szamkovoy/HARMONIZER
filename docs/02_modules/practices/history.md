@@ -17,6 +17,16 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-02 (camera QC fail vs ring «0»):** Между «0» на кольце и диалогом «Пульс не распознан» была пауза: кольцо — wall clock, QC fail — camera elapsed. Fix: wall fail-lead `COHERENCE_QC_FAIL_LEAD_MS` (3 с до «0») форсирует final fail для любого непройденного QC.
+
+- **2026-08-02 (camera activation hang watchdog):** Если optical frames не приходят, QC ждёт `getLastSourceTimestampMs()` и мог навсегда оставаться на «Ожидание устойчивого сигнала…» с пустым графиком (без диалога retry/без пульсометра). Добавлен wall-clock watchdog (~35 с), как у BLE hang — тот же `showQcFailedDialog`.
+
+- **2026-08-02 (breath tempo on card + triangle presets):** На карточке дыхания — ComboBox темпа (header «Темп:»); linear/square `2…12` (defaults 6/4), треугольники — фиксированные тройки (default `4:4:4`). Prefs per `BreathPracticeId` только после старта/`running`. Оверлей: triple UI + шаг по списку для треугольников; linear overlay до 60 (в карточку clamp ≤12). `ComboBoxOption.header` не ломает chakra/sound.
+
+- **2026-08-02 (results R–R chart camera fix):** Camera guidance-only не открывает coherence-сессию и паузит HRV accumulator → `beatTimestampsMsAnalyzed` пуст, график R–R не рисовался. Fix: display-only накопление битов из live `mergedBeats` (`appendNewerBeatsForRrChart` / `displayRrBeatsRef`) на всю практику; BLE по-прежнему из `beatTimestampsMsAnalyzed`. Метрики не трогаем.
+
+- **2026-08-02 (results R–R chart):** На экране результатов дыхания под графиком пульса — display-only тахограмма R–R (`buildRrIntervalChartSeries`); без правок dense-HRV/RMSSD/stress/coherence. BLE и камера; серые зоны как у пульса. i18n `resultsRrIntervalsLabel`.
+
 - **2026-08-02 (meditation help «?»):** На карточках «Вспышка» и «Спокойствие» — `SurfaceCardTitleRow` + `SurfaceHelpModal` (как у breath); тексты `meditationFlashHelp*` / `meditationCalmHelp*` (RU/EN + EU PREMIUM fill).
 
 - **2026-08-02 (Neuro-rhythms i18n):** UI-подпись bed `neuro-sync`: RU «Нейро-ритмы», EN «Neuro-rhythms», DE/FR/IT/ES/PT/NL — локальные формы; то же в `breathHelpBody`.

@@ -51,6 +51,11 @@ export type PracticeLaunchParams =
       chakra: Chakra;
       /** Exclusive audio bed; omit → neuro-sync on the practice screen. */
       soundBed?: SoundBedId;
+      /**
+       * Breath tempo key: single beats (`6`) or triangle triple (`4:4:4`).
+       * Omit → practice default / last saved preference on the screen.
+       */
+      tempo?: string;
       sensorMode?: BreathSensorMode;
       deviceId?: string;
       deviceName?: string;
