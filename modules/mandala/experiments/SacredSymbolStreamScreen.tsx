@@ -8,7 +8,12 @@ import { useAppLocale } from "@/modules/i18n";
 import { getSymbolStreamStrings } from "@/modules/mandala/i18n/symbolStream";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { BinduSuccessionFlowCanvas } from "@/modules/mandala/experiments/BinduSuccessionFlowCanvas";
-import { MandalaSoundProvider, useMandalaSoundSync } from "@/modules/mandala-sound";
+import {
+  MandalaSoundProvider,
+  SOUND_BED_NEURO_SYNC,
+  useMandalaSoundSync,
+  type SoundBedId,
+} from "@/modules/mandala-sound";
 import { AppButton } from "@/modules/ui/AppButton";
 import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
 import { ImmersiveScreenLayout } from "@/modules/ui/ImmersiveScreenLayout";
@@ -55,10 +60,12 @@ function SyncedSacredSymbolFlowCanvas({ isActive }: { isActive: boolean }) {
 export function SacredSymbolStreamScreen({
   durationMs = DEFAULT_DURATION_MS,
   chakra = DEFAULT_CHAKRA,
+  soundBed = SOUND_BED_NEURO_SYNC,
   launchSource = "practice_screen",
 }: {
   durationMs?: number;
   chakra?: number;
+  soundBed?: SoundBedId;
   launchSource?: string;
 }) {
   const { authUser } = useAuth();
@@ -181,6 +188,7 @@ export function SacredSymbolStreamScreen({
             practiceKind="meditation"
             durationMs={durationMs}
             chakra={chakra}
+            soundBed={soundBed}
             isActive={isRenderActive}
           >
             <SyncedSacredSymbolFlowCanvas isActive={isRenderActive} />

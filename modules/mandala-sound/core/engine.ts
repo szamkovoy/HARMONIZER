@@ -1,4 +1,4 @@
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 
 import { MANDALA_SOUND_ASSETS } from "@/modules/mandala-sound/core/assets";
 import { binauralCrossfadeGains } from "@/modules/mandala-sound/core/binaural";
@@ -50,11 +50,12 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
 
   constructor(private readonly assets: MandalaSoundAssetPreset = MANDALA_SOUND_ASSETS) {}
 
-  async start(chakra: number): Promise<void> {
+  async start(chakra: number, options?: { staysActiveInBackground?: boolean }): Promise<void> {
     if (this.started) return;
     this.started = true;
     const startedAt = Date.now();
-    logRuntimeEvent("mandala_sound:start", { id: this.diagnosticId, chakra }, "debug");
+    const staysActiveInBackground = options?.staysActiveInBackground === true;
+    logRuntimeEvent("mandala_sound:start", { id: this.diagnosticId, chakra, staysActiveInBackground }, "debug");
 
     try {
       await Audio.setAudioModeAsync({
@@ -63,7 +64,14 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
         // false: Android system BLE "connection request" banners (and similar) briefly
         // duck audio when true — heard as a short scratch/glitch during breath sound.
         shouldDuckAndroid: false,
-        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground,
+        interruptionModeIOS: staysActiveInBackground
+          ? InterruptionModeIOS.DoNotMix
+          : InterruptionModeIOS.MixWithOthers,
+        interruptionModeAndroid: staysActiveInBackground
+          ? InterruptionModeAndroid.DoNotMix
+          : InterruptionModeAndroid.DuckOthers,
       });
 
       const selectedDrone = this.assets.drones[chakraIndex(chakra)] ?? this.assets.drones[0];
@@ -177,10 +185,14 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     }
   }
 
-  async stop(): Promise<void> {
+  async stop(options?: { fadeOutMs?: number }): Promise<void> {
     const wasStarted = this.started;
     const startedAt = Date.now();
+    const fadeOutMs = options?.fadeOutMs ?? 0;
     this.started = false;
+    if (fadeOutMs > 0 && wasStarted) {
+      await this.fadeAllToZero(fadeOutMs);
+    }
     await Promise.all([
       unload(this.drone),
       unload(this.textureA),
@@ -201,8 +213,30 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     logRuntimeEvent("mandala_sound:stop", {
       id: this.diagnosticId,
       wasStarted,
+      fadeOutMs,
       durationMs: Date.now() - startedAt,
     }, "debug");
+  }
+
+  private async fadeAllToZero(durationMs: number): Promise<void> {
+    const steps = 12;
+    const stepMs = Math.max(16, durationMs / steps);
+    const drone0 = this.lastDroneVolume;
+    const textureA0 = this.lastTextureAVolume;
+    const textureB0 = this.lastTextureBVolume;
+    const binaural0 = this.binaural.map((_, index) => this.lastBinauralVolumes[index] ?? 0);
+    for (let i = 1; i <= steps; i += 1) {
+      const gain = 1 - i / steps;
+      await Promise.all([
+        this.setLoopVolume("drone", drone0 * gain),
+        this.setLoopVolume("textureA", textureA0 * gain),
+        this.setLoopVolume("textureB", textureB0 * gain),
+        ...this.binaural.map((_, index) => this.setBinauralVolume(index, (binaural0[index] ?? 0) * gain)),
+      ]);
+      if (i < steps) {
+        await new Promise<void>((resolve) => setTimeout(resolve, stepMs));
+      }
+    }
   }
 
   private async setLoopVolume(

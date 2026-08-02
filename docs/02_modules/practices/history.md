@@ -17,6 +17,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-02 (Calm / Спокойствие):** Статическая практика slug `calm` в группе медитаций: только duration+sound, без чакры; экран `/calm-practice` (картинка + bed); **не** пишется в `practice_sessions` / отчёты; **не** добавляется в assistant `practiceSelection` (только «Вспышка»). Prefs duration/sound в SecureStore только для Calm. Background audio (`staysActiveInBackground` + iOS `UIBackgroundModes: audio`). Stop confirm без текста про незачёт. Бинаурал — общая сигмоида (вариант A).
+
+- **2026-08-02 (sound bed ComboBox):** На карточках breath/meditation — ComboBox «Звук»: `neuro-sync` (default) или один из 8 nature beds; param `soundBed` в `PracticeLaunchParams` / `launchPractice` → экраны → `MandalaSoundProvider`. Yoga без выбора. Help дыхания обновлён (звук + наушники для Neuro-sync). i18n: `soundLabel` / `soundBeds.*` RU/EN + EU overlays.
+
+- **2026-08-02 (sound bed names v2):** RU-подписи по таблице заказчика (шум прибоя, всплески воды, пение птиц, ветер в пустыне, мурчание кота…); EN от имён файлов; EU — PREMIUM fill.
+
 - **2026-08-01 (полное дыхание + один график пульса):** Каталог/карточки/assistant fallback: «Когерентное дыхание» → «Полное дыхание» (RU + EN Full breathing + EU overlays). Results на пульсе с телефона: не показывать второй (guidance) pulse chart — только measured.
 - **2026-07-31 (asana not credited):** Audrone: 20 мин асан не попали в статистику + текст «не будет засчитаны». Причина: экран брал `stopConfirmMessage` у дыхания и писал `practice_sessions` только при Vimeo `ended`/`time` в хвосте 10 с; при молчании WebView-bridge даже досмотр давал диалог «не засчитаны» и выход без записи. Fix: wall-clock с `ready`/`play`, `duration` от плеера, `asanaSessionCredit.ts`, свои `stopConfirm*` у асан; обновить `web_cabinet/asana-embed.html` на zamkovoi.yoga.
 

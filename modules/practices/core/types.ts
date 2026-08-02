@@ -1,10 +1,12 @@
 import type { Chakra } from "@/modules/breath";
 import type { BreathPracticeId } from "@/modules/breath";
+import type { SoundBedId } from "@/modules/mandala-sound/core/soundBed";
 
 export type PracticeKind = "meditation" | "breath" | "yoga";
 export type BreathSensorMode = "fingerCamera" | "ble" | "none";
 export type WearableCapabilityTier = "unknown" | "fullMetrics" | "guidedOnly" | "unsupported";
 export type WearableDeviceProvider = "genericHrs" | "polar" | "magene" | "coospo" | "unknown";
+export type { SoundBedId };
 
 export type PracticeDurationPolicy = "fixed" | "user_selectable";
 
@@ -47,6 +49,8 @@ export type PracticeLaunchParams =
       practiceId: BreathPracticeId;
       durationMs: number;
       chakra: Chakra;
+      /** Exclusive audio bed; omit → neuro-sync on the practice screen. */
+      soundBed?: SoundBedId;
       sensorMode?: BreathSensorMode;
       deviceId?: string;
       deviceName?: string;
@@ -59,10 +63,12 @@ export type PracticeLaunchParams =
     }
   | {
       kind: "meditation";
-      route: "/sacred-symbol-stream";
+      route: "/sacred-symbol-stream" | "/calm-practice";
       practiceId: string;
       durationMs?: number;
       chakra?: Chakra;
+      /** Exclusive audio bed; omit → neuro-sync on the practice screen. */
+      soundBed?: SoundBedId;
     }
   | {
       kind: "yoga";

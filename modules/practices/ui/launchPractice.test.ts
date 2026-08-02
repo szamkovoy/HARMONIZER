@@ -43,7 +43,7 @@ describe("launchPractice", () => {
     });
   });
 
-  it("launches catalog meditation with duration, chakra and launchSource", () => {
+  it("launches catalog meditation with duration, chakra, soundBed and launchSource", () => {
     expect(
       launchPractice(
         {
@@ -52,6 +52,7 @@ describe("launchPractice", () => {
           practiceId: "sacred-symbol-stream",
           durationMs: 180_000,
           chakra: 1,
+          soundBed: "rain",
         },
         { launchSource: "catalog" },
       ),
@@ -63,6 +64,7 @@ describe("launchPractice", () => {
         practiceId: "sacred-symbol-stream",
         durationMs: "180000",
         chakra: "1",
+        soundBed: "rain",
         launchSource: "catalog",
       },
     });

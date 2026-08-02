@@ -2,6 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams } from "expo-router";
 
 import { SacredSymbolStreamScreen } from "@/modules/mandala/experiments/SacredSymbolStreamScreen";
+import { parseSoundBedId } from "@/modules/mandala-sound";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
 function positiveIntParam(value: string | undefined): number | undefined {
@@ -19,10 +20,12 @@ export default function SacredSymbolStreamRoute() {
   const params = useLocalSearchParams<{
     durationMs?: string;
     chakra?: string;
+    soundBed?: string;
     launchSource?: string;
   }>();
 
   const launchSource = typeof params.launchSource === "string" ? params.launchSource : undefined;
+  const soundBed = parseSoundBedId(typeof params.soundBed === "string" ? params.soundBed : undefined);
   useAssistantPracticeOverlayDismiss(launchSource);
 
   return (
@@ -31,6 +34,7 @@ export default function SacredSymbolStreamRoute() {
       <SacredSymbolStreamScreen
         durationMs={positiveIntParam(typeof params.durationMs === "string" ? params.durationMs : undefined)}
         chakra={chakraParam(typeof params.chakra === "string" ? params.chakra : undefined)}
+        soundBed={soundBed}
         launchSource={typeof params.launchSource === "string" ? params.launchSource : undefined}
       />
     </>

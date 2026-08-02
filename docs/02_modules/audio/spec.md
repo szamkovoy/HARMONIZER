@@ -4,21 +4,25 @@ title: Audio Spec
 version: 1.3
 updated: 2026-05-07
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
-code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
+code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/ambientEngine.ts, modules/mandala-sound/core/soundBed.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx, scripts/build-ambient-loops.mjs]
 ---
 
 ## 1. Назначение
 
-`audio` добавляет к активной практике тихий адаптивный звуковой слой и держит его в одном ритме с визуальным Bindu-контуром. Модуль не является отдельным экраном: он монтируется внутри дыхательной и медитативной сессии, собирает sync-кадр из таймлайна, дыхания и beat-событий, затем обновляет `expo-av` loops и отдаёт visual sync наружу.
+`audio` добавляет к активной практике тихий адаптивный звуковой слой и держит его в одном ритме с визуальным Bindu-контуром. Модуль не является отдельным экраном: он монтируется внутри дыхательной и медитативной сессии, собирает sync-кадр из таймлайна, дыхания и beat-событий, затем обновляет `expo-av` loops и отдаёт visual sync наружу. Выбор фона взаимоисключающий: **Neuro-sync** (текущий binaural/drone-стек) или один из **8 nature ambient beds**.
 
 ## 2. Публичный контракт
 
 - `MANDALA_SOUND_ASSETS: MandalaSoundAssetPreset`  
   Манифест локальных ассетов: `drones`, `textures`, `binaural`, `gongs`.
+- `AMBIENT_SOUND_ASSETS` / `SOUND_BED_*` / `parseSoundBedId` / `isNatureSoundBedId` — id фона и `require()` AAC-лупов из `assets/audio/ambient/`.
 - `class ExpoMandalaSoundEngine implements MandalaSoundEngineControls`  
   `start(chakra: number): Promise<void>`  
   `update(frame: MandalaSoundSyncFrame): Promise<void>`  
-  `stop(): Promise<void>`
+  `stop(options?: { fadeOutMs?: number }): Promise<void>`
+- `class AmbientLoopEngine`  
+  `start(bedId, options?: { fadeInMs?; targetVolume? }): Promise<void>`  
+  `stop(options?: { fadeOutMs? }): Promise<void>` — один зацикленный ambient с runtime fade.
 - `buildMandalaSoundFrame(args: { startedAtMs: number; nowMs: number; durationMs: number; plannedCycle?: PlannedCycle | null; cycleStartMs?: number | null; lastBeat?: BeatEvent | null; lastRrMs?: number | null; previousTargetHz?: number | null; hueMain?: number; zoomVelocity?: number }): MandalaSoundSyncFrame`
 - `computeBreathSync(plannedCycle: PlannedCycle | null | undefined, cycleStartMs: number | null | undefined, nowMs: number): MandalaSoundBreathSync`
 - `computePulseSync(args: { lastBeat?: BeatEvent | null; lastRrMs?: number | null; nowMs: number }): MandalaSoundPulseSync`
@@ -29,14 +33,14 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 - `getMandalaSoundEndHz(minutes: number): number`
 - `getMandalaSoundBand(targetHz: number): MandalaSoundBand`
 - `MANDALA_SOUND_START_HZ`, `MANDALA_SOUND_MIN_TARGET_HZ`, `MANDALA_SOUND_MAX_TARGET_HZ`
-- `MandalaSoundProvider(props: PropsWithChildren<MandalaSoundSessionInput & { biofeedbackEnabled?: boolean }>)`
+- `MandalaSoundProvider(props: PropsWithChildren<MandalaSoundSessionInput & { biofeedbackEnabled?: boolean }>)` — опциональный `soundBed` (default `neuro-sync`).
 - `useMandalaSoundFrame(): MandalaSoundSyncFrame`
 - `useMandalaSoundSync(): MandalaSoundVisualSync`
-- Экспортируемые типы: `MandalaSoundAssetPreset`, `MandalaSoundBinauralLoop`, `MandalaSoundBand`, `MandalaSoundBreathSync`, `MandalaSoundEngineControls`, `MandalaSoundPracticeKind`, `MandalaSoundPulseSync`, `MandalaSoundSessionInput`, `MandalaSoundSyncFrame`, `MandalaSoundVisualSync`.
+- Экспортируемые типы: `MandalaSoundAssetPreset`, `MandalaSoundBinauralLoop`, `MandalaSoundBand`, `MandalaSoundBreathSync`, `MandalaSoundEngineControls`, `MandalaSoundPracticeKind`, `MandalaSoundPulseSync`, `MandalaSoundSessionInput`, `MandalaSoundSyncFrame`, `MandalaSoundVisualSync`, `SoundBedId`, `NatureSoundBedId`.
 
 ## 3. Внутренняя архитектура
 
-- `MandalaSoundProvider` — **мастер тактового контура** сессии: при `isActive` стартует движок, держит `startedAtMs`, `previousTargetHz`, локальный beat/RR state и раз в **`CONTROL_TICK_MS` (250 ms)** вызывает `buildMandalaSoundFrame` → обновляет контекст и `ExpoMandalaSoundEngine.update(frame)`; отсюда же берутся `flickerHz` / `flickerIntensity` для мандалы.
+- `MandalaSoundProvider` — **мастер тактового контура** сессии: при `isActive` держит `startedAtMs`, `previousTargetHz`, локальный beat/RR state и раз в **`CONTROL_TICK_MS` (250 ms)** вызывает `buildMandalaSoundFrame` → обновляет контекст и (только для `neuro-sync`) `ExpoMandalaSoundEngine.update(frame)`; отсюда же берутся `flickerHz` / `flickerIntensity` для мандалы. При nature bed визуальный sync остаётся, binaural-стек не стартует — играет `AmbientLoopEngine`. Fade-in ~2 s при старте, fade-out ~2.5 s при `isActive=false` / unmount / смене bed.
 - `core/timeline.ts` переводит прогресс практики в целевой brainwave диапазон по сигмоидальной модели: старт в альфа (12 Гц), финиш `f_end(T)` от альфа (короткие) до дельта (длинные); band определяется порогами `beta/alpha/theta/delta`.
 - `core/sync.ts` собирает sync-кадр: дыхание берётся из `PlannedCycle` (тип и план из сценария **дыхательной практики**, код — `modules/breath/core/breath-phase-planner.ts` внутри **practices**), пульс из `BeatEvent` с fallback на LFO, затем через `buildAudioContract()` из Bindu-контракта вычисляются `textureBrightness`, `droneGain`, `textureGain`, `binauralGain`, `flickerHz`, `flickerIntensity` и `gongTrigger`.
 - `ExpoMandalaSoundEngine` не синтезирует звук на лету. Он заранее загружает loops через `expo-av`, держит громкости почти на нуле и на каждом тике обновляет `drone`, две `texture`-дорожки и binaural-кроссфейд по `targetHz` (чистая функция `binauralCrossfadeGains` из `core/binaural.ts`); `gongs` играются как best-effort one-shot по `gongTrigger`. Случайные «события» (Punctual Events) удалены — остались только два намеренных переходных гонга.
@@ -44,8 +48,9 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 ## 4. Конфигурация и параметры
 
-- Внешние входы провайдера: `practiceKind: "breath" | "meditation"`, `durationMs`, `chakra`, `isActive`, `plannedCycle`, `cycleStartMs`, `biofeedbackEnabled`.
-- Выбор чакры влияет на `drone` и пару `texture`-лупов. Сейчас доступны `7` drone-ассетов по чакрам и `3` texture-лупа с циклическим выбором пары.
+- Внешние входы провайдера: `practiceKind: "breath" | "meditation"`, `durationMs`, `chakra`, `isActive`, `plannedCycle`, `cycleStartMs`, `biofeedbackEnabled`, **`soundBed`** (`neuro-sync` | `creek` | `waves` | `rain` | `forest_birds` | `wind` | `fireplace` | `water_splash` | `cat_purr`).
+- Nature beds — бесшовные AAC в `assets/audio/ambient/<id>.m4a` (4 s baked acrossfade через `scripts/build-ambient-loops.mjs` + `sources.json`); сырые исходники в `assets/audio/ambient/raw/` не бандлятся (gitignored).
+- Выбор чакры влияет на `drone` и пару `texture`-лупов (только Neuro-sync). Сейчас доступны `7` drone-ассетов по чакрам и `3` texture-лупа с циклическим выбором пары.
 - Таймлайн (единый для звука и мерцания мандалы) — **сигмоидальная адаптивная модель** `f(t) = f_end + (f_start − f_end) / (1 + exp(k·(t − t_mid)))` с `f_start = 12 Гц`, `t_mid = 0.45·T`, `k = 7/T`:
   - стартовая `f(0) ≈ 12 Гц` (верхняя граница альфа, безопасна по фотосенситивности — потолок `MANDALA_SOUND_MAX_TARGET_HZ = 13 Гц` исключает бета-диапазон);
   - целевая `f_end(T_min)` — кусочно-линейная функция длительности (`getMandalaSoundEndHz`): `1 мин → 11`, `3 → 8`, `5 → 6`, `8 → 4.5`, `10 → 3.5`, `15 → 2.75`, `20 → 2 Гц`, пол `2 Гц`;

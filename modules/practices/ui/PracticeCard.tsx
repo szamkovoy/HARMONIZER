@@ -2,8 +2,15 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Platform, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
+import {
+  NATURE_SOUND_BED_IDS,
+  SOUND_BED_NEURO_SYNC,
+  type SoundBedId,
+} from "@/modules/mandala-sound";
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
 import { clipDurationMinutesToSelectableMinutes } from "@/modules/practices/core/assistantSelectableDurations";
+import { CALM_DURATION_MINUTES, isCalmDurationMinutes, isCalmPractice } from "@/modules/practices/core/calmPractice";
+import { updateCalmPreferences, useCalmPreferences } from "@/modules/practices/core/calmPreferences";
 import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 import { useAppLocale } from "@/modules/i18n";
 import {
@@ -33,7 +40,8 @@ import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import { shouldDemoteUnavailableBleToNone } from "./breathSensorDefault";
 
 const CHAKRA_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
-type SelectField = "duration" | "chakra" | "pulse" | null;
+const SOUND_BED_OPTIONS: readonly SoundBedId[] = [SOUND_BED_NEURO_SYNC, ...NATURE_SOUND_BED_IDS];
+type SelectField = "duration" | "chakra" | "pulse" | "sound" | null;
 
 function durationLabel(practice: PracticeSummary, strings: ReturnType<typeof getPracticeCatalogStrings>): string {
   if (!practice.defaultDurationSec) {
@@ -53,15 +61,26 @@ function chakraLabelForPractice(practice: PracticeSummary, strings: ReturnType<t
 }
 
 function durationOptions(practice: PracticeSummary): number[] {
+  if (isCalmPractice(practice)) return [...CALM_DURATION_MINUTES];
   if (practice.kind === "meditation") return Array.from({ length: 5 }, (_, index) => index + 1);
   if (practice.kind === "breath") return Array.from({ length: 16 }, (_, index) => index + 5);
   return [];
 }
 
+function formatDurationOption(
+  minutes: number,
+  strings: ReturnType<typeof getPracticeCatalogStrings>,
+): string {
+  if (minutes < 60) return `${minutes} ${strings.durationMinUnit}`;
+  const hours = minutes / 60;
+  const label = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+  return `${label} ${strings.durationHourUnit}`;
+}
+
 function defaultSelectableDurationMinutes(practice: PracticeSummary, selectable: readonly number[]): number {
   const fromCatalog = practice.defaultDurationSec ? Math.max(1, Math.round(practice.defaultDurationSec / 60)) : null;
   const fallback =
-    practice.kind === "breath" ? 10 : practice.kind === "meditation" ? 3 : fromCatalog ?? 5;
+    practice.kind === "breath" ? 10 : isCalmPractice(practice) ? 30 : practice.kind === "meditation" ? 3 : fromCatalog ?? 5;
   const candidate = fromCatalog ?? fallback;
   return selectable.includes(candidate) ? candidate : selectable[0] ?? candidate;
 }
@@ -90,6 +109,8 @@ export const PracticeCard = memo(function PracticeCard({
   const theme = useTheme();
   const { locale: appLocale } = useAppLocale();
   const wearablePreferences = useWearablePreferences();
+  const calmPreferences = useCalmPreferences();
+  const isCalm = isCalmPractice(practice);
   const strings = useMemo(() => getPracticeCatalogStrings(appLocale), [appLocale]);
   const minSuffix = strings.durationMinUnit;
   const [fallbackThumbnail, setFallbackThumbnail] = useState<PracticeVideoThumbnail | null>(null);
@@ -97,7 +118,9 @@ export const PracticeCard = memo(function PracticeCard({
   const selectableDurations = useMemo(() => durationOptions(practice), [practice]);
   const durationTouchedRef = useRef(false);
   const [selectedDurationMin, setSelectedDurationMin] = useState(() => {
-    const raw = overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations);
+    const preferred = isCalm ? calmPreferences.durationMin : undefined;
+    const raw =
+      overrideDurationMinutes ?? preferred ?? defaultSelectableDurationMinutes(practice, selectableDurations);
     return clipDurationMinutesToSelectableMinutes(raw, selectableDurations).value;
   });
   const [selectedChakra, setSelectedChakra] = useState<number>(() =>
@@ -105,6 +128,9 @@ export const PracticeCard = memo(function PracticeCard({
   );
   const [selectedSensorMode, setSelectedSensorMode] = useState<"fingerCamera" | "ble" | "none">(
     practice.kind === "breath" ? wearablePreferences.preferredSensorMode : "fingerCamera",
+  );
+  const [selectedSoundBed, setSelectedSoundBed] = useState<SoundBedId>(() =>
+    isCalm ? calmPreferences.soundBed : SOUND_BED_NEURO_SYNC,
   );
   const [bleWarmLaunching, setBleWarmLaunching] = useState(false);
   const [androidLiveDeviceId, setAndroidLiveDeviceId] = useState<string | null>(null);
@@ -124,7 +150,8 @@ export const PracticeCard = memo(function PracticeCard({
 
   useEffect(() => {
     durationTouchedRef.current = false;
-  }, [practice.id]);
+    setSelectedSoundBed(isCalmPractice(practice) ? calmPreferences.soundBed : SOUND_BED_NEURO_SYNC);
+  }, [calmPreferences.soundBed, practice.id, practice.slug]);
 
   useEffect(() => {
     if (practice.kind !== "breath") return;
@@ -134,7 +161,9 @@ export const PracticeCard = memo(function PracticeCard({
   useEffect(() => {
     if (practice.kind === "yoga" || !selectableDurations.length) return;
     if (durationTouchedRef.current) return;
-    const raw = overrideDurationMinutes ?? defaultSelectableDurationMinutes(practice, selectableDurations);
+    const preferred = isCalmPractice(practice) ? calmPreferences.durationMin : undefined;
+    const raw =
+      overrideDurationMinutes ?? preferred ?? defaultSelectableDurationMinutes(practice, selectableDurations);
     const { value, clipped } = clipDurationMinutesToSelectableMinutes(raw, selectableDurations);
     if (clipped) {
       console.log(
@@ -152,7 +181,15 @@ export const PracticeCard = memo(function PracticeCard({
       );
     }
     setSelectedDurationMin(value);
-  }, [overrideDurationMinutes, practice.defaultDurationSec, practice.id, practice.kind, selectableDurations]);
+  }, [
+    calmPreferences.durationMin,
+    overrideDurationMinutes,
+    practice.defaultDurationSec,
+    practice.id,
+    practice.kind,
+    practice.slug,
+    selectableDurations,
+  ]);
 
   useEffect(() => {
     if (practice.kind !== "yoga") return;
@@ -358,10 +395,17 @@ export const PracticeCard = memo(function PracticeCard({
     }
 
     const runLaunch = () => {
+      if (isCalm && isCalmDurationMinutes(selectedDurationMin)) {
+        void updateCalmPreferences({
+          durationMin: selectedDurationMin,
+          soundBed: selectedSoundBed,
+        });
+      }
       const launch = {
         ...practice.launch,
         durationMs: selectedDurationMin * 60_000,
-        chakra: selectedChakra,
+        soundBed: selectedSoundBed,
+        ...(isCalm ? {} : { chakra: selectedChakra }),
         ...(practice.kind === "breath"
           ? {
               sensorMode: selectedSensorMode,
@@ -560,7 +604,7 @@ export const PracticeCard = memo(function PracticeCard({
               variant="pill"
               openId={openField}
               onOpenIdChange={(id) => {
-                if (id === "duration" || id === "chakra" || id === "pulse" || id === null) {
+                if (id === "duration" || id === "chakra" || id === "pulse" || id === "sound" || id === null) {
                   setOpenField(id);
                 }
               }}
@@ -569,27 +613,44 @@ export const PracticeCard = memo(function PracticeCard({
                   id: "duration",
                   label: strings.durationLabel,
                   value: String(selectedDurationMin),
-                  displayValue: `${selectedDurationMin} ${minSuffix}`,
+                  displayValue: formatDurationOption(selectedDurationMin, strings),
                   options: selectableDurations.map((minutes) => ({
                     value: String(minutes),
-                    label: `${minutes} ${minSuffix}`,
+                    label: formatDurationOption(minutes, strings),
                   })),
                   onChange: (next) => {
                     durationTouchedRef.current = true;
                     setSelectedDurationMin(Number(next));
                   },
                 },
+                ...(!isCalm
+                  ? [
+                      {
+                        id: "chakra",
+                        label: strings.chakraLabel,
+                        value: String(selectedChakra),
+                        displayValue: chakraTagLabel(strings.locale, selectedChakra),
+                        options: CHAKRA_OPTIONS.map((chakra) => ({
+                          value: String(chakra),
+                          label: chakraTagLabel(strings.locale, chakra),
+                        })),
+                        onChange: (next: string) => {
+                          setSelectedChakra(Number(next));
+                        },
+                      },
+                    ]
+                  : []),
                 {
-                  id: "chakra",
-                  label: strings.chakraLabel,
-                  value: String(selectedChakra),
-                  displayValue: chakraTagLabel(strings.locale, selectedChakra),
-                  options: CHAKRA_OPTIONS.map((chakra) => ({
-                    value: String(chakra),
-                    label: chakraTagLabel(strings.locale, chakra),
+                  id: "sound",
+                  label: strings.soundLabel,
+                  value: selectedSoundBed,
+                  displayValue: strings.soundBeds[selectedSoundBed],
+                  options: SOUND_BED_OPTIONS.map((bedId) => ({
+                    value: bedId,
+                    label: strings.soundBeds[bedId],
                   })),
                   onChange: (next) => {
-                    setSelectedChakra(Number(next));
+                    setSelectedSoundBed(next as SoundBedId);
                   },
                 },
                 ...(practice.kind === "breath"

@@ -61,6 +61,9 @@ fcm-service-account.json
 /ios
 /android
 
+# Large uncut ambient source recordings (loops are committed as .m4a)
+assets/audio/ambient/raw/
+
 # Ad-hoc OCR / Python experiments (не коммитить случайные выгрузки)
 .tmp_ocr/
 __tmp_ocr/

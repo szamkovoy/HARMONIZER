@@ -11,7 +11,13 @@ import {
 
 import { useBiofeedbackSubscribe } from "@/modules/biofeedback/bus/react";
 import type { BeatEvent } from "@/modules/biofeedback/sensors/types";
+import { AmbientLoopEngine } from "@/modules/mandala-sound/core/ambientEngine";
 import { ExpoMandalaSoundEngine } from "@/modules/mandala-sound/core/engine";
+import {
+  isNatureSoundBedId,
+  SOUND_BED_NEURO_SYNC,
+  type SoundBedId,
+} from "@/modules/mandala-sound/core/soundBed";
 import { buildMandalaSoundFrame } from "@/modules/mandala-sound/core/sync";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 import type {
@@ -22,6 +28,8 @@ import type {
 
 const CONTROL_TICK_MS = 250;
 const DEFAULT_DURATION_MS = 5 * 60_000;
+const FADE_IN_MS = 2000;
+const FADE_OUT_MS = 2500;
 const DEFAULT_FRAME: MandalaSoundSyncFrame = buildMandalaSoundFrame({
   startedAtMs: 0,
   nowMs: 0,
@@ -70,8 +78,11 @@ export function MandalaSoundProvider({
   plannedCycle,
   cycleStartMs,
   biofeedbackEnabled = false,
+  soundBed = SOUND_BED_NEURO_SYNC,
+  staysActiveInBackground = false,
 }: PropsWithChildren<MandalaSoundSessionInput & { biofeedbackEnabled?: boolean }>) {
-  const engineRef = useRef<ExpoMandalaSoundEngine | null>(null);
+  const neuroEngineRef = useRef<ExpoMandalaSoundEngine | null>(null);
+  const ambientEngineRef = useRef<AmbientLoopEngine | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const previousTargetHzRef = useRef<number | null>(null);
   const lastBeatRef = useRef<BeatEvent | null>(null);
@@ -86,37 +97,22 @@ export function MandalaSoundProvider({
     }
   }, []);
 
+  // Visual sync tick — always runs while active (even for nature beds).
   useEffect(() => {
     let cancelled = false;
 
     if (!isActive) {
-      logRuntimeEvent("mandala_sound_provider:inactive", { practiceKind }, "debug");
       startedAtRef.current = null;
       previousTargetHzRef.current = null;
       lastBeatRef.current = null;
       lastRrMsRef.current = null;
       setFrame(DEFAULT_FRAME);
-      void engineRef.current?.stop();
       return;
     }
 
     if (startedAtRef.current == null) {
       startedAtRef.current = Date.now();
-      logRuntimeEvent("mandala_sound_provider:active", {
-        practiceKind,
-        durationMs,
-        chakra,
-        controlTickMs: CONTROL_TICK_MS,
-      });
     }
-
-    if (engineRef.current == null) {
-      engineRef.current = new ExpoMandalaSoundEngine();
-    }
-
-    void engineRef.current.start(chakra).catch(() => {
-      // The visual sync still runs if the native audio backend refuses playback.
-    });
 
     const tick = () => {
       if (cancelled || startedAtRef.current == null) return;
@@ -134,7 +130,7 @@ export function MandalaSoundProvider({
       });
       previousTargetHzRef.current = nextFrame.targetHz;
       setFrame(nextFrame);
-      void engineRef.current?.update(nextFrame);
+      void neuroEngineRef.current?.update(nextFrame);
     };
 
     tick();
@@ -142,16 +138,67 @@ export function MandalaSoundProvider({
     return () => {
       cancelled = true;
       clearInterval(id);
-      logRuntimeEvent("mandala_sound_provider:tick_cleanup", { practiceKind }, "debug");
     };
   }, [chakra, cycleStartMs, durationMs, isActive, plannedCycle, practiceKind]);
 
+  // Audio bed lifecycle (neuro-sync vs nature) with fade in/out.
   useEffect(() => {
-    return () => {
-      void engineRef.current?.stop();
-      engineRef.current = null;
+    let cancelled = false;
+    const bed: SoundBedId = soundBed;
+
+    const teardown = async (fadeOutMs: number) => {
+      const neuro = neuroEngineRef.current;
+      const ambient = ambientEngineRef.current;
+      neuroEngineRef.current = null;
+      ambientEngineRef.current = null;
+      await Promise.all([neuro?.stop({ fadeOutMs }), ambient?.stop({ fadeOutMs })]);
     };
-  }, []);
+
+    if (!isActive) {
+      logRuntimeEvent("mandala_sound_provider:inactive", { practiceKind, soundBed: bed }, "debug");
+      void teardown(FADE_OUT_MS);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    logRuntimeEvent("mandala_sound_provider:active", {
+      practiceKind,
+      durationMs,
+      chakra,
+      soundBed: bed,
+      controlTickMs: CONTROL_TICK_MS,
+    });
+
+    void (async () => {
+      await teardown(0);
+      if (cancelled) return;
+
+      if (isNatureSoundBedId(bed)) {
+        const engine = new AmbientLoopEngine();
+        ambientEngineRef.current = engine;
+        try {
+          await engine.start(bed, { fadeInMs: FADE_IN_MS, staysActiveInBackground });
+        } catch {
+          /* visual sync continues */
+        }
+        return;
+      }
+
+      const engine = new ExpoMandalaSoundEngine();
+      neuroEngineRef.current = engine;
+      try {
+        await engine.start(chakra, { staysActiveInBackground });
+      } catch {
+        /* visual sync continues */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      void teardown(FADE_OUT_MS);
+    };
+  }, [chakra, durationMs, isActive, practiceKind, soundBed, staysActiveInBackground]);
 
   const visualSync = useMemo<MandalaSoundVisualSync>(
     () => ({

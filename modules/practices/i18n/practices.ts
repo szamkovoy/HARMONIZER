@@ -1,4 +1,5 @@
 import type { BreathPracticeId } from "@/modules/breath";
+import type { SoundBedId } from "@/modules/mandala-sound/core/soundBed";
 import type { PracticeKind } from "@/modules/practices/core/types";
 
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
@@ -56,6 +57,8 @@ export interface PracticeCatalogStrings {
   chakraPending: string;
   durationLabel: string;
   chakraLabel: string;
+  soundLabel: string;
+  soundBeds: Record<SoundBedId, string>;
   pulseLabel: string;
   sensorCameraOption: string;
   /** When VisionCamera finger PPG plugin is missing (e.g. Android until native port). */
@@ -108,6 +111,11 @@ export interface PracticeCatalogStrings {
   meditationFlashTitle: string;
   meditationFlashSubtitle: string;
   meditationFlashDescription: string;
+  meditationCalmTitle: string;
+  meditationCalmSubtitle: string;
+  meditationCalmDescription: string;
+  /** Short unit for hour durations on Calm card, e.g. «ч» / «h». */
+  durationHourUnit: string;
 }
 
 const ru: PracticeCatalogStrings = {
@@ -155,6 +163,18 @@ const ru: PracticeCatalogStrings = {
   chakraPending: "чакра уточняется",
   durationLabel: "Длительность",
   chakraLabel: "Чакра",
+  soundLabel: "Звук",
+  soundBeds: {
+    "neuro-sync": "Neuro-sync",
+    creek: "Ручей",
+    waves: "Шум прибоя",
+    rain: "Дождь",
+    forest_birds: "Пение птиц",
+    wind: "Ветер в пустыне",
+    fireplace: "Костёр",
+    water_splash: "Всплески воды",
+    cat_purr: "Мурчание кота",
+  },
   pulseLabel: "Источник пульса",
   sensorCameraOption: "пульс с телефона",
   sensorCameraUnavailableTitle: "Пульс с камеры недоступен",
@@ -203,7 +223,7 @@ const ru: PracticeCatalogStrings = {
   breathHelpButtonAccessibilityLabel: "Пояснение к настройке дыхательной практики",
   breathHelpModalTitle: "О параметрах практики",
   breathHelpBody:
-    "Выберите длительность практики, на какую чакру она должна быть направлена, а также используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».\n\nЧтобы бинауральный звук оказывал на вас воздействие, выполняйте практику в наушниках.\n\nЕсли практика предлагает слишком быстрое или медленное дыхание, тапните на экране и на всплывающей панели измените скорость индикатора дыхания.",
+    "Выберите длительность практики, на какую чакру она должна быть направлена, звуковой фон и используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».\n\nВ поле «Звук» можно оставить Neuro-sync или выбрать один из звуков природы. Чтобы Neuro-sync (бинауральный слой) оказывал на вас воздействие, выполняйте практику в наушниках.\n\nЕсли практика предлагает слишком быстрое или медленное дыхание, тапните на экране и на всплывающей панели измените скорость индикатора дыхания.",
   breathHelpCloseLabel: "Закрыть",
   breathDescriptions: {
     coherent:
@@ -225,6 +245,11 @@ const ru: PracticeCatalogStrings = {
   meditationFlashSubtitle: "Поток сакральных символов",
   meditationFlashDescription:
     "Короткая визуальная медитация для мягкого переключения внимания и гармонизации.",
+  meditationCalmTitle: "Спокойствие",
+  meditationCalmSubtitle: "Звук и образ",
+  meditationCalmDescription:
+    "Мягкая звуковая практика с образом: можно медитировать или уснуть под выбранный фон. Не учитывается в отчётах.",
+  durationHourUnit: "ч",
 };
 
 const en: PracticeCatalogStrings = {
@@ -272,6 +297,18 @@ const en: PracticeCatalogStrings = {
   chakraPending: "chakra pending",
   durationLabel: "Duration",
   chakraLabel: "Chakra",
+  soundLabel: "Sound",
+  soundBeds: {
+    "neuro-sync": "Neuro-sync",
+    creek: "Creek",
+    waves: "Waves",
+    rain: "Rain",
+    forest_birds: "Birdsong",
+    wind: "Desert wind",
+    fireplace: "Fireplace",
+    water_splash: "Splashing water",
+    cat_purr: "Cat purring",
+  },
   pulseLabel: "Pulse source",
   sensorCameraOption: "pulse from phone",
   sensorCameraUnavailableTitle: "Camera pulse unavailable",
@@ -320,7 +357,7 @@ const en: PracticeCatalogStrings = {
   breathHelpButtonAccessibilityLabel: "Explain breathing practice settings",
   breathHelpModalTitle: "About practice settings",
   breathHelpBody:
-    "Choose the practice duration, which chakra it should target, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».\n\nFor binaural sound to affect you, do the practice with headphones.\n\nIf the practice feels too fast or too slow, tap the screen and change the breathing indicator speed on the popup panel.",
+    "Choose the practice duration, which chakra it should target, the sound bed, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».\n\nIn Sound you can keep Neuro-sync or pick one nature bed. For Neuro-sync (binaural layer) to affect you, do the practice with headphones.\n\nIf the practice feels too fast or too slow, tap the screen and change the breathing indicator speed on the popup panel.",
   breathHelpCloseLabel: "Close",
   breathDescriptions: {
     coherent:
@@ -341,6 +378,11 @@ const en: PracticeCatalogStrings = {
   meditationFlashTitle: "Flash",
   meditationFlashSubtitle: "Flow of sacred symbols",
   meditationFlashDescription: "A short visual meditation for a gentle shift of attention and harmonization.",
+  meditationCalmTitle: "Calm",
+  meditationCalmSubtitle: "Sound and image",
+  meditationCalmDescription:
+    "A gentle sound practice with a still image — meditate or fall asleep to the chosen bed. Not counted in reports.",
+  durationHourUnit: "h",
 };
 
 export function getPracticeCatalogStrings(locale: PracticeLocale = "ru"): PracticeCatalogStrings {

@@ -41,7 +41,7 @@ code_refs:
   `app/breath-coherence.tsx` → **`CoherenceBreathScreen`** — PPG / BLE pipeline, wearable preferences (`modules/biofeedback/wearables/preferences.ts`), общий **`WearablePickerDialog`** (`modules/biofeedback/wearables/WearablePickerDialog.tsx`) и запись **`metrics`** в `practice_sessions`. `PracticeCard.tsx` читает remembered BLE-датчик из biofeedback-модуля и открывает тот же picker до старта, чтобы запекать `sensorMode/deviceId/capabilityTier` в launch-контракт. Медитация **`SacredSymbolStreamScreen`** biofeedback не использует. Парная запись: `docs/02_modules/biofeedback/dependencies.md` §2.
 
 - **`audio`**  
-  `CoherenceBreathScreen` и `SacredSymbolStreamScreen` монтируют **`MandalaSoundProvider`**; план фаз (`PlannedCycle`) — из **`modules/breath/core/breath-phase-planner.ts`** (подсценарий practices). Парная запись: `docs/02_modules/audio/dependencies.md` §1.
+  `CoherenceBreathScreen` и `SacredSymbolStreamScreen` монтируют **`MandalaSoundProvider`** с prop **`soundBed`** из launch query (карточка/`launchPractice`); план фаз (`PlannedCycle`) — из **`modules/breath/core/breath-phase-planner.ts`** (подсценарий practices). Парная запись: `docs/02_modules/audio/dependencies.md` §1.
 
 - **`bindu`**  
   `BreathBinduMandala`, `BinduSuccessionFlowCanvas` и визуальные ветки практик. Парная запись: `docs/02_modules/bindu/dependencies.md` §2.

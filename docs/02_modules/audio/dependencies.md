@@ -12,14 +12,15 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 - `infra`  
   `modules/mandala-sound/core/engine.ts` использует `expo-av` (`Audio.setAudioModeAsync`, `Audio.Sound.createAsync`) как единственный runtime backend для loops и one-shot playback.  
   `modules/mandala-sound/core/engine.ts` и `modules/mandala-sound/ui/MandalaSoundProvider.tsx` логируют lifecycle через `services/runtimeDiagnostics.ts`.  
-  `modules/mandala-sound/core/assets.ts` опирается на локальный asset pipeline `assets/audio/mandala-sound/*`; изменение путей или схемы упаковки ломает инициализацию движка без изменения публичного API.
+  `modules/mandala-sound/core/assets.ts` опирается на локальный asset pipeline `assets/audio/mandala-sound/*`; изменение путей или схемы упаковки ломает инициализацию движка без изменения публичного API.  
+  `modules/mandala-sound/core/ambientAssets.ts` / `AmbientLoopEngine` — тот же `expo-av` для `assets/audio/ambient/*.m4a`.
 
 - `biofeedback`  
   `modules/mandala-sound/ui/MandalaSoundProvider.tsx` подписывается на канал `"beat"` через `useBiofeedbackSubscribe()` из `modules/biofeedback/bus/react.tsx`, чтобы обновлять RR-интервал без лишнего re-render экрана.  
   `modules/mandala-sound/core/sync.ts` использует `BeatEvent` из `modules/biofeedback/sensors/types.ts` и строит `pulse.phase/confidence/source`, после чего модулирует `droneGain`, `flickerIntensity` и fallback-поведение. Обратная сторона контракта — `docs/02_modules/biofeedback/dependencies.md` (потребитель `audio`).
 
 - **`practices` (в т.ч. дыхательный подсценарий; реализация в `modules/breath/`)**  
-  Продуктово фазы дыхания — часть модуля **`practices`**; в коде тип **`PlannedCycle`** и тайминг цикла импортируются в `mandala-sound` из **`modules/breath/core/breath-phase-planner.ts`** (`core/types.ts`, `core/sync.ts`) как вход для `computeBreathSync()`. Монтаж и props провайдера — **`modules/breath/ui/CoherenceBreathScreen.tsx`** (роут `app/breath-coherence.tsx`): `practiceKind`, `durationMs`, `chakra`, `plannedCycle`, `cycleStartMs`, `biofeedbackEnabled`. Пакет **`modules/practices/`** в `mandala-sound` не импортируется — связь документируется как **practices → внутренний код breath**.
+  Продуктово фазы дыхания — часть модуля **`practices`**; в коде тип **`PlannedCycle`** и тайминг цикла импортируются в `mandala-sound` из **`modules/breath/core/breath-phase-planner.ts`** (`core/types.ts`, `core/sync.ts`) как вход для `computeBreathSync()`. Монтаж и props провайдера — **`modules/breath/ui/CoherenceBreathScreen.tsx`** (роут `app/breath-coherence.tsx`): `practiceKind`, `durationMs`, `chakra`, `soundBed`, `plannedCycle`, `cycleStartMs`, `biofeedbackEnabled`. Пакет **`modules/practices/`** в `mandala-sound` не импортируется — связь документируется как **practices → внутренний код breath**. Launch param `soundBed` задаётся карточкой/`launchPractice` и читается роутами.
 
 - **`bindu` (контракт мандалы в `modules/mandala/core`)**  
   `modules/mandala-sound/core/sync.ts` импортирует **`buildAudioContract()`** из `modules/mandala/core/bio.ts` и **`AudioBandTrigger`** из `modules/mandala/core/types.ts`; через них считаются `textureBrightness`, гейны дорожек, **`flickerHz`** (равен `targetHz` из таймлайна), **`flickerIntensity`** и `gongTrigger`. Пакет **`mandala-sound` не импортирует** React-канвасы bindu — мандала получает уже готовый `MandalaSoundVisualSync` снаружи (см. §2).

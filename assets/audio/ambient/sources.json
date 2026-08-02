@@ -1,0 +1,53 @@
+{
+  "crossfadeSec": 5,
+  "beds": [
+    {
+      "id": "rain",
+      "source": "assets/audio/ambient/raw/rain.mp3",
+      "fromSec": 10,
+      "toSec": 165
+    },
+    {
+      "id": "water_splash",
+      "source": "assets/audio/ambient/raw/water_splash.mp3",
+      "fromSec": 0,
+      "toSec": 75.9
+    },
+    {
+      "id": "waves",
+      "source": "assets/audio/ambient/raw/waves.mp3",
+      "fromSec": 7,
+      "toSec": 110
+    },
+    {
+      "id": "creek",
+      "source": "assets/audio/ambient/raw/creek.mp3",
+      "fromSec": 240,
+      "toSec": 330
+    },
+    {
+      "id": "cat_purr",
+      "source": "assets/audio/ambient/raw/cat_purr.mp3",
+      "fromSec": 270,
+      "toSec": 360
+    },
+    {
+      "id": "wind",
+      "source": "assets/audio/ambient/raw/wind.mp3",
+      "fromSec": 255,
+      "toSec": 325
+    },
+    {
+      "id": "forest_birds",
+      "source": "assets/audio/ambient/raw/birdsong.mp3",
+      "fromSec": 0,
+      "toSec": 99
+    },
+    {
+      "id": "fireplace",
+      "source": "assets/audio/ambient/raw/fireplace.mp3",
+      "fromSec": 5,
+      "toSec": 75
+    }
+  ]
+}

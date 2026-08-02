@@ -305,6 +305,10 @@ function RootLayoutNav() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="calm-practice"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="asana-practice"
             options={{ headerShown: false }}
           />

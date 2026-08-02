@@ -6,6 +6,7 @@ import { CoherenceBreathScreen } from "@/modules/breath/ui/CoherenceBreathScreen
 import { isChakra, type Chakra } from "@/modules/breath/core/chakra";
 import type { BreathPracticeId } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
+import { parseSoundBedId } from "@/modules/mandala-sound";
 import type { WearableDeviceProvider } from "@/modules/practices/core/types";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
@@ -26,6 +27,7 @@ export default function BreathCoherenceRoute() {
     practiceId?: string;
     durationMs?: string;
     chakra?: string;
+    soundBed?: string;
     launchSource?: string;
     sensorMode?: string;
     deviceId?: string;
@@ -68,6 +70,7 @@ export default function BreathCoherenceRoute() {
   }, [params.chakra]);
 
   const launchSource = typeof params.launchSource === "string" ? params.launchSource : undefined;
+  const soundBed = parseSoundBedId(typeof params.soundBed === "string" ? params.soundBed : undefined);
   useAssistantPracticeOverlayDismiss(launchSource);
 
   return (
@@ -78,6 +81,7 @@ export default function BreathCoherenceRoute() {
         practiceId={practiceId}
         durationMs={durationMs}
         chakra={chakra}
+        soundBed={soundBed}
         launchSource={launchSource}
         sensorMode={
           params.sensorMode === "ble" || params.sensorMode === "none" || params.sensorMode === "fingerCamera"

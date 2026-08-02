@@ -18,6 +18,7 @@ function paramsForCatalogLaunch(launch: PracticeLaunchParams): Record<string, st
       practiceId: launch.practiceId,
       durationMs: String(launch.durationMs),
       chakra: String(launch.chakra),
+      ...(launch.soundBed ? { soundBed: launch.soundBed } : {}),
       ...(launch.sensorMode ? { sensorMode: launch.sensorMode } : {}),
       ...(launch.deviceId ? { deviceId: launch.deviceId } : {}),
       ...(launch.deviceName ? { deviceName: launch.deviceName } : {}),
@@ -43,6 +44,7 @@ function paramsForCatalogLaunch(launch: PracticeLaunchParams): Record<string, st
       practiceId: launch.practiceId,
       ...(launch.durationMs ? { durationMs: String(launch.durationMs) } : {}),
       ...(launch.chakra ? { chakra: String(launch.chakra) } : {}),
+      ...(launch.soundBed ? { soundBed: launch.soundBed } : {}),
     };
   }
 

@@ -172,6 +172,32 @@ function createStaticMeditations(locale: PracticeLocale): PracticeSummary[] {
         chakra: 1,
       },
     },
+    {
+      id: "meditation:calm",
+      slug: "calm",
+      kind: "meditation",
+      title: copy.meditationCalmTitle,
+      subtitle: copy.meditationCalmSubtitle,
+      description: copy.meditationCalmDescription,
+      defaultDurationSec: 30 * 60,
+      minDurationSec: 3 * 60,
+      maxDurationSec: 8 * 60 * 60,
+      durationPolicy: "user_selectable",
+      chakraIds: [],
+      source: "static",
+      params: {
+        duration_policy: "user_selectable",
+        source: "static_calm",
+        counts_in_reports: false,
+        assistant_selectable: false,
+      },
+      launch: {
+        kind: "meditation",
+        route: "/calm-practice",
+        practiceId: "calm",
+        durationMs: 30 * 60_000,
+      },
+    },
   ];
 }
 

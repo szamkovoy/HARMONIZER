@@ -1,5 +1,6 @@
 import type { PlannedCycle } from "@/modules/breath/core/breath-phase-planner";
 import type { AudioBandTrigger } from "@/modules/mandala/core/types";
+import type { SoundBedId } from "@/modules/mandala-sound/core/soundBed";
 
 export type MandalaSoundBand = "beta" | AudioBandTrigger["id"];
 
@@ -12,6 +13,10 @@ export interface MandalaSoundSessionInput {
   isActive: boolean;
   plannedCycle?: PlannedCycle | null;
   cycleStartMs?: number | null;
+  /** Exclusive bed: neuro-sync (default) or a nature ambient loop. */
+  soundBed?: SoundBedId;
+  /** Keep expo-av playing when the screen sleeps (Calm practice). */
+  staysActiveInBackground?: boolean;
 }
 
 export interface MandalaSoundBreathSync {
@@ -66,7 +71,7 @@ export interface MandalaSoundBinauralLoop {
 }
 
 export interface MandalaSoundEngineControls {
-  start(chakra: number): Promise<void>;
+  start(chakra: number, options?: { staysActiveInBackground?: boolean }): Promise<void>;
   update(frame: MandalaSoundSyncFrame): Promise<void>;
-  stop(): Promise<void>;
+  stop(options?: { fadeOutMs?: number }): Promise<void>;
 }

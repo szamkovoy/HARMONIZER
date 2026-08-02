@@ -163,7 +163,13 @@ import {
 } from "@/modules/breath/core/practice-io";
 import { useAuth } from "@/modules/auth";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
-import { MandalaSoundProvider, useMandalaSoundFrame, useMandalaSoundSync } from "@/modules/mandala-sound";
+import {
+  MandalaSoundProvider,
+  SOUND_BED_NEURO_SYNC,
+  useMandalaSoundFrame,
+  useMandalaSoundSync,
+  type SoundBedId,
+} from "@/modules/mandala-sound";
 import { BreathOverlayControlPanel } from "@/modules/breath/ui/BreathOverlayControlPanel";
 import { PpgMiniChart } from "@/modules/breath/ui/PpgMiniChart";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -778,6 +784,7 @@ function CoherenceBreathScreenInner({
   initialPracticeId,
   durationMs,
   chakra,
+  soundBed = SOUND_BED_NEURO_SYNC,
   launchSource,
   sensorMode,
   deviceId,
@@ -792,6 +799,7 @@ function CoherenceBreathScreenInner({
   initialPracticeId?: BreathPracticeId;
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
+  soundBed?: SoundBedId;
   launchSource?: string;
   sensorMode?: BreathSensorMode;
   deviceId?: string;
@@ -5377,6 +5385,7 @@ function CoherenceBreathScreenInner({
             practiceKind="breath"
             durationMs={practiceTotalMs}
             chakra={chakra ?? 4}
+            soundBed={soundBed}
             isActive={
               persistBreathCaptureDuringOsTransition &&
               phase === "running" &&
@@ -6351,6 +6360,7 @@ export interface CoherenceBreathScreenProps {
   practiceId?: BreathPracticeId;
   durationMs?: number;
   chakra?: import("@/modules/breath/core/chakra").Chakra;
+  soundBed?: SoundBedId;
   launchSource?: string;
   sensorMode?: BreathSensorMode;
   deviceId?: string;
@@ -6367,6 +6377,7 @@ export function CoherenceBreathScreen({
   practiceId,
   durationMs,
   chakra,
+  soundBed = SOUND_BED_NEURO_SYNC,
   launchSource,
   sensorMode,
   deviceId,
@@ -6386,6 +6397,7 @@ export function CoherenceBreathScreen({
           initialPracticeId={practiceId}
           durationMs={durationMs}
           chakra={chakra}
+          soundBed={soundBed}
           launchSource={launchSource}
           sensorMode={sensorMode}
           deviceId={deviceId}
