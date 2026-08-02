@@ -53,13 +53,14 @@ function NativeSplashBridge() {
 
 export default function RootLayout() {
   // Палитра — явный выбор пользователя (default light), не system color scheme.
-  const { scheme: paletteScheme } = useThemePreference();
+  const { scheme: paletteScheme, ready: themeReady } = useThemePreference();
   const uiTheme = useMemo(() => buildTheme(paletteScheme), [paletteScheme]);
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
   });
   const nativeHiddenRef = useRef(false);
+  const pendingDismissEarlyRef = useRef(false);
   const [earlyCoverVisible, setEarlyCoverVisible] = useState(true);
 
   const hideNativeSplash = useCallback(() => {
@@ -69,8 +70,20 @@ export default function RootLayout() {
   }, []);
 
   const dismissEarlyCover = useCallback(() => {
+    // Keep branded cover until SecureStore palette is known — otherwise dark
+    // users see white splash → black → light home → dark home.
+    if (!themeReady) {
+      pendingDismissEarlyRef.current = true;
+      return;
+    }
     setEarlyCoverVisible(false);
-  }, []);
+  }, [themeReady]);
+
+  useEffect(() => {
+    if (!themeReady || !pendingDismissEarlyRef.current) return;
+    pendingDismissEarlyRef.current = false;
+    setEarlyCoverVisible(false);
+  }, [themeReady]);
 
   useEffect(() => {
     if (error) throw error;
@@ -82,10 +95,11 @@ export default function RootLayout() {
   }, []);
 
   // Keep EarlySplashCover mounted across fonts→providers so Android never
-  // flashes white between the early cover and AppStartupSplashOverlay.
-  // Native hide only after Image.onLoadEnd (transparent Android 12 icon).
+  // flashes an empty underlay between the early cover and AppStartupSplashOverlay.
+  const rootBg = themeReady ? uiTheme.colors.screenBg : "#ffffff";
+
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView style={[styles.root, { backgroundColor: rootBg }]}>
       {loaded ? (
         <SafeAreaProvider>
           <UiThemeProvider value={uiTheme}>
@@ -117,7 +131,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#ffffff",
   },
   earlyCover: {
     ...StyleSheet.absoluteFillObject,
@@ -221,6 +234,7 @@ function useAuthRouteGate() {
 
 function RootLayoutNav() {
   const theme = useTheme();
+  const { ready: themeReady } = useThemePreference();
   const { initializing, session, profile, profileLoading } = useAuth();
   const { setHomeRouteActive } = useAppStartup();
   const segments = useSegments();
@@ -228,7 +242,14 @@ function RootLayoutNav() {
   useRuntimeDiagnosticsSampler();
 
   const routePath = segments.join("/") || "/";
-  const isHomeRoute = (segments[0] as string | undefined) === "(tabs)" && segments[1] == null;
+  // Cold-start segments are often `[]` before `(tabs)`. Treating that as
+  // “left Home” collapses the splash onto an empty underlay (white/dark flash).
+  const routeSettled = segments.length > 0;
+  const tabSeg = segments[0] as string | undefined;
+  const leafSeg = segments[1] as string | undefined;
+  const onTabsHome =
+    tabSeg === "(tabs)" && (leafSeg == null || leafSeg === "index");
+  const isHomeRoute = !routeSettled || onTabsHome;
   // Только первый cold-start, пока `profile` ещё null. Повторный refreshProfile
   // (foreground / realtime) не должен размонтировать табы и Communicator —
   // иначе открытый диалог сбрасывается при уходе в Health и обратно.
@@ -253,24 +274,24 @@ function RootLayoutNav() {
     });
   };
 
-  // Пока читаем сессию / профиль — белый фон как у сплэша (не dark screenBg),
-  // иначе на Android с тёмной системной темой мигает чёрный кадр под оверлеем.
-  // Сплэш-скрин Expo уже скрыт (fonts loaded); JS-оверлей рисует картинку сверху.
-  if (initializing || waitingForProfile) {
+  // Hold blank underlay until auth + palette hydrate. Match splash white while
+  // EarlySplashCover / AppStartup overlay are up; after themeReady use screenBg
+  // so dark users do not get a light Stack flash under the fading splash.
+  if (!themeReady || initializing || waitingForProfile) {
     return (
       <View
         style={{
           flex: 1,
-          backgroundColor: "#ffffff",
+          backgroundColor: themeReady ? theme.colors.screenBg : "#ffffff",
         }}
       />
     );
   }
 
   return (
-    <View style={{ flex: 1 }} onTouchStart={handleRootTouch}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.screenBg }} onTouchStart={handleRootTouch}>
       <NavThemeProvider value={theme.scheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack>
+        <Stack screenOptions={{ contentStyle: { backgroundColor: theme.colors.screenBg } }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="sign-in"

@@ -328,8 +328,9 @@ export function AppStartupProvider({
   /** Session restored but `users` row not yet — RootLayoutNav shows a white gate; keep splash over it. */
   const waitingForProfile = Boolean(session) && profileLoading && profile == null;
   /**
-   * Cold-start segments are often `[]` before `(tabs)` — do not treat that as
-   * “left Home” or the splash collapses onto the white profile gate.
+   * Auth / first profile fetch. Empty Expo Router segments after that are handled
+   * by `isHomeRoute` from RootLayoutNav (unsettled route still counts as Home),
+   * so we do not clear `blocking` and collapse splash onto an empty underlay.
    */
   const coldStartHold = initializing || waitingForProfile;
 
@@ -473,6 +474,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   splashOverlay: {
+    // Branded splash art is light; underlay stays white while the image covers.
+    // Theme-colored root / Stack sit underneath after dismiss (no white flash).
     backgroundColor: "#FFFFFF",
   },
   splashImageWrap: {

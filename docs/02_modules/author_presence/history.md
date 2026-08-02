@@ -9,7 +9,8 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
-- **2026-08-02 (stories ring avatar flash):** При ошибке `get_story_feed` клиент возвращал `[]`, и `StoriesRing` рисовал бренд-аватар поверх уже известных evergreen-сторис. Fix: ошибка fetch → keep warm-cache; UI `peekStoryFeedForUi` (stale-while-revalidate); cold start без cache — spinner + один retry, бренд-аватар только после settled empty; успешный пустой feed по-прежнему очищает кольцо.
+- **2026-08-02 (stories cold placeholder):** Cold-start без feed — тихий circle (`surfaceElevated` + read stroke) вместо `ActivityIndicator`, чтобы не мелькал chrome после splash.
+- **2026-08-02 (stories ring avatar flash):** При ошибке `get_story_feed` клиент возвращал `[]`, и `StoriesRing` рисовал бренд-аватар поверх уже известных evergreen-сторис. Fix: ошибка fetch → keep warm-cache; UI `peekStoryFeedForUi` (stale-while-revalidate); cold start без cache — quiet placeholder + один retry, бренд-аватар только после settled empty; успешный пустой feed по-прежнему очищает кольцо.
 
 - **2026-07-29 (post translate timeout + EN≠RU):** «Перевести» с EN таймаутил (client 45s / LLM 30s на 6–7 локалей). Чанки по 3, `maxDuration` 180, client timeout 180s, per-call 90s. Источник = активная вкладка; с не-RU не заполняем русский.
 

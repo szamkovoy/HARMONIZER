@@ -4,10 +4,10 @@
  *
  * iOS: `enableFullScreenImage_legacy: true` + `EarlySplashCover` (явные
  * `useWindowDimensions`, cover) до / через handoff к AppStartup.
- * Android 12+: `with-android-splash-hide-icon` (прозрачный system icon) +
- * тот же EarlySplashCover; hide native только после Image.onLoadEnd.
+ * Android 12+: видимая centered splash-icon (hide-icon plugin отключён —
+ * прозрачный icon давал белый hang) + тот же EarlySplashCover.
  * Full-bleed JS с явными width/height (не absoluteFill).
- * Смена PNG / опций плагина / hide-icon → native rebuild.
+ * Смена PNG / опций плагина → native rebuild / prebuild.
  */
 import type { ImageSourcePropType } from "react-native";
 

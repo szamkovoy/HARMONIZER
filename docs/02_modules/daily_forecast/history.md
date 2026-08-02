@@ -38,6 +38,7 @@ code_refs:
 
 - **2026-07-22 (Day prefetch tabs-early + disk paint):** Долгий спиннер «День» на Android, когда вкладку открывали до готовности Home / при пустой memory. Fix: `ensureDayPlanPrefetch` с mount tabs (auth+locale), Home только усиливает; Day initial state из prefetch; focus рисует current SecureStore параллельно сети.
 
+- **2026-08-02 (Day action icons dark theme):** Pencil/trash PNG в «Психо-практики» оставались чёрными на dark card. Fix: `tintColor: theme.colors.textMuted` (как chevron с accent).
 - **2026-07-21 (Day actions optimistic UX):** Rename/delete действий в «Психо-практики» ждали PATCH + `refresh({ showRefreshing })` со спиннером. Fix: optimistic update списка сразу; rename без reload; delete + тихий `refresh` для сфер; откат при ошибке.
 
 - **2026-07-21 (Day practice optimistic UX):** Выбор/отмена практики на «День» ждали `POST/PATCH` + полный `refresh` → лаг ~1с, закрытие меню без карточки, спиннер, второе обновление, иногда смена duration/chakra. Fix: optimistic `pendingPractice` сразу; сеть в фоне; после POST только patch `id`; cancel инвалидирует in-flight через seq + cancel orphaned id; без full reload.

@@ -1,3 +1,5 @@
+- 2026-08-02 (400): Android splash — restore visible native icon (no white hang); keep splash on unsettled route; theme-colored root/Stack underlay.
+- 2026-08-02 (399): Android splash — no early hideAsync race; wait theme.ready before EarlyCover/Stack (dark flash); Day pencil/trash tint; stories quiet cold placeholder.
 - 2026-08-02 (398): Communicator mic — ignore Android AppState inactive + settle-grace after record start (Samsung shutter-jerk / dead mic).
 - 2026-08-02 (397): Stories cold-start spinner + retry; breath QC fail dialog ~3s before ring «0».
 - 2026-08-02 (396): Stories ring — keep warm feed on RPC/network errors (no brand-avatar flash over existing stories).

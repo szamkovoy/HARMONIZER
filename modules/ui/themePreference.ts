@@ -34,7 +34,7 @@ export function getThemePreferenceSync(): PaletteScheme {
 }
 
 export async function hydrateThemePreference(): Promise<PaletteScheme> {
-  if (cachedPreference) return cachedPreference;
+  if (cachedPreference != null) return cachedPreference;
   const SecureStore = getSecureStore();
   try {
     if (SecureStore) {
@@ -48,6 +48,9 @@ export async function hydrateThemePreference(): Promise<PaletteScheme> {
   }
   return cachedPreference;
 }
+
+/** Start SecureStore read ASAP so cold start often has palette before first paint. */
+void hydrateThemePreference();
 
 export async function setThemePreference(scheme: PaletteScheme): Promise<void> {
   cachedPreference = scheme === "dark" ? "dark" : "light";

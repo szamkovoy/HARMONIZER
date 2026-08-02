@@ -373,10 +373,18 @@ function DayActionRow({
               />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={strings.editActionA11y} onPress={() => setEditing(true)} style={styles.iconButton}>
-              <Image source={dayActionPencilIcon} style={styles.actionGlyphIcon} resizeMode="contain" />
+              <Image
+                source={dayActionPencilIcon}
+                style={[styles.actionGlyphIcon, { tintColor: theme.colors.textMuted }]}
+                resizeMode="contain"
+              />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={strings.deleteActionA11y} onPress={remove} style={styles.iconButton}>
-              <Image source={dayActionTrashIcon} style={styles.actionGlyphIcon} resizeMode="contain" />
+              <Image
+                source={dayActionTrashIcon}
+                style={[styles.actionGlyphIcon, { tintColor: theme.colors.textMuted }]}
+                resizeMode="contain"
+              />
             </Pressable>
           </View>
         ) : null}

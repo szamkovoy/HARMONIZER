@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Image, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useAuth } from "@/modules/auth";
@@ -230,7 +230,13 @@ export function StoriesRing() {
     return (
       <View style={styles.plainAvatar}>
         {!feedReady ? (
-          <ActivityIndicator color={theme.colors.accent} />
+          // Quiet placeholder (no spinner) — avoids post-splash chrome flicker on cold start.
+          <View
+            style={[
+              styles.thumb,
+              { backgroundColor: theme.colors.surfaceElevated, borderColor: ringStrokes.read, borderWidth: STROKE_WIDTH },
+            ]}
+          />
         ) : (
           <BrandAvatar />
         )}

@@ -1,19 +1,15 @@
 /**
- * Android 12+ SplashScreen API only shows a centered icon (≤288dp) — never a
- * full-bleed image. That causes a visible small→large jump when JS
- * `EarlySplashCover` takes over with the real splash art.
+ * DISABLED — kept for history only. Do not register in `app.config.ts`.
  *
- * Must use `withFinalizedMod` (after all other mods write files):
- * - `withDangerousMod` runs *before* other mods
- * - `withAndroidStyles` from a late plugin runs *before* `expo-splash-screen`
- *   style mods (LIFO), so the theme may not exist yet
+ * Transparent Android 12 `windowSplashScreenAnimatedIcon` + white splash
+ * background caused intermittent solid-white hangs before JS
+ * `EarlySplashCover` painted (Pixel QA 2026-08-02). A brief centered native
+ * icon is preferable to a blank death screen.
  *
- * Replaces `windowSplashScreenAnimatedIcon` with a transparent drawable and
- * drops `android:windowSplashScreenBehavior` so the OS splash is only the
- * background color until `SplashScreen.hideAsync()` reveals the JS cover.
- *
- * Pair with `EarlySplashCover` that calls hide only after `Image.onLoadEnd`
- * (hiding earlier → blank white death screen).
+ * ---
+ * Original intent: Android 12+ SplashScreen API only shows a centered icon
+ * (≤288dp). Hiding it avoided a small→large jump when EarlySplashCover took
+ * over. Must use `withFinalizedMod` after expo-splash-screen writes styles.
  */
 const { withFinalizedMod } = require("expo/config-plugins");
 const fs = require("node:fs");

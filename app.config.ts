@@ -262,9 +262,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "./plugins/with-android-location-permission-merge.js",
       "react-native-health-connect",
       "./plugins/with-native-health.js",
-      // After expo-splash-screen (in app.json): hide Android 12+ centered icon.
-      // Must pair with EarlySplashCover hide-only-after Image.onLoadEnd.
-      "./plugins/with-android-splash-hide-icon.js",
+      // NOTE: do NOT re-enable `with-android-splash-hide-icon`.
+      // Transparent Android 12 icon + white splash bg = intermittent solid-white
+      // hang before JS EarlySplashCover paints (Pixel QA 2026-08-02). Prefer a
+      // brief centered native icon over a blank death screen.
     ],
   };
 };
