@@ -137,6 +137,7 @@ export const PracticeCard = memo(function PracticeCard({
   const [openField, setOpenField] = useState<SelectField>(null);
   const [wearablePickerVisible, setWearablePickerVisible] = useState(false);
   const [breathHelpVisible, setBreathHelpVisible] = useState(false);
+  const [meditationHelpVisible, setMeditationHelpVisible] = useState(false);
   const rememberedProbeRef = useRef<{ probing: boolean; available: boolean | null }>({
     probing: false,
     available: null,
@@ -555,6 +556,14 @@ export const PracticeCard = memo(function PracticeCard({
                   onPress: () => setBreathHelpVisible(true),
                 }}
               />
+            ) : practice.kind === "meditation" ? (
+              <SurfaceCardTitleRow
+                title={practice.title}
+                help={{
+                  accessibilityLabel: strings.meditationHelpButtonAccessibilityLabel,
+                  onPress: () => setMeditationHelpVisible(true),
+                }}
+              />
             ) : (
               <AppText variant="sectionTitle">{practice.title}</AppText>
             )}
@@ -760,6 +769,19 @@ export const PracticeCard = memo(function PracticeCard({
           closeLabel={strings.breathHelpCloseLabel}
           onClose={() => setBreathHelpVisible(false)}
           body={strings.breathHelpBody}
+        />
+      ) : null}
+      {practice.kind === "meditation" ? (
+        <SurfaceHelpModal
+          visible={meditationHelpVisible}
+          title={
+            isCalm
+              ? strings.meditationCalmHelpModalTitle
+              : strings.meditationFlashHelpModalTitle
+          }
+          closeLabel={strings.breathHelpCloseLabel}
+          onClose={() => setMeditationHelpVisible(false)}
+          body={isCalm ? strings.meditationCalmHelpBody : strings.meditationFlashHelpBody}
         />
       ) : null}
     </>

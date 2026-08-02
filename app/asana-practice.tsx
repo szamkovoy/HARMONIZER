@@ -173,7 +173,8 @@ export default function AsanaPracticeRoute() {
         type: string;
         seconds?: number;
       };
-      if (data.type === "ready" || data.type === "play") {
+      if (data.type === "ready" || data.type === "play" || data.type === "loaded") {
+        // `loaded`/`ready` fire after Vimeo player.ready() (poster path); wall-clock may start here.
         ensureWallStarted();
       } else if (data.type === "ended") {
         ensureWallStarted();
@@ -348,6 +349,10 @@ function PhonePlayer({
   // Android prefers the hosted page; if it 404s (not uploaded yet), fall back to
   // html+baseUrl with originWhitelist "*". iOS always uses the proven html path.
   const [androidUseHtmlFallback, setAndroidUseHtmlFallback] = useState(false);
+
+  useEffect(() => {
+    setAndroidUseHtmlFallback(false);
+  }, [vimeoId]);
 
   if (loading) {
     return (

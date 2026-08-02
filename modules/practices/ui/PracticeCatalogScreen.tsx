@@ -389,8 +389,23 @@ export function PracticeCatalogScreen() {
       setLockedFeature("asana_practices");
       return;
     }
+    if (practice.kind === "yoga" && practice.launch.kind === "yoga") {
+      const thumb =
+        yogaThumbnails[practice.id]?.url?.trim()
+        || practice.video?.thumbnail?.url?.trim()
+        || practice.launch.thumbnailUrl?.trim()
+        || "";
+      launchPractice(
+        {
+          ...practice.launch,
+          ...(thumb ? { thumbnailUrl: thumb } : {}),
+        },
+        { launchSource: "catalog" },
+      );
+      return;
+    }
     launchPractice(practice.launch, { launchSource: "catalog" });
-  }, [asanaAllowed, breathAllowed, meditationAllowed]);
+  }, [asanaAllowed, breathAllowed, meditationAllowed, yogaThumbnails]);
 
   const onRemotePlay = useCallback(
     async (practice: PracticeSummary) => {

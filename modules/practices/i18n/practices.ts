@@ -107,6 +107,12 @@ export interface PracticeCatalogStrings {
   breathHelpModalTitle: string;
   breathHelpBody: string;
   breathHelpCloseLabel: string;
+  /** Shared «?» a11y on meditation PracticeCards (Flash / Calm). */
+  meditationHelpButtonAccessibilityLabel: string;
+  meditationFlashHelpModalTitle: string;
+  meditationFlashHelpBody: string;
+  meditationCalmHelpModalTitle: string;
+  meditationCalmHelpBody: string;
   breathDescriptions: Record<BreathPracticeId, string>;
   meditationFlashTitle: string;
   meditationFlashSubtitle: string;
@@ -165,7 +171,7 @@ const ru: PracticeCatalogStrings = {
   chakraLabel: "Чакра",
   soundLabel: "Звук",
   soundBeds: {
-    "neuro-sync": "Neuro-sync",
+    "neuro-sync": "Нейро-ритмы",
     creek: "Ручей",
     waves: "Шум прибоя",
     rain: "Дождь",
@@ -223,8 +229,15 @@ const ru: PracticeCatalogStrings = {
   breathHelpButtonAccessibilityLabel: "Пояснение к настройке дыхательной практики",
   breathHelpModalTitle: "О параметрах практики",
   breathHelpBody:
-    "Выберите длительность практики, на какую чакру она должна быть направлена, звуковой фон и используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».\n\nВ поле «Звук» можно оставить Neuro-sync или выбрать один из звуков природы. Чтобы Neuro-sync (бинауральный слой) оказывал на вас воздействие, выполняйте практику в наушниках.\n\nЕсли практика предлагает слишком быстрое или медленное дыхание, тапните на экране и на всплывающей панели измените скорость индикатора дыхания.",
+    "Выберите длительность практики, на какую чакру она должна быть направлена, звуковой фон и используемый пульсометр.\n\nВаш телефон может хорошо справляться с задачей. Но для стабильного сигнала, а также возможности вычисления вариабельности сердечного ритма и т.п. я рекомендую использовать нагрудный Bluetooth пульсометр. Лучший - Polar H10. Другие модели (Coospo, Magene...) проверяйте на совместимость перед покупкой.\n\nДля подключения Bluetooth пульсометра выберите пункт «Найти пульсометр».\n\nВ поле «Звук» можно оставить «Нейро-ритмы» или выбрать один из звуков природы. Чтобы «Нейро-ритмы» (бинауральный слой) оказывали на вас воздействие, выполняйте практику в наушниках.\n\nЕсли практика предлагает слишком быстрое или медленное дыхание, тапните на экране и на всплывающей панели измените скорость индикатора дыхания.",
   breathHelpCloseLabel: "Закрыть",
+  meditationHelpButtonAccessibilityLabel: "Пояснение к медитации",
+  meditationFlashHelpModalTitle: "О медитации «Вспышка»",
+  meditationFlashHelpBody:
+    "Эта короткая медитация будет полезна, когда вы вовлеклись в сложное эмоциональное состояние, и нужно быстро из него выбраться. А также в моменты «окон возможностей», когда у вас нет времени на длительную практику.\n\nДля лучшего эффекта выберите звук «Нейро-ритмы» и воспользуйтесь наушниками — иначе этот звук воздействия не оказывает.\n\nЧтобы досрочно завершить практику, тапните по экрану.",
+  meditationCalmHelpModalTitle: "О медитации «Спокойствие»",
+  meditationCalmHelpBody:
+    "Чтобы сбросить накопившееся ментальное напряжение и переключиться в режим восстановления, выполняйте эту медитацию.\n\nОсобенно полезна она вечером и перед сном. Вы можете включать её хоть на всю ночь — если, например, вы лучше спите под звуки дождя.\n\nЧтобы досрочно завершить практику, тапните по экрану.\n\nТак как эта практика направлена на расслабление, а не на развитие, в отчётах по практикам она не учитывается.",
   breathDescriptions: {
     coherent:
       "Создаёт глубокий физиологический резонанс между сердцем и мозгом, переводя всю систему в режим максимальной энергоэффективности и эмоциональной неуязвимости.",
@@ -299,7 +312,7 @@ const en: PracticeCatalogStrings = {
   chakraLabel: "Chakra",
   soundLabel: "Sound",
   soundBeds: {
-    "neuro-sync": "Neuro-sync",
+    "neuro-sync": "Neuro-rhythms",
     creek: "Creek",
     waves: "Waves",
     rain: "Rain",
@@ -357,8 +370,15 @@ const en: PracticeCatalogStrings = {
   breathHelpButtonAccessibilityLabel: "Explain breathing practice settings",
   breathHelpModalTitle: "About practice settings",
   breathHelpBody:
-    "Choose the practice duration, which chakra it should target, the sound bed, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».\n\nIn Sound you can keep Neuro-sync or pick one nature bed. For Neuro-sync (binaural layer) to affect you, do the practice with headphones.\n\nIf the practice feels too fast or too slow, tap the screen and change the breathing indicator speed on the popup panel.",
+    "Choose the practice duration, which chakra it should target, the sound bed, and which heart-rate monitor to use.\n\nYour phone can handle the task well. But for a stable signal — and to compute heart-rate variability and similar metrics — I recommend a chest Bluetooth heart-rate monitor. The best is Polar H10. For other models (Coospo, Magene, and similar), check compatibility before buying.\n\nTo connect a Bluetooth heart-rate monitor, choose «Find heart-rate monitor».\n\nIn Sound you can keep Neuro-rhythms or pick one nature bed. For Neuro-rhythms (binaural layer) to affect you, do the practice with headphones.\n\nIf the practice feels too fast or too slow, tap the screen and change the breathing indicator speed on the popup panel.",
   breathHelpCloseLabel: "Close",
+  meditationHelpButtonAccessibilityLabel: "Explain this meditation",
+  meditationFlashHelpModalTitle: "About Flash meditation",
+  meditationFlashHelpBody:
+    "This short meditation helps when you are caught in a difficult emotional state and need a quick way out. It is also useful in opportunity windows when you do not have time for a longer practice.\n\nFor the best effect, choose the Neuro-rhythms sound and use headphones — otherwise that sound has no effect.\n\nTo end the practice early, tap the screen.",
+  meditationCalmHelpModalTitle: "About Calm meditation",
+  meditationCalmHelpBody:
+    "Use this meditation to release built-up mental tension and shift into recovery mode.\n\nIt is especially helpful in the evening and before sleep. You can leave it on all night — for example if you sleep better to the sound of rain.\n\nTo end the practice early, tap the screen.\n\nBecause this practice is for relaxation rather than development, it is not counted in practice reports.",
   breathDescriptions: {
     coherent:
       "Creates deep physiological resonance between heart and brain, shifting the whole system toward energy efficiency and emotional steadiness.",

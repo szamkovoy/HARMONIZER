@@ -166,8 +166,7 @@ type CommunicatorListRow =
   | { kind: "assistant"; id: string; message: CommunicatorHistoryMessage }
   | { kind: "stream"; id: "__stream__" };
 
-/** Короткие ответы — сразу в историю, без отложенного «догона» после сети. */
-const SHORT_ASSISTANT_DEFER_THRESHOLD = 14;
+/** Safety net if paced line reveal never signals complete. */
 const DEFERRED_ASSISTANT_COMMIT_TIMEOUT_MS = 8000;
 const SESSION_HYDRATION_RETRY_DELAYS_MS = [700, 1400, 2600, 4200] as const;
 const PLANNING_RECONCILE_DELAY_MS = HARMONIZER_TEST_MODE ? 1500 : 10 * 60 * 1000;
@@ -436,6 +435,16 @@ function practiceToSummary(practice: PracticePicked): PracticeSummary | null {
         chakra: typeof (chakra ?? baseChakra) === "number"
           ? ((chakra ?? baseChakra) as PracticeLaunchParams["chakra"])
           : undefined,
+        ...(typeof launchParams.vimeoId === "string" && launchParams.vimeoId.trim()
+          ? { vimeoId: launchParams.vimeoId.trim() }
+          : practice.video?.externalId?.trim()
+            ? { vimeoId: practice.video.externalId.trim() }
+            : {}),
+        ...(typeof launchParams.thumbnailUrl === "string" && launchParams.thumbnailUrl.trim()
+          ? { thumbnailUrl: launchParams.thumbnailUrl.trim() }
+          : practice.video?.thumbnail?.url?.trim()
+            ? { thumbnailUrl: practice.video.thumbnail.url.trim() }
+            : {}),
       },
     };
   }
@@ -1471,17 +1480,9 @@ export function Communicator({
           });
         }
       }
-      const contentLenSource =
-        finalText.length > 0 ? finalText : fallbackAssistantText;
-      const strippedLen = stripDialogScaffoldMarkdown(
-        stripStreamingMarkers(contentLenSource),
-      ).length;
-      const deferAllowed =
-        !recoveredFromSession &&
-        mergedText.trim().length > 0 &&
-        strippedLen > SHORT_ASSISTANT_DEFER_THRESHOLD &&
-        !hydratedComplete?.practicePicked &&
-        hydratedComplete?.shouldClose !== true;
+      // Live stream: always defer flush until StreamingAssistantLines finishes paced reveal.
+      // Session-hydrated turns (no local stream text) commit immediately.
+      const deferAllowed = !recoveredFromSession && mergedText.trim().length > 0;
       if (!deferAllowed) {
         setPendingRevealGoal(null);
         if (options?.replaceAll) {

@@ -13,6 +13,7 @@ code_refs:
     modules/communicator/core/voiceTurnPipeline.ts,
     modules/communicator/core/transcriptionGuard.ts,
     modules/communicator/ui/StreamingAssistantLines.tsx,
+    modules/communicator/ui/assistantLineReveal.ts,
     services/communicator-client.ts,
     services/dialogSessionCache.ts,
     modules/i18n/index.ts,

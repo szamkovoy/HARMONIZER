@@ -298,6 +298,9 @@ function yogaPracticeFromRow(row: YogaCatalogRow, locale: PracticeLocale): Pract
       ...(row.video_external_id?.trim()
         ? { vimeoId: row.video_external_id.trim() }
         : {}),
+      ...(video?.thumbnail?.url?.trim()
+        ? { thumbnailUrl: video.thumbnail.url.trim() }
+        : {}),
     },
   };
 }

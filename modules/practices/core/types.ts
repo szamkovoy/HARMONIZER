@@ -78,6 +78,8 @@ export type PracticeLaunchParams =
       chakra?: Chakra;
       /** Catalog already knows the Vimeo id — pass through so the player need not wait on Supabase. */
       vimeoId?: string;
+      /** Catalog thumbnail — shown over the black WebView until Vimeo reports `loaded`. */
+      thumbnailUrl?: string;
     };
 
 export interface PracticeSummary {

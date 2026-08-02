@@ -36,6 +36,7 @@ function paramsForCatalogLaunch(launch: PracticeLaunchParams): Record<string, st
       ...(launch.durationMs ? { durationMs: String(launch.durationMs) } : {}),
       ...(launch.chakra ? { chakra: String(launch.chakra) } : {}),
       ...(launch.vimeoId?.trim() ? { vimeoId: launch.vimeoId.trim() } : {}),
+      ...(launch.thumbnailUrl?.trim() ? { thumbnailUrl: launch.thumbnailUrl.trim() } : {}),
     };
   }
 

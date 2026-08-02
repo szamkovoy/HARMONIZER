@@ -46,7 +46,10 @@ describe("vimeoEmbedHtml", () => {
       'src="https://player.vimeo.com/video/1111204587?audiotrack=ru"',
     );
     expect(html).toContain('allow="autoplay; fullscreen; encrypted-media"');
-    expect(html).toContain('allowfullscreen');
+    expect(html).toContain("allowfullscreen");
+    // Poster unlock before quality/play work (avoids long black frame).
+    expect(html).toContain("type:'loaded'");
+    expect(html).toContain("pickQuality(p)");
   });
 
   it("honours a custom audiotrack slug inside the iframe src", () => {

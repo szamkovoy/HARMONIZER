@@ -70,6 +70,30 @@ describe("launchPractice", () => {
     });
   });
 
+  it("launches catalog yoga with vimeoId and thumbnailUrl", () => {
+    expect(
+      launchPractice(
+        {
+          kind: "yoga",
+          route: "/asana-practice",
+          practiceId: "yoga-1",
+          vimeoId: "1111204587",
+          thumbnailUrl: "https://i.vimeocdn.com/video/x.jpg",
+        },
+        { launchSource: "catalog" },
+      ),
+    ).toBe(true);
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/asana-practice",
+      params: {
+        practiceId: "yoga-1",
+        vimeoId: "1111204587",
+        thumbnailUrl: "https://i.vimeocdn.com/video/x.jpg",
+        launchSource: "catalog",
+      },
+    });
+  });
+
   it("returns false when launch payload is absent", () => {
     expect(launchPractice(null)).toBe(false);
     expect(mocks.push).not.toHaveBeenCalled();

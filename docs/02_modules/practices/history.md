@@ -17,6 +17,12 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-02 (meditation help «?»):** На карточках «Вспышка» и «Спокойствие» — `SurfaceCardTitleRow` + `SurfaceHelpModal` (как у breath); тексты `meditationFlashHelp*` / `meditationCalmHelp*` (RU/EN + EU PREMIUM fill).
+
+- **2026-08-02 (Neuro-rhythms i18n):** UI-подпись bed `neuro-sync`: RU «Нейро-ритмы», EN «Neuro-rhythms», DE/FR/IT/ES/PT/NL — локальные формы; то же в `breathHelpBody`.
+
+- **2026-08-02 (asana poster load):** Длинный чёрный кадр в телефонном Vimeo: quality selection ждал до play. Fix: `loaded`/`ready` после `player.ready()`, `pickQuality` в фоне; синхронно `web_cabinet/asana-embed.html` (деплой на zamkovoi.yoga для Android URI). RN spinner/thumbnail-оверлей убран после QA: обложка и так быстрая, а оверлей залипал и перекрывал плеер.
+
 - **2026-08-02 (Calm / Спокойствие):** Статическая практика slug `calm` в группе медитаций: только duration+sound, без чакры; экран `/calm-practice` (картинка + bed); **не** пишется в `practice_sessions` / отчёты; **не** добавляется в assistant `practiceSelection` (только «Вспышка»). Prefs duration/sound в SecureStore только для Calm. Background audio (`staysActiveInBackground` + iOS `UIBackgroundModes: audio`). Stop confirm без текста про незачёт. Бинаурал — общая сигмоида (вариант A).
 
 - **2026-08-02 (sound bed ComboBox):** На карточках breath/meditation — ComboBox «Звук»: `neuro-sync` (default) или один из 8 nature beds; param `soundBed` в `PracticeLaunchParams` / `launchPractice` → экраны → `MandalaSoundProvider`. Yoga без выбора. Help дыхания обновлён (звук + наушники для Neuro-sync). i18n: `soundLabel` / `soundBeds.*` RU/EN + EU overlays.

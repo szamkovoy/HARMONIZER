@@ -20,6 +20,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-02 (line reveal unify):** Все live-ответы ассистента — единый построчный FadeIn (`StreamingAssistantLines` + `assistantLineReveal.ts`): без побуквенного хвоста, без мгновенного dump на practice/terminal/short; defer commit пока paced reveal не закончится. История/cache — статичный `AssistantBubble`.
 - **2026-08-02 (mic cancel gray):** Круг под крестиком cancel — `#bdbdbd` (было `#a8a8a8`), светлее по запросу UI.
 - **2026-08-02 (Samsung mic rock-solid):** QA audrone (Samsung): после Allow mic «не пишет». Cause candidates: warmup `cancel` на long pressOut / AppState `background` во время permission sheet; silent drop коротких takes. Fix: during warmup pressOut → всегда `enter_tap_toggle` (не `cancel_warmup`); AppState background/inactive не рвёт warmup/permission; слишком короткий/пустой take → Alert `voiceTooShortMessage` (8 локалей).
 - **2026-08-01 (mic footer height):** Панель с микрофоном: вертикальный inset ≈ 30% диаметра кнопки над/под кругом (`MIC_FOOTER_EDGE_PAD` + layout wrap); убраны `voiceCol.minHeight: 108` и hit-box 120×120. Область чата (`flex: 1`) автоматически выше. Фон футера = `screenBg` (как шапка «Ассистент дня» и лента чата); разделитель `borderTop` убран.

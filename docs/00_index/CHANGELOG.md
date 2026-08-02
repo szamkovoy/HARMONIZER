@@ -1,3 +1,7 @@
+- 2026-08-02 (390): Meditation cards — «?» help for Flash/Calm (SurfaceHelpModal); EU PREMIUM fill.
+- 2026-08-02 (389): Practices sound bed — localize Neuro-sync → «Нейро-ритмы» (+ EU overlays).
+- 2026-08-02 (388): Asana phone player — faster Vimeo poster path; no RN spinner overlay (blocked play).
+- 2026-08-02 (387): Communicator — unify assistant reveal: paced lines (not chars); defer all live turns.
 - 2026-08-02 (386): Communicator mic cancel — circle `#bdbdbd` (lighter gray).
 - 2026-08-02 (385): Mandala sound — shorter practice fade-in/out (~0.6 s / ~0.8 s).
 - 2026-08-02 (384): Practices — «Спокойствие» (Calm): catalog card, image+sound screen, no reports/assistant; background audio.

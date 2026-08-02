@@ -29,6 +29,9 @@
  * `vimeoAudiotrackForLocale(locale)` to derive the slug and pass it to both
  * helpers; the phone player and the TV launch path must agree on it so a
  * non-Russian app locale plays the English track on both surfaces.
+ *
+ * Phone WebView bridge events: `loaded` (poster/player ready — hide RN spinner),
+ * `ready`/`play`/`time`/`duration`/`ended`/`pause`/`error` as before.
  */
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
 
@@ -61,6 +64,49 @@ export function vimeoPhoneEmbedPageUrl(
   return `${VIMEO_PHONE_EMBED_PAGE_URL}?${qs.toString()}`;
 }
 
+/** Shared player bootstrap used by `vimeoEmbedHtml` and `web_cabinet/asana-embed.html`. */
+export function vimeoPhonePlayerBootstrapScript(): string {
+  return [
+    "(function(){",
+    "  var iframe=document.getElementById('v');",
+    "  var send=function(obj){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify(obj));}catch(e){}};",
+    "  function pickQuality(p){",
+    "    p.getQualities().then(function(qs){",
+    "      var best=null;",
+    "      for(var i=0;i<qs.length;i++){if(qs[i].id!=='auto'&&qs[i].active){best=qs[i];}}",
+    "      if(!best){for(var i=0;i<qs.length;i++){if(qs[i].id!=='auto'){best=qs[i];break;}}}",
+    "      if(best){p.setCurrentQuality(best.id).catch(function(){});}",
+    "    }).catch(function(){});",
+    "  }",
+    "  function attach(){",
+    "    if(!window.Vimeo){setTimeout(attach,80);return;}",
+    "    var p=new Vimeo.Player(iframe);",
+    "    p.on('play',function(){send({type:'play'});});",
+    "    p.on('pause',function(){send({type:'pause'});});",
+    "    p.on('ended',function(){send({type:'ended'});});",
+    "    p.on('timeupdate',function(d){if(d&&typeof d.seconds==='number'){send({type:'time',seconds:Math.floor(d.seconds)});}});",
+    "    p.on('error',function(e){send({type:'error',message:(e&&e.message)||'vimeo_error'});});",
+    "    p.on('loaded',function(){send({type:'loaded'});});",
+    "    p.ready().then(function(){",
+    "      // Poster is available — unlock RN overlay before play/quality work.",
+    "      send({type:'loaded'});",
+    "      send({type:'ready'});",
+    "      p.getDuration().then(function(d){if(typeof d==='number'&&d>0){send({type:'duration',seconds:Math.floor(d)});}}).catch(function(){});",
+    "      // Do not await quality before first frame — it delayed the black→poster transition.",
+    "      pickQuality(p);",
+    "      p.setVolume(1).catch(function(){});",
+    "      p.setMuted(false).catch(function(){});",
+    "      p.play().then(function(){send({type:'play'});}).catch(function(){",
+    "        p.setMuted(true).catch(function(){});",
+    "        p.play().catch(function(){});",
+    "      });",
+    "    }).catch(function(){});",
+    "  }",
+    "  attach();",
+    "})();",
+  ].join("");
+}
+
 export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK): string {
   const src = vimeoEmbedUrl(vimeoId, audiotrack);
   return [
@@ -78,34 +124,7 @@ export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAU
     `<iframe src="${src}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; encrypted-media" allowfullscreen id="v"></iframe>`,
     '<script src="https://player.vimeo.com/api/player.js"></script>',
     "<script>",
-    "(function(){",
-    "  var iframe=document.getElementById('v');",
-    "  var send=function(obj){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify(obj));}catch(e){}};",
-    "  send({type:'ready'});",
-    "  function attach(){",
-    "    if(!window.Vimeo){setTimeout(attach,120);return;}",
-    "    var p=new Vimeo.Player(iframe);",
-    "    p.on('play',function(){send({type:'play'});});",
-    "    p.on('pause',function(){send({type:'pause'});});",
-    "    p.on('ended',function(){send({type:'ended'});});",
-    "    p.on('timeupdate',function(d){if(d&&typeof d.seconds==='number'){send({type:'time',seconds:Math.floor(d.seconds)});}});",
-    "    try{p.ready().then(function(){",
-    "      p.getDuration().then(function(d){if(typeof d==='number'&&d>0){send({type:'duration',seconds:Math.floor(d)});}}).catch(function(){});",
-    "      p.getQualities().then(function(qs){var best=null;for(var i=0;i<qs.length;i++){if(qs[i].id!=='auto'&&qs[i].active){best=qs[i];}}",
-    "        if(!best){for(var i=0;i<qs.length;i++){if(qs[i].id!=='auto'){best=qs[i];break;}}}",
-    "        if(best){p.setCurrentQuality(best.id).catch(function(){});}",
-    "      }).catch(function(){});",
-    "      // Android WebView often leaves the iframe black until an explicit play().",
-    "      p.setVolume(1).catch(function(){});",
-    "      p.setMuted(false).catch(function(){});",
-    "      p.play().then(function(){send({type:'play'});}).catch(function(){",
-    "        p.setMuted(true).catch(function(){});",
-    "        p.play().catch(function(){});",
-    "      });",
-    "    }).catch(function(){});}catch(e){}",
-    "  }",
-    "  attach();",
-    "})();",
+    vimeoPhonePlayerBootstrapScript(),
     "</script>",
     "</body>",
     "</html>",
