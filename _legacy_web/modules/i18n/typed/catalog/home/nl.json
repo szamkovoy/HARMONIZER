@@ -95,7 +95,7 @@
     "reminderPastMessage": "Voor een venster in het verleden kan geen herinnering worden ingesteld.",
     "reminderNotificationsUnavailableTitle": "Meldingen momenteel niet beschikbaar",
     "reminderNeedPermissionTitle": "Meldingen nodig",
-    "reminderNeedPermissionMessage": "Sta meldingen toe zodat Harmonizer je kan herinneren aan het kansenvenster.",
+    "reminderNeedPermissionMessage": "Sta meldingen toe zodat {appName} je kan herinneren aan het kansenvenster.",
     "helpButtonAccessibilityLabel": "Uitleg bij de grafiek van de kansenvensters",
     "helpModalTitle": "Hoe dit venster te lezen",
     "helpLoading": "Uitleg wordt verzameld...",

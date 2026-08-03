@@ -1,13 +1,15 @@
 ---
 id: 02_modules/notifications/history
 title: Notifications History
-version: 1.3
-updated: 2026-07-24
+version: 1.4
+updated: 2026-08-03
 depends_on: [02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708150000_notifications.sql]
 ---
 
 ## Decision Log
+
+- **2026-08-03 (opportunity_bell modal loop):** QA: после «Сохранить» в «Уведомить» на Android чередовались кастомный Alert и модалка — системный sheet часто не показывается поверх RN Modal, `ensureNotificationPermission` возвращал denied, а модалка оставалась открытой. Fix в `OpportunityWindows.saveReminder`: закрыть модалку → `InteractionManager` (+ короткий delay на Android) → OS request; Alert с «Открыть настройки» только после non-granted; `{appName}` ← `common.appName`.
 
 - **2026-07-31 (iOS Firebase plist gate):** Local iOS production prebuild падал: RNFirebase требовал `expo.ios.googleServicesFile`. Fix: `GoogleService-Info.plist` / EAS `GOOGLE_SERVICES_PLIST`; без файла `app.config.ts` пропускает `@react-native-firebase/*` на iOS. `.easignore` включает локальные Firebase client files в архив (gitignore их по-прежнему скрывает от git).
 

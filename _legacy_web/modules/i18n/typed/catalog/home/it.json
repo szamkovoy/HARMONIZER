@@ -95,7 +95,7 @@
     "reminderPastMessage": "Non è possibile impostare una notifica per una finestra già trascorsa.",
     "reminderNotificationsUnavailableTitle": "Notifiche al momento non disponibili",
     "reminderNeedPermissionTitle": "Servono le notifiche",
-    "reminderNeedPermissionMessage": "Consenti le notifiche affinché Harmonizer possa ricordarti la finestra di opportunità.",
+    "reminderNeedPermissionMessage": "Consenti le notifiche affinché {appName} possa ricordarti la finestra di opportunità.",
     "helpButtonAccessibilityLabel": "Spiegazione del grafico delle finestre di opportunità",
     "helpModalTitle": "Come leggere questa finestra",
     "helpLoading": "Sto preparando la spiegazione...",

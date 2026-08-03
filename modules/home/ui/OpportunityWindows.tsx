@@ -5,6 +5,8 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  InteractionManager,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -20,8 +22,9 @@ import { DateTime } from "luxon";
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
 import { dayFractionFromIso, interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
 import type { AccessMode } from "@/services/globalContentClient";
-import type { HomeStrings } from "@/modules/home/i18n/home";
+import { fillHomeTemplate, type HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
+import { useTranslate } from "@/modules/i18n";
 import { AppText } from "@/modules/ui/AppText";
 import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
@@ -336,6 +339,7 @@ export function OpportunityWindows({
 }: OpportunityWindowsProps) {
   const theme = useTheme();
   const { authUser } = useAuth();
+  const { t: tCatalog } = useTranslate();
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [reminderTitleText, setReminderTitleText] = useState("");
@@ -350,6 +354,8 @@ export function OpportunityWindows({
   enabledRemindersRef.current = enabledReminders;
   /** Защита от гонки: отмена/сохранение инкрементит эпоху, async-синхронизация не затирает свежие правки. */
   const reminderSyncEpochRef = useRef(0);
+  /** Не даём повторно жать «Сохранить», пока идёт запрос разрешения / schedule. */
+  const reminderSavingRef = useRef(false);
   const [chartWidth, setChartWidth] = useState(0);
   const [markerLabelWidths, setMarkerLabelWidths] = useState<Record<string, number>>({});
   const [nowBadgeLayoutW, setNowBadgeLayoutW] = useState(0);
@@ -683,9 +689,12 @@ export function OpportunityWindows({
   }
 
   async function saveReminder() {
-    if (!reminderTarget?.time) return;
-    const eventDate = new Date(reminderTarget.time);
-    const triggerDate = new Date(eventDate.getTime() - (reminderMode === "before5" ? 5 * 60_000 : 0));
+    if (!reminderTarget?.time || reminderSavingRef.current) return;
+    const pendingTarget = reminderTarget;
+    const pendingMode = reminderMode;
+    const pendingTitleText = reminderTitleText;
+    const eventDate = new Date(pendingTarget.time);
+    const triggerDate = new Date(eventDate.getTime() - (pendingMode === "before5" ? 5 * 60_000 : 0));
     if (triggerDate.getTime() <= Date.now()) {
       Alert.alert(t.reminderPastTitle, t.reminderPastMessage);
       setReminderTarget(null);
@@ -698,67 +707,92 @@ export function OpportunityWindows({
       return;
     }
 
-    const perm = await ensureNotificationPermission("opportunity_bell");
-    if (perm !== "granted") {
-      Alert.alert(t.reminderNeedPermissionTitle, t.reminderNeedPermissionMessage);
-      return;
-    }
-    // Same contract as Home / webinar: OS grant → claim Expo token for remote admin pushes.
-    if (authUser?.id) void registerPushToken(authUser.id);
-
+    reminderSavingRef.current = true;
+    // Закрываем модалку до системного диалога: на Android permission sheet
+    // поверх RN Modal часто не показывается / сразу denied → цикл «Уведомить»↔Alert.
+    setReminderTarget(null);
+    await new Promise<void>((resolve) => {
+      InteractionManager.runAfterInteractions(() => resolve());
+    });
     if (Platform.OS === "android") {
-      try {
-        await ensureAndroidNotificationChannels();
-      } catch {
-        Alert.alert(t.reminderNotificationsUnavailableTitle, t.reminderNotificationsUnavailableMessage);
+      await new Promise((resolve) => setTimeout(resolve, 160));
+    }
+
+    try {
+      const perm = await ensureNotificationPermission("opportunity_bell");
+      if (perm !== "granted") {
+        const appName = tCatalog("common.appName");
+        Alert.alert(
+          t.reminderNeedPermissionTitle,
+          fillHomeTemplate(t.reminderNeedPermissionMessage, { appName }),
+          [
+            { text: t.reminderCancel, style: "cancel" },
+            {
+              text: strings.openSettingsButton,
+              onPress: () => void Linking.openSettings(),
+            },
+          ],
+        );
         return;
       }
-    }
+      // Same contract as Home / webinar: OS grant → claim Expo token for remote admin pushes.
+      if (authUser?.id) void registerPushToken(authUser.id);
 
-    const previousId = notificationIdsRef.current[reminderTarget.key];
-    if (previousId) await notificationsApi.cancelScheduledNotificationAsync(previousId).catch(() => undefined);
+      if (Platform.OS === "android") {
+        try {
+          await ensureAndroidNotificationChannels();
+        } catch {
+          Alert.alert(t.reminderNotificationsUnavailableTitle, t.reminderNotificationsUnavailableMessage);
+          return;
+        }
+      }
 
-    const androidChannelId = Platform.OS === "android" ? OPPORTUNITY_REMINDERS_CHANNEL_ID : undefined;
+      const previousId = notificationIdsRef.current[pendingTarget.key];
+      if (previousId) await notificationsApi.cancelScheduledNotificationAsync(previousId).catch(() => undefined);
 
-    const defaultTitle = buildDefaultReminderTitle(reminderTarget, windows, strings);
-    const trimmedTitle = reminderTitleText.trim();
-    const notificationTitle = (trimmedTitle.length > 0 ? trimmedTitle : defaultTitle).slice(
-      0,
-      REMINDER_NOTIFICATION_TITLE_MAX,
-    );
-    const timeStr = strings.formatTime(reminderTarget.time);
-    const opener =
-      reminderMode === "before5" ? `${t.reminderBodyFiveMinPrefix} ${timeStr}` : timeStr;
-    const detailSuffix = reminderTarget.detail ? ` · ${reminderTarget.detail}` : "";
-    const body = `${opener}${detailSuffix}`.replace(/\s+/g, " ").trim().slice(0, REMINDER_NOTIFICATION_BODY_MAX);
+      const androidChannelId = Platform.OS === "android" ? OPPORTUNITY_REMINDERS_CHANNEL_ID : undefined;
 
-    const notificationId = await notificationsApi.scheduleNotificationAsync({
-      content: buildOpportunityAlarmStyleContent({
-        title: notificationTitle,
-        body,
-        data: {
-          source: "home_opportunity_window",
-          key: reminderTarget.key,
-          reminderMode,
-          forecastDate,
-          eventTimeIso: reminderTarget.time,
-          displayTitle: notificationTitle,
+      const defaultTitle = buildDefaultReminderTitle(pendingTarget, windows, strings);
+      const trimmedTitle = pendingTitleText.trim();
+      const notificationTitle = (trimmedTitle.length > 0 ? trimmedTitle : defaultTitle).slice(
+        0,
+        REMINDER_NOTIFICATION_TITLE_MAX,
+      );
+      const timeStr = strings.formatTime(pendingTarget.time);
+      const opener =
+        pendingMode === "before5" ? `${t.reminderBodyFiveMinPrefix} ${timeStr}` : timeStr;
+      const detailSuffix = pendingTarget.detail ? ` · ${pendingTarget.detail}` : "";
+      const body = `${opener}${detailSuffix}`.replace(/\s+/g, " ").trim().slice(0, REMINDER_NOTIFICATION_BODY_MAX);
+
+      const notificationId = await notificationsApi.scheduleNotificationAsync({
+        content: buildOpportunityAlarmStyleContent({
+          title: notificationTitle,
+          body,
+          data: {
+            source: "home_opportunity_window",
+            key: pendingTarget.key,
+            reminderMode: pendingMode,
+            forecastDate,
+            eventTimeIso: pendingTarget.time,
+            displayTitle: notificationTitle,
+          },
+        }),
+        trigger: {
+          type: notificationsApi.SchedulableTriggerInputTypes.DATE,
+          date: triggerDate,
+          ...(androidChannelId ? { channelId: androidChannelId } : {}),
         },
-      }),
-      trigger: {
-        type: notificationsApi.SchedulableTriggerInputTypes.DATE,
-        date: triggerDate,
-        ...(androidChannelId ? { channelId: androidChannelId } : {}),
-      },
-    });
-    notificationIdsRef.current[reminderTarget.key] = notificationId;
-    reminderMetaRef.current[reminderTarget.key] = {
-      triggerAtMs: triggerDate.getTime(),
-      eventAtMs: eventDate.getTime(),
-    };
-    reminderSyncEpochRef.current += 1;
-    setEnabledReminders((prev) => ({ ...prev, [reminderTarget.key]: reminderMode }));
-    setReminderTarget(null);
+      });
+      notificationIdsRef.current[pendingTarget.key] = notificationId;
+      reminderMetaRef.current[pendingTarget.key] = {
+        triggerAtMs: triggerDate.getTime(),
+        eventAtMs: eventDate.getTime(),
+      };
+      reminderSyncEpochRef.current += 1;
+      setEnabledReminders((prev) => ({ ...prev, [pendingTarget.key]: pendingMode }));
+    } finally {
+      reminderSavingRef.current = false;
+    }
   }
 
   useEffect(() => {

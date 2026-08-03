@@ -29,7 +29,7 @@ code_refs:
 - **`profile`** — в «Мои данные» подпись + кликабельная цифра непрочитанных → `/my-notifications` (`app/(tabs)/profile.tsx`).
 - **Корневой layout** — `PushRegistrationBridge` в `app/_layout.tsx`.
 - **Home** (`app/(tabs)/index.tsx`) — мягкий `ensureNotificationPermission("home")` на focus.
-- **OpportunityWindows** — `ensureNotificationPermission("opportunity_bell")` + `registerPushToken` при сохранении напоминания.
+- **OpportunityWindows** — перед `ensureNotificationPermission("opportunity_bell")` закрывает модалку «Уведомить»; при `granted` — `registerPushToken`; иначе Alert + «Открыть настройки».
 
 ## 3. Контрактные точки риска
 

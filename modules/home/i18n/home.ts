@@ -348,7 +348,8 @@ const ru: HomeStrings = {
     reminderNotificationsUnavailableMessage:
       "Текущая сборка приложения запущена без native-модуля уведомлений. После новой dev/release-сборки колокольчики смогут ставить системные уведомления.",
     reminderNeedPermissionTitle: "Нужны уведомления",
-    reminderNeedPermissionMessage: "Разрешите уведомления, чтобы Harmonizer мог напомнить об окне возможностей.",
+    reminderNeedPermissionMessage:
+      "Разрешите уведомления, чтобы {appName} мог напомнить об окне возможностей.",
     helpButtonAccessibilityLabel: "Пояснение к графику окон возможностей",
     helpModalTitle: "Как читать это окно",
     helpLoading: "Собираю пояснение...",
@@ -564,7 +565,8 @@ const en: HomeStrings = {
     reminderNotificationsUnavailableMessage:
       "This build was compiled without the notifications native module. After a new dev or release build, bells can schedule system notifications.",
     reminderNeedPermissionTitle: "Notifications needed",
-    reminderNeedPermissionMessage: "Please allow notifications so Harmonizer can remind you about this window.",
+    reminderNeedPermissionMessage:
+      "Please allow notifications so {appName} can remind you about this window.",
     helpButtonAccessibilityLabel: "Explain the opportunity windows chart",
     helpModalTitle: "How to read this window",
     helpLoading: "Preparing the explanation...",

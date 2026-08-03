@@ -95,7 +95,7 @@
     "reminderPastMessage": "Für ein vergangenes Fenster kann keine Benachrichtigung gesetzt werden.",
     "reminderNotificationsUnavailableTitle": "Benachrichtigungen derzeit nicht verfügbar",
     "reminderNeedPermissionTitle": "Benachrichtigungen erforderlich",
-    "reminderNeedPermissionMessage": "Erlaube Benachrichtigungen, damit Harmonizer an das Fenster der Möglichkeiten erinnern kann.",
+    "reminderNeedPermissionMessage": "Erlaube Benachrichtigungen, damit {appName} an das Fenster der Möglichkeiten erinnern kann.",
     "helpButtonAccessibilityLabel": "Erklärung zum Diagramm der Fenster der Möglichkeiten",
     "helpModalTitle": "Wie man dieses Fenster liest",
     "helpLoading": "Erläuterung wird geladen...",

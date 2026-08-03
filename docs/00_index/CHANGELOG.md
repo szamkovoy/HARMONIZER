@@ -1,3 +1,4 @@
+- 2026-08-03 (404): Opportunity Windows bell — close reminder modal before OS notification permission; localized `{appName}`; Settings CTA on deny.
 - 2026-08-02 (400): Android splash — restore visible native icon (no white hang); keep splash on unsettled route; theme-colored root/Stack underlay.
 - 2026-08-02 (399): Android splash — no early hideAsync race; wait theme.ready before EarlyCover/Stack (dark flash); Day pencil/trash tint; stories quiet cold placeholder.
 - 2026-08-02 (398): Communicator mic — ignore Android AppState inactive + settle-grace after record start (Samsung shutter-jerk / dead mic).

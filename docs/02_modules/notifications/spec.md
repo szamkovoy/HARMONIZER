@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.8
-updated: 2026-07-27
+version: 1.9
+updated: 2026-08-03
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -76,7 +76,7 @@ code_refs:
 | reason | Когда | Поведение |
 | --- | --- | --- |
 | `home` | Фокус вкладки Главная (авторизован) | Мягкий запрос. Если `undetermined` — спросить (повтор не чаще 7 дн.). Если уже denied и `canAskAgain` — снова только после 7 дн. Если ОС больше не показывает диалог — skip. |
-| `opportunity_bell` | Сохранение напоминания колокольчиком | Явный жест: спросить сразу (без cooldown). При отказе — Alert «нужно разрешение» (как раньше). |
+| `opportunity_bell` | Сохранение напоминания колокольчиком | Явный жест: сначала закрыть модалку «Уведомить», затем системный `requestPermissionsAsync` (без cooldown). Кастомный Alert — только если ОС не выдала `granted` (отказ или `canAskAgain=false`); в Alert — «Открыть настройки». Имя приложения в тексте — `common.appName` через `{appName}`. |
 | `webinar` | Нажал «Записаться» **или** экран вебинара при `registered=true` (в т.ч. после оплаты в кабинете) | Контекстный запрос, не чаще **1 раза в 3 дня** (чтобы не дёргать при каждом возврате к ссылке на комнату). |
 
 **Не спрашиваем:** в онбординге; из `PushRegistrationBridge` при логине/foreground (только claim токена если уже granted).

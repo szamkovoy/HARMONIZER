@@ -95,7 +95,7 @@
     "reminderPastMessage": "Impossible de programmer une notification pour une fenêtre passée.",
     "reminderNotificationsUnavailableTitle": "Notifications indisponibles pour le moment",
     "reminderNeedPermissionTitle": "Notifications requises",
-    "reminderNeedPermissionMessage": "Autorisez les notifications pour qu'Harmonizer puisse vous rappeler la fenêtre d'opportunités.",
+    "reminderNeedPermissionMessage": "Autorisez les notifications pour que {appName} puisse vous rappeler la fenêtre d'opportunités.",
     "helpButtonAccessibilityLabel": "Explication du graphique des fenêtres d'opportunités",
     "helpModalTitle": "Comment lire cette fenêtre",
     "helpLoading": "Préparation de l'explication...",

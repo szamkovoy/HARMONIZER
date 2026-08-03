@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.37
-updated: 2026-07-29
+version: 2.38
+updated: 2026-08-03
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -22,6 +22,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-03 (opportunity bell permission UX):** `OpportunityWindows.saveReminder` больше не держит модалку «Уведомить» во время OS permission request (цикл Alert↔модалка на Android). Имя приложения в `reminderNeedPermissionMessage` — плейсхолдер `{appName}` (`common.appName`). См. `notifications` history.
 
 - **2026-08-01 (math planet locale):** «Математика дня» показывала `Sun`/`Moon` при RU-тексте: cron `buildMathLevelForCron` писал сырые planet/aspect keys. Fix: `t.planetLabel` / `t.aspectLabel` в precompute; `localizeMathLevelMarkdown` на cache→payload и в `ModalMathLevel` (все 8 локалей).
 - **2026-08-01 (ChakraFlower dark ring):** Центральное кольцо вокруг процента/планеты в тёмной палитре — цвет read-кольца сториз (`storiesRingStrokes(scheme).read`, сейчас `rgba(255,255,255,0.34)`) поверх непрозрачного `surface`. Светлая палитра без изменений (`screenBg`).

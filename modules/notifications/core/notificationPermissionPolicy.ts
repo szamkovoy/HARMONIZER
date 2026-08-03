@@ -123,7 +123,8 @@ export async function ensureNotificationPermission(
     return after.granted ? "granted" : "denied";
   }
 
-  // opportunity_bell — явный жест: без cooldown; если ОС не даст диалог — denied.
+  // opportunity_bell — явный жест: без cooldown.
+  // Если ОС больше не показывает системный диалог — сразу denied (UI → Settings).
   if (!before.canAskAgain && before.status !== "undetermined") return "denied";
   await writeNotifFlag(FLAG_LAST_SOFT_ASK, String(now));
   const after = await requestFromOs();

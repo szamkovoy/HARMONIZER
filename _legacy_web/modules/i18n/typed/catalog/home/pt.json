@@ -95,7 +95,7 @@
     "reminderPastMessage": "Não é possível definir um lembrete para uma janela que já passou.",
     "reminderNotificationsUnavailableTitle": "Notificações indisponíveis no momento",
     "reminderNeedPermissionTitle": "Permissão de notificações necessária",
-    "reminderNeedPermissionMessage": "Permita notificações para que o Harmonizer possa lembrar você da janela de oportunidades.",
+    "reminderNeedPermissionMessage": "Permita notificações para que o {appName} possa lembrar você da janela de oportunidades.",
     "helpButtonAccessibilityLabel": "Explicação do gráfico das janelas de oportunidades",
     "helpModalTitle": "Como ler esta janela",
     "helpLoading": "Carregando explicação...",
