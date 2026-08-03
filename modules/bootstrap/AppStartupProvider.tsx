@@ -7,6 +7,9 @@ import { coerceAppLocale, t, type AppLocale, useAppLocale } from "@/modules/i18n
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 
+// TEMP QA (2026-08-03): splash app name — see SplashAppNamePreview.tsx header to revert.
+import { SplashAppNamePreview } from "./SplashAppNamePreview";
+
 export type AppStartupPhase = "app_loading" | "initializing" | "loading_day";
 
 /**
@@ -293,6 +296,9 @@ function AppStartupSplashOverlay({
           ]}
         />
       </View>
+
+      {/* TEMP QA: splash app name — remove with SplashAppNamePreview.tsx */}
+      <SplashAppNamePreview locale={locale} />
 
       <View style={styles.bottomStage}>
         <View style={styles.track}>
