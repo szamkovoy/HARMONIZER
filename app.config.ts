@@ -262,10 +262,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "./plugins/with-android-location-permission-merge.js",
       "react-native-health-connect",
       "./plugins/with-native-health.js",
-      // NOTE: do NOT re-enable `with-android-splash-hide-icon`.
-      // Transparent Android 12 icon + white splash bg = intermittent solid-white
-      // hang before JS EarlySplashCover paints (Pixel QA 2026-08-02). Prefer a
-      // brief centered native icon over a blank death screen.
+      // After expo-splash-screen: no Android 12 mini-icon; full-bleed windowBackground
+      // + immediate SplashScreenManager.hide() so large splash shows without JS wait.
+      "./plugins/with-android-splash-hide-icon.js",
     ],
   };
 };

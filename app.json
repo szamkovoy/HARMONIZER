@@ -2,7 +2,7 @@
   "expo": {
     "name": "Harmonizer",
     "slug": "harmonizer",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "com.zamkovoi.harmonizer.app",
@@ -20,7 +20,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.zamkovoi.harmonizer.app",
-      "buildNumber": "8",
+      "buildNumber": "10",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Harmonizer использует камеру для режимов BIOFEEDBACK.",
@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.zamkovoi.harmonizer",
-      "versionCode": 21,
+      "versionCode": 26,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"

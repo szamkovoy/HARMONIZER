@@ -1,4 +1,7 @@
 - 2026-08-03 (404): Opportunity Windows bell — close reminder modal before OS notification permission; localized `{appName}`; Settings CTA on deny.
+- 2026-08-03 (403): App marketing version **1.2.0** (`app.json` / `package.json`).
+- 2026-08-02 (402): Profile empty reports — ghost chart previews (bars/donut/matrix/line) under semi-transparent empty-copy.
+- 2026-08-02 (401): Android splash — full-bleed windowBackground + immediate native hide (no mini→large jump; no white JS-wait hang).
 - 2026-08-02 (400): Android splash — restore visible native icon (no white hang); keep splash on unsettled route; theme-colored root/Stack underlay.
 - 2026-08-02 (399): Android splash — no early hideAsync race; wait theme.ready before EarlyCover/Stack (dark flash); Day pencil/trash tint; stories quiet cold placeholder.
 - 2026-08-02 (398): Communicator mic — ignore Android AppState inactive + settle-grace after record start (Samsung shutter-jerk / dead mic).

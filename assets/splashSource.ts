@@ -2,12 +2,11 @@
  * Единый сплэш-ассет: нативный экран (expo-splash-screen plugin) и JS-оверлей
  * берут один и тот же файл `assets/images/splash.png`.
  *
- * iOS: `enableFullScreenImage_legacy: true` + `EarlySplashCover` (явные
- * `useWindowDimensions`, cover) до / через handoff к AppStartup.
- * Android 12+: видимая centered splash-icon (hide-icon plugin отключён —
- * прозрачный icon давал белый hang) + тот же EarlySplashCover.
- * Full-bleed JS с явными width/height (не absoluteFill).
- * Смена PNG / опций плагина → native rebuild / prebuild.
+ * iOS: `enableFullScreenImage_legacy: true` + `EarlySplashCover`.
+ * Android 12+: `with-android-splash-hide-icon` — прозрачный system icon,
+ * full-bleed `windowBackground` из того же PNG, `SplashScreenManager.hide()`
+ * в MainActivity.onCreate (большая заставка без ожидания JS / без mini-icon).
+ * Смена PNG / плагина → native rebuild / prebuild.
  */
 import type { ImageSourcePropType } from "react-native";
 

@@ -171,7 +171,12 @@ function ProjectionReportContent(props: {
     );
   }
   if (!props.matrixReady || !props.items?.length) {
-    return <ProfileEmptyState message={props.emptyMessage} />;
+    return (
+      <ProfileEmptyState
+        message={props.emptyMessage}
+        preview={props.kind === "sphere" ? "donutSpheres" : "donutStates"}
+      />
+    );
   }
   return <MatrixProjectionChart items={props.items} locale={props.locale} kind={props.kind} />;
 }
@@ -309,7 +314,7 @@ export function PracticeByChakraReportCard(props: { enabled: boolean; onUpgrade:
             hideVisualization={loading}
           />
         ) : !loading ? (
-          <ProfileEmptyState message={strings.practicesNotDone} />
+          <ProfileEmptyState message={strings.practicesNotDone} preview="donutChakra" />
         ) : null
       ) : null}
     </ProfileReportCard>
@@ -361,7 +366,7 @@ export function LifeMatrixReportCard(props: {
             locale={props.locale ?? "ru"}
           />
         ) : (
-          <ProfileEmptyState message={strings.matrixNotReady} />
+          <ProfileEmptyState message={strings.matrixNotReady} preview="matrix" />
         )
       ) : null}
     </ProfileReportCard>
@@ -491,7 +496,7 @@ export function RangeTrendReportCard(props: {
         trendReady && trendPoints.length > 0 ? (
           <RangeTrendChart points={trendPoints} locale={props.locale ?? "ru"} />
         ) : (
-          <ProfileEmptyState message={strings.matrixNotReady} />
+          <ProfileEmptyState message={strings.matrixNotReady} preview="line" />
         )
       ) : null}
     </ProfileReportCard>

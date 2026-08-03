@@ -819,7 +819,7 @@ export default function ProfileTabRoute() {
                 locale={reportLocale}
               />
             ) : (
-              <ProfileEmptyState message={reportStrings.practicesNotDone} />
+              <ProfileEmptyState message={reportStrings.practicesNotDone} preview="bars" />
             )
           ) : (
             <AppText variant="dialogBody" tone="muted">

@@ -13,7 +13,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 - **2026-07-31 (LegalFooter crash on Profile):** Store/TestFlight — таб «Профиль» падал на `nativeApplicationVersion` of undefined (неверный default-import `expo-application` в `LegalDocuments.tsx`). См. onboarding history.
 
-- **2026-07-31 (version + copyright footer):** В `LegalFooter tone="links"` над юрссылками — `{appName} v{version} ({build})` и `© {year} {holder}` тем же шрифтом, без доп. gap. `common.appName` / `profile.about.copyrightHolder` (RU vs `Sergei Zamkovoi, TOO`); год = текущий. Маркетинг **1.1.0**, build из native.
+- **2026-08-03 (version 1.2.0):** Маркетинговая версия приложения **1.2.0** (`app.json` / `package.json`).
+- **2026-07-31 (version + copyright footer):** В `LegalFooter tone="links"` над юрссылками — `{appName} v{version} ({build})` и `© {year} {holder}` тем же шрифтом, без доп. gap. `common.appName` / `profile.about.copyrightHolder` (RU vs `Sergei Zamkovoi, TOO`); год = текущий. Маркетинг из `expo.version`, build из native.
 
 - **2026-07-30 (practice stats stale on Profile):** «День» показывал 19 мин практик, «Статистика практик» — 8 мин (Audrone). В `user_daily_stats` сумма уже была верной; Профиль не перечитывал агрегаты при фокусе таба. Fix: `useFocusEffect` → `loadStats` + reload `practice-by-chakra`; scrub по умолчанию на последний день с практикой.
 
@@ -24,6 +25,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 - **2026-07-30 (EMAIL_OTP profiles):** OTP transport — `EMAIL_OTP` (`AMAZON_ZAMKOVOI_YOGA` production); legacy `AUTH_EMAIL_PROVIDER` fallback. См. `docs/04_workspace/email_providers.md`.
 
 - **2026-07-30 (geo place sync gaps):** `logAppOpen` всегда вызывает `maybeSyncUserGeoPlace` (троттлинг 30 мин только на insert/`last_seen_at`). Онбординг после GPS — см. onboarding history. Иначе админские `country_code`/`city` оставались null при уже заполненных `lat`/`lon`/`location_name`.
+
+- **2026-08-02 (report empty previews):** Для новых пользователей empty-state отчётов показывал только текст. Fix: ghost preview (столбцы / бублики с разными весами / матрица / линия жизни) под полупрозрачной рамкой с тем же empty-copy — `ProfileEmptyState preview` + `reportPreviewCharts.tsx`. Цвета muted (blend к серому); chart и текст в одном боксе `REPORT_PREVIEW_DISPLAY_SIZE` с общим центром.
 
 - **2026-07-29 (profile polish):** Subtitle → «Здесь находится информация о вас и ряд полезных отчетов»; удалены блоки «Текущий доступ», DevTierSwitch (дубль Home), «Скоро здесь»; диагностика остаётся только при `HARMONIZER_TEST_MODE`.
 
