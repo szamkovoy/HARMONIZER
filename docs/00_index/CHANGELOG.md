@@ -1,3 +1,4 @@
+- 2026-08-03 (405): Expo Dev iOS splash — white underlay handoff (no black blink); stable day refresh + force-complete (no hang).
 - 2026-08-03 (404): Opportunity Windows bell — close reminder modal before OS notification permission; localized `{appName}`; Settings CTA on deny.
 - 2026-08-03 (403): App marketing version **1.2.0** (`app.json` / `package.json`).
 - 2026-08-02 (402): Profile empty reports — ghost chart previews (bars/donut/matrix/line) under semi-transparent empty-copy.

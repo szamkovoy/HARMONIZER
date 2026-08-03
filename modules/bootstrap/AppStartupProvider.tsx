@@ -46,6 +46,12 @@ type AppStartupContextValue = {
 
 const AppStartupContext = createContext<AppStartupContextValue | null>(null);
 
+/**
+ * Last-resort: never leave full splash blocking forever.
+ * Shorter in __DEV__ — Metro/membership churn aborts day refresh more often.
+ */
+const SPLASH_FORCE_COMPLETE_MS = __DEV__ ? 25_000 : 60_000;
+
 /** Maps internal bootstrap step ids to flat catalog keys under `startup.step.*`. */
 function startupStepKey(step: string): string {
   return `startup.step.${step.replace(/\//g, "_")}`;
@@ -193,6 +199,13 @@ function AppStartupSplashOverlay({
     onFirstPaint?.();
   }, [onFirstPaint]);
 
+  // Cached Image / Metro cold load can skip onLoad — EarlyCover would never dismiss.
+  useEffect(() => {
+    if (!visible) return;
+    const safety = setTimeout(notifyPainted, __DEV__ ? 1200 : 2000);
+    return () => clearTimeout(safety);
+  }, [visible, notifyPainted]);
+
   useEffect(() => {
     if (!visible) {
       shimmer.stopAnimation();
@@ -225,6 +238,7 @@ function AppStartupSplashOverlay({
       opacity.setValue(1);
       return;
     }
+    opacity.stopAnimation();
     Animated.timing(opacity, {
       toValue: 0,
       duration: 320,
@@ -233,6 +247,9 @@ function AppStartupSplashOverlay({
     }).start(({ finished }) => {
       if (finished) setMounted(false);
     });
+    // Invisible overlay with pointerEvents:auto still blocks Home after a cancelled fade.
+    const forceUnmount = setTimeout(() => setMounted(false), 400);
+    return () => clearTimeout(forceUnmount);
   }, [opacity, visible]);
 
   if (!mounted) return null;
@@ -249,7 +266,7 @@ function AppStartupSplashOverlay({
 
   return (
     <Animated.View
-      pointerEvents="auto"
+      pointerEvents={visible ? "auto" : "none"}
       style={[StyleSheet.absoluteFill, styles.splashOverlay, { opacity }]}
     >
       {/* Explicit window size — absoluteFill + cover mis-scales on Fabric/Android. */}
@@ -260,6 +277,7 @@ function AppStartupSplashOverlay({
           resizeMode="cover"
           fadeDuration={0}
           onLoad={notifyPainted}
+          onLoadEnd={notifyPainted}
         />
         <Animated.View
           pointerEvents="none"
@@ -426,6 +444,16 @@ export function AppStartupProvider({
   useEffect(() => {
     if (!splashVisible) markJsSplashPainted();
   }, [splashVisible, markJsSplashPainted]);
+
+  // Expo Dev: membership/profile churn can abort→restart day refresh and leave
+  // `blocking: true` while Home (stories) already runs underneath.
+  useEffect(() => {
+    if (!visible) return;
+    const t = setTimeout(() => {
+      completeHomeBootstrap();
+    }, SPLASH_FORCE_COMPLETE_MS);
+    return () => clearTimeout(t);
+  }, [visible, completeHomeBootstrap]);
 
   const value = useMemo<AppStartupContextValue>(
     () => ({

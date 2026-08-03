@@ -454,6 +454,11 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             ? relaxedCache
             : null;
       const hasPaintableOfflineCache = relaxedCache?.freshness === "stale";
+      // Wait until birth-data gate is known — never raise splash then bail.
+      if (needsNatalProfile && options?.hasNatalProfile == null) {
+        return;
+      }
+
       const shouldBlockSplash =
         Boolean(opts?.blockingReload) ||
         (!opts?.forceRefresh &&
@@ -469,10 +474,6 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
         beginHomeBootstrap("initializing", "HOME/home_overlay_start", {
           presentation: opts?.blockingReload ? "day_card" : undefined,
         });
-      }
-
-      if (needsNatalProfile && options?.hasNatalProfile == null) {
-        return;
       }
       if (needsNatalProfile && options?.hasNatalProfile === false) {
         const err = birthDataError(options?.birthDataErrorMessage);
@@ -1018,17 +1019,18 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
   );
 
   useEffect(() => {
-    if (profileLoading) {
+    if (profileLoading || !profileId) {
       return;
     }
     void refresh().catch((e: unknown) => {
       // eslint-disable-next-line no-console
       console.warn("[dayContent] initial refresh", e instanceof Error ? e.message : String(e));
     });
-    // Do NOT abort on effect re-run / profileLoading flicker — that left splash
-    // blocking with no in-flight fetch (Realtime refreshProfile used to toggle
-    // profileLoading). Superseding work is aborted at the start of refresh().
-  }, [refresh, profileLoading]);
+    // Key only on profile identity / loading — NOT on `refresh` identity.
+    // In Expo Dev, membership realtime / coords patches recreate `refresh` and
+    // used to abort→restart the cold fetch in a loop (splash stuck, Home alive).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [profileLoading, profileId]);
 
   useEffect(() => {
     return () => {

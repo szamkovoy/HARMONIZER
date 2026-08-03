@@ -76,12 +76,26 @@ export default function RootLayout() {
       pendingDismissEarlyRef.current = true;
       return;
     }
+    // Expo Dev (Metro): AppStartup may still be painting after onFirstPaint;
+    // dropping EarlyCover on the same tick exposes dark screenBg (= black blink).
+    if (__DEV__) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setEarlyCoverVisible(false));
+      });
+      return;
+    }
     setEarlyCoverVisible(false);
   }, [themeReady]);
 
   useEffect(() => {
     if (!themeReady || !pendingDismissEarlyRef.current) return;
     pendingDismissEarlyRef.current = false;
+    if (__DEV__) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setEarlyCoverVisible(false));
+      });
+      return;
+    }
     setEarlyCoverVisible(false);
   }, [themeReady]);
 
@@ -94,9 +108,9 @@ export default function RootLayout() {
     configureLocalNotifications();
   }, []);
 
-  // Keep EarlySplashCover mounted across fonts→providers so Android never
-  // flashes an empty underlay between the early cover and AppStartupSplashOverlay.
-  const rootBg = themeReady ? uiTheme.colors.screenBg : "#ffffff";
+  // Splash-white while EarlyCover is up. Dark screenBg under a just-dismissed
+  // cover is the Dev black blink (TestFlight rarely hits this race).
+  const rootBg = earlyCoverVisible || !themeReady ? "#ffffff" : uiTheme.colors.screenBg;
 
   return (
     <GestureHandlerRootView style={[styles.root, { backgroundColor: rootBg }]}>
@@ -274,18 +288,10 @@ function RootLayoutNav() {
     });
   };
 
-  // Hold blank underlay until auth + palette hydrate. Match splash white while
-  // EarlySplashCover / AppStartup overlay are up; after themeReady use screenBg
-  // so dark users do not get a light Stack flash under the fading splash.
+  // Hold blank underlay until auth + palette hydrate. Always splash-white:
+  // dark screenBg here + EarlyCover dismiss = black blink on Expo Dev cold start.
   if (!themeReady || initializing || waitingForProfile) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: themeReady ? theme.colors.screenBg : "#ffffff",
-        }}
-      />
-    );
+    return <View style={{ flex: 1, backgroundColor: "#ffffff" }} />;
   }
 
   return (

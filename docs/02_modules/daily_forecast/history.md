@@ -23,6 +23,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-03 (Expo Dev splash hang):** Auto `refresh` effect keyed on `profileLoading`+`profileId` (not `refresh` identity) so membership realtime cannot abort→restart cold fetch forever. `beginHomeBootstrap` only after known `hasNatalProfile`. См. infra Dev splash history.
+
 - **2026-08-03 (opportunity bell permission UX):** `OpportunityWindows.saveReminder` больше не держит модалку «Уведомить» во время OS permission request (цикл Alert↔модалка на Android). Имя приложения в `reminderNeedPermissionMessage` — плейсхолдер `{appName}` (`common.appName`). См. `notifications` history.
 
 - **2026-08-01 (math planet locale):** «Математика дня» показывала `Sun`/`Moon` при RU-тексте: cron `buildMathLevelForCron` писал сырые planet/aspect keys. Fix: `t.planetLabel` / `t.aspectLabel` в precompute; `localizeMathLevelMarkdown` на cache→payload и в `ModalMathLevel` (все 8 локалей).
