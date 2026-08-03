@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-08-04 (Android versionCode 30):** `app.json` `android.versionCode` → **30** — Play уже занял 27–29 (в т.ч. артефакты в библиотеке релиза без выката на тест); следующий store AAB должен идти с ≥30.
+
 - **2026-08-04 (app version 1.2.1):** Маркетинговая версия **1.2.1** (`app.json` / `package.json`).
 
 - **2026-08-03 (Expo Dev iOS splash):** TestFlight OK; Dev cold start — black blink + stuck splash after Metro «Downloading». Causes: EarlyCover dismiss over dark `screenBg`; `useDayContent` effect on `refresh` identity → abort loop. Fix: splash-white underlay while EarlyCover/auth gate; `__DEV__` rAF defer dismiss; overlay paint safety + pointerEvents/force-unmount; day refresh keyed on `profileId`/`profileLoading`; force-complete 25s Dev / 60s prod.
