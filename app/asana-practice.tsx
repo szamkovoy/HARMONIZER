@@ -24,6 +24,7 @@ import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAs
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
+import { PracticeKeepAwake } from "@/modules/ui/PracticeKeepAwake";
 import { PracticeStopConfirmDialog } from "@/modules/ui/PracticeStopConfirmDialog";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
@@ -267,8 +268,12 @@ export default function AsanaPracticeRoute() {
     exitAfterPractice(launchSource);
   };
 
+  // Keep screen on while the asana player is open (video may run without taps).
+  const keepAwakeActive = Boolean(vimeoId) && canUseFeature("asana_practices");
+
   return (
     <StackScreenLayout statusBarStyle="light">
+      {keepAwakeActive ? <PracticeKeepAwake tag="harmonizer-asana-practice" /> : null}
       <FloatingCloseButton accessibilityLabel={strings.closeA11y} onPress={requestStop} />
       <StackScrollView contentOptions={{ topPadding: 40, bottomPaddingExtra: 40, maxWidth: 720 }}>
         <SurfaceCardView tone="elevated" style={styles.card}>

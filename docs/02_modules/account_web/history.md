@@ -5,6 +5,12 @@ version: 1.12
 updated: 2026-08-04
 ---
 
+## 2026-08-04 — Master upgrade bonus note missing
+
+- **Симптом:** под кнопкой «Мастер» нет текста про добавленный срок (при Наставнике + RUB/ЮKassa).
+- **Причина:** в `payment_catalog` oracle был тестовый **50 ₽** → `floor(остаток × 50/4950)=0`; плюс превью брало `subscription.amount` с Lava-контракта 50 ₽.
+- **Фикс:** каталог oracle → **950 ₽**; overview/fulfill считают бонус по цене каталога и max(period_end, membership_expires_at).
+
 ## 2026-08-04 — Billing geo: sticky EUR → Lava
 
 - **Симптом:** пользователь с `users.country_code=RU` (гео есть) открывал кабинет в EUR / Lava.

@@ -68,7 +68,7 @@ Prod (целевой режим): оба шлюза `ENABLED=true`, Lava `REGION
 
 ## Апгрейд ЮKassa (Наставник → Мастер)
 
-`bonusDays = floor(remainingDays × oracleAmount / masterAmount)` добавляются к базовым 30 суткам первого периода Master. Превью в кабинете (`upgradeBonusDays`), если > 0.
+`bonusDays = floor(remainingDays × oracleAmount / masterAmount)` добавляются к базовым 30 суткам первого периода Master. `oracleAmount`/`masterAmount` — цены **каталога** ЮKassa (не тестовая сумма в `payment_contracts`). `remainingDays` — до max(period_end контракта, `membership_expires_at`). Превью в кабинете (`upgradeBonusDays`), если > 0. Канон каталога: oracle **950** ₽, master **4950** ₽.
 
 ## Smoke
 

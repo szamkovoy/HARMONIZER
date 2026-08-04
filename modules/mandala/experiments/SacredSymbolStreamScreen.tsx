@@ -17,6 +17,7 @@ import {
 import { AppButton } from "@/modules/ui/AppButton";
 import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
 import { ImmersiveScreenLayout } from "@/modules/ui/ImmersiveScreenLayout";
+import { PracticeKeepAwake } from "@/modules/ui/PracticeKeepAwake";
 import { PracticeOverlayPanel } from "@/modules/ui/PracticeOverlayPanel";
 import { PracticeStopConfirmDialog } from "@/modules/ui/PracticeStopConfirmDialog";
 import { defaultTheme, ThemeProvider } from "@/modules/ui/theme";
@@ -180,10 +181,15 @@ export function SacredSymbolStreamScreen({
     [requestStop, strings.finishButton],
   );
 
+  // Keep screen on for flash meditation (no touches while symbols stream).
+  // Calm meditation intentionally does NOT use keep-awake.
+  const keepAwakeActive = isFocused && !finishing;
+
   return (
     <ImmersiveScreenLayout style={styles.safeArea} statusBarStyle="light" backgroundColor="#000000">
       <ThemeProvider value={defaultTheme}>
         <View style={styles.screen}>
+          {keepAwakeActive ? <PracticeKeepAwake tag="harmonizer-sacred-symbol-stream" /> : null}
           <MandalaSoundProvider
             practiceKind="meditation"
             durationMs={durationMs}

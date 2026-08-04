@@ -260,18 +260,25 @@ export async function buildAccountOverview(
     }),
   ]);
 
+  // ЮKassa Mentor→Master: превью бонуса по ценам каталога (не по тестовой сумме
+  // в payment_contracts) и по фактическому концу доступа (контракт / membership).
   let masterBonusDays = 0;
   const masterIdx = sellableUpgradeTiers.findIndex((tier) => tier === "master");
-  if (
-    provider === "yookassa" &&
-    subscription?.status === "active" &&
-    subscription.tier === "oracle" &&
-    masterIdx >= 0
-  ) {
+  if (provider === "yookassa" && visibleTier === "oracle" && masterIdx >= 0) {
     const masterPrice = upgradePrices[masterIdx];
+    const oracleCatalog = await resolveCatalogPrice(db, {
+      provider: "yookassa",
+      tier: "oracle",
+      currency: "RUB",
+    });
+    const periodCandidates = [
+      subscription?.currentPeriodEnd,
+      row.membership_expires_at,
+    ].filter((v): v is string => typeof v === "string" && v.length > 0);
+    const periodEndIso = periodCandidates.sort().at(-1) ?? null;
     masterBonusDays = computeMasterBonusDays({
-      periodEndIso: subscription.currentPeriodEnd,
-      oracleAmount: subscription.amount,
+      periodEndIso,
+      oracleAmount: oracleCatalog?.amount ?? subscription?.amount,
       masterAmount: masterPrice?.amount ?? null,
     });
   }

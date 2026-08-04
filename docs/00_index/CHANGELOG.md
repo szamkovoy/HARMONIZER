@@ -1,3 +1,5 @@
+- 2026-08-04 (418): Keep-awake for flash meditation + asana; calm unchanged; breath already covered.
+- 2026-08-04 (417): Master upgrade bonus — restore oracle catalog 950₽; preview/fulfill use catalog price.
 - 2026-08-04 (416): Cabinet billing geo — prefer `users.country_code`; stop sticky EUR timeout (RU → YooKassa).
 - 2026-08-04 (415): App marketing version **1.2.2** (`app.json` / `package.json`; store codes via EAS autoIncrement).
 - 2026-08-04 (414): OTP email slim (no guide block) + Auto-Submitted; SES_OTP_CONFIGURATION_SET separate from marketing.

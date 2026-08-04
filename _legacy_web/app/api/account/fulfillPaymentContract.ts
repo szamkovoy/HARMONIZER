@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cancelProviderSubscription } from "./cancelActiveSubscriptions";
 import { settlePayment } from "./fx";
 import { nextPeriodEnd } from "./lava";
+import { resolveCatalogPrice } from "./paymentCatalog";
 import { computeMasterBonusDays, periodEndWithBonusDays } from "./upgradeCredit";
 
 const RENEWAL_GRACE_MS = 48 * 60 * 60 * 1000;
@@ -190,20 +191,38 @@ export async function fulfillFirstPaymentSuccess(
 
   let bonusDays = 0;
   if (params.provider === "yookassa" && contract.tier === "master") {
-    const { data: priorOracle } = await db
-      .from("payment_contracts")
-      .select("amount,current_period_end,status")
-      .eq("user_id", contract.user_id)
-      .eq("tier", "oracle")
-      .eq("product_kind", "subscription")
-      .in("status", ["active", "cancelled"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [{ data: priorOracle }, { data: userRow }, oracleCatalog] = await Promise.all([
+      db
+        .from("payment_contracts")
+        .select("amount,current_period_end,status")
+        .eq("user_id", contract.user_id)
+        .eq("tier", "oracle")
+        .eq("product_kind", "subscription")
+        .in("status", ["active", "cancelled"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      db
+        .from("users")
+        .select("membership_expires_at,membership_tier")
+        .eq("id", contract.user_id)
+        .maybeSingle(),
+      resolveCatalogPrice(db, {
+        provider: "yookassa",
+        tier: "oracle",
+        currency: "RUB",
+      }),
+    ]);
     const masterAmount = params.amount ?? contract.amount;
+    const periodCandidates = [
+      priorOracle?.current_period_end as string | undefined,
+      userRow?.membership_expires_at as string | undefined,
+    ].filter((v): v is string => typeof v === "string" && v.length > 0);
+    const periodEndIso = periodCandidates.sort().at(-1);
     bonusDays = computeMasterBonusDays({
-      periodEndIso: priorOracle?.current_period_end as string | undefined,
-      oracleAmount: priorOracle?.amount as number | undefined,
+      periodEndIso,
+      // Каталог ЮKassa — канон прайса «Наставник»; сумма тестового контракта (50₽) не обнуляет кредит.
+      oracleAmount: oracleCatalog?.amount ?? (priorOracle?.amount as number | undefined),
       masterAmount: typeof masterAmount === "number" ? masterAmount : Number(masterAmount),
     });
   }

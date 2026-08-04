@@ -20,7 +20,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.zamkovoi.harmonizer.app",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Harmonizer использует камеру для режимов BIOFEEDBACK.",
@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.zamkovoi.harmonizer",
-      "versionCode": 30,
+      "versionCode": 31,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
