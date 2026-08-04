@@ -13,6 +13,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-04 (SES sets OTP vs marketing):** Документированы два configuration set (`harmonizer-otp` / `harmonizer-marketing`); OTP edge не читает `SES_CONFIGURATION_SET`. Маркетинг по-прежнему шлёт `List-Unsubscribe` (+ Post).
+
 - **2026-08-04 (segment not_in_harmonizer + card statuses):** Чип «Не в гармонизаторе» (`onboarded_at IS NULL`); в карточке пользователя — статусы send и прочитано у уведомлений.
 
 - **2026-07-31 (wipe stops drips; re-register restarts):** Удаление аккаунта отменяет активные email-automations (`cancelActiveEmailAutomationsForUser` в `wipeUserAccount`); due-send не шлёт orphan-контактам без `user_id`. Welcome (`account_registered`) при повторной регистрации с тем же email стартует заново — блок только на `active` enrollment, не на историю.

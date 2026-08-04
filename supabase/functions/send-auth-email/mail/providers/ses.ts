@@ -1,8 +1,8 @@
 /**
- * Amazon SES send for OTP (and reusable by marketing on Vercel via @aws-sdk).
+ * Amazon SES send for OTP (edge). Marketing on Vercel uses sesMarketingSend.ts.
  *
- * Selected by EMAIL_OTP / EMAIL_MARKETING profile (AMAZON_ZAMKOVOI_*).
- * Secrets: SES_ACCESS_KEY_ID, SES_SECRET_ACCESS_KEY, SES_REGION.
+ * Secrets: SES_ACCESS_KEY_ID, SES_SECRET_ACCESS_KEY, SES_REGION,
+ * optional SES_OTP_CONFIGURATION_SET (never SES_CONFIGURATION_SET / marketing).
  */
 import { SESv2Client, SendEmailCommand } from "npm:@aws-sdk/client-sesv2@3.787.0";
 import type { OutboundEmail, SendResult } from "../types.ts";
@@ -37,7 +37,13 @@ export async function sendViaSes(mail: OutboundEmail): Promise<SendResult> {
   });
 
   try {
-    const configSet = Deno.env.get("SES_CONFIGURATION_SET")?.trim();
+    // OTP-only set — do NOT reuse marketing SES_CONFIGURATION_SET
+    // (reputation / events / future subscription management stay isolated).
+    const configSet = Deno.env.get("SES_OTP_CONFIGURATION_SET")?.trim();
+    const extraHeaders = Object.entries(mail.headers ?? {}).map(([Name, Value]) => ({
+      Name,
+      Value,
+    }));
     const out = await client.send(
       new SendEmailCommand({
         FromEmailAddress: formatFromEmailAddress(mail.fromName, mail.fromEmail),
@@ -49,6 +55,7 @@ export async function sendViaSes(mail: OutboundEmail): Promise<SendResult> {
               Html: { Data: mail.html, Charset: "UTF-8" },
               Text: { Data: mail.text, Charset: "UTF-8" },
             },
+            ...(extraHeaders.length ? { Headers: extraHeaders } : {}),
           },
         },
         ...(configSet ? { ConfigurationSetName: configSet } : {}),

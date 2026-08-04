@@ -1,15 +1,9 @@
 {
-  "closing": "Alles Gute!",
-  "expiry": "Der Code ist 60 Minuten gültig und kann nur einmal verwendet werden.",
+  "subject": "{code} — Ihr Anmeldecode für Harmonisierer",
   "greeting": "Guten Tag!",
   "greetingName": "Hallo, {name}!",
-  "guide1": "Starte «Harmonisierer» und schau dir die Tagesempfehlungen an.",
-  "guide2": "Klicken Sie auf „Was tun?“, um zu den konkreten Inhalten und Übungen zu gelangen.",
-  "guide3": "Folge den Ratschlägen, übe und verfolge deine Fortschritte anhand der Berichte.",
-  "guide4": "Stell mir in den wöchentlichen Webinaren Fragen, damit du nicht stecken bleibst.",
-  "guide5": "Genieße, bewundere, zeige dich … :)",
-  "guideTitle": "Kurzanleitung:",
-  "ignore": "Falls Sie diesen Code nicht angefordert haben, ignorieren Sie diese E-Mail einfach.",
   "intro": "Ihr Anmeldecode für die App „Harmonisierer“:",
-  "subject": "{code} — Ihr Anmeldecode für Harmonisierer"
+  "expiry": "Der Code ist 60 Minuten gültig und kann nur einmal verwendet werden.",
+  "ignore": "Falls Sie diesen Code nicht angefordert haben, ignorieren Sie diese E-Mail einfach.",
+  "closing": "Alles Gute!"
 }

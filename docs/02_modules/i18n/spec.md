@@ -210,12 +210,12 @@ Two resolvers — do not conflate layer B and layer C:
 - **Edit RU → run `fill --all`** (or push; pre-push hook picks it up). One-time
   bootstrap for existing files: `node scripts/i18n-sync.mjs bootstrap-dialog-scaffold-meta`.
 
-### 4.1c Auth-email templates (edge function, 2026-07-14, updated 2026-07-17)
+### 4.1c Auth-email templates (edge function, 2026-07-14, updated 2026-08-04)
 - Source of truth: `supabase/functions/send-auth-email/templates/ru.json`
-  (subject/greeting/greetingName/intro/expiry/ignore/guideTitle/guide1–guide5/closing for OTP
-  sign-in emails). The `footer` line was removed; a 5-step quick user guide and a
-  personal signature were added (2026-07-17). `greetingName` (with `{name}`)
-  was added for the named greeting (2026-07-17).
+  (subject/greeting/greetingName/intro/expiry/ignore/closing for OTP sign-in emails).
+  Body is **short transactional** — guide/newsletter block removed (2026-08-04) so
+  inboxes are less likely to treat OTP as a mailing list. `greetingName` with `{name}`
+  remains. Send adds `Auto-Submitted: auto-generated`; never `List-Unsubscribe`.
 - Targets + meta: same flat-source mechanics as the dialog scaffold
   (`templates/{en,de,fr,it,es,pt,nl}.json` + `templates/.sync-meta.json`);
   registered in `i18n-sync.mjs` as the `auth-email` flat source.
@@ -238,16 +238,10 @@ Two resolvers — do not conflate layer B and layer C:
   signature use a `SENDER_NAMES` map — RU «Сергей Замковой», all other locales
   «Sergei Zamkovoi» (override via `MAIL_FROM_NAME` env). The previous behavior
   (localized app name as `From`) was replaced per product request.
-- **HTML body + named greeting (2026-07-17):** the HTML body is a structured
-  inline-CSS layout (max-width 600, system font-stack, sage-green letter-spaced
-  code, left-accent guide block, tight signature). It uses **no external
-  resources** — no Tailwind Play CDN `<script>`, no Google Fonts `<link>`,
-  because email clients strip `<script>` and most strip `<link>` (the approved
-  mockup only renders in a browser). A per-locale `greetingName` template with a
-  `{name}` placeholder is used when the user's name is available; otherwise the
-  generic `greeting` is used. Locale-appropriate greeting punctuation is baked in (RU
-  «Здравствуйте, {name}!», FR «Bonjour {name} !», ES «¡Hola, {name}!», etc.).
-  Plain-text body remains single-`\n`-joined.
+- **HTML body + named greeting (2026-07-17; slimmed 2026-08-04):** structured
+  inline-CSS (max-width 600, system font-stack, sage-green letter-spaced code,
+  tight signature) — **no** left-accent guide block. No external resources.
+  `greetingName` when name is known; else `greeting`. Plain-text is `\n`-joined.
 - **Name + locale side-channel (2026-07-17 name; 2026-07-20 locale):**
   `signInWithOtp` does NOT update `user_metadata` for an existing user (only on
   creation). Without a side-channel the hook would see a stale

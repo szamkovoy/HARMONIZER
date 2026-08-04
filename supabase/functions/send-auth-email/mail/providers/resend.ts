@@ -29,6 +29,9 @@ export async function sendViaResend(
       subject: mail.subject,
       text: mail.text,
       html: mail.html,
+      ...(mail.headers && Object.keys(mail.headers).length
+        ? { headers: mail.headers }
+        : {}),
     }),
   });
   if (!res.ok) {

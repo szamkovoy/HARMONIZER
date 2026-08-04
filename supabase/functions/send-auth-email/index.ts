@@ -103,12 +103,6 @@ function renderEmail(
     intro: string;
     expiry: string;
     ignore: string;
-    guideTitle: string;
-    guide1: string;
-    guide2: string;
-    guide3: string;
-    guide4: string;
-    guide5: string;
     closing: string;
   },
   code: string,
@@ -116,9 +110,9 @@ function renderEmail(
   userName: string,
   locale: string,
 ) {
-  // Название приложения и кнопки «Что делать?» уже вшиты в текст каждого шаблона
-  // (текст письма целиком на одном языке) — в рантайме подставляются только {code}
-  // и {name} (если пользователь указал имя на шаге 1).
+  // Short transactional OTP only — no guide/marketing block (inbox clients
+  // treat long “newsletter-like” bodies as list mail even without List-Unsubscribe).
+  // Runtime placeholders: {code}, optional {name}.
   const fillCode = (s: string) => s.replaceAll("{code}", code);
   const name = userName.trim();
   const greetingRaw =
@@ -127,9 +121,6 @@ function renderEmail(
       : tpl.greeting;
   const greeting = fillCode(greetingRaw);
   const subject = fillCode(tpl.subject);
-  const steps = [tpl.guide1, tpl.guide2, tpl.guide3, tpl.guide4, tpl.guide5].map(
-    (g, i) => `${i + 1}. ${fillCode(g)}`,
-  );
   const text = [
     greeting,
     "",
@@ -138,9 +129,6 @@ function renderEmail(
     "",
     fillCode(tpl.expiry),
     fillCode(tpl.ignore),
-    "",
-    fillCode(tpl.guideTitle),
-    ...steps,
     "",
     fillCode(tpl.closing),
     signName,
@@ -151,14 +139,7 @@ function renderEmail(
   const FONT =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const PRIMARY = "#436558";
-  const BORDER = "#7da192";
   const TEXT = "#161d1f";
-  const itemHtml = steps
-    .map((s, i) => {
-      const mb = i < steps.length - 1 ? "8px" : "0";
-      return `<p style="margin:0 0 ${mb} 0;padding:0">${escapeHtml(s)}</p>`;
-    })
-    .join("");
   const htmlParts = [
     `<!DOCTYPE html><html lang="${escapeHtml(locale)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>`,
     `<body style="margin:0;padding:0;background:#ffffff">`,
@@ -167,10 +148,6 @@ function renderEmail(
     `<p style="margin:0 0 12px 0">${escapeHtml(fillCode(tpl.intro))}</p>`,
     `<p style="margin:0 0 24px 0;font-size:30px;font-weight:600;letter-spacing:0.25em;color:${PRIMARY}">${escapeHtml(code)}</p>`,
     `<p style="margin:0 0 24px 0">${escapeHtml(fillCode(tpl.expiry))}<br>${escapeHtml(fillCode(tpl.ignore))}</p>`,
-    `<div style="border-left:3px solid ${BORDER};padding:4px 0 4px 20px;margin:0 0 24px 0">`,
-    `<p style="margin:0 0 10px 0">${escapeHtml(fillCode(tpl.guideTitle))}</p>`,
-    itemHtml,
-    `</div>`,
     `<p style="margin:0">${escapeHtml(fillCode(tpl.closing))}<br>${escapeHtml(signName)}</p>`,
     `</div>`,
     `</body></html>`,
@@ -247,6 +224,8 @@ Deno.serve(async (req) => {
     subject: rendered.subject,
     text: rendered.text,
     html: rendered.html,
+    // Transactional signal; never List-Unsubscribe on OTP.
+    headers: { "Auto-Submitted": "auto-generated" },
   });
 
   if (!sent.ok) {

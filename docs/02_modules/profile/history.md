@@ -9,6 +9,9 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-08-04 (version 1.2.2):** Маркетинговая версия приложения **1.2.2** (`app.json` / `package.json`; `versionCode`/`buildNumber` — EAS autoIncrement).
+- **2026-08-04 (OTP email slim):** OTP-письмо без блока «руководство»; `Auto-Submitted`; SES config set отдельно (`SES_OTP_CONFIGURATION_SET`). См. `email_providers.md` / i18n history.
+
 - **2026-07-31 (cold-start profileLoading gap):** `completeBootstrap` теперь ставит `profileLoading=true` до `initializing=false` при наличии session — иначе один тик `session && !profileLoading && !profile` снимал splash на белый gate (Android). См. infra history.
 
 - **2026-07-31 (LegalFooter crash on Profile):** Store/TestFlight — таб «Профиль» падал на `nativeApplicationVersion` of undefined (неверный default-import `expo-application` в `LegalDocuments.tsx`). См. onboarding history.

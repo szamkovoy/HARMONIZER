@@ -1,15 +1,9 @@
 {
-  "closing": "Al het goede!",
-  "expiry": "De code is 60 minuten geldig en kan maar één keer worden gebruikt.",
+  "subject": "{code} — je inlogcode voor Harmoniseerder",
   "greeting": "Hallo!",
   "greetingName": "Hallo, {name}!",
-  "guide1": "Start «Harmoniseerder» en bekijk de aanbevelingen voor vandaag.",
-  "guide2": "Klik op de knop «Wat te doen?» om naar de specifieke inhoud en oefeningen te gaan.",
-  "guide3": "Volg de adviezen, oefen, en volg je voortgang via de rapporten.",
-  "guide4": "Stel mij vragen tijdens de wekelijkse webinars om niet vast te lopen.",
-  "guide5": "Geniet, bewonder, manifesteer je… :)",
-  "guideTitle": "Korte gebruikershandleiding:",
-  "ignore": "Heb je deze code niet aangevraagd? Negeer deze e-mail dan gewoon.",
   "intro": "Je inlogcode voor de app «Harmoniseerder»:",
-  "subject": "{code} — je inlogcode voor Harmoniseerder"
+  "expiry": "De code is 60 minuten geldig en kan maar één keer worden gebruikt.",
+  "ignore": "Heb je deze code niet aangevraagd? Negeer deze e-mail dan gewoon.",
+  "closing": "Al het goede!"
 }

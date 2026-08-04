@@ -11,6 +11,8 @@ export type OutboundEmail = {
   subject: string;
   text: string;
   html: string;
+  /** Extra RFC822 headers (OTP: Auto-Submitted; never List-Unsubscribe). */
+  headers?: Record<string, string>;
 };
 
 export type SendResult =

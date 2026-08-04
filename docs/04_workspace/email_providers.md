@@ -1,8 +1,8 @@
 ---
 id: 04_workspace/email_providers
 title: Email providers — OTP vs marketing (Resend ↔ Amazon)
-version: 2.0
-updated: 2026-07-30
+version: 2.1
+updated: 2026-08-04
 depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec, 02_modules/marketing_email/spec]
 code_refs:
   [
@@ -89,16 +89,28 @@ npx vercel env add EMAIL_MARKETING production   # value: RESEND_ZAMKOVOI_RU
 # RESEND_ZAMKOVOI_RU_API_KEY + RESEND_MARKETING_WEBHOOK_SECRET already set
 ```
 
+### SES configuration sets (OTP ≠ marketing)
+
+Keep **two** sets when both channels use Amazon (today OTP only):
+
+| Set | Used by | Env | Notes |
+| --- | --- | --- | --- |
+| `harmonizer-otp` | Edge OTP (active) | Supabase `SES_OTP_CONFIGURATION_SET` | Reputation metrics optional (CloudWatch cost). No custom redirect / SES Subscription Management. |
+| `harmonizer-marketing` | Vercel marketing (prepared; transport still Resend until flip) | Vercel `SES_CONFIGURATION_SET` | Reputation metrics optional. Event destination → SNS → `/api/webhooks/ses-marketing` before flip. Unsubscribe = **our** headers only. |
+| `my-first-configuration-set` | unused legacy | — | Safe to leave or delete later; code does not reference it. |
+
+OTP code **ignores** `SES_CONFIGURATION_SET`. Marketing flip does **not** change OTP secrets.
+
 ### Marketing → Amazon ru (when ready)
 
 Prerequisites:
 
 1. SES identity `zamkovoi.ru` (+ `sergei@zamkovoi.ru`) verified in production.
 2. DNS Easy DKIM / Custom MAIL FROM for `.ru` (mirror yoga §4).
-3. SES **Configuration Set** (e.g. `harmonizer-marketing`) with event destination → SNS → HTTPS  
+3. SES **Configuration Set** `harmonizer-marketing` with event destination → SNS → HTTPS  
    `https://harmonizer-ten.vercel.app/api/webhooks/ses-marketing?token=<SES_MARKETING_WEBHOOK_SECRET>`  
    Events: send, delivery, bounce, complaint (open/click optional — first-party preferred).
-4. Vercel: `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_REGION`, `SES_CONFIGURATION_SET`, `SES_MARKETING_WEBHOOK_SECRET`, then `EMAIL_MARKETING=AMAZON_ZAMKOVOI_RU`.
+4. Vercel: `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_REGION`, `SES_CONFIGURATION_SET=harmonizer-marketing`, `SES_MARKETING_WEBHOOK_SECRET`, then `EMAIL_MARKETING=AMAZON_ZAMKOVOI_RU`.
 5. Deploy `_legacy_web` production.
 
 ## 4. Deliverability stats continuity
@@ -133,7 +145,8 @@ Easy DKIM (three CNAMEs) + Custom MAIL FROM `sesmail.zamkovoi.yoga` — see hist
 | `EMAIL_OTP` | Supabase | OTP profile |
 | `EMAIL_MARKETING` | Vercel | Marketing profile |
 | `SES_ACCESS_KEY_ID` / `SES_SECRET_ACCESS_KEY` / `SES_REGION` | Supabase + Vercel | Amazon send |
-| `SES_CONFIGURATION_SET` | Vercel (marketing) | Attach events to sends |
+| `SES_OTP_CONFIGURATION_SET` | Supabase (OTP) | Optional OTP configuration set (`harmonizer-otp`) |
+| `SES_CONFIGURATION_SET` | Vercel (marketing) | Marketing configuration set only |
 | `SES_MARKETING_WEBHOOK_SECRET` | Vercel | Auth for `/api/webhooks/ses-marketing?token=` |
 | `RESEND_ZAMKOVOI_YOGA_API_KEY` | Supabase | Resend OTP |
 | `RESEND_ZAMKOVOI_RU_API_KEY` | Vercel | Resend marketing |

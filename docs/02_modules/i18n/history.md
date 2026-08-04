@@ -15,6 +15,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-04 (OTP slim):** Removed guideTitle/guide1–5 from auth-email templates + HTML accent block; short transactional OTP only. `Auto-Submitted: auto-generated`. SES OTP uses `SES_OTP_CONFIGURATION_SET` (not marketing set).
+
 - **2026-08-02 (practices tempoLabel):** `tempoLabel` («Темп:» / «Tempo:» + EU overlays) for breath tempo ComboBox header on practice cards.
 
 - **2026-07-31 (profile about / app name):** Каталог — `common.appName` (канон = `APP_NAMES` из `plugins/appLocalesData.js`) и `profile.about.copyrightHolder` (RU: `ТОО "Сергей Замковой"`, остальные: `Sergei Zamkovoi, TOO`).
