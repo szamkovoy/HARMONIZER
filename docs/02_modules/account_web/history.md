@@ -5,6 +5,12 @@ version: 1.12
 updated: 2026-08-04
 ---
 
+## 2026-08-04 — Billing geo: sticky EUR → Lava
+
+- **Симптом:** пользователь с `users.country_code=RU` (гео есть) открывал кабинет в EUR / Lava.
+- **Причина:** `resolveBillingGeo` не читал профиль; timeout reverse-geocode 800 мс **персистил** EUR в SecureStore → каждый следующий open сразу EUR без `country`.
+- **Фикс:** приоритет `users.country_code`; эфемерный EUR при timeout не пишется в персист; trusted только geo с ISO country (или RUB/USD).
+
 ## 2026-08-04 — Refund revokes membership + YooKassa success-only
 
 - После успешного возврата (Lava mark / ЮKassa succeeded / `yookassa_mark` / webhook) — снятие тарифа по платежу (пересчёт из оставшихся контрактов/грантов → иначе free).

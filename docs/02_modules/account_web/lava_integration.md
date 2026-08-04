@@ -62,7 +62,7 @@ Lava не поддерживает несколько языков у одног
 
 ## 4. Правило валюты
 
-Валюта цен определяется приложением по геолокации (`modules/account/core/billingCurrency.ts`): RU → RUB, US → USD, иначе EUR. Передаётся в ссылку кабинета `?currency=` и далее в `POST /api/account/checkout` и `GET /api/account/overview?currency=`. Сервер отдаёт цены в этой валюте. Fallback валюты — EUR.
+Валюта/страна — `resolveBillingGeo` (`billingCurrency.ts`): сначала `users.country_code`, иначе reverse-geocode GPS. RU → RUB (+ ЮKassa), US → USD, иначе EUR (+ Lava INT). В кабинет: `?currency=` + `?country=`. Timeout не залипает как EUR в SecureStore.
 
 **Российский эквайринг:** в ближайшее время подключается Яндекс.Касса/Сбер для РФ. До этого RU-пользователи идут через Lava (английский продукт, оплата в RUB) — для тестирования. Переключатель «Lava ↔ российский эквайринг» заложить как тестовый тумблер (open question).
 

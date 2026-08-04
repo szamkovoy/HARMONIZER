@@ -1,3 +1,4 @@
+- 2026-08-04 (416): Cabinet billing geo — prefer `users.country_code`; stop sticky EUR timeout (RU → YooKassa).
 - 2026-08-04 (415): App marketing version **1.2.2** (`app.json` / `package.json`; store codes via EAS autoIncrement).
 - 2026-08-04 (414): OTP email slim (no guide block) + Auto-Submitted; SES_OTP_CONFIGURATION_SET separate from marketing.
 - 2026-08-04 (413): Fix users access-sort; sort controls below date filters; dashboard KPI dig-down links.
