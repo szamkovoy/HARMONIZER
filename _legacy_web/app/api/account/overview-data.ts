@@ -8,6 +8,7 @@ import {
   resolvePaymentGateway,
   type PaymentProviderId,
 } from "./paymentGatewayProfile";
+import { computeMasterBonusDays } from "./upgradeCredit";
 
 /**
  * Данные для страницы Личного кабинета. Страница локализует названия уровней
@@ -46,6 +47,8 @@ export type AccountUpgradeTier = {
   tier: ProductTier;
   /** Как оформить покупку и цена в валюте кабинета (из Lava). */
   purchase: AccountPurchase;
+  /** ЮKassa: доп. дни «Мастер» за неиспользованный остаток «Наставник». */
+  upgradeBonusDays?: number;
 };
 
 /** Разовая покупка участия в ближайшем вебинаре. */
@@ -257,9 +260,26 @@ export async function buildAccountOverview(
     }),
   ]);
 
+  let masterBonusDays = 0;
+  const masterIdx = sellableUpgradeTiers.findIndex((tier) => tier === "master");
+  if (
+    provider === "yookassa" &&
+    subscription?.status === "active" &&
+    subscription.tier === "oracle" &&
+    masterIdx >= 0
+  ) {
+    const masterPrice = upgradePrices[masterIdx];
+    masterBonusDays = computeMasterBonusDays({
+      periodEndIso: subscription.currentPeriodEnd,
+      oracleAmount: subscription.amount,
+      masterAmount: masterPrice?.amount ?? null,
+    });
+  }
+
   const upgradeTiers: AccountUpgradeTier[] = sellableUpgradeTiers.map((tier, i) => ({
     tier,
     purchase: { mode: purchaseMode, price: upgradePrices[i] ?? null, url: null },
+    ...(tier === "master" && masterBonusDays > 0 ? { upgradeBonusDays: masterBonusDays } : {}),
   }));
 
   const webinarId = nearestWebinar.data?.id ?? null;

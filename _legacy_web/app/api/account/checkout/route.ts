@@ -132,20 +132,6 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (
-      error instanceof Error
-      && ((error as Error & { code?: string }).code === "yookassa_recurring_not_enabled"
-        || error.message === "yookassa_recurring_not_enabled")
-    ) {
-      return corsJson(
-        {
-          error: "yookassa_recurring_not_enabled",
-          message:
-            "YooKassa shop cannot save payment methods yet. Set YOOKASSA_RECURRING_ENABLED=false or enable recurring with your YooKassa manager.",
-        },
-        { status: 503 },
-      );
-    }
     return withCors(errorResponse(error));
   }
 }

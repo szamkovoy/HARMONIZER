@@ -3,7 +3,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { isYookassaRecurringEnabled } from "./paymentGatewayProfile";
 import { fulfillYookassaRenewal, markContractCancelled } from "./fulfillPaymentContract";
 import { chargeYookassaSavedMethod } from "./yookassa";
 
@@ -91,10 +90,6 @@ export async function runYookassaRenewals(db: SupabaseClient): Promise<{
   failed: number;
   skipped: number;
 }> {
-  if (!isYookassaRecurringEnabled()) {
-    return { scanned: 0, charged: 0, succeeded: 0, failed: 0, skipped: 0 };
-  }
-
   const now = Date.now();
   const windowEnd = new Date(now + RENEW_WINDOW_MS).toISOString();
   const nowIso = new Date(now).toISOString();

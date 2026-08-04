@@ -19,6 +19,9 @@ export type AdminLedgerRow = {
   display_name?: string;
   email?: string;
   contract_id?: string | null;
+  /** Gateway contract status (active|cancelled|refunded|…). */
+  status?: string | null;
+  refundable?: boolean;
 };
 
 type Options = {
@@ -49,9 +52,9 @@ export async function loadAdminPaymentLedger(
   let contractsQuery = db
     .from("payment_contracts")
     .select(
-      "id, contract_id, user_id, amount, currency, tier, status, provider, product_kind, current_period_end, buyer_email, created_at, users(display_name)",
+      "id, contract_id, user_id, amount, currency, tier, status, provider, product_kind, current_period_end, buyer_email, created_at, provider_payment_id, users(display_name)",
     )
-    .in("status", ["active", "cancelled"])
+    .in("status", ["active", "cancelled", "refunded"])
     .not("amount", "is", null)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -112,6 +115,7 @@ export async function loadAdminPaymentLedger(
       buyer ||
       (c.user_id ? emails.get(c.user_id as string) : null) ||
       "—";
+    const status = (c.status as string) || "active";
     return {
       id: `gw:${c.contract_id}`,
       kind: "gateway",
@@ -129,6 +133,8 @@ export async function loadAdminPaymentLedger(
       display_name: ledgerDisplayName(user?.display_name, email === "—" ? null : email),
       email,
       contract_id: c.contract_id as string,
+      status,
+      refundable: status === "active" || status === "cancelled",
     };
   });
 

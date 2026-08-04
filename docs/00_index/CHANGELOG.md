@@ -1,3 +1,6 @@
+- 2026-08-04 (411): Refund success revokes membership; YooKassa marks refunded only on `succeeded` (+ manual fallback button).
+- 2026-08-04 (410): Admin refunds (Lava mark / YooKassa API); YooKassa Mentor→Master bonus days + cabinet note; admin login error codes + «Восстановить связь».
+- 2026-08-04 (409): Re-enable YooKassa (RU) + Lava (INT); drop legacy `YOOKASSA_ENABLED` / `PAYMENT_GATEWAY_FOR_RUB` / `YOOKASSA_RECURRING_ENABLED`; save_method with 403 retry; `.vercelignore` `/dist`.
 - 2026-08-04 (408): Store versioning — `DEPLOY.md` + agent rule + `after-store-build.mjs` (EAS autoIncrement; no hand-bump; commit `app.json` once).
 - 2026-08-04 (407): Android `versionCode` **30** (Play already consumed 27–29).
 - 2026-08-04 (406): App marketing version **1.2.1** (`app.json` / `package.json`).

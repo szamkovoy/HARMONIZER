@@ -82,6 +82,7 @@
     #hz-cabinet .hz-btn { display:block; width:100%; padding:13px 18px; border:0; border-radius:10px; background:var(--hz-teal); color:#fff; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
     #hz-cabinet .hz-btn:hover { background:var(--hz-teal-dark); }
     #hz-cabinet .hz-btn:disabled { opacity:.6; cursor:default; }
+    #hz-cabinet .hz-upgrade-bonus { margin-top:10px; font-size:12px; line-height:1.45; color:var(--hz-muted); }
     #hz-cabinet .hz-btn-ghost { background:transparent; border:1px solid var(--hz-line); color:var(--hz-muted); font-weight:500; }
     #hz-cabinet .hz-select { width:100%; background:transparent; border:0; border-bottom:1px solid var(--hz-line); padding:8px 0; font-size:16px; color:var(--hz-text); font-family:inherit; appearance:none; -webkit-appearance:none; cursor:pointer; margin-bottom:18px; }
     #hz-cabinet .hz-select:focus { outline:0; border-bottom-color:var(--hz-teal); }
@@ -180,6 +181,8 @@
       otherTiersTitle:"Другие тарифы",
       planIncludes:"Этот тарифный план предусматривает:",
       planOnTopOf:"Дополнительно к возможностям тарифа «{mentor}» вы получаете:",
+      upgradeBonusNote:"При переходе с тарифного плана «Наставник» за неиспользованные дни вы получите дополнительно {n} {days} тарифа «Мастер».",
+      upgradeBonusDaysOne:"день", upgradeBonusDaysFew:"дня", upgradeBonusDaysMany:"дней",
       activateBtn:"Подключить", perMonth:"/мес",
       additionalTitle:"Дополнительно",
       webinarOneTime:"Разовое участие в ближайшей групповой консультации (вебинаре)",
@@ -213,6 +216,8 @@
       otherTiersTitle:"Other plans",
       planIncludes:"This plan includes:",
       planOnTopOf:"In addition to everything in the “{mentor}” plan, you get:",
+      upgradeBonusNote:"When upgrading from the Advisor plan, unused days give you {n} extra {days} on the Master plan.",
+      upgradeBonusDaysOne:"day", upgradeBonusDaysFew:"days", upgradeBonusDaysMany:"days",
       activateBtn:"Activate", perMonth:"/mo",
       additionalTitle:"Extras",
       webinarOneTime:"One-time participation in the nearest group consultation (webinar)",
@@ -247,6 +252,8 @@
       otherTiersTitle:"Andere Tarife",
       planIncludes:"Dieser Tarif umfasst:",
       planOnTopOf:"Zusätzlich zu allem im Tarif «{mentor}» erhalten Sie:",
+      upgradeBonusNote:"Beim Wechsel vom Tarif «Mentor» erhalten Sie für ungenutzte Tage zusätzlich {n} {days} des Tarifs «Meister».",
+      upgradeBonusDaysOne:"Tag", upgradeBonusDaysFew:"Tage", upgradeBonusDaysMany:"Tage",
       activateBtn:"Aktivieren", perMonth:"/Monat",
       additionalTitle:"Zusätzliches",
       webinarOneTime:"Einmalige Teilnahme an der nächsten Gruppensitzung (Webinar)",
@@ -280,6 +287,8 @@
       otherTiersTitle:"Autres formules",
       planIncludes:"Cette formule comprend :",
       planOnTopOf:"En plus de tout ce qui est inclus dans la formule « {mentor} », vous obtenez :",
+      upgradeBonusNote:"En passant du forfait « Mentor », les jours non utilisés vous donnent {n} {days} supplémentaires du forfait « Maître ».",
+      upgradeBonusDaysOne:"jour", upgradeBonusDaysFew:"jours", upgradeBonusDaysMany:"jours",
       activateBtn:"Activer", perMonth:"/mois",
       additionalTitle:"En supplément",
       webinarOneTime:"Participation unique à la prochaine consultation de groupe (webinaire)",
@@ -313,6 +322,8 @@
       otherTiersTitle:"Altri piani",
       planIncludes:"Questo piano include:",
       planOnTopOf:"In aggiunta a tutto ciò che è incluso nel piano « {mentor} », ottieni:",
+      upgradeBonusNote:"Passando dal piano «Mentore», i giorni non usati diventano {n} {days} aggiuntivi del piano «Maestro».",
+      upgradeBonusDaysOne:"giorno", upgradeBonusDaysFew:"giorni", upgradeBonusDaysMany:"giorni",
       activateBtn:"Attiva", perMonth:"/mese",
       additionalTitle:"Extra",
       webinarOneTime:"Partecipazione unica alla prossima consulenza di gruppo (webinar)",
@@ -346,6 +357,8 @@
       otherTiersTitle:"Otros planes",
       planIncludes:"Este plan incluye:",
       planOnTopOf:"Además de todo lo del plan «{mentor}», obtienes:",
+      upgradeBonusNote:"Al pasar del plan «Mentor», los días no usados se convierten en {n} {days} adicionales del plan «Maestro».",
+      upgradeBonusDaysOne:"día", upgradeBonusDaysFew:"días", upgradeBonusDaysMany:"días",
       activateBtn:"Activar", perMonth:"/mes",
       additionalTitle:"Extras",
       webinarOneTime:"Participación única en la próxima consulta grupal (webinar)",
@@ -379,6 +392,8 @@
       otherTiersTitle:"Outros planos",
       planIncludes:"Este plano inclui:",
       planOnTopOf:"Além de tudo o que está incluído no plano «{mentor}», obtém:",
+      upgradeBonusNote:"Ao mudar do plano «Mentor», os dias não usados tornam-se {n} {days} adicionais do plano «Mestre».",
+      upgradeBonusDaysOne:"dia", upgradeBonusDaysFew:"dias", upgradeBonusDaysMany:"dias",
       activateBtn:"Ativar", perMonth:"/mês",
       additionalTitle:"Extras",
       webinarOneTime:"Participação única na próxima consulta de grupo (webinar)",
@@ -412,6 +427,8 @@
       otherTiersTitle:"Andere abonnementen",
       planIncludes:"Dit abonnement omvat:",
       planOnTopOf:"Bovendien krijg je alles uit het '{mentor}'-abonnement:",
+      upgradeBonusNote:"Bij een upgrade vanaf het Mentor-abonnement ontvangt u voor ongebruikte dagen {n} extra {days} van het Meester-abonnement.",
+      upgradeBonusDaysOne:"dag", upgradeBonusDaysFew:"dagen", upgradeBonusDaysMany:"dagen",
       activateBtn:"Activeren", perMonth:"/mnd",
       additionalTitle:"Extra's",
       webinarOneTime:"Eenmalige deelname aan de volgende groepsconsult (webinar)",
@@ -742,6 +759,12 @@
             desc.forEach(function (d) { html += '<li>' + esc(d) + '</li>'; });
             html += '</ul>';
             html += '<button class="hz-btn" data-label="' + esc(btnLabel) + '" onclick="hzStartUpgrade(\'' + t + '\', ' + JSON.stringify(purchase).replace(/"/g, "&quot;") + ', this)">' + esc(btnLabel) + '</button>';
+            var bonus = Number(u.upgradeBonusDays) || 0;
+            if (t === "master" && bonus > 0 && T.upgradeBonusNote) {
+              var dayWord = bonus === 1 ? (T.upgradeBonusDaysOne || "день") : (bonus < 5 ? (T.upgradeBonusDaysFew || "дня") : (T.upgradeBonusDaysMany || "дней"));
+              var note = T.upgradeBonusNote.replace("{n}", String(bonus)).replace("{days}", dayWord);
+              html += '<div class="hz-upgrade-bonus">' + esc(note) + '</div>';
+            }
             html += '</div>';
           });
           html += '</section>';

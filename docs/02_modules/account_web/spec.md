@@ -147,17 +147,17 @@ else                                →  fail-closed
 ```
 
 1. Overview/checkout принимают `country` (+ `currency`). ЮKassa → цены `payment_catalog` / checkout RUB.
-2. Первый платёж: `POST /v3/payments` redirect; подписки + `YOOKASSA_RECURRING_ENABLED` → `save_payment_method`; webhook пишет `yookassa_payment_methods`.
-3. Renewal: cron `yookassa-renewals` → `chargeYookassaSavedMethod` (`payment_method_id`, metadata.kind=`renewal`) → webhook/cron → `fulfillYookassaRenewal` (+30d + grace + settlement). Fail: `renew_fail_count`; 2 fails или `permission_revoked` → cancel + method inactive.
+2. Первый платёж: `POST /v3/payments` redirect; подписки всегда с `save_payment_method` (если магазин ещё не разрешил recurring → retry без save, доступ +30d всё равно). Webhook пишет `yookassa_payment_methods`, когда method реально сохранён.
+3. Renewal: cron `yookassa-renewals` (всегда on) → `chargeYookassaSavedMethod` (`payment_method_id`, metadata.kind=`renewal`) → webhook/cron → `fulfillYookassaRenewal` (+30d + grace + settlement). Fail: `renew_fail_count`; 2 fails или `permission_revoked` → cancel + method inactive. Без `payment_method_id` renew нечего делать.
 4. Cancel/wipe: methods → `inactive` (ЮKassa не удаляет method API-side).
 5. Чеки 54-ФЗ не передаём.
 
-**Runbook:** env (`PAYMENT_*` + `YOOKASSA_*`) → webhook URL → выложить `cabinet/` с `country` → smoke RU/INT.
+**Runbook:** env (`PAYMENT_*_ENABLED/REGION` + `YOOKASSA_SHOP_ID/SECRET/RETURN_URL`) → webhook URL на актуальном shop → `cabinet/` с `country` → smoke RU/INT. Ops: [`docs/04_workspace/payment_gateways.md`](docs/04_workspace/payment_gateways.md).
 
 ## 4. Конфигурация
 
 - Vercel env (Lava): `ACCOUNT_CABINET_SECRET`, `ACCOUNT_CABINET_ALLOWED_ORIGIN` (default `https://zamkovoi.yoga`), `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID`, `LAVATOP_TARIFF_3_ID`. Опционально: `LAVA_GATEWAY_FEE_RATE`, `YANDEX_GATEWAY_FEE_RATE`.
-- Vercel env (шлюзы): `PAYMENT_LAVATOP_ENABLED`, `PAYMENT_LAVATOP_REGION=INT`, `PAYMENT_YOOKASSA_ENABLED`, `PAYMENT_YOOKASSA_REGION=RU`, `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `YOOKASSA_RETURN_URL`, `YOOKASSA_RECURRING_ENABLED`, опц. `YOOKASSA_WEBHOOK_SECRET`. Legacy: `YOOKASSA_ENABLED` + `PAYMENT_GATEWAY_FOR_RUB`.
+- Vercel env (шлюзы): `PAYMENT_LAVATOP_ENABLED`, `PAYMENT_LAVATOP_REGION=INT`, `PAYMENT_YOOKASSA_ENABLED`, `PAYMENT_YOOKASSA_REGION=RU`, `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `YOOKASSA_RETURN_URL`, опц. `YOOKASSA_WEBHOOK_SECRET`. Удалены: `YOOKASSA_ENABLED`, `PAYMENT_GATEWAY_FOR_RUB`, `YOOKASSA_RECURRING_ENABLED`.
 - Приложение: `EXPO_PUBLIC_ACCOUNT_CABINET_URL` (default `https://zamkovoi.yoga/cabinet/`); OTT URL передаёт `currency` + `country`.
 - Страница: константа `API_BASE` в `web_cabinet/cabinet/index.html` (origin Vercel); оферта — `{API_BASE}/cabinet/offer/{lang}.json`.
 - Kill-switch: `update app_config set value='false' where key='account_links_enabled'` перед отправкой сборки на ревью; `'true'` после прохождения. Без релиза приложения (кэш клиента — до 5 минут). Ключ `account_links_enabled` читается и анонимом (политика `20260719000000`), остальные ключи `app_config` — только для authenticated/админов.

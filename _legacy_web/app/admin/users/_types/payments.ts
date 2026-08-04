@@ -15,6 +15,8 @@ export type AdminPaymentRow = {
   display_name?: string;
   email?: string;
   contract_id?: string | null;
+  status?: string | null;
+  refundable?: boolean;
 };
 
 export type PaymentFormValues = {

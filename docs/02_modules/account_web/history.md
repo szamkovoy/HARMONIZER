@@ -1,14 +1,31 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.11
-updated: 2026-07-31
+version: 1.12
+updated: 2026-08-04
 ---
+
+## 2026-08-04 — Refund revokes membership + YooKassa success-only
+
+- После успешного возврата (Lava mark / ЮKassa succeeded / `yookassa_mark` / webhook) — снятие тарифа по платежу (пересчёт из оставшихся контрактов/грантов → иначе free).
+- ЮKassa API: БД не трогаем, пока статус не `succeeded`; при отказе/pending — кнопка «Сделать возврат вручную».
+
+## 2026-08-04 — Refunds + YooKassa upgrade credit
+
+- Админка: возврат gateway-платежа — Lava mark-only / ЮKassa API + spinner feedback; статус `refunded`; settlements `refunded_at` вне net-статистики; webhook `refund.succeeded`.
+- ЮKassa апгрейд oracle→master: `upgradeBonusDays` к периоду (+превью в кабинете, 8 локалей).
+- Админ-логин: коды ошибок + `/api/admin/login/health` + кнопка «Восстановить связь и войти».
+
+## 2026-08-04 — Re-enable YooKassa + simplify gateway env
+
+- Prod: `PAYMENT_YOOKASSA_ENABLED=true` + Lava INT; новый shopId/secret → local + Vercel.
+- Удалены `YOOKASSA_ENABLED`, `PAYMENT_GATEWAY_FOR_RUB`, `YOOKASSA_RECURRING_ENABLED`.
+- Подписки: всегда `save_payment_method`; 403 магазина → retry без save; cron renewals без kill-switch.
 
 ## 2026-07-31 — Cancelled badge + YooKassa recurring gate
 
 - Кабинет: статус отменённой подписки — «отменена» / cancelled (8 локалей), не «неактивна».
-- Smoke: магазин ЮKassa отклонил `save_payment_method` (403) → `YOOKASSA_RECURRING_ENABLED=false` до включения автоплатежей менеджером; ошибка мапится в `yookassa_recurring_not_enabled`.
+- Smoke: магазин ЮKassa отклонил `save_payment_method` (403) → временно `YOOKASSA_RECURRING_ENABLED=false` (флаг снят 2026-08-04).
 
 ## 2026-07-31 — Payment gateway profiles RU/INT + YooKassa recurring
 

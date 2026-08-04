@@ -12,9 +12,13 @@
  *   2) иначе enabled gateway с REGION=INT
  *   3) иначе fail-closed (payment_gateway_unavailable)
  *
- * Legacy (если новых PAYMENT_*_ENABLED нет):
- *   YOOKASSA_ENABLED + PAYMENT_GATEWAY_FOR_RUB=yookassa → yookassa region RU;
- *   Lava всегда enabled INT.
+ * Credentials ЮKassa (не флаги маршрутизации): YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY,
+ * YOOKASSA_RETURN_URL, опц. YOOKASSA_WEBHOOK_SECRET.
+ *
+ * Автоплатежи ЮKassa: для подписок всегда запрашиваем save_payment_method;
+ * если магазин ещё не разрешил recurring — create падает обратно в обычный платёж
+ * (см. yookassa.ts). Отдельного kill-switch нет (в отличие от Lava — подписки там
+ * на стороне провайдера).
  */
 
 export type PaymentProviderId = "lavatop" | "yookassa";
@@ -30,11 +34,10 @@ type GatewayDef = {
   region: string;
 };
 
-function envFlag(name: string): boolean | null {
+function envFlag(name: string): boolean {
   const raw = process.env[name];
-  if (raw == null) return null;
+  if (raw == null) return false;
   const v = raw.trim().toLowerCase();
-  if (!v) return null;
   return v === "true" || v === "1" || v === "yes";
 }
 
@@ -44,33 +47,17 @@ function normalizeRegion(raw: string | undefined, fallback: string): string {
 }
 
 function loadGateways(): GatewayDef[] {
-  const lavaFlag = envFlag("PAYMENT_LAVATOP_ENABLED");
-  const yooFlag = envFlag("PAYMENT_YOOKASSA_ENABLED");
-  const usingNewModel = lavaFlag != null || yooFlag != null;
-
-  if (usingNewModel) {
-    return [
-      {
-        id: "lavatop",
-        enabled: lavaFlag === true,
-        region: normalizeRegion(process.env.PAYMENT_LAVATOP_REGION, "INT"),
-      },
-      {
-        id: "yookassa",
-        enabled: yooFlag === true,
-        region: normalizeRegion(process.env.PAYMENT_YOOKASSA_REGION, "RU"),
-      },
-    ];
-  }
-
-  // Legacy one-release compat.
-  const legacyYoo =
-    process.env.YOOKASSA_ENABLED?.trim() === "true" &&
-    (process.env.PAYMENT_GATEWAY_FOR_RUB ?? "lavatop").trim().toLowerCase() === "yookassa";
-
   return [
-    { id: "lavatop", enabled: true, region: "INT" },
-    { id: "yookassa", enabled: legacyYoo, region: "RU" },
+    {
+      id: "lavatop",
+      enabled: envFlag("PAYMENT_LAVATOP_ENABLED"),
+      region: normalizeRegion(process.env.PAYMENT_LAVATOP_REGION, "INT"),
+    },
+    {
+      id: "yookassa",
+      enabled: envFlag("PAYMENT_YOOKASSA_ENABLED"),
+      region: normalizeRegion(process.env.PAYMENT_YOOKASSA_REGION, "RU"),
+    },
   ];
 }
 
@@ -103,10 +90,6 @@ export function resolvePaymentGateway(params: {
   }
 
   return { ok: false, error: "payment_gateway_unavailable" };
-}
-
-export function isYookassaRecurringEnabled(): boolean {
-  return process.env.YOOKASSA_RECURRING_ENABLED?.trim() === "true";
 }
 
 /**

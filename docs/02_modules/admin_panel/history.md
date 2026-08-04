@@ -9,6 +9,9 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-08-04 (refund revoke + manual YooKassa):** Успешный возврат снимает тариф платежа; ЮKassa — только при `succeeded`; иначе «Сделать возврат вручную» (`yookassa_mark`).
+- **2026-08-04 (login codes + refunds):** Логин отдаёт `code` (bad_credentials / auth_timeout / …); UI не мапит любой `invalid` в «неверный пароль»; кнопка «Восстановить связь и войти» → `GET /api/admin/login/health` + повтор. Платежи: модалка возврата (Lava mark / ЮKassa API).
+
 - **2026-07-31 (login Failed to fetch):** Prod: `POST /api/admin/login` → 200, затем UI «Failed to fetch». Причина: `setSession` → browser `_getUser` (`/auth/v1/user`) на том же хрупком Auth edge. Fix: `applyAdminServerSession` подставляет user локально при apply; ошибки сети мапятся в RU copy.
 
 - **2026-07-30 (client geo place sync):** Документирован клиентский фикс: `country_code`/`city` после GPS в онбординге + `maybeSync` на каждом `logAppOpen` (не только вне throttle). Нужен новый мобильный билд; бэкенд не менялся.

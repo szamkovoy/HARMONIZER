@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cancelProviderSubscription } from "./cancelActiveSubscriptions";
 import { settlePayment } from "./fx";
 import { nextPeriodEnd } from "./lava";
+import { computeMasterBonusDays, periodEndWithBonusDays } from "./upgradeCredit";
 
 const RENEWAL_GRACE_MS = 48 * 60 * 60 * 1000;
 
@@ -187,7 +188,30 @@ export async function fulfillFirstPaymentSuccess(
     return { ok: true, oneTimeActivated: contractId };
   }
 
-  const periodEnd = nextPeriodEnd();
+  let bonusDays = 0;
+  if (params.provider === "yookassa" && contract.tier === "master") {
+    const { data: priorOracle } = await db
+      .from("payment_contracts")
+      .select("amount,current_period_end,status")
+      .eq("user_id", contract.user_id)
+      .eq("tier", "oracle")
+      .eq("product_kind", "subscription")
+      .in("status", ["active", "cancelled"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const masterAmount = params.amount ?? contract.amount;
+    bonusDays = computeMasterBonusDays({
+      periodEndIso: priorOracle?.current_period_end as string | undefined,
+      oracleAmount: priorOracle?.amount as number | undefined,
+      masterAmount: typeof masterAmount === "number" ? masterAmount : Number(masterAmount),
+    });
+  }
+
+  const paidAt = params.paidAt ? new Date(params.paidAt) : new Date();
+  const from = Number.isNaN(paidAt.getTime()) ? new Date() : paidAt;
+  const periodEnd =
+    bonusDays > 0 ? periodEndWithBonusDays(from, bonusDays) : nextPeriodEnd(from);
   const { error: contractError } = await db
     .from("payment_contracts")
     .update({
@@ -220,7 +244,7 @@ export async function fulfillFirstPaymentSuccess(
 
   await cancelOtherActiveSubscriptions(db, contract.user_id, contractId, params.logTag);
 
-  return { ok: true, activated: contractId };
+  return { ok: true, activated: contractId, upgradeBonusDays: bonusDays };
 }
 
 /**

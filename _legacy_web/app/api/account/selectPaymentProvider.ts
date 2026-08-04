@@ -3,7 +3,6 @@
  * Kept as a thin re-export for existing imports.
  */
 export {
-  isYookassaRecurringEnabled,
   normalizeBillingCountry,
   resolvePaymentGateway,
   selectPaymentProvider,

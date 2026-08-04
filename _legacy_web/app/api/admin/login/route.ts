@@ -52,7 +52,7 @@ export async function POST(req: Request): Promise<Response> {
     const email = typeof body.email === "string" ? body.email.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     if (!email || !password) {
-      return json({ error: "Укажите email и пароль" }, { status: 400 });
+      return json({ error: "Укажите email и пароль", code: "bad_credentials" }, { status: 400 });
     }
 
     const controller = new AbortController();
@@ -70,8 +70,9 @@ export async function POST(req: Request): Promise<Response> {
       return json(
         {
           error: aborted
-            ? "Сервер авторизации не ответил вовремя — попробуйте ещё раз"
+            ? "Сервер авторизации не ответил вовремя"
             : "Нет связи с сервером авторизации",
+          code: aborted ? "auth_timeout" : "auth_unreachable",
         },
         { status: 504 },
       );
@@ -84,6 +85,7 @@ export async function POST(req: Request): Promise<Response> {
       error_description?: string;
       msg?: string;
       error?: string;
+      error_code?: string;
     };
     let grantJson: GrantPayload | null = null;
     try {
@@ -100,25 +102,41 @@ export async function POST(req: Request): Promise<Response> {
         grantJson?.msg ||
         grantJson?.error ||
         grantText ||
-        "Неверный email или пароль"
+        ""
       ).toString();
       const lower = msg.toLowerCase();
-      const status =
-        grantRes.status === 429
-          ? 429
-          : lower.includes("invalid") || grantRes.status === 400
-            ? 401
-            : grantRes.status || 401;
+      const looksLikeBadPassword =
+        /invalid (login )?credentials|invalid_grant|wrong password|неверн/.test(lower) ||
+        grantJson?.error === "invalid_grant";
+
+      if (grantRes.status === 429) {
+        return json(
+          { error: "Слишком много попыток входа — подождите минуту", code: "rate_limit" },
+          { status: 429 },
+        );
+      }
+      if (looksLikeBadPassword || (grantRes.status === 400 && !msg)) {
+        return json(
+          { error: "Неверный email или пароль", code: "bad_credentials" },
+          { status: 401 },
+        );
+      }
+      // Gateway/HTML/5xx from Auth — not a password typo.
+      if (grantRes.status >= 500 || grantRes.status === 502 || grantRes.status === 503) {
+        return json(
+          {
+            error: msg.trim() || "Сервер авторизации временно недоступен",
+            code: "auth_unreachable",
+          },
+          { status: 504 },
+        );
+      }
       return json(
         {
-          error:
-            status === 429
-              ? "Слишком много попыток входа — подождите минуту"
-              : lower.includes("invalid")
-                ? "Неверный email или пароль"
-                : msg,
+          error: msg.trim() || "Не удалось войти через Auth",
+          code: "server_error",
         },
-        { status },
+        { status: grantRes.status >= 400 && grantRes.status < 600 ? grantRes.status : 500 },
       );
     }
 
@@ -135,7 +153,10 @@ export async function POST(req: Request): Promise<Response> {
         }
       })();
     if (!userId) {
-      return json({ error: "Не удалось определить пользователя" }, { status: 500 });
+      return json(
+        { error: "Не удалось определить пользователя", code: "server_error" },
+        { status: 500 },
+      );
     }
 
     const { data: role, error: roleError } = await createServiceSupabase()
@@ -146,7 +167,10 @@ export async function POST(req: Request): Promise<Response> {
       .maybeSingle();
     if (roleError) throw roleError;
     if (!role) {
-      return json({ error: "У этого аккаунта нет прав администратора" }, { status: 403 });
+      return json(
+        { error: "У этого аккаунта нет прав администратора", code: "no_admin" },
+        { status: 403 },
+      );
     }
 
     return json({

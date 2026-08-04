@@ -7,10 +7,11 @@ import {
   markContractFailed,
 } from "../../fulfillPaymentContract";
 import { handleYookassaRenewalFailure } from "../../yookassaRenewals";
+import { markContractAndSettlementsRefunded } from "../../refundPaymentContract";
 import { fetchYookassaPayment, type YookassaPayment } from "../../yookassa";
 
 /**
- * Вебхуки ЮKassa: payment.succeeded / payment.canceled.
+ * Вебхуки ЮKassa: payment.succeeded / payment.canceled / refund.succeeded.
  * URL: https://<vercel>/api/account/webhooks/yookassa
  *
  * Auth: если задан YOOKASSA_WEBHOOK_SECRET — требуем Authorization Bearer/Basic
@@ -101,6 +102,31 @@ export async function POST(req: Request): Promise<Response> {
     const objectId = body?.object?.id?.trim();
     if (!body || !event || !objectId) {
       return json({ error: "Malformed webhook body" }, { status: 400 });
+    }
+
+    if (event === "refund.succeeded") {
+      // object for refund.succeeded is a refund; payment_id points to original payment.
+      const refundObj = body.object as { payment_id?: string; id?: string } | undefined;
+      const originalPaymentId = refundObj?.payment_id?.trim() || "";
+      if (!originalPaymentId) {
+        console.warn("[yookassa-webhook] refund.succeeded without payment_id", objectId);
+        return json({ ok: true, ignored: "refund_without_payment_id" });
+      }
+      const payment = await fetchYookassaPayment(originalPaymentId);
+      const contractId = payment.metadata?.contractId?.trim() || "";
+      if (!contractId) {
+        return json({ ok: true, unknownContract: true });
+      }
+      const db = createServiceSupabase();
+      const contract = await findPaymentContract(db, contractId);
+      if (!contract) return json({ ok: true, unknownContract: true });
+      if (contract.status === "refunded") return json({ ok: true, already: true });
+      await markContractAndSettlementsRefunded(db, {
+        contract_id: contract.contract_id,
+        user_id: contract.user_id,
+        product_kind: contract.product_kind,
+      });
+      return json({ ok: true, refunded: contractId, refundId: refundObj?.id ?? objectId });
     }
 
     const payment = await fetchYookassaPayment(objectId);

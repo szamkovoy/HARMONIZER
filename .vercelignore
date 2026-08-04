@@ -15,6 +15,7 @@ out
 
 /android
 /ios
+/dist
 /.expo
 /app
 /assets

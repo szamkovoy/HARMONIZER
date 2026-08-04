@@ -116,7 +116,8 @@ export async function GET(req: Request) {
           ).toISOString();
     let settlementsQuery = db
       .from("payment_settlements")
-      .select("paid_at, provider, net_amount_rub, net_amount_eur, net_amount_usd, contract_id");
+      .select("paid_at, provider, net_amount_rub, net_amount_eur, net_amount_usd, contract_id")
+      .is("refunded_at", null);
     if (rangeDays !== 0) {
       settlementsQuery = settlementsQuery.gte("paid_at", sinceIso);
     }

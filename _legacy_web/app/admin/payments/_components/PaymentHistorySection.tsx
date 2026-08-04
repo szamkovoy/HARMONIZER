@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { adminFetch } from "../../_lib/adminApi";
+import { adminFetch, AdminApiError } from "../../_lib/adminApi";
 import { dateInputValue, formatAdminDateTime } from "../../_lib/adminDates";
 import { PaymentFormModal } from "../../users/_components/PaymentFormModal";
 import { TierBadge } from "../../users/_components/TierBadge";
@@ -14,6 +14,8 @@ import {
   type AdminPaymentRow,
   type PaymentFormValues,
 } from "../../users/_types/payments";
+
+type RefundPhase = "confirm" | "working" | "done" | "failed";
 
 type PaymentHistorySectionProps = {
   title?: string;
@@ -56,6 +58,9 @@ export function PaymentHistorySection({
   const [editing, setEditing] = useState<AdminPaymentRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refundTarget, setRefundTarget] = useState<AdminPaymentRow | null>(null);
+  const [refundPhase, setRefundPhase] = useState<RefundPhase>("confirm");
+  const [refundMessage, setRefundMessage] = useState<string | null>(null);
 
   const editingInitial = useMemo(
     () => (editing ? initialFormFromPayment(editing) : EMPTY_PAYMENT_FORM),
@@ -67,6 +72,55 @@ export function PaymentHistorySection({
     setEditing(null);
     setError(null);
     await onChanged?.();
+  }
+
+  function closeRefundModal() {
+    if (refundPhase === "working") return;
+    setRefundTarget(null);
+    setRefundPhase("confirm");
+    setRefundMessage(null);
+  }
+
+  async function runRefund(mode: "lavatop_mark" | "yookassa_api" | "yookassa_mark") {
+    if (!refundTarget?.contract_id) return;
+    setRefundPhase("working");
+    setRefundMessage(null);
+    try {
+      const result = await adminFetch<{ ok: boolean; yookassaRefundId?: string }>(
+        "/api/admin/payments/refund",
+        {
+          method: "POST",
+          body: JSON.stringify({ contractId: refundTarget.contract_id, mode }),
+        },
+      );
+      setRefundPhase("done");
+      setRefundMessage(
+        mode === "yookassa_api"
+          ? `Возврат выполнен успешно${result.yookassaRefundId ? ` (id ${result.yookassaRefundId})` : ""}. Статус платежа: возврат. Тариф по этому платежу отключён.`
+          : "Статус платежа изменён на «возврат». Запись сохранится, в статистике как оплата учитываться не будет. Тариф по этому платежу отключён.",
+      );
+      await onChanged?.();
+    } catch (err) {
+      setRefundPhase("failed");
+      const msg =
+        err instanceof AdminApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Не удалось выполнить возврат";
+      setRefundMessage(msg);
+    }
+  }
+
+  async function confirmRefund() {
+    if (!refundTarget?.contract_id) return;
+    const provider = (refundTarget.provider || refundTarget.source || "").toLowerCase();
+    const mode = provider === "yookassa" ? "yookassa_api" : "lavatop_mark";
+    await runRefund(mode);
+  }
+
+  async function confirmManualYookassaRefund() {
+    await runRefund("yookassa_mark");
   }
 
   async function createPayment(values: PaymentFormValues, expiresIso: string | null) {
@@ -151,6 +205,11 @@ export function PaymentHistorySection({
                 <span className="text-[11px] text-zinc-500">
                   {SOURCE_LABELS[payment.source] ?? payment.source}
                 </span>
+                {payment.status === "refunded" ? (
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                    возврат
+                  </span>
+                ) : null}
                 <span className="text-[11px] text-zinc-500">
                   {formatAdminDateTime(payment.created_at)}
                 </span>
@@ -164,19 +223,35 @@ export function PaymentHistorySection({
                     (отредактировано: {formatAdminDateTime(payment.edited_at)})
                   </span>
                 ) : null}
-                {editable ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null);
-                      setEditing(payment);
-                    }}
-                    className="ml-auto inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-800"
-                  >
-                    <Pencil size={12} />
-                    Редактировать
-                  </button>
-                ) : null}
+                <span className="ml-auto inline-flex items-center gap-2">
+                  {payment.kind === "gateway" && payment.refundable && payment.contract_id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefundTarget(payment);
+                        setRefundPhase("confirm");
+                        setRefundMessage(null);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700"
+                    >
+                      <RotateCcw size={12} />
+                      Возврат
+                    </button>
+                  ) : null}
+                  {editable ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setEditing(payment);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-800"
+                    >
+                      <Pencil size={12} />
+                      Редактировать
+                    </button>
+                  ) : null}
+                </span>
               </div>
               {includeUserLink && payment.email ? (
                 <div className="mt-1 text-[11px] text-zinc-500">{payment.email}</div>
@@ -218,6 +293,75 @@ export function PaymentHistorySection({
         }}
         onSubmit={updatePayment}
       />
+
+      {refundTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="mb-3 text-sm font-bold text-zinc-900">Возврат платежа</h3>
+            {refundPhase === "confirm" ? (
+              <>
+                <p className="mb-4 text-sm leading-relaxed text-zinc-600">
+                  {(refundTarget.provider || refundTarget.source) === "yookassa"
+                    ? "Будет выполнен процесс возврата этого платежа через API ЮКассы. Отменить эту операцию невозможно."
+                    : "Отправьте заявку на возврат в админке LavaTop. Для этого в списке платежей нужно кликнуть на платеже. Здесь же можно только изменить статус данного платежа на «Возврат». В результате запись о нём сохранится, но он не будет учитываться в статистике как оплаченный."}
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeRefundModal}
+                    className="rounded-xl px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void confirmRefund()}
+                    className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-500"
+                  >
+                    Подтверждаю возврат
+                  </button>
+                </div>
+              </>
+            ) : null}
+            {refundPhase === "working" ? (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-200 border-t-rose-600" />
+                <p className="text-sm text-zinc-600">Выполняем возврат…</p>
+              </div>
+            ) : null}
+            {refundPhase === "done" || refundPhase === "failed" ? (
+              <>
+                <p
+                  className={`mb-4 text-sm leading-relaxed ${
+                    refundPhase === "done" ? "text-emerald-700" : "text-rose-600"
+                  }`}
+                >
+                  {refundMessage}
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {refundPhase === "failed" &&
+                  (refundTarget.provider || refundTarget.source) === "yookassa" ? (
+                    <button
+                      type="button"
+                      onClick={() => void confirmManualYookassaRefund()}
+                      className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-500"
+                    >
+                      Сделать возврат вручную
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={closeRefundModal}
+                    className="rounded-xl bg-zinc-900 px-3 py-2 text-sm font-semibold text-white"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 

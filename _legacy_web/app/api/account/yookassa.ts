@@ -1,7 +1,5 @@
 import { randomUUID } from "crypto";
 
-import { isYookassaRecurringEnabled } from "./paymentGatewayProfile";
-
 const YOOKASSA_API = "https://api.yookassa.ru/v3";
 
 function requiredEnv(name: string): string {
@@ -14,6 +12,10 @@ function basicAuthHeader(): string {
   const shopId = requiredEnv("YOOKASSA_SHOP_ID");
   const secret = requiredEnv("YOOKASSA_SECRET_KEY");
   return `Basic ${Buffer.from(`${shopId}:${secret}`).toString("base64")}`;
+}
+
+function isRecurringNotAllowedError(status: number, bodyText: string): boolean {
+  return status === 403 && /can'?t make recurring|recurring payments/i.test(bodyText);
 }
 
 export type YookassaCreatePaymentParams = {
@@ -55,56 +57,67 @@ function truncateDescription(text: string): string {
 /**
  * Создаёт платёж ЮKassa (redirect confirmation) и возвращает confirmation_url.
  * capture: true — одностадийный платёж.
+ *
+ * Подписки: всегда просим `save_payment_method` (автоплатёж). Если магазин ещё
+ * не разрешил recurring — один retry без save (обычная оплата +30d), без смены env.
  */
 export async function createYookassaPayment(
   params: YookassaCreatePaymentParams,
 ): Promise<{ payment: YookassaPayment; confirmationUrl: string }> {
   const returnUrl = requiredEnv("YOOKASSA_RETURN_URL");
   const amountValue = params.amount.toFixed(2);
-  const recurring = isYookassaRecurringEnabled() && params.kind === "subscription";
+  const wantSaveMethod = params.kind === "subscription";
 
-  const body: Record<string, unknown> = {
-    amount: { value: amountValue, currency: params.currency },
-    capture: true,
-    confirmation: { type: "redirect", return_url: returnUrl },
-    description: truncateDescription(params.description),
-    metadata: {
-      contractId: params.contractId,
-      userId: params.userId,
-      tier: params.tier,
-      kind: params.kind,
-      ...(params.webinarId ? { webinarId: params.webinarId } : {}),
-    },
+  const buildBody = (savePaymentMethod: boolean): Record<string, unknown> => {
+    const body: Record<string, unknown> = {
+      amount: { value: amountValue, currency: params.currency },
+      capture: true,
+      confirmation: { type: "redirect", return_url: returnUrl },
+      description: truncateDescription(params.description),
+      metadata: {
+        contractId: params.contractId,
+        userId: params.userId,
+        tier: params.tier,
+        kind: params.kind,
+        ...(params.webinarId ? { webinarId: params.webinarId } : {}),
+      },
+    };
+    if (savePaymentMethod) {
+      body.save_payment_method = true;
+    }
+    // Подписки: только банковская карта (задел под рекуррент). Разовые — Умный платёж.
+    if (params.cardOnly ?? params.kind === "subscription") {
+      body.payment_method_data = { type: "bank_card" };
+    }
+    return body;
   };
 
-  if (recurring) {
-    body.save_payment_method = true;
+  const postPayment = async (savePaymentMethod: boolean, idempotenceKey: string) => {
+    const res = await fetch(`${YOOKASSA_API}/payments`, {
+      method: "POST",
+      headers: {
+        Authorization: basicAuthHeader(),
+        "Content-Type": "application/json",
+        "Idempotence-Key": idempotenceKey,
+      },
+      body: JSON.stringify(buildBody(savePaymentMethod)),
+    });
+    const text = await res.text();
+    return { res, text };
+  };
+
+  const baseKey = params.contractId || randomUUID();
+  let { res, text } = await postPayment(wantSaveMethod, baseKey);
+
+  if (!res.ok && wantSaveMethod && isRecurringNotAllowedError(res.status, text)) {
+    console.warn(
+      "[yookassa] shop rejected save_payment_method — retrying without recurring;",
+      "payment still works; auto-renew starts once YooKassa enables autopay on the shop",
+    );
+    ({ res, text } = await postPayment(false, `${baseKey}:nosave`.slice(0, 64)));
   }
 
-  // Подписки: только банковская карта (задел под рекуррент). Разовые — Умный платёж.
-  if (params.cardOnly ?? params.kind === "subscription") {
-    body.payment_method_data = { type: "bank_card" };
-  }
-
-  const res = await fetch(`${YOOKASSA_API}/payments`, {
-    method: "POST",
-    headers: {
-      Authorization: basicAuthHeader(),
-      "Content-Type": "application/json",
-      "Idempotence-Key": params.contractId || randomUUID(),
-    },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
   if (!res.ok) {
-    if (
-      res.status === 403
-      && /can'?t make recurring|recurring payments/i.test(text)
-    ) {
-      const err = new Error("yookassa_recurring_not_enabled");
-      (err as Error & { code?: string }).code = "yookassa_recurring_not_enabled";
-      throw err;
-    }
     throw new Error(`YooKassa create payment HTTP ${res.status}: ${text.slice(0, 400)}`);
   }
   const payment = JSON.parse(text) as YookassaPayment;
@@ -146,6 +159,40 @@ export type YookassaRenewChargeParams = {
  * Безакцептное списание по сохранённому payment_method_id (автоплатёж).
  * Без confirmation — пользователь не подтверждает UI.
  */
+/** Полный возврат платежа через API ЮKassa. */
+export async function createYookassaRefund(params: {
+  paymentId: string;
+  amount: number;
+  currency: "RUB";
+}): Promise<{ id: string; status: string }> {
+  const amountValue = params.amount.toFixed(2);
+  const res = await fetch(`${YOOKASSA_API}/refunds`, {
+    method: "POST",
+    headers: {
+      Authorization: basicAuthHeader(),
+      "Content-Type": "application/json",
+      "Idempotence-Key": `refund:${params.paymentId}`.slice(0, 64),
+    },
+    body: JSON.stringify({
+      payment_id: params.paymentId,
+      amount: { value: amountValue, currency: params.currency },
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error("Платёж не найден в ЮKassa (возможно, неверный shopId или payment id)");
+    }
+    if (/already refunded|refunded|недоступен для возврата/i.test(text)) {
+      throw new Error("ЮKassa отклонила возврат: платёж уже возвращён или недоступен для возврата");
+    }
+    throw new Error(`ЮKassa refund HTTP ${res.status}: ${text.slice(0, 400)}`);
+  }
+  const body = JSON.parse(text) as { id?: string; status?: string };
+  if (!body.id) throw new Error("ЮKassa refund: в ответе нет id");
+  return { id: body.id, status: body.status ?? "unknown" };
+}
+
 export async function chargeYookassaSavedMethod(
   params: YookassaRenewChargeParams,
 ): Promise<YookassaPayment> {
