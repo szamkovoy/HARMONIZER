@@ -68,9 +68,49 @@ Optional environment variables:
 
 ### App version (marketing + build)
 
-- **Marketing version** (`MAJOR.MINOR.PATCH`) — `expo.version` in `app.json` (also mirrored in iOS/Android native). Current: **1.1.0**. Bump manually when releasing a meaningful change (patch / minor / major by agreement).
-- **Build number** — `ios.buildNumber` / `android.versionCode` in `app.json` (+ native). Monotonic; **never reset** on major bumps (Play requires increasing `versionCode`). Shown in Profile as `v1.1.0 (3)`.
-- EAS: `cli.appVersionSource: "local"`; `autoIncrement: true` on **production** and **preview** so each store/Test APK build bumps the build number from the local project values.
+Three different numbers — do not mix them up:
+
+| What | Where | Who bumps it |
+| --- | --- | --- |
+| **Marketing** `MAJOR.MINOR.PATCH` | `expo.version` in `app.json` (+ mirrored in `package.json`) | **Manual** when shipping a meaningful release (e.g. 1.2.1 → 1.2.2). Current: **1.2.1**. |
+| **Android `versionCode`** | `expo.android.versionCode` | **EAS autoIncrement** on every `production` / `preview` build |
+| **iOS `buildNumber`** | `expo.ios.buildNumber` | **EAS autoIncrement** on every `production` / `preview` build |
+
+EAS: `cli.appVersionSource: "local"`; `autoIncrement: true` on **production** and **preview**.  
+Rule of the increment: **AAB/IPA gets `(value in app.json) + 1`**, then EAS writes that new value back into `app.json`.
+
+Play / App Store do **not** invent the next build number. They only reject a code that was already uploaded (including draft / library artifacts — not only what testers currently see).
+
+#### Routine store build (no agent reminder needed)
+
+```bash
+npm run build:android:prod   # autoIncrement android.versionCode
+npm run build:ios:prod       # autoIncrement ios.buildNumber
+```
+
+After a **successful** local prod build:
+
+1. **Commit `app.json`** if `versionCode` / `buildNumber` changed (script `scripts/after-store-build.mjs` prints the values).
+2. Upload that artifact **once** (`npm run submit:android` / `submit:ios` or Console).
+3. Do **not** re-upload the same AAB/IPA. Do **not** hand-edit `versionCode` / `buildNumber` before the next prod build.
+
+You do **not** need to tell the agent to “increment the Google/Apple build” for a normal release — Android and iOS both auto-increment via the same EAS setting.
+
+#### Only bump marketing version by hand
+
+When changing `1.2.x` → next marketing version, bump **`expo.version`** (and root `package.json` version).  
+**Leave** `android.versionCode` and `ios.buildNumber` alone — the next `build:*:prod` will autoIncrement them.
+
+#### Recovery only (Play/App Store «already used»)
+
+If Console rejects a code that is already in its artifact library:
+
+1. Open Play **App bundle explorer** (or App Store build list) and note the **highest used** integer.
+2. Set `app.json` to that **highest used** value (not “desired next”).
+3. Next `build:*:prod` produces **highest + 1**.
+4. Commit `app.json`, upload **once**.
+
+Agents must follow `.cursor/rules/store-build-version.mdc` — no routine hand-bumps of store build integers while `autoIncrement` is on.
 
 `.env.local` is **never** uploaded to EAS (cloud or local credential fetch still uses EAS env for `EXPO_PUBLIC_*` on profile). If a variable is only in `.env.local`, store builds will miss it (classic symptom: «Supabase is not configured»).
 

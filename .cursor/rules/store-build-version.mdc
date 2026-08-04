@@ -1,0 +1,28 @@
+---
+description: Store build numbers — EAS autoIncrement; do not hand-bump versionCode/buildNumber
+alwaysApply: true
+---
+
+# Store build versioning (Android + iOS)
+
+Canonical ops text: `DEPLOY.md` → «App version (marketing + build)».
+
+## Default (always)
+
+- `eas.json` `production` / `preview` have `autoIncrement: true` and `appVersionSource: "local"`.
+- `npm run build:android:prod` and `npm run build:ios:prod` already bump store integers. The user does **not** need to ask the agent to increment Google or Apple build numbers for a normal release.
+- After a successful local prod build, EAS writes the new `android.versionCode` / `ios.buildNumber` into `app.json`. Remind the user to **commit `app.json`** and upload the artifact **once**. Script: `scripts/after-store-build.mjs`.
+
+## Never do by default
+
+- Hand-edit `expo.android.versionCode` or `expo.ios.buildNumber` when bumping only the marketing `expo.version`.
+- Set `versionCode` / `buildNumber` to the “desired next” store number while `autoIncrement` is on — the next build uses **(app.json value) + 1**, which re-creates Play «already used» collisions.
+- Re-upload the same AAB/IPA after Play/App Store already accepted that version code into the artifact library (draft counts).
+
+## Marketing version only
+
+When asked to bump the app version for users (e.g. 1.2.1 → 1.2.2): change `expo.version` in `app.json` and root `package.json` (+ lockfile root version if needed). Leave native build integers to EAS.
+
+## Recovery exception
+
+Only if the user reports Play/App Store «version code already used» and asks to fix: read the highest used code from their Console evidence, set `app.json` to that **highest used** integer (not +1), document in `DEPLOY.md` recovery path, then let the next `build:*:prod` produce highest+1.

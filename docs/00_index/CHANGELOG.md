@@ -1,3 +1,4 @@
+- 2026-08-04 (408): Store versioning — `DEPLOY.md` + agent rule + `after-store-build.mjs` (EAS autoIncrement; no hand-bump; commit `app.json` once).
 - 2026-08-04 (407): Android `versionCode` **30** (Play already consumed 27–29).
 - 2026-08-04 (406): App marketing version **1.2.1** (`app.json` / `package.json`).
 - 2026-08-03 (405): Expo Dev iOS splash — white underlay handoff (no black blink); stable day refresh + force-complete (no hang).

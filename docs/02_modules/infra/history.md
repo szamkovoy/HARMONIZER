@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.15
-updated: 2026-07-31
+version: 1.16
+updated: 2026-08-04
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-08-04 (store versioning process):** Причина коллизий Play «код уже использован»: ручные бампы `versionCode` поверх `eas.json` `autoIncrement`, повторная заливка того же AAB, и рассинхрон git (`versionCode` отставал от уже принятых артефактов). Fix процесса: канон в `DEPLOY.md` «App version»; агент-правило `.cursor/rules/store-build-version.mdc`; post-step `scripts/after-store-build.mjs` на `build:android:prod` / `build:ios:prod` (закоммитить `app.json`, заливать один раз). Обычный релиз — без ручного инкремента Android/iOS build integers.
 
 - **2026-08-04 (Android versionCode 30):** `app.json` `android.versionCode` → **30** — Play уже занял 27–29 (в т.ч. артефакты в библиотеке релиза без выката на тест); следующий store AAB должен идти с ≥30.
 

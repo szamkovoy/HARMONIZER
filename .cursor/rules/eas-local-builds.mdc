@@ -37,6 +37,8 @@ Only if the user **explicitly** asks for a cloud/EAS remote build, or local tool
 - **Android:** `JAVA_HOME` (openjdk@17), `ANDROID_HOME` (cmdline-tools), NDK/cmake — see `~/.zshrc` and `DEPLOY.md`
 - **iOS:** Xcode from Mac App Store, `xcode-select`, CocoaPods (`pod`), Fastlane (`brew install fastlane`)
 
-## After local Android build
+## After local Android / iOS prod build
 
-Upload the `.aab` to Play (Console or `eas submit -p android --path <aab>`). Local build does not auto-submit.
+- EAS `autoIncrement` already bumped `versionCode` / `buildNumber` in `app.json` — **commit that file**, then upload the artifact **once**.
+- Full rules: `DEPLOY.md` «App version» and `.cursor/rules/store-build-version.mdc`.
+- Local build does not auto-submit (`npm run submit:android` / `submit:ios` or Console).
