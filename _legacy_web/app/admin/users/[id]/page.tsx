@@ -5,10 +5,19 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Send } from "lucide-react";
 
+import { ACCESS_NOW_LABELS_RU, accessNowSegment } from "../../_lib/accessNow";
 import { adminFetch } from "../../_lib/adminApi";
 import { countryNameRu } from "../../_lib/countryNamesRu";
-import { formatAdminDate, formatAdminDateTime } from "../../_lib/adminDates";
+import {
+  formatAdminDate,
+  formatAdminDateTime,
+  formatUserAccessPeriod,
+} from "../../_lib/adminDates";
 import { PaymentHistorySection } from "../../payments/_components/PaymentHistorySection";
+import {
+  AccessEditModal,
+  accessEditInitialFromUser,
+} from "../_components/AccessEditModal";
 import { AccessNowBadge } from "../_components/TierBadge";
 import type { AdminPaymentRow } from "../_types/payments";
 
@@ -18,6 +27,7 @@ type AdminUserCard = {
   display_name: string | null;
   membership_tier: string;
   membership_expires_at: string | null;
+  membership_started_at?: string | null;
   trial_expires_at?: string | null;
   locale: string | null;
   created_at: string | null;
@@ -73,7 +83,61 @@ type NotifHist = {
   title: string;
   body: string;
   created_at: string;
+  read_at?: string | null;
 };
+
+const EMAIL_STATUS_RU: Record<string, string> = {
+  queued: "в очереди",
+  sent: "отправлено",
+  delivered: "доставлено",
+  opened: "открыто",
+  clicked: "клик",
+  bounced: "не доставлено",
+  complained: "жалоба",
+  failed: "ошибка",
+  skipped: "пропущено",
+};
+
+function emailStatusLabel(status: string): string {
+  return EMAIL_STATUS_RU[status] ?? status;
+}
+
+function emailStatusClass(status: string): string {
+  switch (status) {
+    case "clicked":
+    case "opened":
+    case "delivered":
+      return "bg-emerald-50 text-emerald-700";
+    case "sent":
+    case "queued":
+      return "bg-zinc-100 text-zinc-600";
+    case "skipped":
+      return "bg-amber-50 text-amber-800";
+    case "bounced":
+    case "complained":
+    case "failed":
+      return "bg-rose-50 text-rose-700";
+    default:
+      return "bg-zinc-100 text-zinc-600";
+  }
+}
+
+function tariffFieldText(user: AdminUserCard): string {
+  const seg = accessNowSegment({
+    membership_tier: user.membership_tier,
+    membership_expires_at: user.membership_expires_at,
+    trial_expires_at: user.trial_expires_at ?? null,
+  });
+  const label = ACCESS_NOW_LABELS_RU[seg];
+  const period = formatUserAccessPeriod(
+    user.onboarded_at || user.created_at,
+    user.membership_expires_at,
+    user.membership_tier,
+    user.trial_expires_at,
+    user.membership_started_at,
+  );
+  return period ? `${label} · ${period}` : label;
+}
 
 type CampaignOpt = { id: string; name: string; subject: string; status: string };
 type AutomationOpt = { id: string; name: string; is_active: boolean };
@@ -142,6 +206,9 @@ export default function AdminUserCardPage() {
   const [automationId, setAutomationId] = useState("");
   const [pushTitle, setPushTitle] = useState("");
   const [pushBody, setPushBody] = useState("");
+  const [accessEditOpen, setAccessEditOpen] = useState(false);
+  const [accessSaving, setAccessSaving] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -483,21 +550,22 @@ export default function AdminUserCardPage() {
               user.last_activity_at || user.last_seen_at,
             )}
           />
-          <InfoRow
-            label="Тариф в БД"
-            value={`${user.membership_tier}${
-              user.membership_expires_at
-                ? ` · до ${formatAdminDateTime(user.membership_expires_at)}`
-                : " · бессрочно"
-            }`}
-            mono
-          />
-          {user.trial_expires_at ? (
-            <InfoRow
-              label="Демо до"
-              value={formatAdminDateTime(user.trial_expires_at)}
-            />
-          ) : null}
+          <div className="sm:col-span-2">
+            <dt className="text-xs text-zinc-400">Тариф</dt>
+            <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-zinc-900">
+              <span>{tariffFieldText(user)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccessError(null);
+                  setAccessEditOpen(true);
+                }}
+                className="text-xs font-medium text-emerald-700 hover:underline"
+              >
+                изменить
+              </button>
+            </dd>
+          </div>
           {subscription ? (
             <>
               <InfoRow
@@ -642,6 +710,8 @@ export default function AdminUserCardPage() {
           ) : (
             emailHistory.map((e, i) => {
               const href = emailHref(e);
+              const statusText =
+                e.status === "skipped" ? "нет языка" : emailStatusLabel(e.status);
               const row = (
                 <span className="flex w-full items-center justify-between gap-2 py-2">
                   <span className="min-w-0 truncate font-normal text-zinc-800">
@@ -650,8 +720,15 @@ export default function AdminUserCardPage() {
                     </span>
                     {emailHistoryLabel(e)}
                   </span>
-                  <span className="shrink-0 text-xs text-zinc-400">
-                    {formatAdminDateTime(e.created_at)}
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${emailStatusClass(e.status)}`}
+                    >
+                      {statusText}
+                    </span>
+                    <span className="text-xs text-zinc-400">
+                      {formatAdminDateTime(e.created_at)}
+                    </span>
                   </span>
                 </span>
               );
@@ -722,13 +799,25 @@ export default function AdminUserCardPage() {
               const href = n.notification_id
                 ? `/admin/notifications/${n.notification_id}`
                 : null;
+              const read = Boolean(n.read_at);
               const row = (
                 <span className="flex w-full items-center justify-between gap-2 py-2">
                   <span className="min-w-0 truncate font-normal text-zinc-800">
                     {n.title}
                   </span>
-                  <span className="shrink-0 text-xs text-zinc-400">
-                    {formatAdminDateTime(n.created_at)}
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        read
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      {read ? "прочитано" : "не прочитано"}
+                    </span>
+                    <span className="text-xs text-zinc-400">
+                      {formatAdminDateTime(n.created_at)}
+                    </span>
                   </span>
                 </span>
               );
@@ -752,6 +841,42 @@ export default function AdminUserCardPage() {
       </section>
 
       <PaymentHistorySection payments={payments} ownerUserId={user.id} onChanged={load} />
+
+      <AccessEditModal
+        open={accessEditOpen}
+        saving={accessSaving}
+        error={accessError}
+        initial={accessEditInitialFromUser(user)}
+        onClose={() => {
+          if (!accessSaving) {
+            setAccessEditOpen(false);
+            setAccessError(null);
+          }
+        }}
+        onSubmit={async ({ access, startsAtIso, endsAtIso }) => {
+          setAccessSaving(true);
+          setAccessError(null);
+          try {
+            await adminFetch(`/api/admin/users/${user.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({
+                action: "set_access",
+                access,
+                starts_at: startsAtIso,
+                ends_at: endsAtIso,
+              }),
+            });
+            setAccessEditOpen(false);
+            await load();
+          } catch (err) {
+            setAccessError(
+              err instanceof Error ? err.message : "Не удалось изменить тариф",
+            );
+          } finally {
+            setAccessSaving(false);
+          }
+        }}
+      />
     </div>
   );
 }

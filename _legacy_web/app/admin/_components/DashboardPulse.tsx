@@ -110,6 +110,21 @@ function SoonBadge() {
   );
 }
 
+function ymdDaysAgo(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function usersListHref(params: Record<string, string | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) q.set(k, v);
+  }
+  const s = q.toString();
+  return s ? `/admin/users?${s}` : "/admin/users";
+}
+
 export function DashboardPulse() {
   const [range, setRange] = useState<RangeKey>(7);
   const [grain, setGrain] = useState<Grain>("day");
@@ -287,17 +302,68 @@ export function DashboardPulse() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           title="Пользователи"
-          value={`${fmt(data.kpi.users_total)} / ${fmt(data.kpi.active_24h)} / ${fmt(data.kpi.active_7d)}`}
+          parts={[
+            { label: fmt(data.kpi.users_total), href: usersListHref({}) },
+            {
+              label: fmt(data.kpi.active_24h),
+              href: usersListHref({ active_hours: "24" }),
+            },
+            {
+              label: fmt(data.kpi.active_7d),
+              href: usersListHref({ active_hours: "168" }),
+            },
+          ]}
           hint="всего / заходили за 24ч / за 7 дн."
         />
         <Kpi
           title="Распределение по тарифам"
-          value={`${fmt(access?.trial)} / ${fmt(access?.navigator)} / ${fmt(access?.oracle)} / ${fmt(access?.master)}`}
+          parts={[
+            {
+              label: fmt(access?.trial),
+              href: usersListHref({ access: "trial" }),
+            },
+            {
+              label: fmt(access?.navigator),
+              href: usersListHref({ access: "navigator" }),
+            },
+            {
+              label: fmt(access?.oracle),
+              href: usersListHref({ access: "oracle" }),
+            },
+            {
+              label: fmt(access?.master),
+              href: usersListHref({ access: "master" }),
+            },
+          ]}
           hint="Демо / Навигатор / Наставник / Мастер · сейчас"
         />
         <Kpi
           title={`Конверсия за ${periodLabel}`}
-          value={`${fmt(cohort?.reg_total)} / ${fmt(cohort?.bought_oracle)} / ${fmt(cohort?.bought_master)}`}
+          parts={[
+            {
+              label: fmt(cohort?.reg_total),
+              href: usersListHref({
+                created_from:
+                  range === "all" ? undefined : ymdDaysAgo(Number(data.range_days) || 7),
+              }),
+            },
+            {
+              label: fmt(cohort?.bought_oracle),
+              href: usersListHref({
+                created_from:
+                  range === "all" ? undefined : ymdDaysAgo(Number(data.range_days) || 7),
+                has_sub_tier: "oracle",
+              }),
+            },
+            {
+              label: fmt(cohort?.bought_master),
+              href: usersListHref({
+                created_from:
+                  range === "all" ? undefined : ymdDaysAgo(Number(data.range_days) || 7),
+                has_sub_tier: "master",
+              }),
+            },
+          ]}
           hint="регистрации / купили Наставник / купили Мастер"
         />
         <Kpi
@@ -525,11 +591,37 @@ export function DashboardPulse() {
   );
 }
 
-function Kpi({ title, value, hint }: { title: string; value: string; hint: string }) {
+function Kpi({
+  title,
+  value,
+  parts,
+  hint,
+}: {
+  title: string;
+  value?: string;
+  parts?: Array<{ label: string; href: string }>;
+  hint: string;
+}) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-4">
       <p className="text-xs text-zinc-500">{title}</p>
-      <p className="mt-1 text-xl font-bold text-zinc-900">{value}</p>
+      {parts && parts.length > 0 ? (
+        <p className="mt-1 text-xl font-bold text-zinc-900">
+          {parts.map((part, i) => (
+            <span key={`${part.href}-${i}`}>
+              {i > 0 ? <span className="text-zinc-400"> / </span> : null}
+              <Link
+                href={part.href}
+                className="text-emerald-700 underline-offset-2 hover:underline"
+              >
+                {part.label}
+              </Link>
+            </span>
+          ))}
+        </p>
+      ) : (
+        <p className="mt-1 text-xl font-bold text-zinc-900">{value}</p>
+      )}
       <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{hint}</p>
     </div>
   );

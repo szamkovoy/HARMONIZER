@@ -1,3 +1,5 @@
+- 2026-08-04 (413): Fix users access-sort; sort controls below date filters; dashboard KPI dig-down links.
+- 2026-08-04 (412): Admin users UX — set_access tariff modal, email/push statuses, unified access filter + sort, segment «Не в гармонизаторе».
 - 2026-08-04 (411): Refund success revokes membership; YooKassa marks refunded only on `succeeded` (+ manual fallback button).
 - 2026-08-04 (410): Admin refunds (Lava mark / YooKassa API); YooKassa Mentor→Master bonus days + cabinet note; admin login error codes + «Восстановить связь».
 - 2026-08-04 (409): Re-enable YooKassa (RU) + Lava (INT); drop legacy `YOOKASSA_ENABLED` / `PAYMENT_GATEWAY_FOR_RUB` / `YOOKASSA_RECURRING_ENABLED`; save_method with 403 retry; `.vercelignore` `/dist`.

@@ -5,13 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BarChart3, ChevronRight, Loader2, Search } from "lucide-react";
 
-import {
-  TIER_LABELS_RU,
-  VISIBLE_PRODUCT_TIERS,
-} from "@/modules/access/core/tiers";
-
+import { ACCESS_FILTER_LABELS_RU, type AccessFilterSeg } from "../_lib/accessNow";
 import { adminFetch } from "../_lib/adminApi";
-import { formatUserAccessPeriod } from "../_lib/adminDates";
+import { formatAdminDateTime, formatUserAccessPeriod } from "../_lib/adminDates";
 import { AccessNowBadge } from "./_components/TierBadge";
 
 type AdminUserRow = {
@@ -21,8 +17,10 @@ type AdminUserRow = {
   membership_tier: string;
   membership_expires_at: string | null;
   trial_expires_at?: string | null;
+  membership_started_at?: string | null;
   created_at: string | null;
   onboarded_at?: string | null;
+  last_seen_at?: string | null;
   locale?: string | null;
   country_code?: string | null;
   city?: string | null;
@@ -39,12 +37,12 @@ const MARKETING_OPTIONS: { value: string; label: string }[] = [
   { value: "complained", label: "Пометил как спам" },
 ];
 
-const ACCESS_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Любой доступ сейчас" },
-  { value: "trial", label: "Демо" },
-  { value: "navigator", label: "Навигатор" },
-  { value: "oracle", label: "Наставник" },
-  { value: "master", label: "Мастер" },
+const ACCESS_FILTER_VALUES: AccessFilterSeg[] = [
+  "trial",
+  "navigator",
+  "oracle",
+  "master",
+  "not_in_harmonizer",
 ];
 
 const ADDON_OPTIONS: { value: string; label: string }[] = [
@@ -53,17 +51,28 @@ const ADDON_OPTIONS: { value: string; label: string }[] = [
   { value: "book", label: "Покупали книгу" },
 ];
 
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "created_at", label: "Регистрация в БД" },
+  { value: "onboarded_at", label: "Регистрация в Гармонизаторе" },
+  { value: "tier_end", label: "Окончание тарифа" },
+  { value: "last_seen", label: "Последний вход" },
+  { value: "last_payment", label: "Последний платёж" },
+  { value: "access", label: "Тариф / доступ" },
+  { value: "locale", label: "Язык" },
+];
+
 const inputCls =
   "rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none";
 
 function UsersList() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [tier, setTier] = useState("");
   const [access, setAccess] = useState("");
   const [addon, setAddon] = useState("");
   const [addonSince, setAddonSince] = useState("");
   const [activeHours, setActiveHours] = useState("");
+  const [lastSeenWithin, setLastSeenWithin] = useState("");
+  const [lastSeenOlder, setLastSeenOlder] = useState("");
   const [locale, setLocale] = useState("");
   const [countryCode, setCountryCode] = useState("");
   const [city, setCity] = useState("");
@@ -72,6 +81,8 @@ function UsersList() {
   const [onboardedTo, setOnboardedTo] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
+  const [sort, setSort] = useState("created_at");
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [users, setUsers] = useState<AdminUserRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
@@ -79,11 +90,12 @@ function UsersList() {
 
   useEffect(() => {
     setQuery(searchParams.get("q") ?? "");
-    setTier(searchParams.get("tier") ?? "");
     setAccess(searchParams.get("access") ?? "");
     setAddon(searchParams.get("addon") ?? "");
     setAddonSince(searchParams.get("addon_since") ?? "");
     setActiveHours(searchParams.get("active_hours") ?? "");
+    setLastSeenWithin(searchParams.get("last_seen_within_days") ?? "");
+    setLastSeenOlder(searchParams.get("last_seen_older_than_days") ?? "");
     setLocale(searchParams.get("locale") ?? "");
     setCountryCode((searchParams.get("country_code") ?? "").toUpperCase());
     setCity(searchParams.get("city") ?? "");
@@ -92,6 +104,8 @@ function UsersList() {
     setOnboardedTo(searchParams.get("onboarded_to") ?? "");
     setCreatedFrom(searchParams.get("created_from") ?? "");
     setCreatedTo(searchParams.get("created_to") ?? "");
+    setSort(searchParams.get("sort") ?? "created_at");
+    setOrder(searchParams.get("order") === "asc" ? "asc" : "desc");
     hydrated.current = true;
   }, [searchParams]);
 
@@ -101,11 +115,16 @@ function UsersList() {
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set("q", query.trim());
-      if (tier) params.set("tier", tier);
       if (access) params.set("access", access);
       if (addon) params.set("addon", addon);
       if (addonSince) params.set("addon_since", addonSince);
+      const hasSubTier = searchParams.get("has_sub_tier");
+      if (hasSubTier === "oracle" || hasSubTier === "master") {
+        params.set("has_sub_tier", hasSubTier);
+      }
       if (activeHours) params.set("active_hours", activeHours);
+      if (lastSeenWithin.trim()) params.set("last_seen_within_days", lastSeenWithin.trim());
+      if (lastSeenOlder.trim()) params.set("last_seen_older_than_days", lastSeenOlder.trim());
       if (locale) params.set("locale", locale);
       if (countryCode.trim()) params.set("country_code", countryCode.trim());
       if (city.trim()) params.set("city", city.trim());
@@ -114,6 +133,8 @@ function UsersList() {
       if (onboardedTo) params.set("onboarded_to", onboardedTo);
       if (createdFrom) params.set("created_from", createdFrom);
       if (createdTo) params.set("created_to", createdTo);
+      if (sort) params.set("sort", sort);
+      if (order) params.set("order", order);
       const { users: rows } = await adminFetch<{ users: AdminUserRow[] }>(
         `/api/admin/users?${params}`,
       );
@@ -128,11 +149,12 @@ function UsersList() {
     }
   }, [
     query,
-    tier,
     access,
     addon,
     addonSince,
     activeHours,
+    lastSeenWithin,
+    lastSeenOlder,
     locale,
     countryCode,
     city,
@@ -141,6 +163,8 @@ function UsersList() {
     onboardedTo,
     createdFrom,
     createdTo,
+    sort,
+    order,
     searchParams,
   ]);
 
@@ -190,22 +214,10 @@ function UsersList() {
             onChange={(e) => setAccess(e.target.value)}
             className={inputCls}
           >
-            {ACCESS_OPTIONS.map((opt) => (
-              <option key={opt.value || "any-access"} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={tier}
-            onChange={(e) => setTier(e.target.value)}
-            className={inputCls}
-            title="Сырое поле membership_tier в БД (free = Навигатор). Демо — не тариф, а trial: фильтр «Демо» слева."
-          >
-            <option value="">Тариф в БД (сырой)</option>
-            {VISIBLE_PRODUCT_TIERS.map((value) => (
+            <option value="">Любой доступ сейчас</option>
+            {ACCESS_FILTER_VALUES.map((value) => (
               <option key={value} value={value}>
-                {TIER_LABELS_RU[value]}
+                {ACCESS_FILTER_LABELS_RU[value]}
               </option>
             ))}
           </select>
@@ -225,7 +237,7 @@ function UsersList() {
             onChange={(e) => setActiveHours(e.target.value)}
             className={inputCls}
           >
-            <option value="">Любая активность</option>
+            <option value="">Любая активность (события)</option>
             <option value="24">Активны за 24 ч</option>
             <option value="72">Активны за 72 ч</option>
             <option value="168">Активны за 168 ч</option>
@@ -242,6 +254,20 @@ function UsersList() {
               </option>
             ))}
           </select>
+          <input
+            value={lastSeenWithin}
+            onChange={(e) => setLastSeenWithin(e.target.value)}
+            placeholder="Был в приложении ≤ N дней"
+            inputMode="numeric"
+            className={inputCls}
+          />
+          <input
+            value={lastSeenOlder}
+            onChange={(e) => setLastSeenOlder(e.target.value)}
+            placeholder="Не заходил ≥ N дней"
+            inputMode="numeric"
+            className={inputCls}
+          />
           <input
             value={countryCode}
             onChange={(e) => setCountryCode(e.target.value.toUpperCase())}
@@ -266,9 +292,6 @@ function UsersList() {
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="grid gap-2 border-t border-zinc-100 pt-3 sm:grid-cols-2">
           <fieldset className="space-y-1">
             <legend className="text-xs font-medium text-zinc-500">
               Регистрация в Гарм (onboarded)
@@ -308,6 +331,28 @@ function UsersList() {
             </div>
           </fieldset>
         </div>
+
+        <div className="grid gap-2 border-t border-zinc-100 pt-3 sm:grid-cols-2">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            className={inputCls}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                Сортировка: {opt.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={order}
+            onChange={(e) => setOrder(e.target.value === "asc" ? "asc" : "desc")}
+            className={inputCls}
+          >
+            <option value="desc">По убыванию</option>
+            <option value="asc">По возрастанию</option>
+          </select>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -319,45 +364,54 @@ function UsersList() {
       {users?.length === 0 ? <p className="text-sm text-zinc-500">Никого не нашлось.</p> : null}
 
       <div className="flex flex-col gap-3">
-        {users?.map((user) => (
-          <Link
-            key={user.id}
-            href={`/admin/users/${user.id}`}
-            className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 transition-colors hover:border-emerald-400/30"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate text-sm font-semibold text-zinc-900">
-                  {user.display_name?.trim() || "Без имени"}
-                </span>
-                <AccessNowBadge
-                  membershipTier={user.membership_tier}
-                  membershipExpiresAt={user.membership_expires_at}
-                  trialExpiresAt={user.trial_expires_at}
-                />
-              </div>
-              <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-zinc-500">
-                <span className="truncate">{user.email ?? "—"}</span>
-                {formatUserAccessPeriod(
-                  user.created_at,
-                  user.membership_expires_at,
-                  user.membership_tier,
-                  user.trial_expires_at,
-                ) ? (
-                  <span>
-                    {formatUserAccessPeriod(
-                      user.created_at,
-                      user.membership_expires_at,
-                      user.membership_tier,
-                      user.trial_expires_at,
-                    )}
+        {users?.map((user) => {
+          const period = formatUserAccessPeriod(
+            user.onboarded_at || user.created_at,
+            user.membership_expires_at,
+            user.membership_tier,
+            user.trial_expires_at,
+            user.membership_started_at,
+          );
+          const seenAt = user.last_seen_at;
+          return (
+            <Link
+              key={user.id}
+              href={`/admin/users/${user.id}`}
+              className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 transition-colors hover:border-emerald-400/30"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate text-sm font-semibold text-zinc-900">
+                    {user.display_name?.trim() || "Без имени"}
                   </span>
-                ) : null}
+                  {!user.onboarded_at ? (
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-500">
+                      Не в гармонизаторе
+                    </span>
+                  ) : (
+                    <AccessNowBadge
+                      membershipTier={user.membership_tier}
+                      membershipExpiresAt={user.membership_expires_at}
+                      trialExpiresAt={user.trial_expires_at}
+                    />
+                  )}
+                  {user.onboarded_at && period ? (
+                    <span className="text-[11px] text-zinc-500">{period}</span>
+                  ) : null}
+                </div>
+                <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-zinc-500">
+                  <span className="truncate">{user.email ?? "—"}</span>
+                  <span>
+                    {seenAt
+                      ? `заходил: ${formatAdminDateTime(seenAt)}`
+                      : "не заходил"}
+                  </span>
+                </div>
               </div>
-            </div>
-            <ChevronRight size={16} className="shrink-0 text-zinc-600" />
-          </Link>
-        ))}
+              <ChevronRight size={16} className="shrink-0 text-zinc-600" />
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

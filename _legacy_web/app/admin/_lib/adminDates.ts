@@ -99,20 +99,31 @@ export function formatUserTierPeriod(
 }
 
 /**
- * Period line for users list: active trial → «демо с … до …»;
- * otherwise same as formatUserTierPeriod (paid membership window).
+ * Period line for users list: paid window first, else active trial «с … до …».
+ * `startedAt` preferred over createdAt for «с».
  */
 export function formatUserAccessPeriod(
   createdAt: string | null | undefined,
   membershipExpiresAt: string | null | undefined,
   membershipTier: string,
   trialExpiresAt: string | null | undefined,
+  startedAt?: string | null | undefined,
 ): string | null {
-  if (trialExpiresAt && new Date(trialExpiresAt).getTime() > Date.now()) {
-    const from = createdAt ? formatAdminDate(createdAt) : null;
-    const to = formatAdminDate(trialExpiresAt);
-    if (from) return `демо с ${from} до ${to}`;
-    return `демо до ${to}`;
+  const now = Date.now();
+  const fromIso = startedAt || createdAt;
+  const paidActive =
+    (membershipTier === "oracle" ||
+      membershipTier === "practitioner" ||
+      membershipTier === "master") &&
+    (!membershipExpiresAt || new Date(membershipExpiresAt).getTime() > now);
+  if (paidActive) {
+    return formatUserTierPeriod(fromIso, membershipExpiresAt, membershipTier);
   }
-  return formatUserTierPeriod(createdAt, membershipExpiresAt, membershipTier);
+  if (trialExpiresAt && new Date(trialExpiresAt).getTime() > now) {
+    const from = fromIso ? formatAdminDate(fromIso) : null;
+    const to = formatAdminDate(trialExpiresAt);
+    if (from) return `с ${from} до ${to}`;
+    return `до ${to}`;
+  }
+  return formatUserTierPeriod(fromIso, membershipExpiresAt, membershipTier);
 }

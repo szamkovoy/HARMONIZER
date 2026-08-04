@@ -52,4 +52,10 @@ describe("emailSegment audience", () => {
     expect(neu.include_new_24h).toBe(true);
     expect(hasEmailSegmentAudience(neu)).toBe(true);
   });
+
+  it("accepts not_in_harmonizer audience chip", () => {
+    const q = parseEmailSegmentQuery({ not_in_harmonizer: true });
+    expect(q.not_in_harmonizer).toBe(true);
+    expect(hasEmailSegmentAudience(q)).toBe(true);
+  });
 });

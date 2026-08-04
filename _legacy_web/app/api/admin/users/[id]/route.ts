@@ -39,7 +39,7 @@ export async function GET(req: Request, ctx: RouteContext) {
     const db = createServiceSupabase();
 
     const userSelect =
-      "id, display_name, membership_tier, membership_expires_at, trial_expires_at, locale, created_at, onboarded_at, country_code, city, location_name, lat, lon, skip_email_automations, last_seen_at";
+      "id, display_name, membership_tier, membership_expires_at, membership_started_at, trial_expires_at, locale, created_at, onboarded_at, country_code, city, location_name, lat, lon, skip_email_automations, last_seen_at";
     const { data, error } = await db.from("users").select(userSelect).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!data) return json({ error: "Пользователь не найден" }, { status: 404 });
@@ -327,6 +327,10 @@ export async function GET(req: Request, ctx: RouteContext) {
 }
 
 type TierUpdatePayload = {
+  action?: string;
+  access?: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
   tier?: string;
   expires_at?: string | null;
   amount?: number;
@@ -335,8 +339,32 @@ type TierUpdatePayload = {
   skip_email_automations?: boolean;
 };
 
+async function expireActiveManualGrants(
+  db: ReturnType<typeof createServiceSupabase>,
+  userId: string,
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const { data: rows, error } = await db
+    .from("payments")
+    .select("id, paid_until")
+    .eq("user_id", userId)
+    .eq("source", "manual");
+  if (error) throw error;
+  const now = Date.now();
+  const ids = (rows ?? [])
+    .filter((r) => !r.paid_until || Date.parse(r.paid_until) > now)
+    .map((r) => r.id as string);
+  if (ids.length === 0) return;
+  const { error: updErr } = await db
+    .from("payments")
+    .update({ paid_until: nowIso, edited_at: nowIso })
+    .in("id", ids);
+  if (updErr) throw updErr;
+}
+
 /**
  * Ручное назначение тарифа: обновляет users и пишет строку в леджер (source=manual).
+ * action=set_access — смена доступа (демо/навигатор/наставник/мастер) last-write-wins.
  * Также: skip_email_automations без смены тарифа.
  */
 export async function PATCH(req: Request, ctx: RouteContext) {
@@ -344,9 +372,9 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     await requireAdmin(req);
     const { id } = await ctx.params;
     const payload = (await req.json()) as TierUpdatePayload;
+    const db = createServiceSupabase();
 
-    if (typeof payload.skip_email_automations === "boolean" && !payload.tier) {
-      const db = createServiceSupabase();
+    if (typeof payload.skip_email_automations === "boolean" && !payload.tier && payload.action !== "set_access") {
       const { data: user, error } = await db
         .from("users")
         .update({ skip_email_automations: payload.skip_email_automations })
@@ -354,6 +382,111 @@ export async function PATCH(req: Request, ctx: RouteContext) {
         .select("id, skip_email_automations")
         .single();
       if (error) throw error;
+      return json({ user });
+    }
+
+    if (payload.action === "set_access") {
+      const access = payload.access?.trim() ?? "";
+      if (
+        access !== "trial" &&
+        access !== "navigator" &&
+        access !== "oracle" &&
+        access !== "master"
+      ) {
+        return json({ error: "Неизвестный доступ" }, { status: 400 });
+      }
+      const startsAt =
+        typeof payload.starts_at === "string" && payload.starts_at.trim()
+          ? payload.starts_at.trim()
+          : null;
+      const endsAt =
+        typeof payload.ends_at === "string" && payload.ends_at.trim()
+          ? payload.ends_at.trim()
+          : null;
+      if (startsAt && Number.isNaN(Date.parse(startsAt))) {
+        return json({ error: "Некорректная дата начала" }, { status: 400 });
+      }
+      if (endsAt && Number.isNaN(Date.parse(endsAt))) {
+        return json({ error: "Некорректная дата окончания" }, { status: 400 });
+      }
+      if (access === "trial" && !endsAt) {
+        return json({ error: "Для демо укажите дату окончания" }, { status: 400 });
+      }
+
+      const startedIso = startsAt ?? new Date().toISOString();
+
+      if (access === "trial") {
+        await expireActiveManualGrants(db, id);
+        const { error } = await db
+          .from("users")
+          .update({
+            membership_tier: "free",
+            membership_expires_at: null,
+            membership_started_at: startedIso,
+            trial_expires_at: endsAt,
+          })
+          .eq("id", id);
+        if (error) throw error;
+      } else if (access === "navigator") {
+        await expireActiveManualGrants(db, id);
+        const { error } = await db
+          .from("users")
+          .update({
+            membership_tier: "free",
+            membership_expires_at: null,
+            membership_started_at: startedIso,
+            trial_expires_at: null,
+          })
+          .eq("id", id);
+        if (error) throw error;
+      } else {
+        const tier = access === "master" ? "master" : "oracle";
+        await expireActiveManualGrants(db, id);
+        const { data: inserted, error: ledgerError } = await db
+          .from("payments")
+          .insert({
+            user_id: id,
+            amount: 0,
+            currency: "RUB",
+            tier,
+            paid_until: endsAt,
+            source: "manual",
+            comment: "Админ: изменить тариф",
+          })
+          .select("id")
+          .single();
+        if (ledgerError) throw ledgerError;
+        if (inserted?.id) {
+          try {
+            await settleGrantPayment(db, {
+              paymentId: inserted.id,
+              amount: 0,
+              currency: "RUB",
+            });
+          } catch (fxErr) {
+            console.error("[admin] set_access FX settle failed", inserted.id, fxErr);
+          }
+        }
+        const { error } = await db
+          .from("users")
+          .update({
+            membership_tier: tier,
+            membership_expires_at: endsAt,
+            membership_started_at: startedIso,
+            trial_expires_at: null,
+          })
+          .eq("id", id);
+        if (error) throw error;
+      }
+
+      const { data: user, error: readError } = await db
+        .from("users")
+        .select(
+          "id, membership_tier, membership_expires_at, membership_started_at, trial_expires_at",
+        )
+        .eq("id", id)
+        .single();
+      if (readError) throw readError;
       return json({ user });
     }
 
@@ -366,8 +499,6 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     if (isPaid && expiresAt && Number.isNaN(Date.parse(expiresAt))) {
       return json({ error: "Некорректная дата окончания" }, { status: 400 });
     }
-
-    const db = createServiceSupabase();
 
     if (isPaid) {
       const amount =
@@ -395,17 +526,28 @@ export async function PATCH(req: Request, ctx: RouteContext) {
         }
       }
       await recomputeUserMembershipFromPayments(db, id);
+      const { error: startErr } = await db
+        .from("users")
+        .update({ membership_started_at: new Date().toISOString() })
+        .eq("id", id);
+      if (startErr) throw startErr;
     } else {
+      await expireActiveManualGrants(db, id);
       const { error } = await db
         .from("users")
-        .update({ membership_tier: "free", membership_expires_at: null })
+        .update({
+          membership_tier: "free",
+          membership_expires_at: null,
+          membership_started_at: new Date().toISOString(),
+          trial_expires_at: null,
+        })
         .eq("id", id);
       if (error) throw error;
     }
 
     const { data: user, error: readError } = await db
       .from("users")
-      .select("id, membership_tier, membership_expires_at")
+      .select("id, membership_tier, membership_expires_at, membership_started_at, trial_expires_at")
       .eq("id", id)
       .single();
     if (readError) throw readError;

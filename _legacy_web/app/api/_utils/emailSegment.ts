@@ -26,6 +26,8 @@ export type EmailSegmentQuery = {
   include_demo?: boolean;
   /** App users created within the last 24 hours (registration cohort). */
   include_new_24h?: boolean;
+  /** Linked app user with users.onboarded_at IS NULL. */
+  not_in_harmonizer?: boolean;
   membership_tiers?: VisibleTier[];
   last_seen_within_days?: number | null;
   last_seen_older_than_days?: number | null;
@@ -101,6 +103,7 @@ export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
   out.all_installed = q.all_installed === true;
   out.include_demo = q.include_demo === true;
   out.include_new_24h = q.include_new_24h === true;
+  out.not_in_harmonizer = q.not_in_harmonizer === true;
 
   if (Array.isArray(q.membership_tiers)) {
     out.membership_tiers = q.membership_tiers.filter((v): v is VisibleTier =>
@@ -112,10 +115,12 @@ export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
     out.all_installed = false;
     out.include_demo = false;
     out.include_new_24h = false;
+    out.not_in_harmonizer = false;
     out.membership_tiers = [];
   } else if (out.all_installed) {
     out.include_demo = false;
     out.include_new_24h = false;
+    out.not_in_harmonizer = false;
     out.membership_tiers = [];
   }
 
@@ -150,6 +155,7 @@ export function hasEmailSegmentAudience(query: EmailSegmentQuery): boolean {
     query.all_installed === true ||
     query.include_demo === true ||
     query.include_new_24h === true ||
+    query.not_in_harmonizer === true ||
     Boolean(query.membership_tiers?.length)
   );
 }
@@ -169,6 +175,7 @@ export function normalizeEmailSegmentAudience(
     all_installed: false,
     include_demo: false,
     include_new_24h: false,
+    not_in_harmonizer: false,
     membership_tiers: [],
   };
 }
@@ -198,6 +205,7 @@ export async function resolveEmailSegment(
     query.all_installed === true ||
     query.include_demo === true ||
     query.include_new_24h === true ||
+    query.not_in_harmonizer === true ||
     Boolean(query.membership_tiers?.length);
 
   let contactQuery = db
@@ -304,12 +312,14 @@ export async function resolveEmailSegment(
         query.include_new_24h === true &&
         u.created_at != null &&
         new Date(u.created_at).getTime() >= new24hCutoff;
+      const isNotInHarm =
+        query.not_in_harmonizer === true && u.onboarded_at == null;
       // «Навигатор» = free without active trial (same as users access=navigator).
       const tierOk =
         tiers.length > 0 &&
         tiers.includes(u.membership_tier as VisibleTier) &&
         !(u.membership_tier === "free" && onTrial);
-      if (!isDemo && !isNew24h && !tierOk) return [];
+      if (!isDemo && !isNew24h && !isNotInHarm && !tierOk) return [];
     }
 
     if (query.last_seen_within_days != null) {
