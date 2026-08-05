@@ -4,8 +4,9 @@
  * Поток:
  *   1. `requestOtpSendPermit` → App Check + rate limits → single-use permit
  *   2. `set_signin_name_hint` + `signInWithOtp` → GoTrue → send-auth-email
- *      (consumes permit, sends mail)
- *   3. `verifyEmailOtpCode` → verify cap + `verifyOtp`
+ *      (consumes permit; for STORE_REVIEW_EMAIL skips mailbox)
+ *   3. `verifyEmailOtpCode` → verify cap → POST /api/auth/otp-verify
+ *      (store-review mint) or GoTrue `verifyOtp`
  */
 import { requestOtpSendPermit, OtpGateError } from "@/modules/auth/otpGate";
 import { markOtpCooldown } from "@/modules/auth/otpCooldown";
@@ -24,6 +25,83 @@ export function normalizeEmail(raw: string): string {
 
 export { OtpGateError } from "@/modules/auth/otpGate";
 export { readOtpCooldownRemainingSec, markOtpCooldown } from "@/modules/auth/otpCooldown";
+
+function apiOrigin(): string {
+  const raw =
+    process.env.EXPO_PUBLIC_COMMUNICATOR_API_URL?.trim() ||
+    process.env.EXPO_PUBLIC_APP_URL?.trim() ||
+    "";
+  return raw.replace(/\/$/, "");
+}
+
+type OtpVerifyResponse = {
+  mode?: "not_review" | "review";
+  ok?: boolean;
+  code?: string;
+  retry_after_seconds?: number;
+  access_token?: string;
+  refresh_token?: string;
+};
+
+/**
+ * Ask Vercel whether this is the store-review allowlist.
+ * - `ok` — session already set via setSession
+ * - `not_review` — fall through to GoTrue verifyOtp
+ * - throws OtpGateError / Error on review invalid OTP / limits
+ */
+async function tryStoreReviewVerify(email: string, code: string): Promise<"ok" | "not_review"> {
+  const origin = apiOrigin();
+  if (!origin) return "not_review";
+
+  let res: Response;
+  try {
+    res = await fetch(`${origin}/api/auth/otp-verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+  } catch {
+    // Network blip — do not block normal verifyOtp for real users.
+    return "not_review";
+  }
+
+  let data: OtpVerifyResponse = {};
+  try {
+    data = (await res.json()) as OtpVerifyResponse;
+  } catch {
+    data = {};
+  }
+
+  if (data.mode === "not_review" || (!data.mode && res.ok && !data.access_token)) {
+    return "not_review";
+  }
+
+  if (data.mode === "review" && res.ok && data.ok && data.access_token && data.refresh_token) {
+    const supabase = requireSupabase();
+    const { error } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    if (error) throw error;
+    return "ok";
+  }
+
+  if (data.mode === "review" && (res.status === 401 || data.code === "invalid_otp")) {
+    const err = new Error("Token has expired or is invalid") as Error & { status?: number };
+    err.status = 401;
+    throw err;
+  }
+
+  if (data.code === "verify_limit" || res.status === 429) {
+    throw new OtpGateError("verify_limit", data.retry_after_seconds);
+  }
+
+  if (data.mode === "review") {
+    throw new OtpGateError("server_error");
+  }
+
+  return "not_review";
+}
 
 /** Запросить письмо с кодом. Бросает OtpGateError / Supabase-ошибку (UI мапит). */
 export async function requestEmailOtpCode(email: string, displayName?: string): Promise<void> {
@@ -79,6 +157,15 @@ export async function verifyEmailOtpCode(email: string, code: string): Promise<v
       (row.code as "verify_limit") || "verify_limit",
       row.retry_after_seconds,
     );
+  }
+
+  const review = await tryStoreReviewVerify(normalized, code.trim());
+  if (review === "ok") {
+    const locale = getResponseLocale();
+    await supabase.auth.updateUser({ data: { locale } }).then(({ error: metaError }) => {
+      if (metaError) console.warn("updateUser locale after OTP failed", metaError.message);
+    });
+    return;
   }
 
   const { error } = await supabase.auth.verifyOtp({

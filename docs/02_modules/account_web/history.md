@@ -5,6 +5,10 @@ version: 1.12
 updated: 2026-08-04
 ---
 
+## 2026-08-05 — Store-review account cannot wipe
+
+- `DELETE /api/account/delete` отклоняет `users.store_review_account` (403), чтобы модераторский демо-аккаунт не стёрли из приложения. UI скрывает кнопку в Профиле.
+
 ## 2026-08-04 — Master upgrade bonus note missing
 
 - **Симптом:** под кнопкой «Мастер» нет текста про добавленный срок (при Наставнике + RUB/ЮKassa).

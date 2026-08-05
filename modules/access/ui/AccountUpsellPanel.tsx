@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
+import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -22,6 +23,8 @@ export function AccountUpsellPanel() {
   const theme = useTheme();
   const { t } = useTranslate();
   const linksEnabled = useAccountLinksEnabled();
+  const { profile } = useAuth();
+  const showCabinet = linksEnabled && !isStoreReviewAccount(profile);
   const [expanded, setExpanded] = useState(false);
   const [opening, setOpening] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -85,7 +88,7 @@ export function AccountUpsellPanel() {
               onPress={() => setExpanded(false)}
               style={styles.action}
             />
-            {linksEnabled ? (
+            {showCabinet ? (
               <AppButton
                 label={opening ? "…" : t("gate.openCabinet")}
                 onPress={() => void onOpenCabinet()}

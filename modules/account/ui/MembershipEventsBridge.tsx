@@ -26,7 +26,7 @@ import { readAccountFlag, writeAccountFlag } from "@/modules/account/core/accoun
 import { fetchLastPurchase } from "@/modules/account/core/purchasesClient";
 import { baseTierFromRow, hasActiveTrial } from "@/modules/access/core/paidAccess";
 import { TIER_ORDER, type ProductTier } from "@/modules/access/core/tiers";
-import { useAuth } from "@/modules/auth";
+import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
@@ -223,6 +223,8 @@ function MembershipNoticeModal({
   const theme = useTheme();
   const { t } = useTranslate();
   const linksEnabled = useAccountLinksEnabled();
+  const { profile } = useAuth();
+  const showCabinet = linksEnabled && !isStoreReviewAccount(profile);
   const [opening, setOpening] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
@@ -294,7 +296,7 @@ function MembershipNoticeModal({
               onPress={onClose}
               style={styles.action}
             />
-            {isTrialEnded && linksEnabled ? (
+            {isTrialEnded && showCabinet ? (
               <AppButton
                 label={opening ? "…" : t("gate.openCabinet")}
                 onPress={() => void onOpenCabinet()}

@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Modal, StyleSheet, View } from "react-native";
 
 import { openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
+import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import type { FeatureKey } from "@/modules/access/core/features";
 import { useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -48,6 +49,8 @@ export function AccountGateDialog({
   const theme = useTheme();
   const { t } = useTranslate();
   const linksEnabled = useAccountLinksEnabled();
+  const { profile } = useAuth();
+  const showCabinet = linksEnabled && !isStoreReviewAccount(profile);
   const [opening, setOpening] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
@@ -93,7 +96,7 @@ export function AccountGateDialog({
           ) : null}
           <View style={styles.actions}>
             <AppButton label={t("gate.close")} variant="secondary" onPress={onClose} style={styles.action} />
-            {linksEnabled ? (
+            {showCabinet ? (
               <AppButton
                 label={opening ? "…" : t("gate.openCabinet")}
                 onPress={() => void onOpenCabinet()}

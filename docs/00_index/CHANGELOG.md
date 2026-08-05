@@ -1,3 +1,4 @@
+- 2026-08-05 (419): Store-review login — fixed OTP secrets, skip email send, mint session, Master + hide cabinet/sign-out/delete.
 - 2026-08-04 (418): Keep-awake for flash meditation + asana; calm unchanged; breath already covered.
 - 2026-08-04 (417): Master upgrade bonus — restore oracle catalog 950₽; preview/fulfill use catalog price.
 - 2026-08-04 (416): Cabinet billing geo — prefer `users.country_code`; stop sticky EUR timeout (RU → YooKassa).

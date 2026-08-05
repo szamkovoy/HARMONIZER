@@ -19,6 +19,16 @@ export async function DELETE(req: Request) {
     }
 
     const db = createServiceSupabase();
+    const { data: flags, error: flagError } = await db
+      .from("users")
+      .select("store_review_account")
+      .eq("id", userId)
+      .maybeSingle();
+    if (flagError) throw flagError;
+    if (flags?.store_review_account) {
+      return json({ error: "Store review account cannot be deleted" }, { status: 403 });
+    }
+
     await wipeUserAccount(db, { userId, email });
     return json({ deleted: true });
   } catch (error) {

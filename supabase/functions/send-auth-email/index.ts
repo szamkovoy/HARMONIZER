@@ -203,6 +203,16 @@ Deno.serve(async (req) => {
     return hookError(`otp_gate:${gate.code}`, 429);
   }
 
+  // App Store / Play review demo: gate + rate limits still apply; no mailbox.
+  // Client verifies via POST /api/auth/otp-verify + STORE_REVIEW_OTP.
+  const reviewEmail = (Deno.env.get("STORE_REVIEW_EMAIL") ?? "").trim().toLowerCase();
+  if (reviewEmail && String(to).toLowerCase() === reviewEmail) {
+    console.log("send-auth-email: skip send for store review account");
+    return new Response(JSON.stringify({}), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   // Приоритет locale/имени: свежая подсказка со страницы входа (язык UI мастера
   // в момент OTP) → user_metadata (язык первой регистрации) → ru.
   const hint = await fetchSigninHint(String(to ?? ""));

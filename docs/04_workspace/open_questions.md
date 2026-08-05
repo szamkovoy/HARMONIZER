@@ -15,6 +15,7 @@ code_refs: []
 ## `infra` / store submission checklist (2026-07-29)
 
 - **Google Play / App Store — внекодовые декларации перед релизом.** Код: конфликт LOCATION `maxSdkVersion` закрыт (`with-android-location-permission-merge`); Privacy Manifest на iOS есть; `ITSAppUsesNonExemptEncryption=false`. Остаётся в консолях: (a) Play **Data safety** + declaration для location / Health Connect / mic / camera / Bluetooth; (b) Play **Health Connect** form (уже в open_questions communicator); (c) Play точное alarm / `SCHEDULE_EXACT_ALARM` use-case если спрашивает; (d) App Store privacy labels + HealthKit purpose strings review (локали — см. i18n open question); (e) залить **новый** AAB/IPA после prebuild, не старый артефакт. `SYSTEM_ALERT_WINDOW` может попасть из RN debug/dev-client tooling — при вопросе Play сверить, нужен ли overlay в production build.
+- **Store-review login (код 2026-08-05):** `STORE_REVIEW_EMAIL` + `STORE_REVIEW_OTP` на Vercel; email также в secrets edge `send-auth-email`. В Review Notes: email / Name Alex / OTP. Письмо не приходит — ожидаемо. После смены OTP — только secrets, без релиза приложения. Клиентский бандл секреты не содержит (достаточно уже залитого билда с `EXPO_PUBLIC_COMMUNICATOR_API_URL` на прод).
 
 ## `notifications` / Android remote push (FCM, 2026-07-22)
 

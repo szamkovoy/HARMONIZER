@@ -2204,6 +2204,8 @@ export type Database = {
           membership_expires_at: string | null
           membership_tier: string
           onboarded_at: string | null
+          skip_email_automations: boolean
+          store_review_account: boolean
           trial_expires_at: string | null
           tz: string | null
           updated_at: string | null
@@ -2230,6 +2232,8 @@ export type Database = {
           membership_expires_at?: string | null
           membership_tier?: string
           onboarded_at?: string | null
+          skip_email_automations?: boolean
+          store_review_account?: boolean
           trial_expires_at?: string | null
           tz?: string | null
           updated_at?: string | null
@@ -2256,6 +2260,8 @@ export type Database = {
           membership_expires_at?: string | null
           membership_tier?: string
           onboarded_at?: string | null
+          skip_email_automations?: boolean
+          store_review_account?: boolean
           trial_expires_at?: string | null
           tz?: string | null
           updated_at?: string | null

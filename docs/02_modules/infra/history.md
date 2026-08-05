@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-08-05 (store-review OTP):** Vercel `POST /api/auth/otp-verify` + secrets `STORE_REVIEW_EMAIL`/`STORE_REVIEW_OTP`; edge `send-auth-email` skip-send для allowlist; миграция `store_review_account`. См. `DEPLOY.md` / onboarding history.
+
 - **2026-08-04 (store versioning process):** Причина коллизий Play «код уже использован»: ручные бампы `versionCode` поверх `eas.json` `autoIncrement`, повторная заливка того же AAB, и рассинхрон git (`versionCode` отставал от уже принятых артефактов). Fix процесса: канон в `DEPLOY.md` «App version»; агент-правило `.cursor/rules/store-build-version.mdc`; post-step `scripts/after-store-build.mjs` на `build:android:prod` / `build:ios:prod` (закоммитить `app.json`, заливать один раз). Обычный релиз — без ручного инкремента Android/iOS build integers.
 
 - **2026-08-04 (Android versionCode 30):** `app.json` `android.versionCode` → **30** — Play уже занял 27–29 (в т.ч. артефакты в библиотеке релиза без выката на тест); следующий store AAB должен идти с ≥30.

@@ -10,6 +10,8 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-08-05 (store-review OTP):** Для модерации App Store / Play — серверные `STORE_REVIEW_EMAIL` + `STORE_REVIEW_OTP`: edge не шлёт письмо; `POST /api/auth/otp-verify` mint'ит сессию и ensure'ит Master/`store_review_account`. UI входа без изменений; Notes = email + имя + фиксированный OTP. См. profile / `DEPLOY.md`.
+
 - **2026-08-01 (OTP sending pulse):** QA: «Отправляется…» ~5 с без движения выглядит как зависание. `AppButton` при `busy` держит три точки на месте и «зажигает» их цветом текста vs цветом кнопки (без прыжка центрирования).
 - **2026-07-31 (LegalFooter import crash):** TestFlight Profile crash — `Cannot read property 'nativeApplicationVersion' of undefined` из-за `import Application from "expo-application"` (нет default export). Fix: `import * as Application`; `expo-application` — direct dependency.
 

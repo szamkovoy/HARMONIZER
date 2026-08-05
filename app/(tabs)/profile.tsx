@@ -9,7 +9,7 @@ import {
   type FeatureKey,
 } from "@/modules/access";
 import { deleteAccountRemote, openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
-import { useAuth } from "@/modules/auth";
+import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh } from "@/modules/charts";
 import { APP_LOCALE_OPTIONS, getResponseLocale, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
 import type { BirthData } from "@/modules/astro-core";
@@ -348,6 +348,8 @@ export default function ProfileTabRoute() {
   const [accountActionBusy, setAccountActionBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const linksEnabled = useAccountLinksEnabled();
+  const storeReviewAccount = isStoreReviewAccount(profile);
+  const showCabinet = linksEnabled && !storeReviewAccount;
 
   // «Мои данные»: имя, тариф, email и (для тарифов с персональным прогнозом)
   // дата/время/место рождения в режиме просмотра. Поля рождения выводятся только
@@ -656,7 +658,7 @@ export default function ProfileTabRoute() {
             }}
           />
 
-          {linksEnabled ? (
+          {showCabinet ? (
             <>
               <AppButton
                 label={cabinetOpening ? "…" : t("gate.openCabinet")}
@@ -671,34 +673,36 @@ export default function ProfileTabRoute() {
             </>
           ) : null}
 
-          <View style={styles.accountLinksRow}>
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => setSignOutConfirmOpen(true)}
-              disabled={accountActionBusy}
-              hitSlop={8}
-            >
-              <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
-                {t("profile.account.signOut")}
+          {!storeReviewAccount ? (
+            <View style={styles.accountLinksRow}>
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => setSignOutConfirmOpen(true)}
+                disabled={accountActionBusy}
+                hitSlop={8}
+              >
+                <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
+                  {t("profile.account.signOut")}
+                </AppText>
+              </Pressable>
+              <AppText variant="screenHint" tone="muted">
+                ·
               </AppText>
-            </Pressable>
-            <AppText variant="screenHint" tone="muted">
-              ·
-            </AppText>
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => {
-                setDeleteError(null);
-                setDeleteConfirmOpen(true);
-              }}
-              disabled={accountActionBusy}
-              hitSlop={8}
-            >
-              <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
-                {t("profile.account.delete")}
-              </AppText>
-            </Pressable>
-          </View>
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => {
+                  setDeleteError(null);
+                  setDeleteConfirmOpen(true);
+                }}
+                disabled={accountActionBusy}
+                hitSlop={8}
+              >
+                <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
+                  {t("profile.account.delete")}
+                </AppText>
+              </Pressable>
+            </View>
+          ) : null}
 
           {showBirthData ? (
             <>

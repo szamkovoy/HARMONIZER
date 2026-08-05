@@ -153,6 +153,19 @@ Vercel env:
 
 Supabase edge secret: same `OTP_REQUIRE_APP_CHECK`.
 
+### Store-review login (App Store / Google Play Notes)
+
+Server-only secrets (never `EXPO_PUBLIC_*`):
+
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `STORE_REVIEW_EMAIL` | Vercel **and** Supabase edge `send-auth-email` | Allowlist email; edge skips mailbox after gate |
+| `STORE_REVIEW_OTP` | Vercel only (`POST /api/auth/otp-verify`) | Fixed 6-digit code for Review Notes |
+
+Flow: same UI → otp-gate → `signInWithOtp` → edge skip send → client `otp-verify` mints session + ensures Master / `store_review_account` / natal. Revoke = change secrets or ban auth user (no app rebuild).
+
+Review Notes template: Email / Name (Alex) / OTP (value of `STORE_REVIEW_OTP`). Letter will not arrive — expected.
+
 EAS / `.env.local` for Expo/Test:
 
 - `EXPO_PUBLIC_OTP_APP_CHECK_DEBUG_SECRET` = same value as `OTP_APP_CHECK_DEBUG_SECRET`

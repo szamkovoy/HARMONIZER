@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-08-05 (store-review account):** Флаг `users.store_review_account` — скрыть «Личный кабинет» / «Выйти» / «Удалить аккаунт» (`isStoreReviewAccount`); `DELETE /api/account/delete` → 403. Вход: фиксированный OTP через сервер (см. onboarding history). Миграция `20260805180000_store_review_account.sql`.
+
 - **2026-08-04 (version 1.2.2):** Маркетинговая версия приложения **1.2.2** (`app.json` / `package.json`; `versionCode`/`buildNumber` — EAS autoIncrement).
 - **2026-08-04 (OTP email slim):** OTP-письмо без блока «руководство»; `Auto-Submitted`; SES config set отдельно (`SES_OTP_CONFIGURATION_SET`). См. `email_providers.md` / i18n history.
 
