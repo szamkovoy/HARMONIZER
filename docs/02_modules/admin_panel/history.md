@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-08-07 (auto-renew cancelled mark):** В списке и карточке пользователя — «Отменил автоплатеж» после бейджа тарифа, если платный доступ ещё действует, а subscription-контракт уже `cancelled` (без активного). Навигатор / демо без отметки. Карточка также показывает «Автопродление: отменено» вместо «След. списание».
+
 - **2026-08-04 (access sort + KPI dig-down):** `admin_search_users` — при `p_sort=access|locale` сортировка по `access_rank`/locale, не по `created_at`. UI: даты регистрации выше линии, сортировка снизу. Дашборд KPI «Пользователи / тарифы / конверсия» → ссылки на `/admin/users` с фильтрами (`access`, `active_hours`, `created_from`, `has_sub_tier`).
 - **2026-08-04 (users UX):** Карточка — единый «Тариф» RU + «изменить» (`set_access`); платный > демо; статусы писем/прочитано у пушей. Список — один access-фильтр (+ Не в гармонизаторе), activity days, сортировка; RPC + `membership_started_at`.
 - **2026-08-04 (refund revoke + manual YooKassa):** Успешный возврат снимает тариф платежа; ЮKassa — только при `succeeded`; иначе «Сделать возврат вручную» (`yookassa_mark`).

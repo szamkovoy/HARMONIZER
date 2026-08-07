@@ -8,7 +8,7 @@ import { BarChart3, ChevronRight, Loader2, Search } from "lucide-react";
 import { ACCESS_FILTER_LABELS_RU, type AccessFilterSeg } from "../_lib/accessNow";
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime, formatUserAccessPeriod } from "../_lib/adminDates";
-import { AccessNowBadge } from "./_components/TierBadge";
+import { AccessNowBadge, AutoRenewCancelledNote } from "./_components/TierBadge";
 
 type AdminUserRow = {
   id: string;
@@ -25,6 +25,7 @@ type AdminUserRow = {
   country_code?: string | null;
   city?: string | null;
   marketing_status?: string | null;
+  auto_renew_cancelled?: boolean;
 };
 
 const LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
@@ -389,11 +390,14 @@ function UsersList() {
                       Не в гармонизаторе
                     </span>
                   ) : (
-                    <AccessNowBadge
-                      membershipTier={user.membership_tier}
-                      membershipExpiresAt={user.membership_expires_at}
-                      trialExpiresAt={user.trial_expires_at}
-                    />
+                    <>
+                      <AccessNowBadge
+                        membershipTier={user.membership_tier}
+                        membershipExpiresAt={user.membership_expires_at}
+                        trialExpiresAt={user.trial_expires_at}
+                      />
+                      <AutoRenewCancelledNote show={user.auto_renew_cancelled} />
+                    </>
                   )}
                   {user.onboarded_at && period ? (
                     <span className="text-[11px] text-zinc-500">{period}</span>

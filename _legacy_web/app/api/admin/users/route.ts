@@ -1,5 +1,6 @@
 import { accessNowSegment } from "../../../admin/_lib/accessNow";
 import { emailsByUserId } from "../_utils/authEmails";
+import { enrichUsersAutoRenewCancelled } from "../_utils/autoRenewCancelled";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -236,7 +237,7 @@ export async function GET(req: Request) {
         (a, b) =>
           new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
       );
-      return json({ users });
+      return json({ users: await enrichUsersAutoRenewCancelled(db, users) });
     }
 
     const limit = access || addon || hasSubTier ? 200 : 100;
@@ -267,7 +268,7 @@ export async function GET(req: Request) {
       users = users.filter((u) => restrictIds!.has(u.id));
     }
 
-    return json({ users });
+    return json({ users: await enrichUsersAutoRenewCancelled(db, users) });
   } catch (error) {
     return errorResponse(error);
   }

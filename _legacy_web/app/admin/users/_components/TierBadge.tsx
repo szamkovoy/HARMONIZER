@@ -61,3 +61,11 @@ export function AccessNowBadge({
     </span>
   );
 }
+
+/** Muted note after AccessNowBadge when paid access remains but auto-renew is off. */
+export function AutoRenewCancelledNote({ show }: { show?: boolean }) {
+  if (!show) return null;
+  return (
+    <span className="text-[11px] font-medium text-amber-700">Отменил автоплатеж</span>
+  );
+}

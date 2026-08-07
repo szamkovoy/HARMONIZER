@@ -10,6 +10,7 @@ import {
   clearGeoPlaceCache,
   resolveGeoPlaceCached,
 } from "../../../_utils/geoReverseResolve";
+import { isAutoRenewCancelled } from "../../../../admin/_lib/accessNow";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { emailsByUserId } from "../../_utils/authEmails";
 import { loadAdminPaymentLedger } from "../../_utils/paymentLedger";
@@ -123,12 +124,13 @@ export async function GET(req: Request, ctx: RouteContext) {
             "contract_id, tier, currency, amount, status, current_period_end, cancelled_at, created_at",
           )
           .eq("user_id", id)
-          .eq("status", "active")
+          .eq("product_kind", "subscription")
+          .in("status", ["active", "cancelled"])
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .limit(10),
       ]);
     if (notifRes.error) throw notifRes.error;
+    if (contractRes.error) throw contractRes.error;
 
     let emailHistory: {
       kind: string;
@@ -294,7 +296,17 @@ export async function GET(req: Request, ctx: RouteContext) {
       };
     });
 
-    const contract = contractRes.data;
+    const contracts = contractRes.data ?? [];
+    const activeContract = contracts.find((c) => c.status === "active") ?? null;
+    const cancelledContract =
+      contracts.find((c) => c.status === "cancelled" && c.cancelled_at) ?? null;
+    const contract = activeContract ?? cancelledContract;
+    const auto_renew_cancelled = isAutoRenewCancelled({
+      membership_tier: user.membership_tier,
+      membership_expires_at: user.membership_expires_at,
+      hasActiveSubscriptionContract: Boolean(activeContract),
+      hasCancelledSubscriptionContract: Boolean(cancelledContract),
+    });
     const subscription = contract
       ? {
           contract_id: contract.contract_id,
@@ -303,6 +315,7 @@ export async function GET(req: Request, ctx: RouteContext) {
           amount: contract.amount,
           status: contract.status,
           current_period_end: contract.current_period_end,
+          cancelled_at: contract.cancelled_at ?? null,
         }
       : null;
 
@@ -311,6 +324,7 @@ export async function GET(req: Request, ctx: RouteContext) {
         ...user,
         email: emails.get(id) ?? "—",
         last_activity_at: lastEventRes.data?.occurred_at ?? null,
+        auto_renew_cancelled,
       },
       payments,
       contact: contactRes.data ?? null,

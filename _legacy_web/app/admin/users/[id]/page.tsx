@@ -18,7 +18,7 @@ import {
   AccessEditModal,
   accessEditInitialFromUser,
 } from "../_components/AccessEditModal";
-import { AccessNowBadge } from "../_components/TierBadge";
+import { AccessNowBadge, AutoRenewCancelledNote } from "../_components/TierBadge";
 import type { AdminPaymentRow } from "../_types/payments";
 
 type AdminUserCard = {
@@ -39,6 +39,7 @@ type AdminUserCard = {
   lat?: number | null;
   lon?: number | null;
   skip_email_automations?: boolean;
+  auto_renew_cancelled?: boolean;
 };
 
 type ContactInfo = {
@@ -54,6 +55,7 @@ type SubscriptionInfo = {
   amount: number | null;
   status: string;
   current_period_end: string | null;
+  cancelled_at?: string | null;
 } | null;
 
 type EmailHist = {
@@ -538,6 +540,7 @@ export default function AdminUserCardPage() {
             membershipExpiresAt={user.membership_expires_at}
             trialExpiresAt={user.trial_expires_at}
           />
+          <AutoRenewCancelledNote show={user.auto_renew_cancelled} />
         </div>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
           <InfoRow
@@ -566,20 +569,28 @@ export default function AdminUserCardPage() {
               </button>
             </dd>
           </div>
-          {subscription ? (
-            <>
-              <InfoRow
-                label="След. списание"
-                value={
-                  subscription.current_period_end
-                    ? `${formatMoney(subscription.amount, subscription.currency)} · ${formatAdminDateTime(subscription.current_period_end)}`
-                    : formatMoney(subscription.amount, subscription.currency)
-                }
-              />
-            </>
+          {subscription?.status === "active" ? (
+            <InfoRow
+              label="След. списание"
+              value={
+                subscription.current_period_end
+                  ? `${formatMoney(subscription.amount, subscription.currency)} · ${formatAdminDateTime(subscription.current_period_end)}`
+                  : formatMoney(subscription.amount, subscription.currency)
+              }
+            />
+          ) : null}
+          {subscription?.status === "cancelled" || user.auto_renew_cancelled ? (
+            <InfoRow
+              label="Автопродление"
+              value={
+                subscription?.current_period_end
+                  ? `отменено · доступ до ${formatAdminDateTime(subscription.current_period_end)}`
+                  : "отменено"
+              }
+            />
           ) : null}
         </dl>
-        {subscription ? (
+        {subscription?.status === "active" ? (
           <div className="mt-4">
             <button
               type="button"

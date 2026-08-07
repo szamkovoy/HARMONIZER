@@ -65,3 +65,20 @@ export function hasActivePaidMembership(row: {
 }): boolean {
   return paidMembershipActive({ ...row, nowMs: row.nowMs ?? Date.now() }) !== null;
 }
+
+/**
+ * Paid access still open, but subscription auto-renew was cancelled
+ * (no active contract; has cancelled subscription contract).
+ * Navigator / demo / no cancel history → false.
+ */
+export function isAutoRenewCancelled(opts: {
+  membership_tier: string | null;
+  membership_expires_at: string | null;
+  hasActiveSubscriptionContract: boolean;
+  hasCancelledSubscriptionContract: boolean;
+  nowMs?: number;
+}): boolean {
+  if (!hasActivePaidMembership(opts)) return false;
+  if (opts.hasActiveSubscriptionContract) return false;
+  return opts.hasCancelledSubscriptionContract;
+}
