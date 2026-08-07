@@ -5,9 +5,13 @@ version: 1.12
 updated: 2026-08-04
 ---
 
+## 2026-08-06 — Store-review delete link visible again
+
+- В Профиле для store-review снова «Удалить аккаунт» (комплаенс сторов); wipe по-прежнему 403 + диалог `deleteStoreReviewBlocked`.
+
 ## 2026-08-05 — Store-review account cannot wipe
 
-- `DELETE /api/account/delete` отклоняет `users.store_review_account` (403), чтобы модераторский демо-аккаунт не стёрли из приложения. UI скрывает кнопку в Профиле.
+- `DELETE /api/account/delete` отклоняет `users.store_review_account` (403), чтобы модераторский демо-аккаунт не стёрли из приложения.
 
 ## 2026-08-04 — Master upgrade bonus note missing
 

@@ -124,6 +124,7 @@
   "profile.account.deleteCancel": "Cancelar",
   "profile.account.deleteConfirm": "Eliminar cuenta",
   "profile.account.deleteError": "No se pudo eliminar la cuenta. Inténtalo de nuevo.",
+  "profile.account.deleteStoreReviewBlocked": "No se puede eliminar la cuenta de prueba.",
   "profile.account.deleteMessage": "Tu cuenta será eliminada junto con toda la información que ingresaste y los permisos de datos obtenidos. Luego, cierra la aplicación y elimínala de tu teléfono con los medios estándar.",
   "profile.account.deleteTitle": "Eliminar cuenta",
   "profile.account.deleteWorking": "Eliminando cuenta…",

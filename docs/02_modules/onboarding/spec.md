@@ -59,7 +59,7 @@ code_refs:
   3. edge `send-auth-email` потребляет permit и шлёт письмо; для `STORE_REVIEW_EMAIL` (серверный секрет) письмо **не** отправляется (gate/лимиты остаются).
 - Пока идёт отправка: CTA `busy` + лейбл `auth.sending` («Отправляется…»), без dim. На mount welcome — `prefetchOtpAppCheck` (прогрев Play Integrity); на критическом пути getToken ≤ ~1.2 с, иначе gate без токена (пока enforce выключен).
 - Лимиты отправки (сервер, email): ≥60 с между письмами; ≤10/час; ≤25/сутки. UI cooldown 60 с на welcome и resend (SecureStore; «Изменить email» не обходит).
-- `verifyEmailOtpCode`: ≤10 неверных попыток/час на email (RPC `otp_check_verify_allowed` / `otp_record_verify_failure`). Сначала `POST /api/auth/otp-verify`: если email = `STORE_REVIEW_EMAIL` и код = `STORE_REVIEW_OTP` → сервер mint'ит сессию (`generateLink` + `verifyOtp`) и ensure'ит Master/onboarded (`users.store_review_account`); иначе клиент делает обычный GoTrue `verifyOtp`. Секреты только на Vercel/edge — не в клиенте.
+- `verifyEmailOtpCode`: ≤10 неверных попыток/час на email (RPC `otp_check_verify_allowed` / `otp_record_verify_failure`). Сначала `POST /api/auth/otp-verify`: если email = `STORE_REVIEW_EMAIL` и код = `STORE_REVIEW_OTP` → сервер mint'ит сессию (`generateLink` + `verifyOtp`) и ensure'ит Master/onboarded (`users.store_review_account`; seed рождения/Москва только если `birth_date` пуст — иначе не затирает правки); иначе клиент делает обычный GoTrue `verifyOtp`. Секреты только на Vercel/edge — не в клиенте.
 - Turnstile/капча **не** используются (RN WebView UX); защита — rate limits + Firebase App Check.
 - `LegalFooter` **только** на `welcome`. `footerInContent={sub === "welcome"}`.
 - Картинка подтверждения — `assets/onboarding/email_600.jpg`.

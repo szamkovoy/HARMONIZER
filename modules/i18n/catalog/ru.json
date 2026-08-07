@@ -35,6 +35,7 @@
   "profile.account.deleteCancel": "Отменить",
   "profile.account.deleteWorking": "Удаляем аккаунт…",
   "profile.account.deleteError": "Не удалось удалить аккаунт. Попробуйте ещё раз.",
+  "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт.",
   "profile.comingSoon.title": "Скоро здесь",
   "profile.comingSoon.body": "Расширенные настройки профиля и внешний вид — на следующих витках.",
   "profile.language.title": "Язык",

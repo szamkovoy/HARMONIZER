@@ -1,6 +1,7 @@
 /**
  * Idempotent Master + onboarded profile for the store-review account.
- * Birth data is fixed so reviewers skip the wizard and see personal forecast.
+ * Seeds fixed birth data only when the profile has no birth_date yet —
+ * never overwrite reviewer edits (e.g. London) on later logins.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -37,6 +38,8 @@ export async function ensureStoreReviewProfile(
   if (loadError) throw loadError;
 
   const nowIso = new Date().toISOString();
+  const needsBirthSeed =
+    typeof row?.birth_date !== "string" || !row.birth_date.trim();
 
   const { error: updateError } = await db
     .from("users")
@@ -49,16 +52,20 @@ export async function ensureStoreReviewProfile(
       // Fixed Review Notes name (overwrite email-local-part defaults).
       display_name: "Alex",
       onboarded_at: row?.onboarded_at ?? nowIso,
-      birth_date: row?.birth_date ?? REVIEW_BIRTH.date,
-      birth_time: REVIEW_BIRTH.time,
-      birth_place: REVIEW_BIRTH_PLACE,
-      lat: REVIEW_BIRTH.location.lat,
-      lon: REVIEW_BIRTH.location.lng,
-      tz: REVIEW_BIRTH.location.timezone,
-      location_name: REVIEW_BIRTH_PLACE.name,
-      country_code: "RU",
-      city: "Moscow",
       updated_at: nowIso,
+      ...(needsBirthSeed
+        ? {
+            birth_date: REVIEW_BIRTH.date,
+            birth_time: REVIEW_BIRTH.time,
+            birth_place: REVIEW_BIRTH_PLACE,
+            lat: REVIEW_BIRTH.location.lat,
+            lon: REVIEW_BIRTH.location.lng,
+            tz: REVIEW_BIRTH.location.timezone,
+            location_name: REVIEW_BIRTH_PLACE.name,
+            country_code: "RU",
+            city: "Moscow",
+          }
+        : {}),
     })
     .eq("id", userId);
   if (updateError) throw updateError;
@@ -71,6 +78,10 @@ export async function ensureStoreReviewProfile(
     .maybeSingle();
   if (natalLoadError) throw natalLoadError;
   if (natal?.id) return;
+
+  // Only auto-compute natal from the Moscow seed when we just seeded birth data.
+  // If birth exists but natal is missing (edge), leave natal to createNatalProfile.
+  if (!needsBirthSeed) return;
 
   const profile = await computeNatalProfileWithAstronomia(REVIEW_BIRTH);
   const version = await nextVersionFor(db, "user_natal_charts", userId);

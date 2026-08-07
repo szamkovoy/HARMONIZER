@@ -292,7 +292,8 @@
     "auth.otpVerifyLimit": "Слишком много неверных попыток ввода кода. Подождите час и запросите новый код.",
     "auth.otpAppCheckFailed": "Не удалось подтвердить приложение. Обновите Harmonizer из магазина и попробуйте снова.",
     "common.appName": "Гармонизатор",
-    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\""
+    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\"",
+    "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт."
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -587,7 +588,8 @@
     "auth.otpVerifyLimit": "Слишком много неверных попыток ввода кода. Подождите час и запросите новый код.",
     "auth.otpAppCheckFailed": "Не удалось подтвердить приложение. Обновите Harmonizer из магазина и попробуйте снова.",
     "common.appName": "Гармонизатор",
-    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\""
+    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\"",
+    "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт."
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -882,7 +884,8 @@
     "auth.otpVerifyLimit": "Слишком много неверных попыток ввода кода. Подождите час и запросите новый код.",
     "auth.otpAppCheckFailed": "Не удалось подтвердить приложение. Обновите Harmonizer из магазина и попробуйте снова.",
     "common.appName": "Гармонизатор",
-    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\""
+    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\"",
+    "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт."
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -1177,7 +1180,8 @@
     "auth.otpVerifyLimit": "Слишком много неверных попыток ввода кода. Подождите час и запросите новый код.",
     "auth.otpAppCheckFailed": "Не удалось подтвердить приложение. Обновите Harmonizer из магазина и попробуйте снова.",
     "common.appName": "Гармонизатор",
-    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\""
+    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\"",
+    "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт."
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -1472,7 +1476,8 @@
     "auth.otpVerifyLimit": "Слишком много неверных попыток ввода кода. Подождите час и запросите новый код.",
     "auth.otpAppCheckFailed": "Не удалось подтвердить приложение. Обновите Harmonizer из магазина и попробуйте снова.",
     "common.appName": "Гармонизатор",
-    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\""
+    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\"",
+    "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт."
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -1767,7 +1772,8 @@
     "auth.otpVerifyLimit": "Слишком много неверных попыток ввода кода. Подождите час и запросите новый код.",
     "auth.otpAppCheckFailed": "Не удалось подтвердить приложение. Обновите Harmonizer из магазина и попробуйте снова.",
     "common.appName": "Гармонизатор",
-    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\""
+    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\"",
+    "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт."
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -2062,6 +2068,7 @@
     "auth.otpVerifyLimit": "Слишком много неверных попыток ввода кода. Подождите час и запросите новый код.",
     "auth.otpAppCheckFailed": "Не удалось подтвердить приложение. Обновите Harmonizer из магазина и попробуйте снова.",
     "common.appName": "Гармонизатор",
-    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\""
+    "profile.about.copyrightHolder": "ТОО \"Сергей Замковой\"",
+    "profile.account.deleteStoreReviewBlocked": "Нельзя удалить тестовый аккаунт."
   }
 }

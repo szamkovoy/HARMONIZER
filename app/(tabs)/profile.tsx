@@ -345,6 +345,7 @@ export default function ProfileTabRoute() {
   const [cabinetError, setCabinetError] = useState<string | null>(null);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteStoreReviewBlockedOpen, setDeleteStoreReviewBlockedOpen] = useState(false);
   const [accountActionBusy, setAccountActionBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const linksEnabled = useAccountLinksEnabled();
@@ -410,6 +411,11 @@ export default function ProfileTabRoute() {
   }, [signOut]);
 
   const onConfirmDeleteAccount = useCallback(async () => {
+    if (storeReviewAccount) {
+      setDeleteConfirmOpen(false);
+      setDeleteStoreReviewBlockedOpen(true);
+      return;
+    }
     logRuntimeTap("profile_delete_account", {});
     setDeleteError(null);
     setAccountActionBusy(true);
@@ -422,7 +428,7 @@ export default function ProfileTabRoute() {
     } finally {
       setAccountActionBusy(false);
     }
-  }, [signOut]);
+  }, [signOut, storeReviewAccount]);
 
   const localeOptions = useMemo(
     () =>
@@ -673,36 +679,38 @@ export default function ProfileTabRoute() {
             </>
           ) : null}
 
-          {!storeReviewAccount ? (
-            <View style={styles.accountLinksRow}>
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => setSignOutConfirmOpen(true)}
-                disabled={accountActionBusy}
-                hitSlop={8}
-              >
-                <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
-                  {t("profile.account.signOut")}
-                </AppText>
-              </Pressable>
-              <AppText variant="screenHint" tone="muted">
-                ·
+          <View style={styles.accountLinksRow}>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => setSignOutConfirmOpen(true)}
+              disabled={accountActionBusy}
+              hitSlop={8}
+            >
+              <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
+                {t("profile.account.signOut")}
               </AppText>
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => {
-                  setDeleteError(null);
-                  setDeleteConfirmOpen(true);
-                }}
-                disabled={accountActionBusy}
-                hitSlop={8}
-              >
-                <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
-                  {t("profile.account.delete")}
-                </AppText>
-              </Pressable>
-            </View>
-          ) : null}
+            </Pressable>
+            <AppText variant="screenHint" tone="muted">
+              ·
+            </AppText>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => {
+                if (storeReviewAccount) {
+                  setDeleteStoreReviewBlockedOpen(true);
+                  return;
+                }
+                setDeleteError(null);
+                setDeleteConfirmOpen(true);
+              }}
+              disabled={accountActionBusy}
+              hitSlop={8}
+            >
+              <AppText variant="screenHint" style={[styles.accountLink, { color: theme.colors.accent }]}>
+                {t("profile.account.delete")}
+              </AppText>
+            </Pressable>
+          </View>
 
           {showBirthData ? (
             <>
@@ -938,6 +946,19 @@ export default function ProfileTabRoute() {
               />
             </>
           )
+        }
+      />
+      <AppDialog
+        visible={deleteStoreReviewBlockedOpen}
+        title={t("profile.account.deleteTitle")}
+        message={t("profile.account.deleteStoreReviewBlocked")}
+        onRequestClose={() => setDeleteStoreReviewBlockedOpen(false)}
+        actions={
+          <AppButton
+            label={t("common.close")}
+            variant="secondary"
+            onPress={() => setDeleteStoreReviewBlockedOpen(false)}
+          />
         }
       />
       <NatalBirthDataModal

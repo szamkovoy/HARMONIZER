@@ -124,6 +124,7 @@
   "profile.account.deleteCancel": "Annuler",
   "profile.account.deleteConfirm": "Supprimer le compte",
   "profile.account.deleteError": "Impossible de supprimer le compte. Veuillez réessayer.",
+  "profile.account.deleteStoreReviewBlocked": "Vous ne pouvez pas supprimer le compte de test.",
   "profile.account.deleteMessage": "Votre compte sera supprimé avec toutes les informations que vous avez saisies et les autorisations d'accès aux données obtenues. Ensuite, fermez l'application et supprimez-la de votre téléphone par les moyens habituels.",
   "profile.account.deleteTitle": "Supprimer le compte",
   "profile.account.deleteWorking": "Suppression du compte…",
