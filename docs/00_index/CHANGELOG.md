@@ -1,4 +1,5 @@
 - 2026-08-07 (423): Admin users — «Отменил автоплатеж» after tier badge when paid access remains without active renew.
+- 2026-08-07 (422): OTP ghosts TTL 1h; marketing contacts only after OTP confirm; welcome drip after onboarded_at.
 - 2026-08-06 (421): Store-review ensure — do not overwrite birth place on every login (seed only when empty).
 - 2026-08-06 (420): Store-review — restore sign-out/delete links; delete shows blocked dialog (no wipe); cabinet stays hidden.
 - 2026-08-05 (419): Store-review login — fixed OTP secrets, skip email send, mint session, Master + hide cabinet/sign-out/delete.

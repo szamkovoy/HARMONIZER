@@ -73,7 +73,7 @@ supabase db execute --file supabase/seed.sql
 0 * * * *      precompute_daily_forecasts_hourly          → invoke_precompute_daily_forecasts
 15 * * * *     cleanup_expired_stories_hourly             → invoke_cleanup_expired_stories
 20 * * * *     reconcile_expired_memberships_hourly       → invoke_reconcile_expired_memberships
-35 * * * *     cleanup_unconfirmed_auth_users_hourly      → cleanup_unconfirmed_auth_users (OTP ghosts >24h)
+35 * * * *     cleanup_unconfirmed_auth_users_hourly      → cleanup_unconfirmed_auth_users (OTP ghosts >1h)
 37 4 * * 0     cleanup_stale_notification_deliveries_weekly → cleanup_stale_notification_deliveries(30d, 1000, 20)
 * * * * *      notify_webinar_start_minutely               → invoke_notify_webinar_start
 */15 * * * *   ensure_harmonizer_crons_watchdog           → ensure_harmonizer_cron_jobs

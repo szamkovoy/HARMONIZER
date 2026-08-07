@@ -161,10 +161,10 @@ async function insertEnrollment(
 }
 
 /**
- * Welcome after OTP confirm.
- * Re-registration (same email, new auth user) may start the chain again:
- * we only skip when an *active* enrollment already exists for this contact.
- * Completed/cancelled history (incl. after account wipe) does not block.
+ * Welcome after Harmonizer onboarding (`users.onboarded_at`), not bare OTP.
+ * OTP-only ghosts must never enter this drip (see sync_email_contacts + cleanup).
+ * Re-registration may start the chain again: skip only when an *active*
+ * enrollment already exists. Completed/cancelled history does not block.
  */
 export async function enrollAccountRegistered(db: SupabaseClient): Promise<number> {
   const automation = await loadActiveAutomation(db, "account_registered");
@@ -175,14 +175,14 @@ export async function enrollAccountRegistered(db: SupabaseClient): Promise<numbe
 
   await db.rpc("sync_email_contacts_from_users");
 
-  const { data: confirmed, error } = await db.rpc("email_automation_confirmed_users", {
+  const { data: onboarded, error } = await db.rpc("email_automation_onboarded_users", {
     p_since: automation.activated_at,
   });
   if (error) throw error;
 
-  const rows = (confirmed ?? []) as {
+  const rows = (onboarded ?? []) as {
     user_id: string;
-    email_confirmed_at: string;
+    onboarded_at: string;
     skip_email_automations: boolean;
   }[];
 
@@ -203,7 +203,7 @@ export async function enrollAccountRegistered(db: SupabaseClient): Promise<numbe
       automation_id: automation.id,
       contact_id: contact.id,
       next_step_at: nextAt,
-      cycle_key: row.email_confirmed_at,
+      cycle_key: row.onboarded_at,
     });
     if (ok) enrolled += 1;
   }
@@ -496,7 +496,7 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
   for (const enrollment of due as Enrollment[]) {
     const { data: automation } = await db
       .from("email_automations")
-      .select("id, is_active")
+      .select("id, is_active, trigger_type")
       .eq("id", enrollment.automation_id)
       .maybeSingle();
     if (!automation?.is_active) {
@@ -555,10 +555,22 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
     if (contact.user_id) {
       const { data: user } = await db
         .from("users")
-        .select("display_name, skip_email_automations, locale")
+        .select("display_name, skip_email_automations, locale, onboarded_at")
         .eq("id", contact.user_id)
         .maybeSingle();
       if (user?.skip_email_automations) {
+        await db
+          .from("email_automation_enrollments")
+          .update({ status: "cancelled", updated_at: nowIso })
+          .eq("id", enrollment.id);
+        skipped += 1;
+        continue;
+      }
+      // Welcome drip is Harmonizer registration (wizard done), not OTP-only.
+      if (
+        automation.trigger_type === "account_registered" &&
+        (typeof user?.onboarded_at !== "string" || !user.onboarded_at.trim())
+      ) {
         await db
           .from("email_automation_enrollments")
           .update({ status: "cancelled", updated_at: nowIso })

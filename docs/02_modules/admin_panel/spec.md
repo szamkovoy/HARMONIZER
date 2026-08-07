@@ -104,7 +104,7 @@ code_refs:
 - `GET /api/admin/dashboard?range=&grain=&currency=` → pulse + overlays net-settlements (`revenue_gateways_net` / lava / yukassa series) + alerts.
 - `GET/DELETE /api/admin/users/[id]` — карточка с `country_code`/`city`; delete через общий `wipeUserAccount` (cancel шлюзов → `buyer_email` → deleteUser); платежи сохраняются. Список платежей: имя из `users.display_name`, иначе local-part email.
 - Клиент: `app_open` → `last_seen_at` (троттлинг 30 мин); `maybeSyncUserGeoPlace` → `country_code`/`city` вызывается и при throttle события (и после GPS в онбординге).
-- **Cleanup OTP-ghosts:** hourly `cleanup_unconfirmed_auth_users` (cron `35 * * * *`, в реестре `ensure_harmonizer_cron_jobs`). Удаляет только `auth.users` где `email_confirmed_at IS NULL` **и** `last_sign_in_at IS NULL` **и** `created_at < now()-24h`, без admin/payments/contracts/onboarded/last_seen. Подтверждённые аккаунты при повторном OTP **не** затрагиваются (`email_confirmed_at` остаётся).
+- **Cleanup OTP-ghosts:** hourly `cleanup_unconfirmed_auth_users` (cron `35 * * * *`, в реестре `ensure_harmonizer_cron_jobs`). Удаляет только `auth.users` где `email_confirmed_at IS NULL` **и** `last_sign_in_at IS NULL` **и** `created_at < now()-1h` (TTL = жизнь OTP), без admin/payments/contracts/onboarded/last_seen. Подтверждённые аккаунты при повторном OTP **не** затрагиваются (`email_confirmed_at` остаётся). До подтверждения OTP такие аккаунты не попадают в `email_contacts` / рассылки.
 
 **Промпты (реализовано, этап 8):**
 
