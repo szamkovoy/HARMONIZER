@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-08-09 (tariff period = paid month):** В шапке Гармонизатора «с/до» = дата платежа (`current_period_end − 30d`) и конец оплаченного периода без +48h грейса; не `onboarded_at` / не `membership_expires_at`.
+
 - **2026-08-08 (user card + search polish):** Убраны дубли Имя/Фамилия/UUID; модалка имени (`set_name`); `crm_legacy_id` drop + `getcourse_last_activity_at`; Геткурс-лейблы; блок Гармонизатор скрыт без `onboarded_at`, тариф/период/автопродление в шапке (`membership_expires_at`). Список пользователей — чипы сегментов; рассылка — чип «Только рассылки» + язык профиля. Миграция `20260808190000`.
 
 - **2026-08-08 (CRM import foundation):** Поля `last_name`/`phone`/`admin_note`/`crm_imported_at`; каталог `crm_products` + `user_crm_products`; сегмент админки **«Только рассылки»** (`email_only` ≠ «Не в гармонизаторе»). OTP-ghost cleanup не удаляет `crm_imported_at`. Миграция `20260808180000`. Боевой импорт — отдельно (сначала `positivo@mail.ru`).

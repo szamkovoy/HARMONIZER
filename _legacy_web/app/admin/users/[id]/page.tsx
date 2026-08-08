@@ -624,13 +624,14 @@ export default function AdminUserCardPage() {
             />
             <AutoRenewCancelledNote show={user.auto_renew_cancelled} />
             {(() => {
-              const period = formatAccessPeriodHeader(
-                user.onboarded_at || user.created_at,
-                user.membership_expires_at,
-                user.membership_tier,
-                user.trial_expires_at,
-                user.membership_started_at,
-              );
+              const period = formatAccessPeriodHeader({
+                membershipTier: user.membership_tier,
+                membershipExpiresAt: user.membership_expires_at,
+                trialExpiresAt: user.trial_expires_at,
+                startedAt: user.membership_started_at,
+                createdAt: user.onboarded_at || user.created_at,
+                paidPeriodEnd: subscription?.current_period_end,
+              });
               return period ? (
                 <span className="text-sm text-zinc-600">{period}</span>
               ) : null;

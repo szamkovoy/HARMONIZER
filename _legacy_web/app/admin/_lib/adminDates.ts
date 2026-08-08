@@ -128,30 +128,64 @@ export function formatUserAccessPeriod(
   return formatUserTierPeriod(fromIso, membershipExpiresAt, membershipTier);
 }
 
+/** Billing month length used by Lava/YooKassa fulfill (`nextPeriodEnd`). */
+export const BILLING_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Start of the paid 30-day clock from `current_period_end` (no renewal grace). */
+export function paidPeriodStartFromEnd(
+  periodEnd: string | null | undefined,
+): string | null {
+  if (!periodEnd) return null;
+  const endMs = new Date(periodEnd).getTime();
+  if (!Number.isFinite(endMs)) return null;
+  return new Date(endMs - BILLING_PERIOD_MS).toISOString();
+}
+
 /**
  * Compact period for Harmonizer card header: «с ДД.ММ.ГГГГ до ДД.ММ.ГГГГ, ЧЧ:ММ».
- * End uses membership/trial expiry (access truth), with time on the end bound.
+ * Paid: start = payment / billing clock start; end = `current_period_end` (no +48h grace).
+ * Trial / manual grant: startedAt or createdAt → trial/membership expiry.
  */
-export function formatAccessPeriodHeader(
-  createdAt: string | null | undefined,
-  membershipExpiresAt: string | null | undefined,
-  membershipTier: string,
-  trialExpiresAt: string | null | undefined,
-  startedAt?: string | null | undefined,
-): string | null {
+export function formatAccessPeriodHeader(opts: {
+  membershipTier: string;
+  membershipExpiresAt?: string | null;
+  trialExpiresAt?: string | null;
+  /** Fallback «с» when no paid period (onboarding / manual grant start). */
+  startedAt?: string | null;
+  createdAt?: string | null;
+  /** Exact paid period end from payment_contracts (preferred over membership_expires_at). */
+  paidPeriodEnd?: string | null;
+}): string | null {
   const now = Date.now();
-  const fromIso = startedAt || createdAt;
-  const from = fromIso ? formatAdminDate(fromIso) : null;
-  const paidActive =
-    (membershipTier === "oracle" ||
-      membershipTier === "practitioner" ||
-      membershipTier === "master") &&
-    (!membershipExpiresAt || new Date(membershipExpiresAt).getTime() > now);
-  if (paidActive) {
-    if (!membershipExpiresAt) return from ? `с ${from}` : null;
-    const to = formatAdminDateTime(membershipExpiresAt);
+  const {
+    membershipTier,
+    membershipExpiresAt,
+    trialExpiresAt,
+    startedAt,
+    createdAt,
+    paidPeriodEnd,
+  } = opts;
+
+  const paidEndIso = paidPeriodEnd?.trim() || null;
+  const paidStartIso = paidPeriodStartFromEnd(paidEndIso);
+  const accessStillOpen =
+    !membershipExpiresAt || new Date(membershipExpiresAt).getTime() > now;
+  const isPaidTier =
+    membershipTier === "oracle" ||
+    membershipTier === "practitioner" ||
+    membershipTier === "master";
+
+  if (isPaidTier && (paidEndIso || accessStillOpen || membershipExpiresAt)) {
+    const fromIso = paidStartIso || startedAt || createdAt;
+    const from = fromIso ? formatAdminDate(fromIso) : null;
+    const toIso = paidEndIso || membershipExpiresAt;
+    if (!toIso) return from ? `с ${from}` : null;
+    const to = formatAdminDateTime(toIso);
     return from ? `с ${from} до ${to}` : `до ${to}`;
   }
+
+  const fromIso = startedAt || createdAt;
+  const from = fromIso ? formatAdminDate(fromIso) : null;
   if (trialExpiresAt && new Date(trialExpiresAt).getTime() > now) {
     const to = formatAdminDateTime(trialExpiresAt);
     return from ? `с ${from} до ${to}` : `до ${to}`;
