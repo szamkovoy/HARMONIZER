@@ -175,6 +175,7 @@
       logoLine1:"ИСКУССТВО ЖИТЬ", logoLine2:"Школа Сергея Замкового", cabinetTitle:"Личный кабинет",
       registeredLabel:"Зарегистрирован:", harmonizerTitle:"Гармонизатор",
       tariffLabel:"Тариф", demoAccess:"Демо-доступ", validUntilLabel:"Действует до",
+      periodLabel:"Период",
       subscriptionLabel:"Подписка", statusActive:"активна", statusInactive:"отменена",
       nextChargeLabel:"Следующее списание", accessUntilLabel:"Доступ сохраняется до",
       cancelSub:"Отменить подписку",
@@ -210,6 +211,7 @@
       logoLine1:"THE ART OF LIFE", logoLine2:"Sergey Zamkovoy's School", cabinetTitle:"My account",
       registeredLabel:"Member since:", harmonizerTitle:"Harmonizer",
       tariffLabel:"Plan", demoAccess:"Demo access", validUntilLabel:"Active until",
+      periodLabel:"Period",
       subscriptionLabel:"Subscription", statusActive:"active", statusInactive:"cancelled",
       nextChargeLabel:"Next charge", accessUntilLabel:"Access remains until",
       cancelSub:"Cancel subscription",
@@ -246,6 +248,7 @@
       logoLine1:"DIE KUNST DES LEBENS", logoLine2:"Schule von Sergey Zamkovoy", cabinetTitle:"Mein Konto",
       registeredLabel:"Dabei seit:", harmonizerTitle:"Harmonizer",
       tariffLabel:"Tarif", demoAccess:"Demo-Zugang", validUntilLabel:"Aktiv bis",
+      periodLabel:"Zeitraum",
       subscriptionLabel:"Abonnement", statusActive:"aktiv", statusInactive:"gekündigt",
       nextChargeLabel:"Nächste Abbuchung", accessUntilLabel:"Zugang bleibt bis",
       cancelSub:"Abonnement kündigen",
@@ -281,6 +284,7 @@
       logoLine1:"L'ART DE VIVRE", logoLine2:"École de Sergey Zamkovoy", cabinetTitle:"Mon espace",
       registeredLabel:"Membre depuis :", harmonizerTitle:"Harmonizer",
       tariffLabel:"Formule", demoAccess:"Accès démo", validUntilLabel:"Actif jusqu'au",
+      periodLabel:"Période",
       subscriptionLabel:"Abonnement", statusActive:"actif", statusInactive:"annulé",
       nextChargeLabel:"Prochain prélèvement", accessUntilLabel:"Accès conservé jusqu'au",
       cancelSub:"Résilier l'abonnement",
@@ -316,6 +320,7 @@
       logoLine1:"L'ARTE DI VIVERE", logoLine2:"Scuola di Sergey Zamkovoy", cabinetTitle:"Il mio profilo",
       registeredLabel:"Con noi dal:", harmonizerTitle:"Harmonizer",
       tariffLabel:"Piano", demoAccess:"Accesso demo", validUntilLabel:"Attivo fino al",
+      periodLabel:"Periodo",
       subscriptionLabel:"Abbonamento", statusActive:"attivo", statusInactive:"annullato",
       nextChargeLabel:"Prossimo addebito", accessUntilLabel:"Accesso valido fino al",
       cancelSub:"Annulla abbonamento",
@@ -351,6 +356,7 @@
       logoLine1:"EL ARTE DE VIVIR", logoLine2:"Escuela de Sergey Zamkovoy", cabinetTitle:"Mi cuenta",
       registeredLabel:"Miembro desde:", harmonizerTitle:"Harmonizer",
       tariffLabel:"Plan", demoAccess:"Acceso demo", validUntilLabel:"Activo hasta",
+      periodLabel:"Periodo",
       subscriptionLabel:"Suscripción", statusActive:"activa", statusInactive:"cancelada",
       nextChargeLabel:"Próximo cargo", accessUntilLabel:"El acceso se mantiene hasta",
       cancelSub:"Cancelar suscripción",
@@ -386,6 +392,7 @@
       logoLine1:"A ARTE DE VIVER", logoLine2:"Escola de Sergey Zamkovoy", cabinetTitle:"A minha conta",
       registeredLabel:"Connosco desde:", harmonizerTitle:"Harmonizer",
       tariffLabel:"Plano", demoAccess:"Acesso demo", validUntilLabel:"Ativo até",
+      periodLabel:"Período",
       subscriptionLabel:"Subscrição", statusActive:"ativa", statusInactive:"cancelada",
       nextChargeLabel:"Próxima cobrança", accessUntilLabel:"O acesso mantém-se até",
       cancelSub:"Cancelar subscrição",
@@ -421,6 +428,7 @@
       logoLine1:"DE KUNST VAN LEVEN", logoLine2:"School van Sergey Zamkovoy", cabinetTitle:"Mijn account",
       registeredLabel:"Lid sinds:", harmonizerTitle:"Harmonizer",
       tariffLabel:"Abonnement", demoAccess:"Demotoegang", validUntilLabel:"Actief tot",
+      periodLabel:"Periode",
       subscriptionLabel:"Abonnement", statusActive:"actief", statusInactive:"geannuleerd",
       nextChargeLabel:"Volgende afschrijving", accessUntilLabel:"Toegang blijft tot",
       cancelSub:"Abonnement opzeggen",
@@ -516,6 +524,22 @@
       if (!iso) return "";
       try { return new Date(iso).toLocaleDateString(LOCALE_TAG, { year:"numeric", month:"long", day:"numeric" }); }
       catch (e) { return String(iso).slice(0, 10); }
+    }
+    function fmtDateTime(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toLocaleString(LOCALE_TAG, {
+          year: "numeric", month: "long", day: "numeric",
+          hour: "2-digit", minute: "2-digit"
+        });
+      } catch (e) { return String(iso).slice(0, 16); }
+    }
+    /** Paid month start from current_period_end (30×24h, same as billing). */
+    function paidPeriodStartIso(periodEndIso) {
+      if (!periodEndIso) return null;
+      var endMs = new Date(periodEndIso).getTime();
+      if (!isFinite(endMs)) return null;
+      return new Date(endMs - 30 * 24 * 60 * 60 * 1000).toISOString();
     }
     function fmtMoney(amount, currency) {
       try {
@@ -703,18 +727,27 @@
 
       var tariffValue = "";
       var validUntil = "";
+      var paidPeriodText = "";
       if (isPaid) {
         tariffValue = T.tiers[tier] || tier;
-        validUntil = overview.membershipExpiresAt ? fmtDate(overview.membershipExpiresAt) : "";
+        if (sub && sub.currentPeriodEnd) {
+          var paidStart = paidPeriodStartIso(sub.currentPeriodEnd);
+          paidPeriodText = (paidStart ? fmtDate(paidStart) + " — " : "") + fmtDateTime(sub.currentPeriodEnd);
+        } else if (overview.membershipExpiresAt) {
+          // Manual grant / no contract: exact membership end (no renewal grace on display).
+          validUntil = fmtDateTime(overview.membershipExpiresAt);
+        }
       } else if (overview.trialActive) {
         tariffValue = T.demoAccess;
-        validUntil = overview.trialExpiresAt ? fmtDate(overview.trialExpiresAt) : "";
+        validUntil = overview.trialExpiresAt ? fmtDateTime(overview.trialExpiresAt) : "";
       } else {
         tariffValue = T.tiers.free || tier;
       }
 
       html += '<div class="hz-row"><div class="hz-label">' + esc(T.tariffLabel) + '</div><div class="hz-value">' + esc(tariffValue) + '</div></div>';
-      if (validUntil) {
+      if (paidPeriodText) {
+        html += '<div class="hz-row"><div class="hz-label">' + esc(T.periodLabel || T.validUntilLabel) + '</div><div class="hz-value">' + esc(paidPeriodText) + '</div></div>';
+      } else if (validUntil) {
         html += '<div class="hz-row"><div class="hz-label">' + esc(T.validUntilLabel) + '</div><div class="hz-value">' + esc(validUntil) + '</div></div>';
       }
 
@@ -725,9 +758,7 @@
         if (priceStr) html += esc(priceStr) + ' ';
         html += '<span class="hz-pill' + (active ? "" : " hz-inactive") + '">' + esc(active ? T.statusActive : T.statusInactive) + '</span></div></div>';
         if (active && sub.currentPeriodEnd) {
-          html += '<div class="hz-row"><div class="hz-label">' + esc(T.nextChargeLabel) + '</div><div class="hz-value">' + esc(fmtDate(sub.currentPeriodEnd)) + '</div></div>';
-        } else if (!active && sub.currentPeriodEnd) {
-          html += '<div class="hz-row"><div class="hz-label">' + esc(T.accessUntilLabel) + '</div><div class="hz-value">' + esc(fmtDate(sub.currentPeriodEnd)) + '</div></div>';
+          html += '<div class="hz-row"><div class="hz-label">' + esc(T.nextChargeLabel) + '</div><div class="hz-value">' + esc(fmtDateTime(sub.currentPeriodEnd)) + '</div></div>';
         }
         if (active) {
           html += '<button class="hz-cancel" onclick="hzCancelSub(this)">' + esc(T.cancelSub) + '</button>';

@@ -11,7 +11,10 @@ import {
   type AccessFilterSeg,
 } from "../_lib/accessNow";
 import { adminFetch } from "../_lib/adminApi";
-import { formatAdminDateTime, formatUserAccessPeriod } from "../_lib/adminDates";
+import {
+  formatAccessPeriodHeader,
+  formatAdminDateTime,
+} from "../_lib/adminDates";
 import { AccessNowBadge, AutoRenewCancelledNote } from "./_components/TierBadge";
 
 type AdminUserRow = {
@@ -32,6 +35,8 @@ type AdminUserRow = {
   marketing_status?: string | null;
   auto_renew_cancelled?: boolean;
   crm_imported_at?: string | null;
+  current_period_end?: string | null;
+  subscription_status?: "active" | "cancelled" | null;
 };
 
 const LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
@@ -394,13 +399,18 @@ function UsersList() {
 
       <div className="flex flex-col gap-3">
         {users?.map((user) => {
-          const period = formatUserAccessPeriod(
-            user.onboarded_at || user.created_at,
-            user.membership_expires_at,
-            user.membership_tier,
-            user.trial_expires_at,
-            user.membership_started_at,
-          );
+          const period = formatAccessPeriodHeader({
+            membershipTier: user.membership_tier,
+            membershipExpiresAt: user.membership_expires_at,
+            trialExpiresAt: user.trial_expires_at,
+            startedAt: user.membership_started_at,
+            createdAt: user.onboarded_at || user.created_at,
+            paidPeriodEnd: user.current_period_end,
+          });
+          const nextCharge =
+            user.subscription_status === "active" && user.current_period_end
+              ? formatAdminDateTime(user.current_period_end)
+              : null;
           const seenAt = user.last_seen_at;
           return (
             <Link
@@ -433,6 +443,11 @@ function UsersList() {
                   )}
                   {user.onboarded_at && period ? (
                     <span className="text-[11px] text-zinc-500">{period}</span>
+                  ) : null}
+                  {nextCharge ? (
+                    <span className="text-[11px] text-zinc-500">
+                      след. платёж: {nextCharge}
+                    </span>
                   ) : null}
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-zinc-500">

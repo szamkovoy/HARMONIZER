@@ -1,3 +1,4 @@
+- 2026-08-09 (427): Admin users list + cabinet — paid period/next charge from `current_period_end` (no 48h grace).
 - 2026-08-09 (426): Admin Harmonizer header — tariff «с/до» from payment + `current_period_end` (no 48h grace).
 - 2026-08-08 (425): Admin user card/search polish — name modal, GetCourse fields, Harmonizer header period; drop crm_legacy_id; email segment email_only + locale.
 - 2026-08-08 (424): CRM import foundation — nullable profile fields, crm_products links, admin «Только рассылки», OTP cleanup skips CRM imports.

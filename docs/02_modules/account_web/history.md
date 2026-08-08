@@ -5,6 +5,10 @@ version: 1.12
 updated: 2026-08-04
 ---
 
+## 2026-08-09 — Paid period dates without renewal grace
+
+- В UI кабинета «Период» берётся из `subscription.currentPeriodEnd` (старт = −30 суток), не из `membershipExpiresAt` (+48h грейс). «Следующее списание» — тот же `currentPeriodEnd` с временем.
+
 ## 2026-08-06 — Store-review delete link visible again
 
 - В Профиле для store-review снова «Удалить аккаунт» (комплаенс сторов); wipe по-прежнему 403 + диалог `deleteStoreReviewBlocked`.
