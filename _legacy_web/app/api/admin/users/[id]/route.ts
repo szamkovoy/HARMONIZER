@@ -40,7 +40,7 @@ export async function GET(req: Request, ctx: RouteContext) {
     const db = createServiceSupabase();
 
     const userSelect =
-      "id, display_name, membership_tier, membership_expires_at, membership_started_at, trial_expires_at, locale, created_at, onboarded_at, country_code, city, location_name, lat, lon, skip_email_automations, last_seen_at";
+      "id, display_name, last_name, phone, admin_note, crm_imported_at, getcourse_last_activity_at, membership_tier, membership_expires_at, membership_started_at, trial_expires_at, locale, created_at, onboarded_at, country_code, city, location_name, lat, lon, skip_email_automations, last_seen_at";
     const { data, error } = await db.from("users").select(userSelect).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!data) return json({ error: "Пользователь не найден" }, { status: 404 });
@@ -94,7 +94,7 @@ export async function GET(req: Request, ctx: RouteContext) {
       }
     }
 
-    const [emails, payments, lastEventRes, contactRes, notifRes, contractRes] =
+    const [emails, payments, lastEventRes, contactRes, notifRes, contractRes, crmProductsRes] =
       await Promise.all([
         emailsByUserId(db, [id]),
         loadAdminPaymentLedger(db, { userId: id, limit: 100 }),
@@ -128,9 +128,14 @@ export async function GET(req: Request, ctx: RouteContext) {
           .in("status", ["active", "cancelled"])
           .order("created_at", { ascending: false })
           .limit(10),
+        db
+          .from("user_crm_products")
+          .select("product_id, crm_products(slug, title, sort_order)")
+          .eq("user_id", id),
       ]);
     if (notifRes.error) throw notifRes.error;
     if (contractRes.error) throw contractRes.error;
+    if (crmProductsRes.error) throw crmProductsRes.error;
 
     let emailHistory: {
       kind: string;
@@ -319,6 +324,23 @@ export async function GET(req: Request, ctx: RouteContext) {
         }
       : null;
 
+    const crm_products = (crmProductsRes.data ?? [])
+      .map((row) => {
+        const raw = row.crm_products as
+          | { slug?: string; title?: string; sort_order?: number }
+          | { slug?: string; title?: string; sort_order?: number }[]
+          | null;
+        const p = Array.isArray(raw) ? raw[0] : raw;
+        if (!p?.slug || !p?.title) return null;
+        return {
+          slug: p.slug,
+          title: p.title,
+          sort_order: Number(p.sort_order) || 0,
+        };
+      })
+      .filter((p): p is { slug: string; title: string; sort_order: number } => Boolean(p))
+      .sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title, "ru"));
+
     return json({
       user: {
         ...user,
@@ -329,6 +351,7 @@ export async function GET(req: Request, ctx: RouteContext) {
       payments,
       contact: contactRes.data ?? null,
       subscription,
+      crm_products,
       email_history: emailHistory,
       email_history_total: emailHistoryTotal,
       active_enrollments: activeEnrollments,
@@ -351,6 +374,8 @@ type TierUpdatePayload = {
   currency?: string;
   comment?: string;
   skip_email_automations?: boolean;
+  display_name?: string | null;
+  last_name?: string | null;
 };
 
 async function expireActiveManualGrants(
@@ -388,12 +413,30 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     const payload = (await req.json()) as TierUpdatePayload;
     const db = createServiceSupabase();
 
-    if (typeof payload.skip_email_automations === "boolean" && !payload.tier && payload.action !== "set_access") {
+    if (typeof payload.skip_email_automations === "boolean" && !payload.tier && payload.action !== "set_access" && payload.action !== "set_name") {
       const { data: user, error } = await db
         .from("users")
         .update({ skip_email_automations: payload.skip_email_automations })
         .eq("id", id)
         .select("id, skip_email_automations")
+        .single();
+      if (error) throw error;
+      return json({ user });
+    }
+
+    if (payload.action === "set_name") {
+      const displayName =
+        typeof payload.display_name === "string" ? payload.display_name.trim() : "";
+      const lastName =
+        typeof payload.last_name === "string" ? payload.last_name.trim() : "";
+      const { data: user, error } = await db
+        .from("users")
+        .update({
+          display_name: displayName || null,
+          last_name: lastName || null,
+        })
+        .eq("id", id)
+        .select("id, display_name, last_name")
         .single();
       if (error) throw error;
       return json({ user });

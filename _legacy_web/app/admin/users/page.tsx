@@ -5,7 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BarChart3, ChevronRight, Loader2, Search } from "lucide-react";
 
-import { ACCESS_FILTER_LABELS_RU, type AccessFilterSeg } from "../_lib/accessNow";
+import {
+  ACCESS_FILTER_LABELS_RU,
+  isEmailOnlyUser,
+  type AccessFilterSeg,
+} from "../_lib/accessNow";
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime, formatUserAccessPeriod } from "../_lib/adminDates";
 import { AccessNowBadge, AutoRenewCancelledNote } from "./_components/TierBadge";
@@ -14,6 +18,7 @@ type AdminUserRow = {
   id: string;
   email: string | null;
   display_name: string | null;
+  last_name?: string | null;
   membership_tier: string;
   membership_expires_at: string | null;
   trial_expires_at?: string | null;
@@ -26,6 +31,7 @@ type AdminUserRow = {
   city?: string | null;
   marketing_status?: string | null;
   auto_renew_cancelled?: boolean;
+  crm_imported_at?: string | null;
 };
 
 const LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
@@ -44,6 +50,7 @@ const ACCESS_FILTER_VALUES: AccessFilterSeg[] = [
   "oracle",
   "master",
   "not_in_harmonizer",
+  "email_only",
 ];
 
 const ADDON_OPTIONS: { value: string; label: string }[] = [
@@ -53,7 +60,7 @@ const ADDON_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
-  { value: "created_at", label: "Регистрация в БД" },
+  { value: "created_at", label: "Регистрация в системе" },
   { value: "onboarded_at", label: "Регистрация в Гармонизаторе" },
   { value: "tier_end", label: "Окончание тарифа" },
   { value: "last_seen", label: "Последний вход" },
@@ -209,19 +216,40 @@ function UsersList() {
           />
         </label>
 
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { value: "", label: "Все" },
+              ...ACCESS_FILTER_VALUES.map((value) => ({
+                value,
+                label: ACCESS_FILTER_LABELS_RU[value],
+              })),
+            ] as const
+          ).map((chip) => {
+            const on = access === chip.value;
+            return (
+              <button
+                key={chip.value || "all"}
+                type="button"
+                onClick={() => setAccess(chip.value)}
+                className={`rounded-lg px-2.5 py-1 text-xs ${
+                  on
+                    ? "bg-emerald-600 text-white"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-zinc-400">
+          Сегменты как в рассылке: «Только рассылки» — импорт из Геткурса без входа в
+          приложение; «Не в гармонизаторе» — начал приложение/OTP, онбординг не завершён.
+          Активность «был в приложении» — последний вход в Гармонизатор.
+        </p>
+
         <div className="grid gap-2 sm:grid-cols-2">
-          <select
-            value={access}
-            onChange={(e) => setAccess(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Любой доступ сейчас</option>
-            {ACCESS_FILTER_VALUES.map((value) => (
-              <option key={value} value={value}>
-                {ACCESS_FILTER_LABELS_RU[value]}
-              </option>
-            ))}
-          </select>
           <select
             value={addon}
             onChange={(e) => setAddon(e.target.value)}
@@ -238,7 +266,7 @@ function UsersList() {
             onChange={(e) => setActiveHours(e.target.value)}
             className={inputCls}
           >
-            <option value="">Любая активность (события)</option>
+            <option value="">Любая активность (события в приложении)</option>
             <option value="24">Активны за 24 ч</option>
             <option value="72">Активны за 72 ч</option>
             <option value="168">Активны за 168 ч</option>
@@ -255,6 +283,17 @@ function UsersList() {
               </option>
             ))}
           </select>
+          <select
+            value={marketingStatus}
+            onChange={(e) => setMarketingStatus(e.target.value)}
+            className={inputCls}
+          >
+            {MARKETING_OPTIONS.map((opt) => (
+              <option key={opt.value || "any"} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
           <input
             value={lastSeenWithin}
             onChange={(e) => setLastSeenWithin(e.target.value)}
@@ -265,7 +304,7 @@ function UsersList() {
           <input
             value={lastSeenOlder}
             onChange={(e) => setLastSeenOlder(e.target.value)}
-            placeholder="Не заходил ≥ N дней"
+            placeholder="Не заходил в приложение ≥ N дней"
             inputMode="numeric"
             className={inputCls}
           />
@@ -282,20 +321,9 @@ function UsersList() {
             placeholder="Город…"
             className={inputCls}
           />
-          <select
-            value={marketingStatus}
-            onChange={(e) => setMarketingStatus(e.target.value)}
-            className={`${inputCls} sm:col-span-2`}
-          >
-            {MARKETING_OPTIONS.map((opt) => (
-              <option key={opt.value || "any"} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
           <fieldset className="space-y-1">
             <legend className="text-xs font-medium text-zinc-500">
-              Регистрация в Гарм (onboarded)
+              Регистрация в Гармонизаторе
             </legend>
             <div className="flex gap-2">
               <input
@@ -314,7 +342,7 @@ function UsersList() {
           </fieldset>
           <fieldset className="space-y-1">
             <legend className="text-xs font-medium text-zinc-500">
-              Регистрация в БД (created)
+              Регистрация в системе
             </legend>
             <div className="flex gap-2">
               <input
@@ -385,7 +413,11 @@ function UsersList() {
                   <span className="truncate text-sm font-semibold text-zinc-900">
                     {user.display_name?.trim() || "Без имени"}
                   </span>
-                  {!user.onboarded_at ? (
+                  {isEmailOnlyUser(user) ? (
+                    <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
+                      Только рассылки
+                    </span>
+                  ) : !user.onboarded_at ? (
                     <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-500">
                       Не в гармонизаторе
                     </span>

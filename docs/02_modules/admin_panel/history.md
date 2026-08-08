@@ -9,6 +9,10 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-08-08 (user card + search polish):** Убраны дубли Имя/Фамилия/UUID; модалка имени (`set_name`); `crm_legacy_id` drop + `getcourse_last_activity_at`; Геткурс-лейблы; блок Гармонизатор скрыт без `onboarded_at`, тариф/период/автопродление в шапке (`membership_expires_at`). Список пользователей — чипы сегментов; рассылка — чип «Только рассылки» + язык профиля. Миграция `20260808190000`.
+
+- **2026-08-08 (CRM import foundation):** Поля `last_name`/`phone`/`admin_note`/`crm_imported_at`; каталог `crm_products` + `user_crm_products`; сегмент админки **«Только рассылки»** (`email_only` ≠ «Не в гармонизаторе»). OTP-ghost cleanup не удаляет `crm_imported_at`. Миграция `20260808180000`. Боевой импорт — отдельно (сначала `positivo@mail.ru`).
+
 - **2026-08-07 (auto-renew cancelled mark):** В списке и карточке пользователя — «Отменил автоплатеж» после бейджа тарифа, если платный доступ ещё действует, а subscription-контракт уже `cancelled` (без активного). Навигатор / демо без отметки. Карточка также показывает «Автопродление: отменено» вместо «След. списание».
 
 - **2026-08-07 (OTP ghosts 1h):** Cleanup неподтверждённых OTP — TTL **1 час** (как жизнь кода). См. marketing_email / infra history.

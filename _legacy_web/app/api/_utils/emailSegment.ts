@@ -26,8 +26,16 @@ export type EmailSegmentQuery = {
   include_demo?: boolean;
   /** App users created within the last 24 hours (registration cohort). */
   include_new_24h?: boolean;
-  /** Linked app user with users.onboarded_at IS NULL. */
+  /**
+   * Linked app user with users.onboarded_at IS NULL, excluding GetCourse
+   * email-only imports (those use email_only).
+   */
   not_in_harmonizer?: boolean;
+  /**
+   * GetCourse import who never opened the app
+   * (crm_imported_at set, no onboarded_at, no last_seen_at).
+   */
+  email_only?: boolean;
   membership_tiers?: VisibleTier[];
   last_seen_within_days?: number | null;
   last_seen_older_than_days?: number | null;
@@ -104,6 +112,7 @@ export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
   out.include_demo = q.include_demo === true;
   out.include_new_24h = q.include_new_24h === true;
   out.not_in_harmonizer = q.not_in_harmonizer === true;
+  out.email_only = q.email_only === true;
 
   if (Array.isArray(q.membership_tiers)) {
     out.membership_tiers = q.membership_tiers.filter((v): v is VisibleTier =>
@@ -116,11 +125,13 @@ export function parseEmailSegmentQuery(raw: unknown): EmailSegmentQuery {
     out.include_demo = false;
     out.include_new_24h = false;
     out.not_in_harmonizer = false;
+    out.email_only = false;
     out.membership_tiers = [];
   } else if (out.all_installed) {
     out.include_demo = false;
     out.include_new_24h = false;
     out.not_in_harmonizer = false;
+    out.email_only = false;
     out.membership_tiers = [];
   }
 
@@ -156,6 +167,7 @@ export function hasEmailSegmentAudience(query: EmailSegmentQuery): boolean {
     query.include_demo === true ||
     query.include_new_24h === true ||
     query.not_in_harmonizer === true ||
+    query.email_only === true ||
     Boolean(query.membership_tiers?.length)
   );
 }
@@ -176,6 +188,7 @@ export function normalizeEmailSegmentAudience(
     include_demo: false,
     include_new_24h: false,
     not_in_harmonizer: false,
+    email_only: false,
     membership_tiers: [],
   };
 }
@@ -206,6 +219,7 @@ export async function resolveEmailSegment(
     query.include_demo === true ||
     query.include_new_24h === true ||
     query.not_in_harmonizer === true ||
+    query.email_only === true ||
     Boolean(query.membership_tiers?.length);
 
   let contactQuery = db
@@ -219,7 +233,7 @@ export async function resolveEmailSegment(
     contactQuery = contactQuery.not("user_id", "is", null);
   }
 
-  if (query.locales?.length) contactQuery = contactQuery.in("locale", query.locales);
+  // Locale is filtered after merging users.locale (preferred over contact.locale).
   if (query.country_codes?.length) {
     contactQuery = contactQuery.in("country_code", query.country_codes);
   }
@@ -252,6 +266,7 @@ export async function resolveEmailSegment(
       onboarded_at: string | null;
       trial_expires_at: string | null;
       locale: string | null;
+      crm_imported_at: string | null;
     }
   >();
 
@@ -261,7 +276,7 @@ export async function resolveEmailSegment(
     const { data: users, error: usersError } = await db
       .from("users")
       .select(
-        "id, membership_tier, last_seen_at, country_code, created_at, onboarded_at, trial_expires_at, locale",
+        "id, membership_tier, last_seen_at, country_code, created_at, onboarded_at, trial_expires_at, locale, crm_imported_at",
       )
       .in("id", chunk);
     if (usersError) throw usersError;
@@ -274,6 +289,7 @@ export async function resolveEmailSegment(
         onboarded_at: u.onboarded_at,
         trial_expires_at: u.trial_expires_at,
         locale: u.locale,
+        crm_imported_at: u.crm_imported_at ?? null,
       });
     }
   }
@@ -303,6 +319,9 @@ export async function resolveEmailSegment(
       return [];
     }
 
+    const isEmailOnly =
+      Boolean(u.crm_imported_at) && u.onboarded_at == null && u.last_seen_at == null;
+
     if (!query.all_installed && !query.all_contacts) {
       const onTrial =
         u.trial_expires_at != null &&
@@ -313,13 +332,19 @@ export async function resolveEmailSegment(
         u.created_at != null &&
         new Date(u.created_at).getTime() >= new24hCutoff;
       const isNotInHarm =
-        query.not_in_harmonizer === true && u.onboarded_at == null;
+        query.not_in_harmonizer === true &&
+        u.onboarded_at == null &&
+        !isEmailOnly;
+      const isEmailOnlySeg = query.email_only === true && isEmailOnly;
       // «Навигатор» = free without active trial (same as users access=navigator).
       const tierOk =
         tiers.length > 0 &&
         tiers.includes(u.membership_tier as VisibleTier) &&
-        !(u.membership_tier === "free" && onTrial);
-      if (!isDemo && !isNew24h && !isNotInHarm && !tierOk) return [];
+        !(u.membership_tier === "free" && onTrial) &&
+        !isEmailOnly;
+      if (!isDemo && !isNew24h && !isNotInHarm && !isEmailOnlySeg && !tierOk) {
+        return [];
+      }
     }
 
     if (query.last_seen_within_days != null) {
@@ -378,8 +403,19 @@ export async function resolveEmailSegment(
     if (userLocale) {
       next = { ...next, locale: userLocale };
     }
+    if (query.locales?.length) {
+      const loc = (next.locale || "").slice(0, 2).toLowerCase();
+      if (!query.locales.includes(loc)) return [];
+    }
     return [next];
   });
+
+  // Contacts without users already returned above; apply locale filter for all_contacts orphans.
+  if (query.locales?.length && query.all_contacts) {
+    contacts = contacts.filter((c) =>
+      query.locales!.includes((c.locale || "").slice(0, 2).toLowerCase()),
+    );
+  }
 
   const countrySet = new Set<string>();
   for (const c of contacts) {

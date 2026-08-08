@@ -1,12 +1,13 @@
 /**
  * Effective access for admin UI (same rules as dashboard / users filter).
  * Paid active membership wins over demo; demo only when no paid window.
- * not_in_harmonizer = onboarded_at IS NULL (list filter only).
+ * email_only = CRM import, never opened app (crm_imported_at, no last_seen/onboarded).
+ * not_in_harmonizer = started app/OTP but not finished wizard (list filter).
  */
 
 export type AccessNowSeg = "trial" | "navigator" | "oracle" | "master";
 
-export type AccessFilterSeg = AccessNowSeg | "not_in_harmonizer";
+export type AccessFilterSeg = AccessNowSeg | "not_in_harmonizer" | "email_only";
 
 export const ACCESS_NOW_LABELS_RU: Record<AccessNowSeg, string> = {
   trial: "Демо",
@@ -18,7 +19,19 @@ export const ACCESS_NOW_LABELS_RU: Record<AccessNowSeg, string> = {
 export const ACCESS_FILTER_LABELS_RU: Record<AccessFilterSeg, string> = {
   ...ACCESS_NOW_LABELS_RU,
   not_in_harmonizer: "Не в гармонизаторе",
+  email_only: "Только рассылки",
 };
+
+/** CRM import who never opened the app. */
+export function isEmailOnlyUser(row: {
+  crm_imported_at?: string | null;
+  onboarded_at?: string | null;
+  last_seen_at?: string | null;
+}): boolean {
+  return Boolean(
+    row.crm_imported_at && !row.onboarded_at && !row.last_seen_at,
+  );
+}
 
 function paidMembershipActive(row: {
   membership_tier: string | null;

@@ -5,13 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Send } from "lucide-react";
 
-import { ACCESS_NOW_LABELS_RU, accessNowSegment } from "../../_lib/accessNow";
+import { isEmailOnlyUser } from "../../_lib/accessNow";
 import { adminFetch } from "../../_lib/adminApi";
 import { countryNameRu } from "../../_lib/countryNamesRu";
 import {
+  formatAccessPeriodHeader,
   formatAdminDate,
   formatAdminDateTime,
-  formatUserAccessPeriod,
 } from "../../_lib/adminDates";
 import { PaymentHistorySection } from "../../payments/_components/PaymentHistorySection";
 import {
@@ -25,6 +25,11 @@ type AdminUserCard = {
   id: string;
   email: string;
   display_name: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  admin_note?: string | null;
+  crm_imported_at?: string | null;
+  getcourse_last_activity_at?: string | null;
   membership_tier: string;
   membership_expires_at: string | null;
   membership_started_at?: string | null;
@@ -41,6 +46,8 @@ type AdminUserCard = {
   skip_email_automations?: boolean;
   auto_renew_cancelled?: boolean;
 };
+
+type CrmProductChip = { slug: string; title: string; sort_order: number };
 
 type ContactInfo = {
   id: string;
@@ -124,23 +131,6 @@ function emailStatusClass(status: string): string {
   }
 }
 
-function tariffFieldText(user: AdminUserCard): string {
-  const seg = accessNowSegment({
-    membership_tier: user.membership_tier,
-    membership_expires_at: user.membership_expires_at,
-    trial_expires_at: user.trial_expires_at ?? null,
-  });
-  const label = ACCESS_NOW_LABELS_RU[seg];
-  const period = formatUserAccessPeriod(
-    user.onboarded_at || user.created_at,
-    user.membership_expires_at,
-    user.membership_tier,
-    user.trial_expires_at,
-    user.membership_started_at,
-  );
-  return period ? `${label} · ${period}` : label;
-}
-
 type CampaignOpt = { id: string; name: string; subject: string; status: string };
 type AutomationOpt = { id: string; name: string; is_active: boolean };
 
@@ -191,6 +181,7 @@ export default function AdminUserCardPage() {
   const [user, setUser] = useState<AdminUserCard | null>(null);
   const [contact, setContact] = useState<ContactInfo>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo>(null);
+  const [crmProducts, setCrmProducts] = useState<CrmProductChip[]>([]);
   const [payments, setPayments] = useState<AdminPaymentRow[]>([]);
   const [emailHistory, setEmailHistory] = useState<EmailHist[]>([]);
   const [emailHistoryTotal, setEmailHistoryTotal] = useState(0);
@@ -211,6 +202,10 @@ export default function AdminUserCardPage() {
   const [accessEditOpen, setAccessEditOpen] = useState(false);
   const [accessSaving, setAccessSaving] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [nameEditOpen, setNameEditOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState({ display_name: "", last_name: "" });
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -219,6 +214,7 @@ export default function AdminUserCardPage() {
         payments: AdminPaymentRow[];
         contact?: ContactInfo;
         subscription?: SubscriptionInfo;
+        crm_products?: CrmProductChip[];
         email_history?: EmailHist[];
         email_history_total?: number;
         active_enrollments?: ActiveEnrollment[];
@@ -228,6 +224,7 @@ export default function AdminUserCardPage() {
       setUser(data.user);
       setContact(data.contact ?? null);
       setSubscription(data.subscription ?? null);
+      setCrmProducts(data.crm_products ?? []);
       setPayments(data.payments);
       setEmailHistory(data.email_history ?? []);
       setEmailHistoryTotal(data.email_history_total ?? data.email_history?.length ?? 0);
@@ -300,6 +297,34 @@ export default function AdminUserCardPage() {
       setError(err instanceof Error ? err.message : "Не удалось сохранить");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveName() {
+    if (!user) return;
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      const res = await adminFetch<{
+        user: { display_name: string | null; last_name: string | null };
+      }>(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "set_name",
+          display_name: nameDraft.display_name,
+          last_name: nameDraft.last_name,
+        }),
+      });
+      setUser({
+        ...user,
+        display_name: res.user.display_name,
+        last_name: res.user.last_name,
+      });
+      setNameEditOpen(false);
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : "Не удалось сохранить имя");
+    } finally {
+      setNameSaving(false);
     }
   }
 
@@ -494,20 +519,76 @@ export default function AdminUserCardPage() {
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-zinc-800">Общее</h2>
-        <h1 className="mt-2 text-lg font-bold text-zinc-900">
-          {user.display_name?.trim() || "Без имени"}
-        </h1>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h1 className="text-lg font-bold text-zinc-900">
+            {[user.display_name?.trim(), user.last_name?.trim()].filter(Boolean).join(" ") ||
+              "Без имени"}
+          </h1>
+          {isEmailOnlyUser(user) ? (
+            <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
+              Только рассылки
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              setNameError(null);
+              setNameDraft({
+                display_name: user.display_name?.trim() || "",
+                last_name: user.last_name?.trim() || "",
+              });
+              setNameEditOpen(true);
+            }}
+            className="text-xs font-medium text-emerald-700 hover:underline"
+          >
+            изменить
+          </button>
+        </div>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
           <InfoRow label="Email" value={user.email} />
+          <InfoRow label="Телефон" value={user.phone?.trim() || "—"} />
           <InfoRow
             label="Местонахождение"
             value={formatLocation(user)}
             href={mapsUrl(user)}
           />
           <InfoRow label="Язык" value={user.locale ?? "—"} />
-          <InfoRow label="Регистрация" value={formatAdminDate(user.created_at)} />
+          {user.crm_imported_at ? (
+            <>
+              <InfoRow
+                label="Регистрация в Геткурсе"
+                value={formatAdminDate(user.created_at)}
+              />
+              <InfoRow
+                label="Последняя активность в Геткурсе"
+                value={formatAdminDateTime(user.getcourse_last_activity_at)}
+              />
+            </>
+          ) : (
+            <InfoRow label="Регистрация" value={formatAdminDate(user.created_at)} />
+          )}
           <InfoRow label="Статус писем" value={marketingLabel} />
-          <InfoRow label="ID" value={user.id} mono />
+          <div className="sm:col-span-2">
+            <dt className="text-xs text-zinc-400">Комментарий</dt>
+            <dd className="mt-0.5 whitespace-pre-wrap text-sm text-zinc-900">
+              {user.admin_note?.trim() || "—"}
+            </dd>
+          </div>
+          {crmProducts.length > 0 ? (
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-zinc-400">Курсы в Геткурсе</dt>
+              <dd className="mt-1 flex flex-wrap gap-1.5">
+                {crmProducts.map((p) => (
+                  <span
+                    key={p.slug}
+                    className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-800"
+                  >
+                    {p.title}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          ) : null}
         </dl>
 
         <label className="mt-4 flex items-center gap-2 text-sm text-zinc-700">
@@ -532,77 +613,72 @@ export default function AdminUserCardPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm font-semibold text-zinc-800">Гармонизатор</h2>
-          <AccessNowBadge
-            membershipTier={user.membership_tier}
-            membershipExpiresAt={user.membership_expires_at}
-            trialExpiresAt={user.trial_expires_at}
-          />
-          <AutoRenewCancelledNote show={user.auto_renew_cancelled} />
-        </div>
-        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-          <InfoRow
-            label="Регистрация в Гарм"
-            value={formatAdminDate(user.onboarded_at)}
-          />
-          <InfoRow
-            label="Последняя активность"
-            value={formatAdminDateTime(
-              user.last_activity_at || user.last_seen_at,
-            )}
-          />
-          <div className="sm:col-span-2">
-            <dt className="text-xs text-zinc-400">Тариф</dt>
-            <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-zinc-900">
-              <span>{tariffFieldText(user)}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setAccessError(null);
-                  setAccessEditOpen(true);
-                }}
-                className="text-xs font-medium text-emerald-700 hover:underline"
-              >
-                изменить
-              </button>
-            </dd>
-          </div>
-          {subscription?.status === "active" ? (
-            <InfoRow
-              label="След. списание"
-              value={
-                subscription.current_period_end
-                  ? `${formatMoney(subscription.amount, subscription.currency)} · ${formatAdminDateTime(subscription.current_period_end)}`
-                  : formatMoney(subscription.amount, subscription.currency)
-              }
+      {user.onboarded_at ? (
+        <section className="rounded-xl border border-zinc-200 bg-white p-4">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 className="text-sm font-semibold text-zinc-800">Гармонизатор</h2>
+            <AccessNowBadge
+              membershipTier={user.membership_tier}
+              membershipExpiresAt={user.membership_expires_at}
+              trialExpiresAt={user.trial_expires_at}
             />
-          ) : null}
-          {subscription?.status === "cancelled" || user.auto_renew_cancelled ? (
-            <InfoRow
-              label="Автопродление"
-              value={
-                subscription?.current_period_end
-                  ? `отменено · доступ до ${formatAdminDateTime(subscription.current_period_end)}`
-                  : "отменено"
-              }
-            />
-          ) : null}
-        </dl>
-        {subscription?.status === "active" ? (
-          <div className="mt-4">
+            <AutoRenewCancelledNote show={user.auto_renew_cancelled} />
+            {(() => {
+              const period = formatAccessPeriodHeader(
+                user.onboarded_at || user.created_at,
+                user.membership_expires_at,
+                user.membership_tier,
+                user.trial_expires_at,
+                user.membership_started_at,
+              );
+              return period ? (
+                <span className="text-sm text-zinc-600">{period}</span>
+              ) : null;
+            })()}
             <button
               type="button"
-              disabled={busy}
-              onClick={() => void cancelSubscription()}
-              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              onClick={() => {
+                setAccessError(null);
+                setAccessEditOpen(true);
+              }}
+              className="text-xs font-medium text-emerald-700 hover:underline"
             >
-              Отменить оплату
+              изменить
             </button>
           </div>
-        ) : null}
-      </section>
+          <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+            <InfoRow label="Регистрация" value={formatAdminDate(user.onboarded_at)} />
+            <InfoRow
+              label="Последняя активность"
+              value={formatAdminDateTime(
+                user.last_activity_at || user.last_seen_at,
+              )}
+            />
+            {subscription?.status === "active" ? (
+              <InfoRow
+                label="След. списание"
+                value={
+                  subscription.current_period_end
+                    ? `${formatMoney(subscription.amount, subscription.currency)} · ${formatAdminDateTime(subscription.current_period_end)}`
+                    : formatMoney(subscription.amount, subscription.currency)
+                }
+              />
+            ) : null}
+          </dl>
+          {subscription?.status === "active" ? (
+            <div className="mt-4">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void cancelSubscription()}
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                Отменить оплату
+              </button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-zinc-800">Автоцепочка</h2>
@@ -888,6 +964,63 @@ export default function AdminUserCardPage() {
           }
         }}
       />
+
+      {nameEditOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold text-zinc-900">Имя и фамилия</h3>
+            <div className="mt-3 flex flex-col gap-3">
+              <label className="block text-sm">
+                <span className="text-zinc-500">Имя</span>
+                <input
+                  type="text"
+                  value={nameDraft.display_name}
+                  onChange={(e) =>
+                    setNameDraft((d) => ({ ...d, display_name: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                  autoFocus
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-zinc-500">Фамилия</span>
+                <input
+                  type="text"
+                  value={nameDraft.last_name}
+                  onChange={(e) =>
+                    setNameDraft((d) => ({ ...d, last_name: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm"
+                />
+              </label>
+              {nameError ? <p className="text-sm text-rose-600">{nameError}</p> : null}
+              <div className="mt-1 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={nameSaving}
+                  onClick={() => {
+                    if (!nameSaving) {
+                      setNameEditOpen(false);
+                      setNameError(null);
+                    }
+                  }}
+                  className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Отменить
+                </button>
+                <button
+                  type="button"
+                  disabled={nameSaving}
+                  onClick={() => void saveName()}
+                  className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {nameSaving ? "Сохраняю…" : "Сохранить"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

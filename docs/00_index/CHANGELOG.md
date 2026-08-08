@@ -1,3 +1,5 @@
+- 2026-08-08 (425): Admin user card/search polish — name modal, GetCourse fields, Harmonizer header period; drop crm_legacy_id; email segment email_only + locale.
+- 2026-08-08 (424): CRM import foundation — nullable profile fields, crm_products links, admin «Только рассылки», OTP cleanup skips CRM imports.
 - 2026-08-07 (423): Admin users — «Отменил автоплатеж» after tier badge when paid access remains without active renew.
 - 2026-08-07 (422): OTP ghosts TTL 1h; marketing contacts only after OTP confirm; welcome drip after onboarded_at.
 - 2026-08-06 (421): Store-review ensure — do not overwrite birth place on every login (seed only when empty).

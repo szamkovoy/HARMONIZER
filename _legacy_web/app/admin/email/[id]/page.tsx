@@ -65,8 +65,10 @@ type SegmentState = {
   include_demo: boolean;
   /** Registered in the last 24 hours. */
   include_new_24h: boolean;
-  /** App user without Harmonizer onboarding. */
+  /** App user without Harmonizer onboarding (excl. GetCourse email-only). */
   not_in_harmonizer: boolean;
+  /** GetCourse import who never opened the app. */
+  email_only: boolean;
   membership_tiers: Array<"free" | "oracle" | "master">;
   last_seen_within_days: string;
   last_seen_older_than_days: string;
@@ -74,6 +76,8 @@ type SegmentState = {
   account_created_on_or_before: string;
   onboarded_on_or_after: string;
   onboarded_on_or_before: string;
+  /** Profile locale filter (empty = any). */
+  locale: string;
   email_contains: string;
 };
 
@@ -83,6 +87,7 @@ const DEFAULT_SEGMENT: SegmentState = {
   include_demo: false,
   include_new_24h: false,
   not_in_harmonizer: false,
+  email_only: false,
   membership_tiers: [],
   last_seen_within_days: "",
   last_seen_older_than_days: "",
@@ -90,8 +95,11 @@ const DEFAULT_SEGMENT: SegmentState = {
   account_created_on_or_before: "",
   onboarded_on_or_after: "",
   onboarded_on_or_before: "",
+  locale: "",
   email_contains: "",
 };
+
+const SEGMENT_LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
 
 const STATUS_RU: Record<string, string> = {
   draft: "черновик",
@@ -121,6 +129,7 @@ function segmentToQuery(s: SegmentState): Record<string, unknown> {
   const accBefore = dateOnly(s.account_created_on_or_before);
   const onbAfter = dateOnly(s.onboarded_on_or_after);
   const onbBefore = dateOnly(s.onboarded_on_or_before);
+  const locale = s.locale.trim().toLowerCase().slice(0, 2);
   const base = {
     marketing_statuses: ["active"] as string[],
     ...(within != null ? { last_seen_within_days: within } : {}),
@@ -129,6 +138,7 @@ function segmentToQuery(s: SegmentState): Record<string, unknown> {
     ...(accBefore ? { account_created_on_or_before: accBefore } : {}),
     ...(onbAfter ? { onboarded_on_or_after: onbAfter } : {}),
     ...(onbBefore ? { onboarded_on_or_before: onbBefore } : {}),
+    ...(locale ? { locales: [locale] } : {}),
     ...(email ? { email_contains: email } : {}),
   };
   if (s.all_contacts) {
@@ -144,6 +154,7 @@ function segmentToQuery(s: SegmentState): Record<string, unknown> {
     include_demo: s.include_demo,
     include_new_24h: s.include_new_24h,
     not_in_harmonizer: s.not_in_harmonizer,
+    email_only: s.email_only,
     membership_tiers: s.membership_tiers,
   };
 }
@@ -158,11 +169,15 @@ function queryToSegment(raw: Record<string, unknown> | null | undefined): Segmen
     raw.include_new_24h === true && !s.all_installed && !s.all_contacts;
   s.not_in_harmonizer =
     raw.not_in_harmonizer === true && !s.all_installed && !s.all_contacts;
+  s.email_only = raw.email_only === true && !s.all_installed && !s.all_contacts;
   if (Array.isArray(raw.membership_tiers) && !s.all_installed && !s.all_contacts) {
     s.membership_tiers = raw.membership_tiers.filter(
       (v): v is "free" | "oracle" | "master" =>
         v === "free" || v === "oracle" || v === "master",
     );
+  }
+  if (Array.isArray(raw.locales) && raw.locales.length === 1 && typeof raw.locales[0] === "string") {
+    s.locale = raw.locales[0].slice(0, 2).toLowerCase();
   }
   if (raw.last_seen_within_days != null && String(raw.last_seen_within_days).trim()) {
     s.last_seen_within_days = String(raw.last_seen_within_days);
@@ -189,6 +204,7 @@ function queryToSegment(raw: Record<string, unknown> | null | undefined): Segmen
     !s.include_demo &&
     !s.include_new_24h &&
     !s.not_in_harmonizer &&
+    !s.email_only &&
     s.membership_tiers.length === 0
   ) {
     // Legacy: email-only → whole base; empty → all contacts default.
@@ -521,6 +537,7 @@ export default function AdminEmailCampaignPage() {
       include_demo: false,
       include_new_24h: false,
       not_in_harmonizer: false,
+      email_only: false,
       membership_tiers: [],
     }));
     setRecipientCount(null);
@@ -534,6 +551,7 @@ export default function AdminEmailCampaignPage() {
       include_demo: false,
       include_new_24h: false,
       not_in_harmonizer: false,
+      email_only: false,
       membership_tiers: [],
     }));
     setRecipientCount(null);
@@ -565,6 +583,16 @@ export default function AdminEmailCampaignPage() {
       all_contacts: false,
       all_installed: false,
       not_in_harmonizer: !p.not_in_harmonizer,
+    }));
+    setRecipientCount(null);
+  }
+
+  function toggleEmailOnly() {
+    setSegment((p) => ({
+      ...p,
+      all_contacts: false,
+      all_installed: false,
+      email_only: !p.email_only,
     }));
     setRecipientCount(null);
   }
@@ -756,6 +784,14 @@ export default function AdminEmailCampaignPage() {
                       !segment.all_contacts,
                   },
                   {
+                    key: "email_only",
+                    label: "Только рассылки",
+                    on:
+                      segment.email_only &&
+                      !segment.all_installed &&
+                      !segment.all_contacts,
+                  },
+                  {
                     key: "free",
                     label: "Навигатор",
                     on:
@@ -796,6 +832,7 @@ export default function AdminEmailCampaignPage() {
                     else if (chip.key === "demo") toggleDemo();
                     else if (chip.key === "new24h") toggleNew24h();
                     else if (chip.key === "not_in_harmonizer") toggleNotInHarmonizer();
+                    else if (chip.key === "email_only") toggleEmailOnly();
                     else toggleTier(chip.key);
                   }}
                   className={`rounded-lg px-2.5 py-1 text-xs ${
@@ -809,10 +846,12 @@ export default function AdminEmailCampaignPage() {
               ))}
             </div>
             <p className="text-[11px] text-zinc-400">
-              «Вся база» — все контакты в email_contacts. «Все установившие» — только с
-              подтверждённым OTP. «Демо» — активный trial (как в Пользователях). «Новые
-              24ч» — регистрация за сутки. «Не в гармонизаторе» — аккаунт есть, онбординг не
-              завершён. «Навигатор» — free без активного демо.
+              «Вся база» — все контакты (в т.ч. импорт из Геткурса). «Все установившие» —
+              аккаунт с подтверждённым OTP. «Демо» — активный trial. «Новые 24ч» —
+              регистрация в системе за сутки. «Не в гармонизаторе» — начал OTP/приложение,
+              онбординг не завершён. «Только рассылки» — импорт из Геткурса без входа в
+              приложение. «Навигатор» — free без активного демо. Активность ниже — по
+              последнему входу в приложение (Гармонизатор).
             </p>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -831,7 +870,7 @@ export default function AdminEmailCampaignPage() {
                 />
               </label>
               <label className="text-xs text-zinc-500">
-                Не заходил ≥ N дней
+                Не заходил в приложение ≥ N дней
                 <input
                   className={`${inputCls} mt-1`}
                   value={segment.last_seen_older_than_days}
@@ -845,6 +884,37 @@ export default function AdminEmailCampaignPage() {
                   }}
                   placeholder="например 30"
                   inputMode="numeric"
+                />
+              </label>
+              <label className="text-xs text-zinc-500">
+                Язык профиля
+                <select
+                  className={`${inputCls} mt-1`}
+                  value={segment.locale}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({ ...p, locale: e.target.value }));
+                    setRecipientCount(null);
+                  }}
+                >
+                  <option value="">Любой язык</option>
+                  {SEGMENT_LOCALES.map((code) => (
+                    <option key={code} value={code}>
+                      {code.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-zinc-500">
+                Email содержит
+                <input
+                  className={`${inputCls} mt-1`}
+                  value={segment.email_contains}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setSegment((p) => ({ ...p, email_contains: e.target.value }));
+                    setRecipientCount(null);
+                  }}
                 />
               </label>
               <label className="text-xs text-zinc-500">
@@ -907,18 +977,6 @@ export default function AdminEmailCampaignPage() {
                       ...p,
                       onboarded_on_or_before: e.target.value,
                     }));
-                    setRecipientCount(null);
-                  }}
-                />
-              </label>
-              <label className="text-xs text-zinc-500 sm:col-span-2">
-                Email содержит
-                <input
-                  className={`${inputCls} mt-1`}
-                  value={segment.email_contains}
-                  disabled={readOnly}
-                  onChange={(e) => {
-                    setSegment((p) => ({ ...p, email_contains: e.target.value }));
                     setRecipientCount(null);
                   }}
                 />

@@ -8,6 +8,10 @@ updated: 2026-07-29
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
+## `admin_panel` / общая «последняя активность» (2026-08-08)
+
+- Сейчас две независимые даты: **в Гармонизаторе** (`last_seen_at` / события приложения) и **в Геткурсе** (`getcourse_last_activity_at`, снимок на импорте). Открыто: обновлять ли «общую» активность по открытиям/кликам писем (`email_campaign_sends` / track) и показывать ли её в блоке Общее для пользователей без Геткурса; пока отдельного поля «активность по письмам» нет.
+
 ## `onboarding` / OTP App Check enforce (2026-07-30)
 
 - **Enforce временно снят (2026-07-30 вечер):** store OTP падал с `auth.otpAppCheckFailed` — клиент не успевал получить Play Integrity token (или token не доходил). `OTP_REQUIRE_APP_CHECK=false` на Vercel + edge; rate limits остаются. Клиент: retry `getToken` после cold start. Перед повторным enforce: убедиться в логах `otp-gate`, что store шлёт валидный `appCheckToken`; (a) положить `GoogleService-Info.plist` + EAS file-env `GOOGLE_SERVICES_PLIST` и пересобрать IPA с RNFirebase; (b) Expo/Test — debug secret EAS↔Vercel. Без plist iOS-сборка пропускает Firebase plugins (App Check на iPhone off).

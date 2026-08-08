@@ -13,6 +13,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-08 (segment + GetCourse):** Чип «Только рассылки» (`email_only`); «Не в гармонизаторе» больше не включает GetCourse email-only; фильтр языка профиля (`locales`); легенда/лейблы согласованы со списком пользователей.
+
 - **2026-08-07 (OTP ghosts + welcome onboarded):** Welcome enroll по `onboarded_at` (не OTP-only); sync контактов только `email_confirmed_at`; отмена active welcome без онбординга. Ghost cleanup TTL 1h. Миграция `20260807180000`.
 
 - **2026-08-04 (SES sets OTP vs marketing):** Документированы два configuration set (`harmonizer-otp` / `harmonizer-marketing`); OTP edge не читает `SES_CONFIGURATION_SET`. Маркетинг по-прежнему шлёт `List-Unsubscribe` (+ Post).

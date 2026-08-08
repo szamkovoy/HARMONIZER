@@ -76,9 +76,11 @@ export async function GET(req: Request) {
       accessRaw === "navigator" ||
       accessRaw === "oracle" ||
       accessRaw === "master" ||
-      accessRaw === "not_in_harmonizer"
+      accessRaw === "not_in_harmonizer" ||
+      accessRaw === "email_only"
         ? accessRaw
         : null;
+    const crmProductSlug = url.searchParams.get("crm_product")?.trim() || null;
     const addonRaw = url.searchParams.get("addon")?.trim() || null;
     const addon = addonRaw === "webinar" || addonRaw === "book" ? addonRaw : null;
     const addonSince = dateStart(url.searchParams.get("addon_since"));
@@ -259,6 +261,7 @@ export async function GET(req: Request) {
       p_last_seen_older_than_days: lastSeenOlder,
       p_sort: sort,
       p_order: order,
+      p_crm_product_slug: crmProductSlug,
     });
     if (error) throw error;
 

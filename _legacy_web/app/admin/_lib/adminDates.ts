@@ -127,3 +127,38 @@ export function formatUserAccessPeriod(
   }
   return formatUserTierPeriod(fromIso, membershipExpiresAt, membershipTier);
 }
+
+/**
+ * Compact period for Harmonizer card header: «с ДД.ММ.ГГГГ до ДД.ММ.ГГГГ, ЧЧ:ММ».
+ * End uses membership/trial expiry (access truth), with time on the end bound.
+ */
+export function formatAccessPeriodHeader(
+  createdAt: string | null | undefined,
+  membershipExpiresAt: string | null | undefined,
+  membershipTier: string,
+  trialExpiresAt: string | null | undefined,
+  startedAt?: string | null | undefined,
+): string | null {
+  const now = Date.now();
+  const fromIso = startedAt || createdAt;
+  const from = fromIso ? formatAdminDate(fromIso) : null;
+  const paidActive =
+    (membershipTier === "oracle" ||
+      membershipTier === "practitioner" ||
+      membershipTier === "master") &&
+    (!membershipExpiresAt || new Date(membershipExpiresAt).getTime() > now);
+  if (paidActive) {
+    if (!membershipExpiresAt) return from ? `с ${from}` : null;
+    const to = formatAdminDateTime(membershipExpiresAt);
+    return from ? `с ${from} до ${to}` : `до ${to}`;
+  }
+  if (trialExpiresAt && new Date(trialExpiresAt).getTime() > now) {
+    const to = formatAdminDateTime(trialExpiresAt);
+    return from ? `с ${from} до ${to}` : `до ${to}`;
+  }
+  if (membershipExpiresAt) {
+    const to = formatAdminDateTime(membershipExpiresAt);
+    return from ? `с ${from} до ${to}` : `до ${to}`;
+  }
+  return from ? `с ${from}` : null;
+}
