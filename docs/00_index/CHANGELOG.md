@@ -1,3 +1,4 @@
+- 2026-08-09 (429): Dashboard subscription funnels — renewals on first paid contract; %/width vs month-1 cohort (monotone funnel).
 - 2026-08-09 (428): YooKassa admin refund — diagnose shop mismatch / insufficient balance; restore best remaining tier after refund.
 - 2026-08-09 (427): Admin users list + cabinet — paid period/next charge from `current_period_end` (no 48h grace).
 - 2026-08-09 (426): Admin Harmonizer header — tariff «с/до» from payment + `current_period_end` (no 48h grace).

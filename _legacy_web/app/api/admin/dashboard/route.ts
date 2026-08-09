@@ -53,7 +53,10 @@ type PulseRow = {
     grants_manual: { sum: number; count: number };
   };
   display_currency?: FxCurrency;
-  funnels?: { oracle: number[]; master: number[] };
+  funnels?: {
+    oracle: Array<number | { reached: number; eligible: number }>;
+    master: Array<number | { reached: number; eligible: number }>;
+  };
   series: {
     registrations: Array<{ bucket: string; count: number }>;
     active_users: Array<{ bucket: string; count: number }>;

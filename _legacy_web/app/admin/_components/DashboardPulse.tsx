@@ -15,6 +15,7 @@ type DisplayCurrency = "RUB" | "EUR" | "USD";
 type SeriesPoint = { bucket: string; count: number };
 type RevenuePoint = { bucket: string; currency: string; sum: number; count: number };
 type TokenPoint = { bucket: string; tokens: number };
+type FunnelMonth = { reached: number; eligible: number };
 
 type DashboardPayload = {
   generated_at: string;
@@ -44,7 +45,10 @@ type DashboardPayload = {
     grants_manual: { sum: number; count: number };
   };
   display_currency?: DisplayCurrency;
-  funnels: { oracle: number[]; master: number[] };
+  funnels: {
+    oracle: Array<number | FunnelMonth>;
+    master: Array<number | FunnelMonth>;
+  };
   series: {
     registrations: SeriesPoint[];
     active_users: SeriesPoint[];
@@ -650,24 +654,49 @@ function ChartCard({
   );
 }
 
-function FunnelCard({ title, months }: { title: string; months: number[] }) {
-  const values = [...months];
-  while (values.length < 7) values.push(0);
-  const m1 = values[0] || 0;
-  const max = Math.max(1, m1);
+function normalizeFunnelMonth(raw: unknown): FunnelMonth {
+  if (raw && typeof raw === "object" && "reached" in raw) {
+    const row = raw as { reached?: unknown; eligible?: unknown };
+    return {
+      reached: Number(row.reached) || 0,
+      eligible: Number(row.eligible) || 0,
+    };
+  }
+  // Legacy pulse: plain counts relative to month-1 cohort.
+  const reached = Number(raw) || 0;
+  return { reached, eligible: reached };
+}
+
+function FunnelCard({ title, months }: { title: string; months: unknown[] }) {
+  const values = Array.from({ length: 7 }, (_, i) => normalizeFunnelMonth(months[i]));
+  const m1 = values[0]?.reached || 0;
   return (
-    <ChartCard title={title} hint="Все успешные подписки · мес. 1 → 7 (число платежей у пользователя)">
+    <ChartCard
+      title={title}
+      hint="Продления одной подписки · мес. 1 → 7 (число и % от 1-го месяца; полоса не шире предыдущей; без ручных грантов)"
+    >
       <div className="flex flex-col gap-2.5">
-        {values.slice(0, 7).map((count, idx) => {
-          const pctOfM1 = m1 > 0 ? Math.round((count / m1) * 1000) / 10 : 0;
-          const widthPct = Math.max(count ? 8 : 0, (count / max) * 100);
+        {values.map((row, idx) => {
+          const { reached, eligible } = row;
+          // Month k is not in the funnel yet until someone finished month k-1
+          // (otherwise 0% of m1 would look like total churn).
+          const due = idx === 0 ? m1 > 0 : eligible > 0;
+          // % and bar width always vs month-1 cohort → monotone non-increasing funnel.
+          const pct =
+            due && m1 > 0 ? Math.round((reached / m1) * 1000) / 10 : null;
+          const widthPct =
+            due && m1 > 0 ? Math.max(reached ? 8 : 0, (reached / m1) * 100) : 0;
           return (
             <div key={idx} className="flex flex-col items-center gap-1">
               <div className="flex w-full items-center justify-between text-[11px] text-zinc-400">
                 <span>{idx + 1}-й месяц</span>
                 <span className="text-zinc-700">
-                  {fmt(count)}
-                  {m1 > 0 ? <span className="text-zinc-500"> · {pctOfM1}%</span> : null}
+                  {due ? fmt(reached) : "—"}
+                  {pct != null ? (
+                    <span className="text-zinc-500"> · {pct}%</span>
+                  ) : m1 > 0 && idx > 0 ? (
+                    <span className="text-zinc-400"> · ещё рано</span>
+                  ) : null}
                 </span>
               </div>
               <div className="flex h-3 w-full items-center justify-center">
