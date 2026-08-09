@@ -1,3 +1,8 @@
+- 2026-08-10 (434): Admin add-user — do not persist empty/placeholder fields (e.g. «Фамилия»).
+- 2026-08-10 (433): Admin users list polish — add success UX, CRM badge for manual add, activity/geo on cards.
+- 2026-08-09 (432): Admin users list — count, Find button, infinite scroll, manual add (no OTP).
+- 2026-08-09 (431): Dashboard users KPI — total / onboarded / 24h / 7d; slightly smaller top-row figures.
+- 2026-08-09 (430): Dashboard «Распределение по тарифам» — only onboarded (exclude CRM email-only).
 - 2026-08-09 (429): Dashboard subscription funnels — renewals on first paid contract; %/width vs month-1 cohort (monotone funnel).
 - 2026-08-09 (428): YooKassa admin refund — diagnose shop mismatch / insufficient balance; restore best remaining tier after refund.
 - 2026-08-09 (427): Admin users list + cabinet — paid period/next charge from `current_period_end` (no 48h grace).

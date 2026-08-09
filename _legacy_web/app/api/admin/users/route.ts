@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto";
+
 import { accessNowSegment } from "../../../admin/_lib/accessNow";
 import { emailsByUserId } from "../_utils/authEmails";
 import { enrichUsersAutoRenewCancelled } from "../_utils/autoRenewCancelled";
@@ -27,10 +29,17 @@ function positiveInt(raw: string | null): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function nonNegInt(raw: string | null, fallback: number): number {
+  if (raw == null || !raw.trim()) return fallback;
+  const n = Math.floor(Number(raw.trim()));
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 type UserRow = {
   id: string;
   email?: string | null;
   display_name: string | null;
+  last_name?: string | null;
   membership_tier: string | null;
   membership_expires_at: string | null;
   trial_expires_at: string | null;
@@ -42,6 +51,9 @@ type UserRow = {
   country_code?: string | null;
   city?: string | null;
   marketing_status?: string | null;
+  crm_imported_at?: string | null;
+  phone?: string | null;
+  getcourse_last_activity_at?: string | null;
 };
 
 const SORTS = new Set([
@@ -54,12 +66,122 @@ const SORTS = new Set([
   "locale",
 ]);
 
+function parseAccess(raw: string | null): string | null {
+  return raw === "trial" ||
+    raw === "navigator" ||
+    raw === "oracle" ||
+    raw === "master" ||
+    raw === "not_in_harmonizer" ||
+    raw === "email_only"
+    ? raw
+    : null;
+}
+
+/** Safe pre-check: email_contacts only (never generateLink — it can create auth users). */
+async function resolveContactUserId(
+  db: ReturnType<typeof createServiceSupabase>,
+  email: string,
+): Promise<string | null> {
+  const { data: contact } = await db
+    .from("email_contacts")
+    .select("user_id")
+    .eq("email_normalized", email)
+    .maybeSingle();
+  return (contact?.user_id as string | null) ?? null;
+}
+
+/** Resolve auth id when user is known to exist (createUser conflict). */
+async function resolveAuthUserIdByEmail(
+  db: ReturnType<typeof createServiceSupabase>,
+  email: string,
+): Promise<string | null> {
+  const fromContact = await resolveContactUserId(db, email);
+  if (fromContact) return fromContact;
+  try {
+    const { data, error } = await db.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+    });
+    if (!error && data?.user?.id) return data.user.id;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+type CrmProfilePatch = {
+  displayName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  countryCode: string | null;
+  city: string | null;
+  birthDate: string | null;
+};
+
+async function waitForUsersRow(
+  db: ReturnType<typeof createServiceSupabase>,
+  userId: string,
+): Promise<void> {
+  for (let i = 0; i < 25; i += 1) {
+    const { data } = await db.from("users").select("id").eq("id", userId).maybeSingle();
+    if (data?.id) return;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  throw new Error(`users row missing for ${userId}`);
+}
+
+async function applyCrmMarketingProfile(
+  db: ReturnType<typeof createServiceSupabase>,
+  userId: string,
+  email: string,
+  profile: CrmProfilePatch,
+): Promise<void> {
+  await waitForUsersRow(db, userId);
+
+  const patch: Record<string, unknown> = {
+    crm_imported_at: new Date().toISOString(),
+    membership_tier: "free",
+    trial_expires_at: null,
+    onboarded_at: null,
+    last_seen_at: null,
+  };
+  if (profile.displayName) patch.display_name = profile.displayName;
+  if (profile.lastName) patch.last_name = profile.lastName;
+  if (profile.phone) patch.phone = profile.phone;
+  if (profile.countryCode) patch.country_code = profile.countryCode;
+  if (profile.city) patch.city = profile.city;
+  if (profile.birthDate) patch.birth_date = profile.birthDate;
+
+  const { error: upErr } = await db.from("users").update(patch).eq("id", userId);
+  if (upErr) throw upErr;
+
+  const token = randomBytes(24).toString("hex");
+  const { error: ecErr } = await db.from("email_contacts").upsert(
+    {
+      email,
+      email_normalized: email,
+      user_id: userId,
+      source: "app",
+      locale: "ru",
+      country_code: profile.countryCode,
+      marketing_status: "active",
+      unsubscribe_token: token,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "email_normalized" },
+  );
+  if (ecErr) {
+    await db.rpc("sync_email_contacts_from_users");
+  }
+}
+
 /**
  * Список/поиск пользователей.
  * Query: q, locale, country_code, city, marketing_status,
  * onboarded_from/to, created_from/to, access (incl. not_in_harmonizer),
  * addon, addon_since, active_hours, last_seen_within_days,
- * last_seen_older_than_days, sort, order.
+ * last_seen_older_than_days, sort, order, limit, offset.
+ * Response: { users, total, limit, offset }.
  */
 export async function GET(req: Request) {
   try {
@@ -70,16 +192,7 @@ export async function GET(req: Request) {
     const countryCode = url.searchParams.get("country_code")?.trim() || null;
     const city = url.searchParams.get("city")?.trim() || null;
     const marketingStatus = url.searchParams.get("marketing_status")?.trim() || null;
-    const accessRaw = url.searchParams.get("access")?.trim() || null;
-    const access =
-      accessRaw === "trial" ||
-      accessRaw === "navigator" ||
-      accessRaw === "oracle" ||
-      accessRaw === "master" ||
-      accessRaw === "not_in_harmonizer" ||
-      accessRaw === "email_only"
-        ? accessRaw
-        : null;
+    const access = parseAccess(url.searchParams.get("access")?.trim() || null);
     const crmProductSlug = url.searchParams.get("crm_product")?.trim() || null;
     const addonRaw = url.searchParams.get("addon")?.trim() || null;
     const addon = addonRaw === "webinar" || addonRaw === "book" ? addonRaw : null;
@@ -98,6 +211,8 @@ export async function GET(req: Request) {
     const sort = SORTS.has(sortRaw) ? sortRaw : "created_at";
     const orderRaw = (url.searchParams.get("order")?.trim() || "desc").toLowerCase();
     const order = orderRaw === "asc" ? "asc" : "desc";
+    const limit = Math.min(100, Math.max(1, nonNegInt(url.searchParams.get("limit"), 50) || 50));
+    const offset = nonNegInt(url.searchParams.get("offset"), 0);
 
     const db = createServiceSupabase();
 
@@ -117,7 +232,7 @@ export async function GET(req: Request) {
           .filter((id): id is string => Boolean(id)),
       );
       if (restrictIds.size === 0) {
-        return json({ users: [] });
+        return json({ users: [], total: 0, limit, offset });
       }
     }
 
@@ -137,17 +252,16 @@ export async function GET(req: Request) {
           .filter((id): id is string => Boolean(id)),
       );
       if (addonIds.size === 0) {
-        return json({ users: [] });
+        return json({ users: [], total: 0, limit, offset });
       }
       restrictIds = restrictIds
         ? new Set([...restrictIds].filter((id) => addonIds.has(id)))
         : addonIds;
       if (restrictIds.size === 0) {
-        return json({ users: [] });
+        return json({ users: [], total: 0, limit, offset });
       }
     }
 
-    // Cohort dig-down: users with subscription contract (active/cancelled) for oracle|master.
     if (hasSubTier) {
       const { data: contracts, error: cErr } = await db
         .from("payment_contracts")
@@ -163,23 +277,23 @@ export async function GET(req: Request) {
           .filter((id): id is string => Boolean(id)),
       );
       if (subIds.size === 0) {
-        return json({ users: [] });
+        return json({ users: [], total: 0, limit, offset });
       }
       restrictIds = restrictIds
         ? new Set([...restrictIds].filter((id) => subIds.has(id)))
         : subIds;
       if (restrictIds.size === 0) {
-        return json({ users: [] });
+        return json({ users: [], total: 0, limit, offset });
       }
     }
 
-    // Active-hours dig-down: load those users directly (matches admin_active_users_count).
-    if (activeHours && restrictIds) {
-      const ids = [...restrictIds].slice(0, 200);
+    // Dig-down by event/addon/sub IDs: filter in memory, then page.
+    if (restrictIds) {
+      const ids = [...restrictIds].slice(0, 500);
       const { data: rows, error: uErr } = await db
         .from("users")
         .select(
-          "id, display_name, membership_tier, membership_expires_at, trial_expires_at, membership_started_at, created_at, onboarded_at, last_seen_at, locale, country_code, city",
+          "id, display_name, last_name, membership_tier, membership_expires_at, trial_expires_at, membership_started_at, created_at, onboarded_at, last_seen_at, locale, country_code, city, crm_imported_at, phone, getcourse_last_activity_at",
         )
         .in("id", ids);
       if (uErr) throw uErr;
@@ -196,7 +310,8 @@ export async function GET(req: Request) {
         users = users.filter(
           (u) =>
             (u.email ?? "").toLowerCase().includes(qq) ||
-            (u.display_name ?? "").toLowerCase().includes(qq),
+            (u.display_name ?? "").toLowerCase().includes(qq) ||
+            (u.last_name ?? "").toLowerCase().includes(qq),
         );
       }
       if (locale) users = users.filter((u) => u.locale === locale);
@@ -209,7 +324,11 @@ export async function GET(req: Request) {
         const c = city.toLowerCase();
         users = users.filter((u) => (u.city ?? "").toLowerCase().includes(c));
       }
-      if (access === "not_in_harmonizer") {
+      if (access === "email_only") {
+        users = users.filter(
+          (u) => u.crm_imported_at && !u.onboarded_at && !u.last_seen_at,
+        );
+      } else if (access === "not_in_harmonizer") {
         users = users.filter((u) => !u.onboarded_at);
       } else if (access) {
         users = users.filter(
@@ -239,14 +358,19 @@ export async function GET(req: Request) {
         (a, b) =>
           new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
       );
-      return json({ users: await enrichUsersAutoRenewCancelled(db, users) });
+      const total = users.length;
+      const page = users.slice(offset, offset + limit);
+      return json({
+        users: await enrichUsersAutoRenewCancelled(db, page),
+        total,
+        limit,
+        offset,
+      });
     }
 
-    const limit = access || addon || hasSubTier ? 200 : 100;
-
-    const { data, error } = await db.rpc("admin_search_users", {
+    const filterArgs = {
       p_query: q,
-      p_tier: null,
+      p_tier: null as string | null,
       p_locale: locale,
       p_country_code: countryCode,
       p_city: city,
@@ -255,23 +379,171 @@ export async function GET(req: Request) {
       p_onboarded_to: dateEndExclusive(url.searchParams.get("onboarded_to")),
       p_created_from: dateStart(url.searchParams.get("created_from")),
       p_created_to: dateEndExclusive(url.searchParams.get("created_to")),
-      p_limit: limit,
       p_access: access,
       p_last_seen_within_days: lastSeenWithin,
       p_last_seen_older_than_days: lastSeenOlder,
+      p_crm_product_slug: crmProductSlug,
+    };
+
+    const { data: totalRaw, error: countErr } = await db.rpc("admin_count_users", filterArgs);
+    if (countErr) throw countErr;
+    const total = Number(totalRaw) || 0;
+
+    const { data, error } = await db.rpc("admin_search_users", {
+      ...filterArgs,
+      p_limit: limit,
+      p_offset: offset,
       p_sort: sort,
       p_order: order,
-      p_crm_product_slug: crmProductSlug,
     });
     if (error) throw error;
 
-    let users = (data ?? []) as UserRow[];
+    const users = (data ?? []) as UserRow[];
 
-    if (restrictIds) {
-      users = users.filter((u) => restrictIds!.has(u.id));
+    return json({
+      users: await enrichUsersAutoRenewCancelled(db, users),
+      total,
+      limit,
+      offset,
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+/**
+ * Ручное добавление в маркетинговую базу (как CRM-импорт, без OTP).
+ * Body: { email, display_name?, last_name?, phone?, country_code?, city?, birth_date? }
+ */
+export async function POST(req: Request) {
+  try {
+    await requireAdmin(req);
+    const body = (await req.json()) as {
+      email?: string;
+      display_name?: string;
+      last_name?: string;
+      phone?: string;
+      country_code?: string;
+      city?: string;
+      birth_date?: string;
+    };
+
+    const email = String(body.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (!email.includes("@") || email.length > 320) {
+      return json({ error: "Укажите корректный email" }, { status: 400 });
     }
 
-    return json({ users: await enrichUsersAutoRenewCancelled(db, users) });
+    /** Empty / UI-placeholder strings must not be persisted. */
+    const cleanText = (raw: unknown, placeholders: string[] = []): string | null => {
+      const v = String(raw ?? "").trim();
+      if (!v) return null;
+      const lower = v.toLowerCase();
+      if (placeholders.some((p) => p.toLowerCase() === lower)) return null;
+      return v;
+    };
+
+    const displayName = cleanText(body.display_name, ["Имя"]);
+    const lastName = cleanText(body.last_name, ["Фамилия"]);
+    const phone = cleanText(body.phone, ["Телефон"]);
+    const countryRaw = String(body.country_code ?? "")
+      .trim()
+      .toUpperCase()
+      .slice(0, 2);
+    const countryCode = countryRaw.length === 2 ? countryRaw : null;
+    const city = cleanText(body.city, ["Город", "Город…"]);
+    const birthRaw = String(body.birth_date ?? "").trim();
+    const birthDate =
+      birthRaw && /^\d{4}-\d{2}-\d{2}$/.test(birthRaw) ? birthRaw : null;
+
+    const db = createServiceSupabase();
+    const profile: CrmProfilePatch = {
+      displayName,
+      lastName,
+      phone,
+      countryCode,
+      city,
+      birthDate,
+    };
+
+    // If already in contacts and is a real Harmonizer / finished CRM row → 409.
+    // Incomplete rows (auth created but CRM fields missing) are completed below.
+    const contactId = await resolveContactUserId(db, email);
+    if (contactId) {
+      const { data: row } = await db
+        .from("users")
+        .select("crm_imported_at, onboarded_at, last_seen_at")
+        .eq("id", contactId)
+        .maybeSingle();
+      const isLive = Boolean(row?.onboarded_at || row?.last_seen_at);
+      const alreadyCrm = Boolean(row?.crm_imported_at);
+      if (isLive || alreadyCrm) {
+        return json(
+          {
+            error: "Пользователь с таким email уже есть в базе",
+            code: "exists",
+            userId: contactId,
+            email,
+          },
+          { status: 409 },
+        );
+      }
+      await applyCrmMarketingProfile(db, contactId, email, profile);
+      return json({ id: contactId, email, completed: true }, { status: 201 });
+    }
+
+    const created = await db.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: {
+        full_name: displayName || undefined,
+        crm_import: true,
+      },
+    });
+
+    let userId = created.data.user?.id ?? null;
+
+    if (created.error) {
+      const msg = created.error.message || String(created.error);
+      if (!/already|registered|exists/i.test(msg)) throw created.error;
+      userId = await resolveAuthUserIdByEmail(db, email);
+      if (!userId) {
+        return json(
+          {
+            error: "Пользователь с таким email уже есть в базе",
+            code: "exists",
+            userId: null,
+            email,
+          },
+          { status: 409 },
+        );
+      }
+      const { data: row } = await db
+        .from("users")
+        .select("crm_imported_at, onboarded_at, last_seen_at")
+        .eq("id", userId)
+        .maybeSingle();
+      if (row?.onboarded_at || row?.last_seen_at || row?.crm_imported_at) {
+        return json(
+          {
+            error: "Пользователь с таким email уже есть в базе",
+            code: "exists",
+            userId,
+            email,
+          },
+          { status: 409 },
+        );
+      }
+      // Interrupted prior create — finish CRM profile and treat as success.
+      await applyCrmMarketingProfile(db, userId, email, profile);
+      return json({ id: userId, email, completed: true }, { status: 201 });
+    }
+
+    if (!userId) throw new Error("createUser returned no id");
+
+    await applyCrmMarketingProfile(db, userId, email, profile);
+    return json({ id: userId, email }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

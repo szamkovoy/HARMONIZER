@@ -3,11 +3,13 @@ import { getBrowserSupabase, resetBrowserSupabase } from "./supabaseBrowser";
 /** Ошибка /api/admin/* с HTTP-статусом — чтобы UI не разлогинивал на сетевых сбоях. */
 export class AdminApiError extends Error {
   readonly status: number;
+  readonly body: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, body?: unknown) {
     super(message);
     this.name = "AdminApiError";
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -127,12 +129,14 @@ function authErrorMessage(status: number, bodyError?: string | null): string {
   return bodyError?.trim() || `Ошибка сервера (HTTP ${status})`;
 }
 
-async function parseErrorBody(res: Response): Promise<string | null> {
+async function parseErrorPayload(
+  res: Response,
+): Promise<{ message: string | null; body: unknown }> {
   try {
     const body = (await res.json()) as { error?: string };
-    return body?.error ?? null;
+    return { message: body?.error ?? null, body };
   } catch {
-    return null;
+    return { message: null, body: null };
   }
 }
 
@@ -188,8 +192,8 @@ export async function adminFetch<T>(
   }
 
   if (!res.ok) {
-    const bodyError = await parseErrorBody(res);
-    throw new AdminApiError(authErrorMessage(res.status, bodyError), res.status);
+    const { message, body } = await parseErrorPayload(res);
+    throw new AdminApiError(authErrorMessage(res.status, message), res.status, body);
   }
 
   const text = await res.text();
@@ -236,8 +240,8 @@ export async function adminFetchBlob(
   }
 
   if (!res.ok) {
-    const bodyError = await parseErrorBody(res);
-    throw new AdminApiError(authErrorMessage(res.status, bodyError), res.status);
+    const { message, body } = await parseErrorPayload(res);
+    throw new AdminApiError(authErrorMessage(res.status, message), res.status, body);
   }
   return res.blob();
 }

@@ -25,6 +25,7 @@ type DashboardPayload = {
   alerts: Array<{ id: string; severity: "warn" | "critical"; title: string; detail: string }>;
   kpi: {
     users_total: number;
+    users_onboarded: number;
     reg_period: number;
     reg_prev_period: number;
     active_24h: number;
@@ -309,6 +310,10 @@ export function DashboardPulse() {
           parts={[
             { label: fmt(data.kpi.users_total), href: usersListHref({}) },
             {
+              label: fmt(data.kpi.users_onboarded),
+              href: usersListHref({ onboarded_from: "2000-01-01" }),
+            },
+            {
               label: fmt(data.kpi.active_24h),
               href: usersListHref({ active_hours: "24" }),
             },
@@ -317,7 +322,7 @@ export function DashboardPulse() {
               href: usersListHref({ active_hours: "168" }),
             },
           ]}
-          hint="всего / заходили за 24ч / за 7 дн."
+          hint="всего / с Гармонизатором / заходили за 24ч / за 7 дн."
         />
         <Kpi
           title="Распределение по тарифам"
@@ -610,7 +615,7 @@ function Kpi({
     <div className="rounded-2xl border border-zinc-200 bg-white p-4">
       <p className="text-xs text-zinc-500">{title}</p>
       {parts && parts.length > 0 ? (
-        <p className="mt-1 text-xl font-bold text-zinc-900">
+        <p className="mt-1 text-base font-bold text-zinc-900">
           {parts.map((part, i) => (
             <span key={`${part.href}-${i}`}>
               {i > 0 ? <span className="text-zinc-400"> / </span> : null}
@@ -624,7 +629,7 @@ function Kpi({
           ))}
         </p>
       ) : (
-        <p className="mt-1 text-xl font-bold text-zinc-900">{value}</p>
+        <p className="mt-1 text-base font-bold text-zinc-900">{value}</p>
       )}
       <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{hint}</p>
     </div>

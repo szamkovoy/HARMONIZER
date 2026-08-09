@@ -9,6 +9,16 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-08-10 (add-user empty fields):** `POST /api/admin/users` не сохраняет пустые поля и UI-placeholder (`Фамилия`, `Имя`, …); в списке имя+фамилия только если фамилия реально есть.
+
+- **2026-08-10 (users list polish):** Счётчик без «показано»; после добавления — success + ссылка; `POST` не вызывает `generateLink` до create (чинил ложный 409 / пустой CRM-профиль); список: getcourse-активность для email_only, страна/город из уже загруженных полей; `getcourse_last_activity_at` в search RPC (`20260810001000`).
+
+- **2026-08-09 (users list UX):** Счётчик Всего/Найдено; поиск по «Найти»; infinite scroll 50; `POST` ручного добавления без OTP (409 + ссылка если email есть). RPC `admin_count_users` + `p_offset`. Миграция `20260809230000`.
+
+- **2026-08-09 (users KPI 4 numbers):** Блок «Пользователи»: всего / с Гармонизатором / 24ч / 7д (`users_total` + `users_onboarded`). Цифры верхнего ряда KPI — `text-base`. Миграция `20260809223000`.
+
+- **2026-08-09 (dashboard tiers = onboarded only):** После CRM-импорта «Навигатор» раздулся до ~15k — `access_now` считал всех `membership_tier=free`, включая email-only без установки приложения. Теперь `access_now` только при `onboarded_at IS NOT NULL` (как сегмент списка / users stats). Миграция `20260809220000`.
+
 - **2026-08-09 (subscription funnels fix):** Воронки Наставник/Мастер считали число `payment_contracts` → тестовые повторные оплаты выглядели как 2–3 месяц. Теперь: settlements на первом оплаченном контракте + порог 30d; UI `%` и ширина **от 1-го месяца** (сужающаяся воронка); пока месяц ещё не наступил — «ещё рано»; гранты вне воронки. Миграция `20260809160000`.
 
 - **2026-08-09 (YooKassa refund diagnostics):** Ошибка «Refund not found or forbidden» на платеже до смены shopId — API текущего магазина не видит платёж. Preflight GET + RU-тексты (чужой shop / нет баланса); после успеха — лучший тариф из оставшихся контрактов+грантов.

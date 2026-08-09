@@ -33,6 +33,7 @@ type PulseRow = {
   grain: string;
   kpi: {
     users_total: number;
+    users_onboarded: number;
     reg_period: number;
     reg_prev_period: number;
     active_24h: number;

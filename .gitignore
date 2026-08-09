@@ -80,3 +80,6 @@ docs/.sync-failures.log
 
 # Локальные JSON-бэкапы таблиц (см. supabase/backups/README.md)
 supabase/backups/*.json
+
+# GetCourse CRM exports / validation dumps (PII; never commit)
+/import/
