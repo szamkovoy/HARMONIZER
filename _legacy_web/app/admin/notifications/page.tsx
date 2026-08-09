@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
-import { Bell, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Bell, Loader2, Plus } from "lucide-react";
 
 import { AdminListCard, ADMIN_LIST_STACK } from "../_components/AdminListCard";
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+import { useAdminInfiniteScroll } from "../_lib/useAdminInfiniteScroll";
 
 type NotificationRow = {
   id: string;
@@ -26,40 +27,66 @@ const PAGE_SIZE = 50;
 function NotificationsList() {
   const searchParams = useSearchParams();
   const userId = (searchParams.get("user_id") ?? "").trim();
-  const [page, setPage] = useState(1);
   const [rows, setRows] = useState<NotificationRow[] | null>(null);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const requestSeq = useRef(0);
+  const nextPageRef = useRef(1);
+  const loadingMoreRef = useRef(false);
 
-  const load = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(PAGE_SIZE),
-      });
-      if (userId) params.set("user_id", userId);
-      const data = await adminFetch<{
-        notifications: NotificationRow[];
-        total: number;
-      }>(`/api/admin/notifications?${params}`);
-      setRows(data.notifications);
-      setTotal(data.total ?? 0);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить");
-      setRows([]);
-    }
-  }, [page, userId]);
+  const loadPage = useCallback(
+    async (page: number, mode: "replace" | "append") => {
+      const seq = ++requestSeq.current;
+      if (mode === "replace") setLoading(true);
+      else {
+        if (loadingMoreRef.current) return;
+        loadingMoreRef.current = true;
+        setLoadingMore(true);
+      }
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(PAGE_SIZE),
+        });
+        if (userId) params.set("user_id", userId);
+        const data = await adminFetch<{
+          notifications: NotificationRow[];
+          total: number;
+        }>(`/api/admin/notifications?${params}`);
+        if (seq !== requestSeq.current) return;
+        setRows((prev) => {
+          if (mode !== "append" || !prev) return data.notifications;
+          const seen = new Set(prev.map((r) => r.id));
+          return [...prev, ...data.notifications.filter((r) => !seen.has(r.id))];
+        });
+        setTotal(data.total ?? 0);
+        nextPageRef.current = page + 1;
+        setError(null);
+      } catch (err) {
+        if (seq === requestSeq.current) {
+          setError(err instanceof Error ? err.message : "Не удалось загрузить");
+          if (mode === "replace") setRows([]);
+        }
+      } finally {
+        if (seq === requestSeq.current) {
+          setLoading(false);
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        }
+      }
+    },
+    [userId],
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [userId]);
+    setRows(null);
+    nextPageRef.current = 1;
+    void loadPage(1, "replace");
+  }, [loadPage]);
 
   async function createDraft() {
     setCreating(true);
@@ -98,7 +125,8 @@ function NotificationsList() {
         method: "POST",
         body: JSON.stringify({ action: "delete" }),
       });
-      await load();
+      setRows((prev) => (prev ? prev.filter((r) => r.id !== id) : prev));
+      setTotal((n) => Math.max(0, n - 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить");
     } finally {
@@ -106,13 +134,19 @@ function NotificationsList() {
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const canLoadMore =
+    (rows?.length ?? 0) < total && !loading && !loadingMore && rows !== null;
+
+  const sentinelRef = useAdminInfiniteScroll(canLoadMore, () => {
+    void loadPage(nextPageRef.current, "append");
+  });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-zinc-900">Уведомления</h1>
+          <p className="mt-0.5 text-base font-semibold text-zinc-800">Всего: {total}</p>
           {userId ? (
             <p className="mt-1 text-sm text-zinc-500">
               Фильтр по пользователю{" "}
@@ -180,31 +214,11 @@ function NotificationsList() {
               );
             })}
           </div>
-
-          {totalPages > 1 ? (
-            <div className="flex items-center justify-between text-sm text-zinc-600">
-              <span>
-                Стр. {page} из {totalPages} · всего {total}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-1.5 disabled:opacity-40"
-                >
-                  <ChevronLeft size={14} /> Назад
-                </button>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-1.5 disabled:opacity-40"
-                >
-                  Вперёд <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
+          <div ref={sentinelRef} className="h-8" />
+          {loadingMore ? (
+            <p className="flex items-center justify-center gap-2 py-3 text-sm text-zinc-500">
+              <Loader2 size={16} className="animate-spin" /> Ещё…
+            </p>
           ) : null}
         </>
       )}

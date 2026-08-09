@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Circle, FileImage, Loader2, Trash2 } from "lucide-react";
 
 import { TIER_LABELS_RU } from "@/modules/access/core/tiers";
 
 import { adminFetch, adminFetchBlob } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+import { useAdminInfiniteScroll } from "../_lib/useAdminInfiniteScroll";
 
 type SupportAttachment = {
   id: string;
@@ -27,6 +28,8 @@ type SupportMessage = {
   attachments: SupportAttachment[];
 };
 
+const PAGE_SIZE = 50;
+
 function attachmentFilename(att: SupportAttachment, index: number): string {
   const ext =
     att.mime_type === "image/png" ? "png" : att.mime_type === "image/webp" ? "webp" : "jpg";
@@ -35,26 +38,55 @@ function attachmentFilename(att: SupportAttachment, index: number): string {
 
 export default function AdminFeedbackPage() {
   const [messages, setMessages] = useState<SupportMessage[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [unprocessedCount, setUnprocessedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const requestSeq = useRef(0);
 
-  const load = useCallback(async () => {
+  const loadPage = useCallback(async (offset: number, mode: "replace" | "append") => {
+    const seq = ++requestSeq.current;
+    if (mode === "replace") setLoading(true);
+    else setLoadingMore(true);
     setError(null);
     try {
-      const data = await adminFetch<{ messages: SupportMessage[] }>("/api/admin/feedback");
-      setMessages(data.messages);
-      setSelected(new Set());
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+      });
+      const data = await adminFetch<{
+        messages: SupportMessage[];
+        total: number;
+        unprocessedCount: number;
+      }>(`/api/admin/feedback?${params}`);
+      if (seq !== requestSeq.current) return;
+      setTotal(data.total);
+      setUnprocessedCount(data.unprocessedCount);
+      setMessages((prev) =>
+        mode === "append" && prev ? [...prev, ...data.messages] : data.messages,
+      );
+      if (mode === "replace") setSelected(new Set());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить сообщения");
+      if (seq === requestSeq.current) {
+        setError(err instanceof Error ? err.message : "Не удалось загрузить сообщения");
+        if (mode === "replace") setMessages([]);
+      }
+    } finally {
+      if (seq === requestSeq.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadPage(0, "replace");
+  }, [loadPage]);
 
   async function toggleProcessed(message: SupportMessage) {
     setBusyId(message.id);
@@ -66,6 +98,11 @@ export default function AdminFeedbackPage() {
       setMessages((prev) =>
         (prev ?? []).map((m) => (m.id === message.id ? { ...m, processed_at: updated.processed_at } : m)),
       );
+      setUnprocessedCount((n) => {
+        if (!message.processed_at && updated.processed_at) return Math.max(0, n - 1);
+        if (message.processed_at && !updated.processed_at) return n + 1;
+        return n;
+      });
     } finally {
       setBusyId(null);
     }
@@ -104,7 +141,7 @@ export default function AdminFeedbackPage() {
         method: "DELETE",
         body: JSON.stringify({ ids: [...selected] }),
       });
-      await load();
+      await loadPage(0, "replace");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить");
     } finally {
@@ -138,20 +175,27 @@ export default function AdminFeedbackPage() {
     }
   }
 
-  const unprocessed = messages?.filter((m) => !m.processed_at).length ?? 0;
   const allSelected = useMemo(
     () => Boolean(messages?.length && selected.size === messages.length),
     [messages, selected],
   );
+
+  const canLoadMore =
+    (messages?.length ?? 0) < total && !loading && !loadingMore && messages !== null;
+
+  const sentinelRef = useAdminInfiniteScroll(canLoadMore, () => {
+    if (messages) void loadPage(messages.length, "append");
+  });
 
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-zinc-900">Поддержка</h1>
+          <p className="mt-0.5 text-base font-semibold text-zinc-800">Всего: {total}</p>
           <p className="text-sm text-zinc-500">
             Сообщения из формы «Написать в поддержку» в Профиле.
-            {unprocessed > 0 ? ` Необработанных: ${unprocessed}.` : ""}
+            {unprocessedCount > 0 ? ` Необработанных: ${unprocessedCount}.` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -161,7 +205,7 @@ export default function AdminFeedbackPage() {
               onClick={toggleSelectAll}
               className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:text-zinc-800"
             >
-              {allSelected ? "Снять выбор" : "Выбрать все"}
+              {allSelected ? "Снять выбор" : "Выбрать загруженные"}
             </button>
           ) : null}
           <button
@@ -249,6 +293,12 @@ export default function AdminFeedbackPage() {
           </div>
         ))}
       </div>
+      <div ref={sentinelRef} className="h-8" />
+      {loadingMore ? (
+        <p className="flex items-center justify-center gap-2 py-3 text-sm text-zinc-500">
+          <Loader2 size={16} className="animate-spin" /> Ещё…
+        </p>
+      ) : null}
     </div>
   );
 }

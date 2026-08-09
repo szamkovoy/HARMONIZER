@@ -12,25 +12,47 @@ type AttachmentRow = {
   sort_order: number;
 };
 
-/** Входящие сообщения поддержки: необработанные сверху, затем по дате. */
+const DEFAULT_LIMIT = 50;
+
+/** Входящие сообщения поддержки. ?limit=&offset= — свежие сверху; unprocessedCount отдельно. */
 export async function GET(req: Request) {
   try {
     await requireAdmin(req);
-    const db = createServiceSupabase();
-    const { data, error } = await db
-      .from("support_messages")
-      .select(
-        "id, user_id, body, created_at, processed_at, users(display_name, membership_tier), support_message_attachments(id, storage_path, mime_type, size_bytes, sort_order)",
-      )
-      .order("created_at", { ascending: false })
-      .limit(300);
-    if (error) throw error;
+    const url = new URL(req.url);
+    const rawLimit = Number(url.searchParams.get("limit") ?? DEFAULT_LIMIT);
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(100, Math.floor(rawLimit))
+        : DEFAULT_LIMIT;
+    const rawOffset = Number(url.searchParams.get("offset") ?? 0);
+    const offset =
+      Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
-    const emails = await emailsByUserId(db, [...new Set((data ?? []).map((m) => m.user_id))]);
+    const db = createServiceSupabase();
+    const [listRes, totalRes, unprocessedRes] = await Promise.all([
+      db
+        .from("support_messages")
+        .select(
+          "id, user_id, body, created_at, processed_at, users(display_name, membership_tier), support_message_attachments(id, storage_path, mime_type, size_bytes, sort_order)",
+        )
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1),
+      db.from("support_messages").select("id", { count: "exact", head: true }),
+      db
+        .from("support_messages")
+        .select("id", { count: "exact", head: true })
+        .is("processed_at", null),
+    ]);
+    if (listRes.error) throw listRes.error;
+    if (totalRes.error) throw totalRes.error;
+    if (unprocessedRes.error) throw unprocessedRes.error;
+
+    const data = listRes.data ?? [];
+    const emails = await emailsByUserId(db, [...new Set(data.map((m) => m.user_id))]);
 
     // Attachments: metadata only. Bytes via GET /api/admin/feedback/attachments/[id]
     // (Bearer) — private-bucket signed URLs open blank in the browser.
-    const messages = (data ?? []).map((m) => {
+    const messages = data.map((m) => {
       const user = m.users as { display_name?: string | null; membership_tier?: string | null } | null;
       const rawAttachments = (
         (m as { support_message_attachments?: AttachmentRow[] | null }).support_message_attachments ?? []
@@ -58,14 +80,13 @@ export async function GET(req: Request) {
       };
     });
 
-    messages.sort((a, b) => {
-      const aDone = a.processed_at ? 1 : 0;
-      const bDone = b.processed_at ? 1 : 0;
-      return aDone - bDone || b.created_at.localeCompare(a.created_at);
+    return json({
+      messages,
+      total: totalRes.count ?? 0,
+      unprocessedCount: unprocessedRes.count ?? 0,
+      limit,
+      offset,
     });
-
-    const unprocessedCount = messages.filter((m) => !m.processed_at).length;
-    return json({ messages, unprocessedCount });
   } catch (error) {
     return errorResponse(error);
   }

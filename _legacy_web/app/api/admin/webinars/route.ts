@@ -3,19 +3,36 @@ import { webinarRowFromPayload, type AdminWebinarPayload } from "./webinarPayloa
 
 export const runtime = "nodejs";
 
-/** Все вебинары (включая черновики) со счётчиками записавшихся и вопросов. */
+const DEFAULT_LIMIT = 50;
+
+/** Вебинары (включая черновики) со счётчиками. ?limit=&offset= */
 export async function GET(req: Request) {
   try {
     await requireAdmin(req);
-    const db = createServiceSupabase();
-    const { data: webinars, error } = await db
-      .from("webinars")
-      .select("*")
-      .order("starts_at", { ascending: false })
-      .limit(200);
-    if (error) throw error;
+    const url = new URL(req.url);
+    const rawLimit = Number(url.searchParams.get("limit") ?? DEFAULT_LIMIT);
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(100, Math.floor(rawLimit))
+        : DEFAULT_LIMIT;
+    const rawOffset = Number(url.searchParams.get("offset") ?? 0);
+    const offset =
+      Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
-    const ids = (webinars ?? []).map((w) => w.id);
+    const db = createServiceSupabase();
+    const [listRes, countRes] = await Promise.all([
+      db
+        .from("webinars")
+        .select("*")
+        .order("starts_at", { ascending: false })
+        .range(offset, offset + limit - 1),
+      db.from("webinars").select("id", { count: "exact", head: true }),
+    ]);
+    if (listRes.error) throw listRes.error;
+    if (countRes.error) throw countRes.error;
+    const webinars = listRes.data ?? [];
+
+    const ids = webinars.map((w) => w.id);
     const registrations = new Map<string, number>();
     const questions = new Map<string, number>();
     const recordings = new Map<
@@ -66,7 +83,7 @@ export async function GET(req: Request) {
     }
 
     return json({
-      webinars: (webinars ?? []).map((w) => {
+      webinars: webinars.map((w) => {
         const recording = recordings.get(w.id) ?? null;
         return {
           ...w,
@@ -78,6 +95,9 @@ export async function GET(req: Request) {
           recording_comment_count: recording?.comment_count ?? 0,
         };
       }),
+      total: countRes.count ?? 0,
+      limit,
+      offset,
     });
   } catch (error) {
     return errorResponse(error);

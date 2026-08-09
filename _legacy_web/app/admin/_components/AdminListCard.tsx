@@ -7,7 +7,7 @@ import { Loader2, Trash2 } from "lucide-react";
  * single bordered block. Matches Stories / Videos / Webinars.
  *
  * Performance with thousands of rows is dominated by pagination/API, not by
- * card vs table chrome — keep page size modest and infinite-scroll later.
+ * card vs table chrome — lists use modest page size + infinite scroll.
  */
 export function AdminListCard({
   href,

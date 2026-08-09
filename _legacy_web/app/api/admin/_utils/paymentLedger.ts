@@ -27,17 +27,29 @@ export type AdminLedgerRow = {
 type Options = {
   userId?: string;
   limit?: number;
+  /** Skip this many rows in the merged (grants ∪ contracts) timeline. */
+  offset?: number;
+};
+
+export type AdminPaymentLedgerPage = {
+  payments: AdminLedgerRow[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 /**
  * Unified admin ledger: manual grants (editable) + gateway charges (Lava/YuKassa, read-only).
  * Amounts are gross in original payment currency.
+ * Pagination merges both sources by `created_at` (fetch offset+limit from each, then slice).
  */
 export async function loadAdminPaymentLedger(
   db: SupabaseClient,
   options: Options = {},
-): Promise<AdminLedgerRow[]> {
+): Promise<AdminPaymentLedgerPage> {
   const limit = Math.min(options.limit ?? 200, 500);
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
+  const fetchLimit = Math.min(offset + limit, 500);
   const userId = options.userId;
 
   let grantsQuery = db
@@ -46,7 +58,7 @@ export async function loadAdminPaymentLedger(
       "id, user_id, amount, currency, tier, paid_until, source, comment, created_at, edited_at, buyer_email, users(display_name)",
     )
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(fetchLimit);
   if (userId) grantsQuery = grantsQuery.eq("user_id", userId);
 
   let contractsQuery = db
@@ -57,12 +69,29 @@ export async function loadAdminPaymentLedger(
     .in("status", ["active", "cancelled", "refunded"])
     .not("amount", "is", null)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(fetchLimit);
   if (userId) contractsQuery = contractsQuery.eq("user_id", userId);
 
-  const [grantsRes, contractsRes] = await Promise.all([grantsQuery, contractsQuery]);
+  let grantsCountQuery = db.from("payments").select("id", { count: "exact", head: true });
+  if (userId) grantsCountQuery = grantsCountQuery.eq("user_id", userId);
+
+  let contractsCountQuery = db
+    .from("payment_contracts")
+    .select("id", { count: "exact", head: true })
+    .in("status", ["active", "cancelled", "refunded"])
+    .not("amount", "is", null);
+  if (userId) contractsCountQuery = contractsCountQuery.eq("user_id", userId);
+
+  const [grantsRes, contractsRes, grantsCountRes, contractsCountRes] = await Promise.all([
+    grantsQuery,
+    contractsQuery,
+    grantsCountQuery,
+    contractsCountQuery,
+  ]);
   if (grantsRes.error) throw grantsRes.error;
   if (contractsRes.error) throw contractsRes.error;
+  if (grantsCountRes.error) throw grantsCountRes.error;
+  if (contractsCountRes.error) throw contractsCountRes.error;
 
   // Prefer buyer_email on the row — Auth Admin getUserById is slow and can 504.
   // Only resolve missing emails via Auth (typically rare).
@@ -138,9 +167,16 @@ export async function loadAdminPaymentLedger(
     };
   });
 
-  return [...grantRows, ...gatewayRows]
-    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .slice(0, limit);
+  const merged = [...grantRows, ...gatewayRows].sort(
+    (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
+  );
+  const total = (grantsCountRes.count ?? 0) + (contractsCountRes.count ?? 0);
+  return {
+    payments: merged.slice(offset, offset + limit),
+    total,
+    limit,
+    offset,
+  };
 }
 
 export function normalizeGatewayProvider(raw: string | null | undefined): string {

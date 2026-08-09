@@ -97,7 +97,7 @@ export async function GET(req: Request, ctx: RouteContext) {
     const [emails, payments, lastEventRes, contactRes, notifRes, contractRes, crmProductsRes] =
       await Promise.all([
         emailsByUserId(db, [id]),
-        loadAdminPaymentLedger(db, { userId: id, limit: 100 }),
+        loadAdminPaymentLedger(db, { userId: id, limit: 100 }).then((p) => p.payments),
         db
           .from("user_event_log")
           .select("occurred_at")

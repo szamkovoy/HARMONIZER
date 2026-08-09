@@ -51,14 +51,14 @@ code_refs:
 
 Админские маркетинговые письма. Транспорт выбирается **`EMAIL_MARKETING`** (`RESEND_ZAMKOVOI_*` | `AMAZON_ZAMKOVOI_*` — см. `docs/04_workspace/email_providers.md`). Сейчас по умолчанию **`RESEND_ZAMKOVOI_RU`**. OTP изолирован (`EMAIL_OTP`, edge `send-auth-email`) и **не** использует marketing-ключ.
 
-**Фаза A–D + F (сейчас):** кампании, сегменты, блочный редактор, цепочки B2+C1/C2, user card, **deliverability** + auto-suppress; **F** — уведомления list-first как рассылки (черновик/`sent_at`); списки `/admin/email` и `/admin/notifications` с `?page=&limit=50&user_id=`.
+**Фаза A–D + F (сейчас):** кампании, сегменты, блочный редактор, цепочки B2+C1/C2, user card, **deliverability** + auto-suppress; **F** — уведомления list-first как рассылки (черновик/`sent_at`); списки `/admin/email` и `/admin/notifications` с `?page=&limit=50&user_id=` + infinite scroll в UI.
 
 ## 2. Публичный контракт
 
 **Админка (`requireAdmin`):**
 
 - Кампании / сегмент / assets / automations / steps — как ранее
-- `GET /api/admin/email/campaigns?page=&limit=50&user_id=` — пагинация; `user_id` → кампании с send на контакт пользователя (`email_campaign_sends`)
+- `GET /api/admin/email/campaigns?page=&limit=50&user_id=` — пагинация (UI — infinite scroll); `user_id` → кампании с send на контакт пользователя (`email_campaign_sends`)
 - **Locale exact-match (рассылки + автоцепочки):** `resolveExactEmailCopy` — только авторский перевод на `contact`/`users.locale`, без fallback на EN/RU. Нет перевода → получатель пропускается (`skipped_locale` у кампании; у шага цепочки — `email_automation_sends.status=skipped` + `advanceEnrollment`, drip продолжается). Перед due-send — `sync_email_contacts_from_users` + приоритет `users.locale` (смена языка mid-chain).
 - **Подсчёт получателей рассылки:** `POST /api/admin/email/segment` с телом copy → `count` = send-eligible (`resolveCampaignRecipients`). UI без «примерно». Аудитория: `all_contacts` («Вся база» — все `email_contacts`, в т.ч. импорт Геткурса); `all_installed` («Все установившие» — `user_id` после OTP); `include_demo` («Демо» = `trial_expires_at > now()`, как `/admin/users`); `include_new_24h` («Новые 24ч» = `created_at` за сутки); `not_in_harmonizer` (есть `user_id`, `onboarded_at IS NULL`, **не** email-only импорт); `email_only` («Только рассылки» = `crm_imported_at` + нет `onboarded_at`/`last_seen_at`); тарифные чипы (для `free`/«Навигатор» — без активного trial и без email-only). Доп. фильтры UI: `locales` (язык профиля), last_seen days (вход в приложение), даты регистрации в системе / в Гармонизаторе. `email_contains` без чипов ≡ `all_contacts` + фильтр email.
 - Карточка пользователя: в истории писем — статус send (delivered/opened/clicked/…); у уведомлений — прочитано/нет.

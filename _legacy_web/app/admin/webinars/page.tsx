@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HelpCircle, Loader2, MessageCircle, Plus, Trash2, Users } from "lucide-react";
 
 import { adminFetch } from "../_lib/adminApi";
 import { formatAdminDateTime } from "../_lib/adminDates";
+import { useAdminInfiniteScroll } from "../_lib/useAdminInfiniteScroll";
 
 type WebinarListRow = {
   id: string;
@@ -21,16 +22,52 @@ type WebinarListRow = {
   recording_comment_count: number;
 };
 
+const PAGE_SIZE = 50;
+
 export default function AdminWebinarsPage() {
   const [webinars, setWebinars] = useState<WebinarListRow[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const requestSeq = useRef(0);
+
+  const loadPage = useCallback(async (offset: number, mode: "replace" | "append") => {
+    const seq = ++requestSeq.current;
+    if (mode === "replace") setLoading(true);
+    else setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+      });
+      const res = await adminFetch<{
+        webinars: WebinarListRow[];
+        total: number;
+      }>(`/api/admin/webinars?${params}`);
+      if (seq !== requestSeq.current) return;
+      setTotal(res.total);
+      setWebinars((prev) =>
+        mode === "append" && prev ? [...prev, ...res.webinars] : res.webinars,
+      );
+      setError(null);
+    } catch (err) {
+      if (seq === requestSeq.current) {
+        setError(err instanceof Error ? err.message : "Не удалось загрузить вебинары");
+        if (mode === "replace") setWebinars([]);
+      }
+    } finally {
+      if (seq === requestSeq.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    adminFetch<{ webinars: WebinarListRow[] }>("/api/admin/webinars")
-      .then(({ webinars }) => setWebinars(webinars))
-      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить вебинары"));
-  }, []);
+    void loadPage(0, "replace");
+  }, [loadPage]);
 
   async function handleDelete(id: string) {
     if (!window.confirm("Удалить этот вебинар?")) return;
@@ -39,6 +76,7 @@ export default function AdminWebinarsPage() {
     try {
       await adminFetch(`/api/admin/webinars/${id}`, { method: "DELETE" });
       setWebinars((prev) => (prev ? prev.filter((w) => w.id !== id) : prev));
+      setTotal((n) => Math.max(0, n - 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить");
     } finally {
@@ -46,11 +84,19 @@ export default function AdminWebinarsPage() {
     }
   }
 
+  const canLoadMore =
+    (webinars?.length ?? 0) < total && !loading && !loadingMore && webinars !== null;
+
+  const sentinelRef = useAdminInfiniteScroll(canLoadMore, () => {
+    if (webinars) void loadPage(webinars.length, "append");
+  });
+
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-900">Вебинары</h1>
+          <p className="mt-0.5 text-base font-semibold text-zinc-800">Всего: {total}</p>
           <p className="text-sm text-zinc-500">Анонс и запись, вопросы, участники.</p>
         </div>
         <Link
@@ -132,6 +178,12 @@ export default function AdminWebinarsPage() {
           );
         })}
       </div>
+      <div ref={sentinelRef} className="h-8" />
+      {loadingMore ? (
+        <p className="flex items-center justify-center gap-2 py-3 text-sm text-zinc-500">
+          <Loader2 size={16} className="animate-spin" /> Ещё…
+        </p>
+      ) : null}
     </div>
   );
 }

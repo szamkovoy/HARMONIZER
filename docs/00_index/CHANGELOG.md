@@ -1,3 +1,4 @@
+- 2026-08-10 (435): Admin lists — infinite scroll for payments, support, webinars, notifications, email campaigns.
 - 2026-08-10 (434): Admin add-user — do not persist empty/placeholder fields (e.g. «Фамилия»).
 - 2026-08-10 (433): Admin users list polish — add success UX, CRM badge for manual add, activity/geo on cards.
 - 2026-08-09 (432): Admin users list — count, Find button, infinite scroll, manual add (no OTP).
