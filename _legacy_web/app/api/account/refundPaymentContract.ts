@@ -1,8 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { selectActiveMembershipFromPayments } from "../admin/_utils/membershipFromPayments";
-import { recomputeUserMembershipFromPayments } from "../admin/_utils/payments";
-import { createYookassaRefund } from "./yookassa";
+import {
+  createYookassaRefund,
+  explainYookassaPaymentAccessError,
+  fetchYookassaPayment,
+} from "./yookassa";
 
 export type RefundMode = "lavatop_mark" | "yookassa_api" | "yookassa_mark";
 
@@ -76,6 +79,31 @@ export async function refundPaymentContract(
       return { ok: false, code: "bad_amount", error: "Некорректная сумма платежа" };
     }
     try {
+      // Preflight: тот же shopId, что и для POST /refunds. Иначе ЮKassa
+      // отдаёт непрозрачный 400 «Refund not found or forbidden».
+      try {
+        const payment = await fetchYookassaPayment(paymentId);
+        const payStatus = (payment.status || "").toLowerCase();
+        if (payStatus !== "succeeded") {
+          return {
+            ok: false,
+            code: "yookassa_payment_not_succeeded",
+            error: `В ЮKassa платёж в статусе «${payment.status || "unknown"}» — возврат через API недоступен. Оформите возврат в кабинете ЮKassa при необходимости, затем «Сделать возврат вручную».`,
+          };
+        }
+      } catch (preflightErr) {
+        const raw = preflightErr instanceof Error ? preflightErr.message : String(preflightErr);
+        const bodyMatch = raw.match(/HTTP\s+(\d+):\s*([\s\S]*)/);
+        const status = bodyMatch ? Number(bodyMatch[1]) : 0;
+        const body = bodyMatch?.[2] ?? raw;
+        const explained = explainYookassaPaymentAccessError(status, body) || explainYookassaPaymentAccessError(404, raw);
+        return {
+          ok: false,
+          code: "yookassa_api_error",
+          error: explained || raw,
+        };
+      }
+
       const refund = await createYookassaRefund({
         paymentId,
         amount,
@@ -176,21 +204,26 @@ export async function markContractAndSettlementsRefunded(
 }
 
 /**
- * После возврата подписки: если остались другие действующие контракты/гранты —
- * восстановить лучший тариф; иначе снять платный доступ (free).
+ * После возврата подписки: лучший ещё действующий тариф среди оставшихся
+ * subscription-контрактов (active/cancelled) и ручных грантов; иначе free.
+ * Пример: возврат Master при живом Mentor → Mentor; иначе Navigator/free.
  */
 async function revokeOrRestoreMembershipAfterRefund(
   db: SupabaseClient,
   userId: string,
 ): Promise<void> {
-  const { data: contracts, error } = await db
-    .from("payment_contracts")
-    .select("tier,current_period_end,created_at,status,product_kind")
-    .eq("user_id", userId)
-    .in("status", ["active", "cancelled"]);
-  if (error) throw error;
+  const [contractsRes, grantsRes] = await Promise.all([
+    db
+      .from("payment_contracts")
+      .select("tier,current_period_end,created_at,status,product_kind")
+      .eq("user_id", userId)
+      .in("status", ["active", "cancelled"]),
+    db.from("payments").select("tier, paid_until, created_at").eq("user_id", userId),
+  ]);
+  if (contractsRes.error) throw contractsRes.error;
+  if (grantsRes.error) throw grantsRes.error;
 
-  const rows = (contracts ?? [])
+  const fromContracts = (contractsRes.data ?? [])
     .filter((c) => (c.product_kind ?? "subscription") === "subscription")
     .map((c) => ({
       tier: String(c.tier ?? ""),
@@ -198,18 +231,28 @@ async function revokeOrRestoreMembershipAfterRefund(
       created_at: String(c.created_at ?? new Date(0).toISOString()),
     }));
 
-  const fromContracts = selectActiveMembershipFromPayments(rows);
-  if (fromContracts) {
-    const { error: userErr } = await db
+  const fromGrants = (grantsRes.data ?? []).map((p) => ({
+    tier: String(p.tier ?? ""),
+    paid_until: (p.paid_until as string | null) ?? null,
+    created_at: String(p.created_at ?? new Date(0).toISOString()),
+  }));
+
+  const active = selectActiveMembershipFromPayments([...fromContracts, ...fromGrants]);
+  if (!active) {
+    const { error } = await db
       .from("users")
-      .update({
-        membership_tier: fromContracts.tier,
-        membership_expires_at: fromContracts.paid_until,
-      })
+      .update({ membership_tier: "free", membership_expires_at: null })
       .eq("id", userId);
-    if (userErr) throw userErr;
+    if (error) throw error;
     return;
   }
 
-  await recomputeUserMembershipFromPayments(db, userId);
+  const { error: userErr } = await db
+    .from("users")
+    .update({
+      membership_tier: active.tier,
+      membership_expires_at: active.paid_until,
+    })
+    .eq("id", userId);
+  if (userErr) throw userErr;
 }

@@ -159,6 +159,42 @@ export type YookassaRenewChargeParams = {
  * Безакцептное списание по сохранённому payment_method_id (автоплатёж).
  * Без confirmation — пользователь не подтверждает UI.
  */
+/** Человекочитаемая ошибка доступа к платежу / возврату (для админки). */
+export function explainYookassaPaymentAccessError(status: number, bodyText: string): string | null {
+  const text = bodyText || "";
+  if (
+    status === 404 ||
+    /Payment doesn't exist or access denied|Incorrect payment_id|Refund not found or forbidden/i.test(
+      text,
+    )
+  ) {
+    return (
+      "Платёж не найден в текущем магазине ЮKassa (другой shopId, тестовый магазин или устаревший payment id). " +
+      "Верните деньги в личном кабинете того магазина ЮKassa, где шла оплата, затем нажмите «Сделать возврат вручную»."
+    );
+  }
+  if (/Insufficient funds to make a refund/i.test(text)) {
+    return (
+      "В балансе магазина ЮKassa недостаточно средств для возврата. " +
+      "Пополните баланс в кабинете ЮKassa или оформите возврат там вручную, затем «Сделать возврат вручную»."
+    );
+  }
+  if (
+    /already completely refunded|Payment is already completely refunded|недоступен для возврата/i.test(
+      text,
+    )
+  ) {
+    return "ЮKassa: платёж уже полностью возвращён. Можно отметить возврат вручную у нас.";
+  }
+  if (/Refunds are disabled|Refund is not allowed for payment method/i.test(text)) {
+    return (
+      "ЮKassa запретила возврат для этого способа оплаты. " +
+      "Оформите возврат в кабинете ЮKassa, затем отметьте вручную."
+    );
+  }
+  return null;
+}
+
 /** Полный возврат платежа через API ЮKassa. */
 export async function createYookassaRefund(params: {
   paymentId: string;
@@ -180,16 +216,12 @@ export async function createYookassaRefund(params: {
   });
   const text = await res.text();
   if (!res.ok) {
-    if (res.status === 404) {
-      throw new Error("Платёж не найден в ЮKassa (возможно, неверный shopId или payment id)");
-    }
-    if (/already refunded|refunded|недоступен для возврата/i.test(text)) {
-      throw new Error("ЮKassa отклонила возврат: платёж уже возвращён или недоступен для возврата");
-    }
-    throw new Error(`ЮKassa refund HTTP ${res.status}: ${text.slice(0, 400)}`);
+    const explained = explainYookassaPaymentAccessError(res.status, text);
+    if (explained) throw new Error(explained);
+    throw new Error(`ЮКassa refund HTTP ${res.status}: ${text.slice(0, 400)}`);
   }
   const body = JSON.parse(text) as { id?: string; status?: string };
-  if (!body.id) throw new Error("ЮKassa refund: в ответе нет id");
+  if (!body.id) throw new Error("ЮКassa refund: в ответе нет id");
   return { id: body.id, status: body.status ?? "unknown" };
 }
 

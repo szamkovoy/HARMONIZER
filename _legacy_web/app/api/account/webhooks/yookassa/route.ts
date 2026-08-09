@@ -158,14 +158,15 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     if (payment.id) {
+      // Always keep the latest succeeded/notified payment id — renewals must
+      // overwrite the first-charge id so admin refund hits the current charge.
       await db
         .from("payment_contracts")
         .update({
           provider_payment_id: payment.id,
           updated_at: new Date().toISOString(),
         })
-        .eq("contract_id", contractId)
-        .is("provider_payment_id", null);
+        .eq("contract_id", contractId);
     }
 
     const isRenewal = metaKind === "renewal";

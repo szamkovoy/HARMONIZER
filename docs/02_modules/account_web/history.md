@@ -5,6 +5,10 @@ version: 1.12
 updated: 2026-08-04
 ---
 
+## 2026-08-09 — YooKassa refund: shop mismatch + membership pick
+
+- Админский `yookassa_api`: preflight GET payment; ошибки «чужой shopId» / «нет средств на балансе» вместо сырого JSON; webhook всегда обновляет `provider_payment_id` (renewals). После mark/API/webhook — лучший тариф из оставшихся subscription-контрактов и грантов.
+
 ## 2026-08-09 — Paid period dates without renewal grace
 
 - В UI кабинета «Период» берётся из `subscription.currentPeriodEnd` (старт = −30 суток), не из `membershipExpiresAt` (+48h грейс). «Следующее списание» — тот же `currentPeriodEnd` с временем.

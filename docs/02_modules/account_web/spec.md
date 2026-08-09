@@ -148,9 +148,10 @@ else                                →  fail-closed
 
 1. Overview/checkout принимают `country` (+ `currency`). ЮKassa → цены `payment_catalog` / checkout RUB.
 2. Первый платёж: `POST /v3/payments` redirect; подписки всегда с `save_payment_method` (если магазин ещё не разрешил recurring → retry без save, доступ +30d всё равно). Webhook пишет `yookassa_payment_methods`, когда method реально сохранён.
-3. Renewal: cron `yookassa-renewals` (всегда on) → `chargeYookassaSavedMethod` (`payment_method_id`, metadata.kind=`renewal`) → webhook/cron → `fulfillYookassaRenewal` (+30d + grace + settlement). Fail: `renew_fail_count`; 2 fails или `permission_revoked` → cancel + method inactive. Без `payment_method_id` renew нечего делать.
+3. Renewal: cron `yookassa-renewals` (всегда on) → `chargeYookassaSavedMethod` (`payment_method_id`, metadata.kind=`renewal`) → webhook/cron → `fulfillYookassaRenewal` (+30d + grace + settlement). Fail: `renew_fail_count`; 2 fails или `permission_revoked` → cancel + method inactive. Без `payment_method_id` renew нечего делать. Webhook всегда обновляет `provider_payment_id` на id текущего платежа (для админского refund).
 4. Cancel/wipe: methods → `inactive` (ЮKassa не удаляет method API-side).
-5. Чеки 54-ФЗ не передаём.
+5. Админский возврат: `refundPaymentContract` (`yookassa_api` = GET payment + POST refund; mark-режимы без API). Успех → `refunded` + settlement `refunded_at` + лучший оставшийся тариф (контракты+гранты). Платежи другого shopId — только mark после возврата в ЛК того магазина.
+6. Чеки 54-ФЗ не передаём.
 
 **Runbook:** env (`PAYMENT_*_ENABLED/REGION` + `YOOKASSA_SHOP_ID/SECRET/RETURN_URL`) → webhook URL на актуальном shop → `cabinet/` с `country` → smoke RU/INT. Ops: [`docs/04_workspace/payment_gateways.md`](docs/04_workspace/payment_gateways.md).
 
