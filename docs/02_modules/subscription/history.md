@@ -1,13 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.9
-updated: 2026-07-31
+version: 1.10
+updated: 2026-08-11
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-08-11 (gate bodyKey):** `AccountGateDialog` принимает опциональный `bodyKey` (книга: `gate.body.book`). Ownership книги не через `FeatureKey`.
 
 - **2026-07-31 (trial ≠ webinars):** Демо (`isTrial`) больше не открывает `webinar_community` — тот же `AccountGateDialog` / кабинет, что у «Навигатора». Остальные master-фичи на trial без изменений. `canUseFeatureForAccess` + тест.
 

@@ -83,3 +83,10 @@ supabase/backups/*.json
 
 # GetCourse CRM exports / validation dumps (PII; never commit)
 /import/
+
+# Book pipeline — keep CSS/script in git; sources & build outputs stay local
+/Book/build/
+/Book/*.docx
+/Book/*.jpg
+/Book/.DS_Store
+/assets/books/*.epub

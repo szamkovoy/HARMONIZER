@@ -23,7 +23,8 @@
     "web": "expo start --web",
     "test": "vitest run",
     "deploy:vercel": "vercel --prod --yes",
-    "eas-build-post-install": "node scripts/refresh-cocoapods-appcheck-cdn.mjs"
+    "eas-build-post-install": "node scripts/refresh-cocoapods-appcheck-cdn.mjs",
+    "postinstall": "patch-package"
   },
   "expo": {
     "install": {
@@ -33,6 +34,8 @@
     }
   },
   "dependencies": {
+    "@epubjs-react-native/core": "^1.4.7",
+    "@epubjs-react-native/expo-file-system": "^1.1.4",
     "@expo/vector-icons": "^15.0.3",
     "@kingstinct/react-native-healthkit": "^14.0.2",
     "@react-native-firebase/app": "^26.0.0",
@@ -93,6 +96,7 @@
     "@types/luxon": "^3.7.1",
     "@types/react": "~19.1.0",
     "babel-plugin-module-resolver": "^5.0.2",
+    "patch-package": "^8.0.1",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2",
     "vercel": "^56.3.2",

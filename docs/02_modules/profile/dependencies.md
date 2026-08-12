@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.12
-updated: 2026-07-31
+version: 1.13
+updated: 2026-08-11
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -39,6 +39,9 @@ code_refs:
 
 - **`account_web`**  
   Кнопка «Личный кабинет» → `openAccountCabinet`; **«Удалить аккаунт»** → `deleteAccountRemote()` → `DELETE /api/account/delete` (JWT). Выход из аккаунта — локальный `useAuth().signOut()` без account API.
+
+- **`book`**  
+  Карточка «Учебное пособие» (`BookProfileCard`) после «Мои данные»: `resolveBookAccess` → ридер `/book/[locale]` или `AccountGateDialog` (`gate.body.book`). См. `docs/02_modules/book/`.
 
 - **`i18n` / `life-spheres`**  
   Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`, `profile.account.*`) + `setLocale` только после probe/confirm; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).

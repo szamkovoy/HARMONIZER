@@ -41,10 +41,13 @@ export function AccountGateDialog({
   visible,
   feature,
   onClose,
+  /** Override body copy (e.g. book gate) without tying access to a tariff FeatureKey. */
+  bodyKey,
 }: {
   visible: boolean;
   feature: FeatureKey;
   onClose: () => void;
+  bodyKey?: string;
 }) {
   const theme = useTheme();
   const { t } = useTranslate();
@@ -87,7 +90,7 @@ export function AccountGateDialog({
         >
           <AppText variant="sectionTitle">{t("gate.title")}</AppText>
           <AppText variant="dialogBody" tone="muted">
-            {t(FEATURE_BODY_KEY[feature] ?? "gate.body.default")}
+            {t(bodyKey ?? FEATURE_BODY_KEY[feature] ?? "gate.body.default")}
           </AppText>
           {errorText ? (
             <AppText variant="technicalCaption" style={{ color: theme.colors.danger }}>

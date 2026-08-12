@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.18
-updated: 2026-07-31
+version: 1.19
+updated: 2026-08-11
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-11 (book keys):** Каталог — `book.profile.*`, `book.reader.*`, `gate.body.book` (RU → `i18n-sync fill --all`).
 
 - **2026-08-04 (OTP slim):** Removed guideTitle/guide1–5 from auth-email templates + HTML accent block; short transactional OTP only. `Auto-Submitted: auto-generated`. SES OTP uses `SES_OTP_CONFIGURATION_SET` (not marketing set).
 

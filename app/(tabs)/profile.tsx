@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 
 import {
   AccountGateDialog,
@@ -9,6 +9,9 @@ import {
   type FeatureKey,
 } from "@/modules/access";
 import { deleteAccountRemote, openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
+import { resolveBookAccess } from "@/modules/book/core/bookAccess";
+import { bookLocaleForAppLocale } from "@/modules/book/core/bookIds";
+import { BookProfileCard } from "@/modules/book/ui/BookProfileCard";
 import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import { DonutVisibilityProvider, useDonutScrollProps, useDonutVisibilityRefresh } from "@/modules/charts";
 import { APP_LOCALE_OPTIONS, getResponseLocale, useAppLocale, useTranslate, t as translate, type AppLocale } from "@/modules/i18n";
@@ -339,6 +342,7 @@ export default function ProfileTabRoute() {
   const [natalSaving, setNatalSaving] = useState(false);
   const [birthMapOpen, setBirthMapOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
+  const [bookGateOpen, setBookGateOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [supportOpen, setSupportOpen] = useState(false);
   const [cabinetOpening, setCabinetOpening] = useState(false);
@@ -742,6 +746,24 @@ export default function ProfileTabRoute() {
           ) : null}
         </View>
 
+        <BookProfileCard
+          onRead={() => {
+            void (async () => {
+              const owned = await resolveBookAccess();
+              if (!owned) {
+                setBookGateOpen(true);
+                return;
+              }
+              const bookLocale = bookLocaleForAppLocale(locale);
+              // Typed routes refresh after Expo generates `.expo/types`; cast until then.
+              router.push({
+                pathname: "/book/[locale]",
+                params: { locale: bookLocale },
+              } as unknown as Href);
+            })();
+          }}
+        />
+
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
           <AppText variant="sectionTitle">{t("support.title")}</AppText>
           <AppText variant="screenHint" tone="muted">
@@ -978,6 +1000,14 @@ export default function ProfileTabRoute() {
           visible
           feature={upgradeFeature}
           onClose={() => setUpgradeFeature(null)}
+        />
+      ) : null}
+      {bookGateOpen ? (
+        <AccountGateDialog
+          visible
+          feature="profile"
+          bodyKey="gate.body.book"
+          onClose={() => setBookGateOpen(false)}
         />
       ) : null}
     </TabScreenLayout>

@@ -297,7 +297,14 @@ function RootLayoutNav() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.screenBg }} onTouchStart={handleRootTouch}>
       <NavThemeProvider value={theme.scheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ contentStyle: { backgroundColor: theme.colors.screenBg } }}>
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: theme.colors.screenBg },
+            // Prevent iOS "< PreviousTitle" (e.g. «Камера») leaking into modals/overlays.
+            headerBackTitleVisible: false,
+            headerBackTitle: "",
+          }}
+        >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="sign-in"
@@ -353,6 +360,14 @@ function RootLayoutNav() {
           />
           <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="webinar/[id]" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="book/[locale]"
+            options={{
+              headerShown: false,
+              gestureEnabled: false,
+              fullScreenGestureEnabled: false,
+            }}
+          />
           <Stack.Screen name="my-notifications" options={{ headerShown: false }} />
           <Stack.Screen name="push-message" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: "modal" }} />

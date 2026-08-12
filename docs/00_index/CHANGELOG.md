@@ -1,3 +1,10 @@
+- 2026-08-12 (442): Book reader — stable font restore, scroll remount (no hang), blockquote +2px (no prod).
+- 2026-08-12 (441): Book reader — matched gray panels, live scrub counter, cover img, search overlay (no «Камера» artifact) (no prod).
+- 2026-08-12 (440): Book reader — LitRes chrome/search, scrub commit-on-release, prefs keep mid-page, caption gap (no prod).
+- 2026-08-12 (439): Book reader — overlay chrome (no page jump), native tap/swipe layer, cover center (no prod).
+- 2026-08-12 (438): Book reader hard-fix — chrome toggle, scrubber, tap zones, prefs keep CFI, scroll patch, Opening i18n (no prod).
+- 2026-08-12 (437): Book reader UX — LitRes-like chrome, TOC/font/prefs fixes, white page CSS; client-only (no prod deploy).
+- 2026-08-11 (436): Book reader Phase A — `modules/book`, profile card, local EPUB/Dev unlock; plan `docs/04_workspace/book_reader_plan.md` (no prod deploy).
 - 2026-08-10 (435): Admin lists — infinite scroll for payments, support, webinars, notifications, email campaigns.
 - 2026-08-10 (434): Admin add-user — do not persist empty/placeholder fields (e.g. «Фамилия»).
 - 2026-08-10 (433): Admin users list polish — add success UX, CRM badge for manual add, activity/geo on cards.

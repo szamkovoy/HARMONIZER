@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.35
-updated: 2026-07-31
+version: 1.36
+updated: 2026-08-11
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-08-11 (book card):** После «Мои данные» — карточка «Учебное пособие» → `modules/book` (Phase A: Dev unlock / store locked). План: `docs/04_workspace/book_reader_plan.md`.
 
 - **2026-08-06 (store-review sign-out/delete UI):** Для `store_review_account` снова видны «Выйти» и «Удалить аккаунт» (чтобы сменить аккаунт / показать сторам наличие delete). Wipe по-прежнему запрещён: диалог `deleteStoreReviewBlocked` + сервер 403. Кабинет остаётся скрыт.
 
