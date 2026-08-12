@@ -18,10 +18,134 @@ import {
   writeFileSync,
   readdirSync,
   statSync,
+  renameSync,
 } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, extname } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath } from "url";
+
+/** Recompress EPUB media for phone reading (~200–300KB each, max edge 1024). */
+function compressEpubMedia(epubRoot) {
+  const mediaDir = join(epubRoot, "EPUB", "media");
+  if (!existsSync(mediaDir)) return [];
+  /** @type {Array<[string, string]>} oldName → newName */
+  const renames = [];
+  let saved = 0;
+  for (const name of readdirSync(mediaDir)) {
+    const ext = extname(name).toLowerCase();
+    if (ext !== ".jpg" && ext !== ".jpeg" && ext !== ".png") continue;
+    const src = join(mediaDir, name);
+    const before = statSync(src).size;
+    const base = name.replace(/\.[^.]+$/, "");
+    const tmp = join(mediaDir, `.tmp-${base}.jpg`);
+    try {
+      // sips: cap longest side, JPEG q≈72 (formatOptions 0–100).
+      execFileSync(
+        "sips",
+        [
+          "--resampleHeightWidthMax",
+          "1024",
+          "-s",
+          "format",
+          "jpeg",
+          "-s",
+          "formatOptions",
+          "72",
+          src,
+          "--out",
+          tmp,
+        ],
+        { stdio: "pipe" },
+      );
+      if (!existsSync(tmp)) continue;
+      let after = statSync(tmp).size;
+      // Second pass if still heavy (busy photos stay large at q72).
+      if (after > 320 * 1024) {
+        const tmp2 = join(mediaDir, `.tmp2-${base}.jpg`);
+        try {
+          execFileSync(
+            "sips",
+            [
+              "--resampleHeightWidthMax",
+              "960",
+              "-s",
+              "format",
+              "jpeg",
+              "-s",
+              "formatOptions",
+              "58",
+              tmp,
+              "--out",
+              tmp2,
+            ],
+            { stdio: "pipe" },
+          );
+          if (existsSync(tmp2) && statSync(tmp2).size > 0) {
+            rmSync(tmp, { force: true });
+            renameSync(tmp2, tmp);
+            after = statSync(tmp).size;
+          }
+        } catch {
+          try {
+            rmSync(tmp2, { force: true });
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      // Prefer recompressed when smaller, PNG→JPEG, or we beat a 320KB budget.
+      if (after > 0 && (after < before || ext === ".png" || after <= 320 * 1024)) {
+        const newName = `${base}.jpg`;
+        const destJpg = join(mediaDir, newName);
+        if (existsSync(destJpg) && destJpg !== src) rmSync(destJpg);
+        renameSync(tmp, destJpg);
+        if (destJpg !== src && existsSync(src)) rmSync(src);
+        if (name !== newName) renames.push([name, newName]);
+        saved += Math.max(0, before - after);
+        console.log(
+          `  media ${name} → ${Math.round(after / 1024)}KB (was ${Math.round(before / 1024)}KB)`,
+        );
+      } else {
+        rmSync(tmp, { force: true });
+      }
+    } catch {
+      try {
+        rmSync(tmp, { force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  if (saved > 0) console.log(`  media saved ~${Math.round(saved / 1024)}KB`);
+  return renames;
+}
+
+function rewriteMediaRefs(epubRoot, renames) {
+  if (!renames.length) return;
+  const roots = [join(epubRoot, "EPUB", "content.opf"), join(epubRoot, "EPUB", "text")];
+  for (const [from, to] of renames) {
+    const re = new RegExp(from.replace(/\./g, "\\."), "g");
+    for (const target of roots) {
+      if (statSync(target).isDirectory()) {
+        for (const name of readdirSync(target)) {
+          if (!name.endsWith(".xhtml") && !name.endsWith(".html")) continue;
+          const p = join(target, name);
+          const html = readFileSync(p, "utf8");
+          const next = html.replace(re, to);
+          if (next !== html) writeFileSync(p, next);
+        }
+      } else if (existsSync(target)) {
+        let opf = readFileSync(target, "utf8");
+        opf = opf.replace(re, to);
+        opf = opf.replace(
+          new RegExp(`(href="media/${to.replace(/\./g, "\\.")}")([^>]*media-type=")image/png(")`, "g"),
+          '$1$2image/jpeg$3',
+        );
+        writeFileSync(target, opf);
+      }
+    }
+  }
+}
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const locale = (process.argv[2] || "ru").toLowerCase();
@@ -146,6 +270,8 @@ try {
   // Replace with a plain <img> so the cover is visible and swipeable.
   const coverPath = join(textDir, "cover.xhtml");
   if (existsSync(coverPath)) {
+    // Re-read opf after possible earlier edits.
+    opf = readFileSync(opfPath, "utf8");
     const coverImg =
       opf.match(/properties="cover-image"[^>]*href="([^"]+)"/)?.[1] ||
       opf.match(/href="([^"]+)"[^>]*properties="cover-image"/)?.[1] ||
@@ -169,6 +295,18 @@ try {
 </html>
 `,
     );
+  }
+
+  console.log("compress media…");
+  const renames = compressEpubMedia(work);
+  rewriteMediaRefs(work, renames);
+  // Cover href may have been .png → .jpg
+  if (existsSync(coverPath) && renames.length) {
+    let coverHtml = readFileSync(coverPath, "utf8");
+    for (const [from, to] of renames) {
+      coverHtml = coverHtml.split(from).join(to);
+    }
+    writeFileSync(coverPath, coverHtml);
   }
 
   // Rebuild zip (mimetype must be first, stored uncompressed).

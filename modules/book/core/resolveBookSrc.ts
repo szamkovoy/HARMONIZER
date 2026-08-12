@@ -6,13 +6,18 @@ import {
   downloadAsync,
   getInfoAsync,
   makeDirectoryAsync,
+  readAsStringAsync,
+  writeAsStringAsync,
 } from "expo-file-system/legacy";
 
 import { BOOK_ID, type BookLocale } from "./bookIds";
 
+type CacheMeta = { sourceUri: string; size: number };
+
 /**
  * Materialize the bundled EPUB to a stable `file://…/*.epub` URI.
- * Metro asset URLs work for some loads, but epub.js is more reliable with a local file.
+ * Caches on disk: Dev Client used to re-download the whole EPUB from Metro on
+ * every open (minutes on slow links). Re-fetch only when the asset URI changes.
  */
 export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale): Promise<string> {
   const resolved = Image.resolveAssetSource(assetModule);
@@ -24,6 +29,7 @@ export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale
 
   const dir = `${root}books/`;
   const dest = `${dir}${BOOK_ID}-${bookLocale}.epub`;
+  const metaUri = `${dest}.meta.json`;
 
   const dirInfo = await getInfoAsync(dir);
   if (!dirInfo.exists) {
@@ -31,27 +37,42 @@ export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale
   }
 
   const existing = await getInfoAsync(dest);
-  // In Dev Client always refresh from Metro asset so EPUB rebuilds are picked up.
-  if (!__DEV__ && existing.exists && !existing.isDirectory && (existing.size ?? 0) > 0) {
-    return dest;
+  if (existing.exists && !existing.isDirectory && (existing.size ?? 0) > 0) {
+    try {
+      const meta = JSON.parse(await readAsStringAsync(metaUri)) as CacheMeta;
+      if (meta?.sourceUri === uri && meta.size === existing.size) {
+        return dest;
+      }
+    } catch {
+      /* stale/missing meta → refresh */
+    }
   }
+
   if (existing.exists) {
     await deleteAsync(dest, { idempotent: true });
   }
+  try {
+    await deleteAsync(metaUri, { idempotent: true });
+  } catch {
+    /* ignore */
+  }
 
+  let outUri: string;
   if (uri.startsWith("http://") || uri.startsWith("https://")) {
     const result = await downloadAsync(uri, dest);
     if (!result.uri) throw new Error("epub download failed");
-    return result.uri;
-  }
-
-  if (uri.startsWith("file://")) {
+    outUri = result.uri;
+  } else if (uri.startsWith("file://")) {
     await copyAsync({ from: uri, to: dest });
-    return dest;
+    outUri = dest;
+  } else {
+    const result = await downloadAsync(uri, dest);
+    if (!result.uri) throw new Error("epub materialize failed");
+    outUri = result.uri;
   }
 
-  // Fallback: try download (some platforms return asset:// or similar)
-  const result = await downloadAsync(uri, dest);
-  if (!result.uri) throw new Error("epub materialize failed");
-  return result.uri;
+  const written = await getInfoAsync(outUri);
+  const meta: CacheMeta = { sourceUri: uri, size: written.size ?? 0 };
+  await writeAsStringAsync(metaUri, JSON.stringify(meta));
+  return outUri;
 }

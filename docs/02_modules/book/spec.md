@@ -11,6 +11,8 @@ code_refs:
     modules/book/core/bookAccess.ts,
     modules/book/core/readingProgress.ts,
     modules/book/core/readerPrefs.ts,
+    modules/book/core/liveAnchor.ts,
+    modules/book/core/restoreLocation.ts,
     modules/book/ui/BookProfileCard.tsx,
     modules/book/ui/BookReaderScreen.tsx,
     app/book/[locale].tsx,
@@ -34,7 +36,7 @@ Barrel `modules/book/index.ts`:
 - **`bookLocaleForAppLocale(locale)`** — UI-locale → `BookLocale` (`ru` | `en`); Phase A: всё кроме `en` → `ru`.
 - **`resolveBookAccess(): Promise<boolean>`** — Phase A: `__DEV__` → `true`, иначе `false` (store-safe, без нового API).
 - **`BookProfileCard`** — карточка «Учебное пособие» + кнопка «Читать…».
-- **`BookReaderScreen`** — не в barrel; lazy `app/book/[locale].tsx`. Chrome overlay: сверху прозрачный toolkit (иконки), снизу непрозрачная серая панель + scrubber (commit on release). Поиск — fullScreen. Prefs restore mid-page % (`restoreLocation.ts`). Cover center; caption gap under photos.
+- **`BookReaderScreen`** — не в barrel; lazy `app/book/[locale].tsx` (Suspense + prefetch). Chrome overlay + scrubber. Шрифт/размер — in-place + snippet-first restore; боковые поля — inset ширины WebView (не padding в HTML). `scrollMode` — `changeFlow` без remount; patch epubjs template (await locations + safe %). Футер: seed percent + `tocLabelForHref`. Cover center; caption gap.
 
 Маршрут: `app/book/[locale].tsx` → lazy `BookReaderScreen`.
 

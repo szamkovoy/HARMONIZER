@@ -10,6 +10,71 @@ index 0de0fef..b491bd5 100644
      onSingleTap: () => {
        onPress();
        onSingleTap();
+diff --git a/node_modules/@epubjs-react-native/core/lib/commonjs/template.js b/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
+index 889bb46..f5ed069 100644
+--- a/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
++++ b/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
+@@ -165,20 +165,32 @@ var _default = exports.default = `
+         });
+       }
+ 
++      function hzSafeProgress(loc) {
++        try {
++          if (!loc || !loc.start || !loc.start.cfi || !book.locations) return 0;
++          var p = book.locations.percentageFromCfi(loc.start.cfi);
++          return typeof p === "number" && isFinite(p) ? p : 0;
++        } catch (e) {
++          return 0;
++        }
++      }
++
+       book.ready
+         .then(function () {
+           if (initialLocations) {
+             return book.locations.load(initialLocations);
+           }
+ 
+-          book.locations.generate(1600).then(function () {
++          // HARMONIZER: await generate so onReady/onLocationsReady always fire (scrolled remount).
++          return book.locations.generate(1600).then(function () {
++            var loc = rendition.currentLocation();
+             reactNativeWebview.postMessage(JSON.stringify({
+               type: "onLocationsReady",
+               epubKey: book.key(),
+               locations: book.locations.save(),
+               totalLocations: book.locations.total,
+-              currentLocation: rendition.currentLocation(),
+-              progress: book.locations.percentageFromCfi(rendition.currentLocation().start.cfi),
++              currentLocation: loc,
++              progress: hzSafeProgress(loc),
+             }));
+           });
+         })
+@@ -192,7 +204,14 @@ var _default = exports.default = `
+               type: "onReady",
+               totalLocations: book.locations.total,
+               currentLocation: currentLocation,
+-              progress: book.locations.percentageFromCfi(currentLocation.start.cfi),
++              progress: hzSafeProgress(currentLocation),
++            }));
++          }).catch(function () {
++            reactNativeWebview.postMessage(JSON.stringify({
++              type: "onReady",
++              totalLocations: book.locations && book.locations.total ? book.locations.total : 0,
++              currentLocation: null,
++              progress: 0,
+             }));
+           });
+ 
+@@ -256,7 +275,7 @@ var _default = exports.default = `
+       });
+ 
+       rendition.on("relocated", function (location) {
+-        var percent = book.locations.percentageFromCfi(location.start.cfi);
++        var percent = hzSafeProgress(location);
+         var percentage = Math.floor(percent * 100);
+         var chapter = getChapter(location);
+ 
 diff --git a/node_modules/@epubjs-react-native/core/lib/commonjs/utils/GestureHandler.js b/node_modules/@epubjs-react-native/core/lib/commonjs/utils/GestureHandler.js
 index 9d403dd..50e1daa 100644
 --- a/node_modules/@epubjs-react-native/core/lib/commonjs/utils/GestureHandler.js
@@ -49,6 +114,71 @@ index 63f3c24..653ecb5 100644
      onSingleTap: () => {
        onPress();
        onSingleTap();
+diff --git a/node_modules/@epubjs-react-native/core/lib/module/template.js b/node_modules/@epubjs-react-native/core/lib/module/template.js
+index dadb7a6..95c67ca 100644
+--- a/node_modules/@epubjs-react-native/core/lib/module/template.js
++++ b/node_modules/@epubjs-react-native/core/lib/module/template.js
+@@ -157,20 +157,32 @@ export default `
+         });
+       }
+ 
++      function hzSafeProgress(loc) {
++        try {
++          if (!loc || !loc.start || !loc.start.cfi || !book.locations) return 0;
++          var p = book.locations.percentageFromCfi(loc.start.cfi);
++          return typeof p === "number" && isFinite(p) ? p : 0;
++        } catch (e) {
++          return 0;
++        }
++      }
++
+       book.ready
+         .then(function () {
+           if (initialLocations) {
+             return book.locations.load(initialLocations);
+           }
+ 
+-          book.locations.generate(1600).then(function () {
++          // HARMONIZER: await generate so onReady/onLocationsReady always fire (scrolled remount).
++          return book.locations.generate(1600).then(function () {
++            var loc = rendition.currentLocation();
+             reactNativeWebview.postMessage(JSON.stringify({
+               type: "onLocationsReady",
+               epubKey: book.key(),
+               locations: book.locations.save(),
+               totalLocations: book.locations.total,
+-              currentLocation: rendition.currentLocation(),
+-              progress: book.locations.percentageFromCfi(rendition.currentLocation().start.cfi),
++              currentLocation: loc,
++              progress: hzSafeProgress(loc),
+             }));
+           });
+         })
+@@ -184,7 +196,14 @@ export default `
+               type: "onReady",
+               totalLocations: book.locations.total,
+               currentLocation: currentLocation,
+-              progress: book.locations.percentageFromCfi(currentLocation.start.cfi),
++              progress: hzSafeProgress(currentLocation),
++            }));
++          }).catch(function () {
++            reactNativeWebview.postMessage(JSON.stringify({
++              type: "onReady",
++              totalLocations: book.locations && book.locations.total ? book.locations.total : 0,
++              currentLocation: null,
++              progress: 0,
+             }));
+           });
+ 
+@@ -248,7 +267,7 @@ export default `
+       });
+ 
+       rendition.on("relocated", function (location) {
+-        var percent = book.locations.percentageFromCfi(location.start.cfi);
++        var percent = hzSafeProgress(location);
+         var percentage = Math.floor(percent * 100);
+         var chapter = getChapter(location);
+ 
 diff --git a/node_modules/@epubjs-react-native/core/lib/module/utils/GestureHandler.js b/node_modules/@epubjs-react-native/core/lib/module/utils/GestureHandler.js
 index 58e8611..2626dec 100644
 --- a/node_modules/@epubjs-react-native/core/lib/module/utils/GestureHandler.js

@@ -41,18 +41,57 @@ export function tocHrefCandidates(href: string): string[] {
   return out;
 }
 
-/** JS snippet: try candidates until display() succeeds. */
+/** Post live CFI/href/% after navigation so RN chrome does not stay on a stale chapter. */
+const POST_LIVE_ANCHOR_JS = `
+  function hzPostLiveAnchor() {
+    try {
+      if (typeof rendition === "undefined" || !rendition) return;
+      var loc = rendition.currentLocation();
+      var start = loc && loc.start ? loc.start : null;
+      var end = loc && loc.end ? loc.end : null;
+      var pct = null;
+      if (start && typeof start.percentage === "number") {
+        pct = end && typeof end.percentage === "number"
+          ? (start.percentage + end.percentage) / 2
+          : start.percentage;
+      }
+      if (pct == null && start && start.cfi && book && book.locations && typeof book.locations.percentageFromCfi === "function") {
+        try { pct = book.locations.percentageFromCfi(start.cfi); } catch (e) {}
+      }
+      var atEnd = !!(loc && loc.atEnd);
+      if (!atEnd && typeof pct === "number" && pct >= 0.995) atEnd = true;
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: "hzAnchor",
+          cfi: start && start.cfi ? start.cfi : null,
+          href: start && start.href ? start.href : null,
+          location: start && typeof start.location === "number" ? start.location : null,
+          percentage: typeof pct === "number" ? pct : null,
+          atEnd: atEnd
+        }));
+      }
+    } catch (err) {}
+  }
+`;
+
+/** JS snippet: try candidates until display() succeeds; then sync live anchor. */
 export function buildTocNavigateScript(href: string): string {
   const candidates = tocHrefCandidates(href);
   return `
     (function () {
+      ${POST_LIVE_ANCHOR_JS}
       var hrefs = ${JSON.stringify(candidates)};
       function go(i) {
         if (i >= hrefs.length) return;
         try {
           var p = rendition.display(hrefs[i]);
           if (p && typeof p.then === "function") {
-            p.then(function () {}).catch(function () { go(i + 1); });
+            p.then(function () {
+              setTimeout(hzPostLiveAnchor, 40);
+              setTimeout(hzPostLiveAnchor, 220);
+            }).catch(function () { go(i + 1); });
+          } else {
+            setTimeout(hzPostLiveAnchor, 40);
           }
         } catch (e) {
           go(i + 1);

@@ -12,6 +12,9 @@ export type ReadingProgress = {
   locator: string;
   percent?: number;
   chapterLabel?: string;
+  /** Visible text near focus — helps restore after font reflow. */
+  snippet?: string;
+  href?: string;
   updatedAt: string;
 };
 
@@ -56,6 +59,8 @@ export async function saveReadingProgress(
     locator: progress.locator,
     percent: progress.percent,
     chapterLabel: progress.chapterLabel,
+    snippet: progress.snippet,
+    href: progress.href,
     updatedAt: progress.updatedAt ?? new Date().toISOString(),
   };
   await writeAsStringAsync(progressUri(userId, locale), JSON.stringify(payload));

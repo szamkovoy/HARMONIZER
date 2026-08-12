@@ -1,6 +1,8 @@
 import { Stack } from "expo-router";
 import { Suspense, lazy } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
+
+import { useTranslate } from "@/modules/i18n";
 
 /**
  * Lazy-load the reader so `@epubjs-react-native/core` + EPUB asset stay out of
@@ -11,6 +13,16 @@ const BookReaderScreen = lazy(() =>
     default: m.BookReaderScreen,
   })),
 );
+
+function ReaderSuspenseFallback() {
+  const { t } = useTranslate();
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#ffffff" }}>
+      <ActivityIndicator />
+      <Text style={{ marginTop: 12, color: "#666", fontSize: 15 }}>{t("book.reader.loading")}</Text>
+    </View>
+  );
+}
 
 export default function BookReaderRoute() {
   return (
@@ -26,13 +38,7 @@ export default function BookReaderRoute() {
           fullScreenGestureEnabled: false,
         }}
       />
-      <Suspense
-        fallback={
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#ffffff" }}>
-            <ActivityIndicator />
-          </View>
-        }
-      >
+      <Suspense fallback={<ReaderSuspenseFallback />}>
         <BookReaderScreen />
       </Suspense>
     </>

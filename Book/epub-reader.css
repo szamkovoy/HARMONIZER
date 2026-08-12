@@ -16,7 +16,11 @@ body {
   background: #ffffff;
   color: #1a1a1a;
   margin: 0;
-  padding: 0.6em 0;
+  /* Vertical only — horizontal padding comes from reader theme (Aa → margins). */
+  padding-top: 0.6em;
+  padding-bottom: 0.6em;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* Cover: vertically center artwork in the viewport */

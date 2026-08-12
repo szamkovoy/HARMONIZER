@@ -1,3 +1,9 @@
+- 2026-08-13 (448): Book reader — margins via WebView width inset; scroll via changeFlow (no Opening hang) (no prod).
+- 2026-08-13 (447): Book reader — side margins apply; vertical scroll no longer stuck on Opening (no prod).
+- 2026-08-13 (446): Book reader — in-place font (no remount); ignore zeroish page flash; snippet-first restore (no prod).
+- 2026-08-12 (445): Book reader — text-snippet restore on font change; seed footer; Suspense/prefetch load (no prod).
+- 2026-08-12 (444): Book reader — live WebView CFI before font remount; chapter/page from real href (no stale TOC jump) (no prod).
+- 2026-08-12 (443): Book reader — EPUB cache (no re-download), media compress ~7.5MB, page clamp, CFI font restore (no prod).
 - 2026-08-12 (442): Book reader — stable font restore, scroll remount (no hang), blockquote +2px (no prod).
 - 2026-08-12 (441): Book reader — matched gray panels, live scrub counter, cover img, search overlay (no «Камера» artifact) (no prod).
 - 2026-08-12 (440): Book reader — LitRes chrome/search, scrub commit-on-release, prefs keep mid-page, caption gap (no prod).

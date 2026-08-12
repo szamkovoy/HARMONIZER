@@ -9,7 +9,21 @@ code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 
 ## Decision Log
 
-- **2026-08-12 (font/scroll/blockquote):** Prefs restore prefers percentage + cancel token (less jump on font flip); vertical scroll remounts Reader (no `changeFlow` hang); blockquote rule +2px left; EPUB rebuild.
+- **2026-08-13 (margins RN + scroll changeFlow):** Отступы внутри EPUB резали текст слева при 24px — теперь inset ширины WebView (`paddingHorizontal` + `readerW`). Скролл: без remount (`changeFlow` in-place); patch template — await `locations.generate` + safe `percentageFromCfi` (Opening hang).
+
+- **2026-08-13 (margins + scroll Opening hang):** Боковые отступы не работали — book CSS `padding: 0.6em 0` обнулял горизонталь; фикс `!important` + inject в contents. Вертикальный скролл вечно «Открываю…»: `waitForLocationsReady=false` → Opening ждёт `onReady`, а тот падает на `percentageFromCfi` до generate; теперь always wait for locations.
+
+- **2026-08-13 (in-place font + zeroish page fix):** Remount на смену шрифта уводил назад; футер «1 из 168» из `location=0`/`percent=0`, перебивавших seed. Фикс: appearance через `changeTheme`/`changeFont*` без remount + snippet-first restore; page/scrubber предпочитают seed над zeroish; не persist’ить flash 0%; remount только для scrollMode.
+
+- **2026-08-12 (text snippet + chrome seed):** Смена шрифта всё ещё уводила на соседний абзац (CFI смещается при reflow); футер «Полезные ссылки / 1 из 168» из flash `location=0` + library `section`. Фикс: snippet в progress/restore (`section.find`), reject start-flash while restoring, seed percent/label, Suspense+prefetch reader chunk (минута без текста = lazy epub.js).
+
+- **2026-08-12 (live anchor / focus keep):** После TOC/`goNext` RN `section`/`currentLocation` иногда отстают от WebView → футер «гл. 2 / 151 из 168» на послесловии и прыжок назад при смене шрифта. Фикс: `CAPTURE_LIVE_ANCHOR_JS` + `hzAnchor` перед remount; глава через `tocLabelForHref`; sync после TOC/тапа/scrub.
+
+- **2026-08-12 (font remount):** Font/size/margins remount Reader with saved CFI (`initialLocation` + retry display); in-place changeFont* abandoned (multi-page jumps).
+
+- **2026-08-12 (perf/pages/media):** Dev EPUB disk cache (stop re-download every open); build compresses media (~14MB→~7.5MB); page label clamps EOF (`169 из 168`).
+
+- **2026-08-12 (font/scroll/blockquote):** Vertical scroll remounts Reader (no `changeFlow` hang); blockquote rule +2px left.
 
 - **2026-08-12 (panels/scrub/cover/search):** Matching light-gray top+bottom chrome; scrub live page counter + WebView `cfiFromPercentage` on release; search as in-tree overlay (no RN Modal → no «◀ Камера»); drop extra Find button; cover.xhtml → `<img>` (SVG was blank in WebView).
 

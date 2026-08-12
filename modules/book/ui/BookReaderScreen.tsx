@@ -28,6 +28,19 @@ import { useThemePreference } from "@/modules/ui/themePreference";
 import { bookAssetModule } from "../core/bookAssets";
 import { flattenToc } from "../core/flattenToc";
 import { bookLocaleForAppLocale, type BookLocale } from "../core/bookIds";
+import {
+  CAPTURE_LIVE_ANCHOR_JS,
+  isUsableAnchor,
+  isZeroishProgress,
+  normalizeSeedPercent,
+  pageIndexFromAnchor,
+  parseLiveAnchorMessage,
+  pickRicherAnchor,
+  progressRatioFromAnchor,
+  shouldAcceptAnchor,
+  tocLabelForHref,
+  type LiveAnchor,
+} from "../core/liveAnchor";
 import { loadReadingProgress, saveReadingProgress } from "../core/readingProgress";
 import {
   DEFAULT_READER_PREFS,
@@ -117,11 +130,19 @@ function StepperRow({
 function ReaderChrome({
   src,
   initialLocator,
+  initialPercent,
+  initialChapterLabel,
+  initialSnippet,
+  initialHref,
   bookLocale,
   userId,
 }: {
   src: string;
   initialLocator: string | null;
+  initialPercent: number | null;
+  initialChapterLabel: string | null;
+  initialSnippet: string | null;
+  initialHref: string | null;
   bookLocale: BookLocale;
   userId: string;
 }) {
@@ -131,16 +152,16 @@ function ReaderChrome({
   const { scheme } = useThemePreference();
   const { t } = useTranslate();
   const {
+    changeTheme,
     changeFontSize,
     changeFontFamily,
-    changeTheme,
+    changeFlow,
     goToLocation,
     goNext,
     goPrevious,
     getCurrentLocation,
     injectJavascript,
     toc,
-    section,
     totalLocations,
     currentLocation,
     search,
@@ -159,20 +180,44 @@ function ReaderChrome({
   const [searchQuery, setSearchQuery] = useState("");
   const [scrubOverride, setScrubOverride] = useState<number | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
-  /** Remount Reader on flow change — changeFlow() hangs on scrolled-doc for this EPUB. */
+  /** Remount only when scroll flow changes — font/size stay in-place + snippet restore. */
   const [readerEpoch, setReaderEpoch] = useState(0);
   const [resumeLocator, setResumeLocator] = useState<string | null>(initialLocator);
+  /** Live CFI/href from WebView — library `section`/`currentLocation` can lag after TOC/taps. */
+  const [liveAnchor, setLiveAnchor] = useState<LiveAnchor | null>(null);
+  /** Chrome progress seed (0–100); state so footer re-renders (refs alone do not). */
+  const [chromeSeedPercent, setChromeSeedPercent] = useState<number | null>(() =>
+    normalizeSeedPercent(initialPercent),
+  );
+  const chromeSeedPercentRef = useRef(chromeSeedPercent);
+  chromeSeedPercentRef.current = chromeSeedPercent;
   const trackWidthRef = useRef(0);
   const trackOriginXRef = useRef(0);
   const scrubTrackRef = useRef<View>(null);
   const scrubbingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restoreTokenRef = useRef(0);
+  const remountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncAnchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastChromeToggleAt = useRef(0);
   const scrubOverrideRef = useRef<number | null>(null);
   const scrubClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resumeLocatorRef = useRef<string | null>(initialLocator);
   resumeLocatorRef.current = resumeLocator;
+  const resumePercentageRef = useRef<number | null>(
+    (() => {
+      const seed = normalizeSeedPercent(initialPercent);
+      return seed != null ? seed / 100 : null;
+    })(),
+  );
+  const resumeSnippetRef = useRef<string | null>(initialSnippet);
+  const resumeHrefRef = useRef<string | null>(initialHref);
+  const restoringRef = useRef(!!initialLocator);
+  const liveAnchorRef = useRef<LiveAnchor | null>(null);
+  const pendingAnchorResolverRef = useRef<((a: LiveAnchor | null) => void) | null>(null);
+  const [seedChapterLabel] = useState<string | null>(initialChapterLabel);
+  const totalLocationsRef = useRef(totalLocations);
+  totalLocationsRef.current = totalLocations;
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
   const scrollModeRef = useRef(prefs.scrollMode);
@@ -185,6 +230,8 @@ function ReaderChrome({
   goNextRef.current = goNext;
   const goPreviousRef = useRef(goPrevious);
   goPreviousRef.current = goPrevious;
+  const injectJavascriptRef = useRef(injectJavascript);
+  injectJavascriptRef.current = injectJavascript;
 
   const readerTheme = useMemo(
     () => buildReaderTheme(theme.colors, prefs, scheme),
@@ -206,106 +253,328 @@ function ReaderChrome({
     if (!resumeLocatorRef.current) resumeLocatorRef.current = initialLocator;
   }, [initialLocator]);
 
-  /** Apply appearance; restore mid-page focus after reflow (not cover / random page). */
-  const applyPrefsKeepLocation = useCallback(
-    (next: ReaderPrefs, opts?: { restore?: boolean }) => {
-      const loc = getCurrentLocation();
-      const cfi = loc?.start?.cfi ?? null;
-      const percentage = visibleCenterPercentage(loc, totalLocations);
-      changeFontSize(`${next.fontSizePx}px`);
-      changeFontFamily(FONT_FAMILY_CSS[next.fontFamily]);
-      changeTheme(buildReaderTheme(theme.colors, next, scheme));
-      if (opts?.restore === false) return;
-      restoreTokenRef.current += 1;
-      injectJavascript(
-        buildRestoreLocationScript({
-          cfi,
-          percentage,
-          token: restoreTokenRef.current,
-        }),
-      );
-    },
-    [
-      changeFontFamily,
-      changeFontSize,
-      changeTheme,
-      getCurrentLocation,
-      injectJavascript,
-      scheme,
-      theme.colors,
-      totalLocations,
-    ],
-  );
-
-  // App light/dark only — do not re-apply flow (that resets to cover).
+  // App light/dark only — do not touch font/flow (that resets position).
   useEffect(() => {
     if (!prefsReady) return;
     changeTheme(buildReaderTheme(theme.colors, prefsRef.current, scheme));
   }, [prefsReady, scheme, theme.colors, changeTheme]);
 
+  const applyLiveAnchor = useCallback((anchor: LiveAnchor | null) => {
+    if (!anchor) return;
+    if (
+      !shouldAcceptAnchor(liveAnchorRef.current, anchor, {
+        restoring: restoringRef.current,
+        resumePercentage: resumePercentageRef.current,
+        seedPercent: chromeSeedPercentRef.current,
+      })
+    ) {
+      return;
+    }
+    liveAnchorRef.current = anchor;
+    setLiveAnchor(anchor);
+    if (anchor.cfi) {
+      resumeLocatorRef.current = anchor.cfi;
+      setResumeLocator(anchor.cfi);
+    }
+    if (
+      typeof anchor.percentage === "number" &&
+      Number.isFinite(anchor.percentage) &&
+      !isZeroishProgress(anchor.percentage, anchor.location)
+    ) {
+      resumePercentageRef.current = anchor.percentage;
+      setChromeSeedPercent(Math.round(anchor.percentage * 1000) / 10);
+    }
+    if (anchor.snippet) resumeSnippetRef.current = anchor.snippet;
+    if (anchor.href) resumeHrefRef.current = anchor.href;
+    if (restoringRef.current && isUsableAnchor(anchor)) {
+      const resumePct = resumePercentageRef.current;
+      const okPct =
+        typeof anchor.percentage !== "number" ||
+        resumePct == null ||
+        Math.abs(anchor.percentage - resumePct) < 0.12 ||
+        !!anchor.snippet;
+      if (okPct || anchor.atEnd) {
+        restoringRef.current = false;
+      }
+    }
+  }, []);
+
+  const captureLiveAnchor = useCallback((): Promise<LiveAnchor | null> => {
+    return new Promise((resolve) => {
+      if (pendingAnchorResolverRef.current) {
+        pendingAnchorResolverRef.current(liveAnchorRef.current);
+        pendingAnchorResolverRef.current = null;
+      }
+      let settled = false;
+      const finish = (value: LiveAnchor | null) => {
+        if (settled) return;
+        settled = true;
+        if (pendingAnchorResolverRef.current === resolve || pendingAnchorResolverRef.current == null) {
+          pendingAnchorResolverRef.current = null;
+        }
+        resolve(value);
+      };
+      pendingAnchorResolverRef.current = (a) => finish(a);
+      injectJavascriptRef.current(CAPTURE_LIVE_ANCHOR_JS);
+      setTimeout(() => {
+        finish(liveAnchorRef.current);
+      }, 450);
+    });
+  }, []);
+
+  const captureLiveAnchorRich = useCallback(async (): Promise<LiveAnchor | null> => {
+    const a = await captureLiveAnchor();
+    await new Promise((r) => setTimeout(r, 90));
+    const b = await captureLiveAnchor();
+    return pickRicherAnchor(a, b);
+  }, [captureLiveAnchor]);
+
+  const scheduleSyncAnchor = useCallback(
+    (delayMs = 180) => {
+      if (syncAnchorTimer.current) clearTimeout(syncAnchorTimer.current);
+      syncAnchorTimer.current = setTimeout(() => {
+        void captureLiveAnchor().then(applyLiveAnchor);
+      }, delayMs);
+    },
+    [applyLiveAnchor, captureLiveAnchor],
+  );
+
+  const runFocusRestore = useCallback(() => {
+    const cfi = resumeLocatorRef.current ?? initialLocator;
+    const percentage = resumePercentageRef.current;
+    const snippet = resumeSnippetRef.current;
+    const href = resumeHrefRef.current;
+    restoringRef.current = !!(cfi || percentage != null || snippet);
+    if (!(cfi || percentage != null || snippet)) {
+      restoringRef.current = false;
+      return;
+    }
+    restoreTokenRef.current += 1;
+    injectJavascriptRef.current(
+      buildRestoreLocationScript({
+        cfi,
+        percentage,
+        snippet,
+        href,
+        token: restoreTokenRef.current,
+      }),
+    );
+    setTimeout(() => {
+      if (!restoringRef.current) return;
+      restoringRef.current = false;
+      scheduleSyncAnchor(80);
+    }, 3600);
+  }, [initialLocator, scheduleSyncAnchor]);
+
   const updatePrefs = useCallback(
     (patch: Partial<ReaderPrefs>) => {
-      setPrefs((prev) => {
-        const next = { ...prev, ...patch };
-        void saveReaderPrefs(next);
-        const flowChanged = patch.scrollMode != null && patch.scrollMode !== prev.scrollMode;
-        if (flowChanged) {
-          // Remount instead of changeFlow — avoids endless «Opening» on scrolled-doc.
-          const cfi = getCurrentLocation()?.start?.cfi ?? resumeLocatorRef.current;
+      const prev = prefsRef.current;
+      const next = { ...prev, ...patch };
+      prefsRef.current = next;
+      setPrefs(next);
+      void saveReaderPrefs(next);
+
+      const fontishChanged =
+        (patch.fontFamily != null && patch.fontFamily !== prev.fontFamily) ||
+        (patch.fontSizePx != null && patch.fontSizePx !== prev.fontSizePx) ||
+        (patch.lineHeight != null && patch.lineHeight !== prev.lineHeight);
+      const marginChanged = patch.marginPx != null && patch.marginPx !== prev.marginPx;
+      const scrollChanged = patch.scrollMode != null && patch.scrollMode !== prev.scrollMode;
+
+      // Margins are RN insets around the WebView — recalc columns after width change.
+      if (marginChanged && !fontishChanged && !scrollChanged) {
+        setTimeout(() => {
+          injectJavascriptRef.current(`
+            (function () {
+              try {
+                if (typeof rendition !== "undefined" && rendition && typeof rendition.resize === "function") {
+                  rendition.resize();
+                }
+              } catch (e) {}
+              return true;
+            })();
+            true;
+          `);
+        }, 50);
+        return;
+      }
+
+      if (!fontishChanged && !scrollChanged) return;
+
+      if (remountTimer.current) clearTimeout(remountTimer.current);
+      remountTimer.current = setTimeout(() => {
+        void (async () => {
+          const anchor = await captureLiveAnchorRich();
+          const loc = getCurrentLocation();
+          const cfi =
+            anchor?.cfi ?? loc?.start?.cfi ?? loc?.end?.cfi ?? resumeLocatorRef.current;
+          let percentage =
+            typeof anchor?.percentage === "number" && !isZeroishProgress(anchor.percentage, anchor.location)
+              ? anchor.percentage
+              : visibleCenterPercentage(loc, totalLocationsRef.current) ??
+                resumePercentageRef.current;
+          if (typeof percentage === "number" && percentage > 0.002) {
+            resumePercentageRef.current = percentage;
+            setChromeSeedPercent(Math.round(percentage * 1000) / 10);
+          }
           if (cfi) {
             setResumeLocator(cfi);
             resumeLocatorRef.current = cfi;
           }
-          setReaderEpoch((n) => n + 1);
-        } else {
-          applyPrefsKeepLocation(next, { restore: true });
-        }
-        return next;
-      });
+          if (anchor?.snippet) resumeSnippetRef.current = anchor.snippet;
+          if (anchor?.href) resumeHrefRef.current = anchor.href;
+          if (anchor && isUsableAnchor(anchor)) applyLiveAnchor(anchor);
+
+          if (scrollChanged) {
+            // In-place flow change — remount re-triggers Opening and often never clears.
+            const flow = next.scrollMode === "scrolled" ? "scrolled-doc" : "paginated";
+            try {
+              changeFlow(flow);
+            } catch {
+              /* optional */
+            }
+            injectJavascriptRef.current(`
+              (function () {
+                try {
+                  if (typeof rendition !== "undefined" && rendition) {
+                    rendition.flow(${JSON.stringify(flow)});
+                    if (typeof rendition.resize === "function") rendition.resize();
+                  }
+                } catch (e) {}
+                return true;
+              })();
+              true;
+            `);
+            setTimeout(() => runFocusRestore(), 400);
+            return;
+          }
+
+          // Font/size/line: keep WebView alive — remount was losing focus by many pages.
+          const built = buildReaderTheme(theme.colors, next, scheme);
+          changeTheme(built);
+          try {
+            changeFontSize(`${next.fontSizePx}px`);
+          } catch {
+            /* optional API */
+          }
+          try {
+            changeFontFamily(FONT_FAMILY_CSS[next.fontFamily]);
+          } catch {
+            /* optional API */
+          }
+          runFocusRestore();
+        })();
+      }, 200);
     },
-    [applyPrefsKeepLocation, getCurrentLocation],
+    [
+      applyLiveAnchor,
+      captureLiveAnchorRich,
+      changeFlow,
+      changeFontFamily,
+      changeFontSize,
+      changeTheme,
+      getCurrentLocation,
+      runFocusRestore,
+      scheme,
+      theme.colors,
+    ],
   );
 
   const bookProgressRatio = useMemo(() => {
-    const locIdx = currentLocation?.start?.location;
-    const total = typeof totalLocations === "number" ? totalLocations : 0;
-    if (typeof locIdx !== "number" || total < 1) return 0;
-    if (total === 1) return 0;
-    return Math.min(1, Math.max(0, locIdx / (total - 1)));
-  }, [currentLocation?.start?.location, totalLocations]);
+    const locFallback =
+      typeof currentLocation?.start?.location === "number" &&
+      currentLocation.start.location > 0
+        ? currentLocation.start.location
+        : null;
+    return progressRatioFromAnchor(
+      liveAnchor,
+      typeof totalLocations === "number" ? totalLocations : null,
+      locFallback,
+      chromeSeedPercent,
+    );
+  }, [chromeSeedPercent, currentLocation?.start?.location, liveAnchor, totalLocations]);
 
   // Prefer drag preview; freeze on override until release settles (avoids thumb jump / ghost).
   const scrubRatio = scrubOverride != null ? scrubOverride : bookProgressRatio;
 
   const persistLocation = useCallback(async () => {
     try {
+      const anchor = liveAnchorRef.current;
       const loc = getCurrentLocation();
-      const cfi = loc?.start?.cfi;
+      let cfi = anchor?.cfi ?? loc?.start?.cfi ?? resumeLocatorRef.current;
       if (!cfi) return;
-      const locIdx = loc?.start?.location;
       const total = typeof totalLocations === "number" ? totalLocations : 0;
-      const percent =
-        typeof locIdx === "number" && total > 1
-          ? Math.round((locIdx / (total - 1)) * 1000) / 10
-          : typeof locIdx === "number" && total === 1
-            ? 0
-            : undefined;
+      let ratio = progressRatioFromAnchor(
+        anchor,
+        total > 0 ? total : null,
+        typeof loc?.start?.location === "number" && loc.start.location > 0
+          ? loc.start.location
+          : null,
+        chromeSeedPercent,
+      );
+      // Never persist a flash-of-start over a known mid-book position.
+      const resume = resumePercentageRef.current;
+      if (ratio < 0.01 && typeof resume === "number" && resume > 0.05 && !anchor?.atEnd) {
+        ratio = resume;
+        cfi = resumeLocatorRef.current ?? cfi;
+      }
+      const percent = total > 0 ? Math.round(ratio * 1000) / 10 : undefined;
+      if (typeof percent === "number" && percent <= 1 && typeof resume === "number" && resume > 0.05) {
+        return;
+      }
+      const href = anchor?.href ?? resumeHrefRef.current ?? loc?.start?.href ?? null;
+      const chapterLabel = tocLabelForHref(href, flatToc) ?? undefined;
       await saveReadingProgress(userId, bookLocale, {
         locator: cfi,
         percent,
-        chapterLabel: section?.label,
+        chapterLabel,
+        snippet: anchor?.snippet ?? resumeSnippetRef.current ?? undefined,
+        href: href ?? undefined,
       });
     } catch {
       /* best effort */
     }
-  }, [bookLocale, getCurrentLocation, section?.label, totalLocations, userId]);
+  }, [bookLocale, chromeSeedPercent, flatToc, getCurrentLocation, totalLocations, userId]);
 
-  const onLocationChange = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      void persistLocation();
-    }, 600);
-  }, [persistLocation]);
+  const onLocationChange = useCallback(
+    (
+      _total: number,
+      loc: {
+        atEnd?: boolean;
+        start?: { cfi?: string; href?: string; location?: number; percentage?: number };
+        end?: { percentage?: number };
+      },
+      progress: number,
+      _currentSection: { label?: string; href?: string } | null,
+    ) => {
+      const sp = loc?.start?.percentage;
+      const ep = loc?.end?.percentage;
+      let percentage: number | null = null;
+      if (typeof sp === "number" && typeof ep === "number") percentage = (sp + ep) / 2;
+      else if (typeof sp === "number") percentage = sp;
+      else if (typeof progress === "number" && Number.isFinite(progress)) {
+        // Library sends 0–100 floored percent in the WebView bridge.
+        percentage = progress > 1 ? progress / 100 : progress;
+      }
+      applyLiveAnchor({
+        cfi: loc?.start?.cfi ?? null,
+        href: loc?.start?.href ?? null,
+        location: typeof loc?.start?.location === "number" ? loc.start.location : null,
+        percentage,
+        atEnd: !!loc?.atEnd || (typeof percentage === "number" && percentage >= 0.995),
+        snippet: liveAnchorRef.current?.snippet ?? null,
+      });
+      // Refresh snippet from WebView after relocate (skip while CFI/snippet restore is in flight).
+      if (!restoringRef.current) {
+        scheduleSyncAnchor(260);
+      }
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        void persistLocation();
+      }, 600);
+    },
+    [applyLiveAnchor, persistLocation, scheduleSyncAnchor],
+  );
 
   const toggleChrome = useCallback(() => {
     if (sheetOpenRef.current) return;
@@ -329,8 +598,9 @@ function ReaderChrome({
       setChromeVisible(false);
       if (zone === "left") goPreviousRef.current();
       else goNextRef.current();
+      scheduleSyncAnchor(220);
     },
-    [toggleChrome],
+    [scheduleSyncAnchor, toggleChrome],
   );
   const handleTapZoneRef = useRef(handleTapZone);
   handleTapZoneRef.current = handleTapZone;
@@ -340,20 +610,43 @@ function ReaderChrome({
       injectJavascript(buildTocNavigateScript(href));
       setTocOpen(false);
       setChromeVisible(true);
+      scheduleSyncAnchor(320);
     },
-    [injectJavascript],
+    [injectJavascript, scheduleSyncAnchor],
   );
 
-  const sectionLabel = (section?.label ?? "").trim();
+  const hrefForChrome = liveAnchor?.href ?? resumeHrefRef.current ?? currentLocation?.start?.href ?? null;
+  // Never trust library `section` — getChapter often sticks on the last TOC entry ("Полезные ссылки").
+  const lastTocLabel = flatToc.length ? flatToc[flatToc.length - 1]?.label?.trim() : "";
+  const seedChapterLooksStale =
+    !!seedChapterLabel &&
+    !!lastTocLabel &&
+    seedChapterLabel === lastTocLabel &&
+    typeof chromeSeedPercent === "number" &&
+    chromeSeedPercent < 95;
+  const sectionLabel = (
+    tocLabelForHref(hrefForChrome, flatToc) ??
+    tocLabelForHref(initialHref, flatToc) ??
+    (seedChapterLooksStale ? null : seedChapterLabel) ??
+    ""
+  ).trim();
   const atFrontMatter =
-    !sectionLabel ||
-    /cover|titlepage|title_page/i.test(currentLocation?.start?.href ?? "");
+    !!hrefForChrome && /cover|titlepage|title_page/i.test(hrefForChrome);
   const chapterLabel = atFrontMatter
     ? t("book.reader.cover")
     : sectionLabel || t("book.profile.title");
-  const pageIndex =
-    typeof currentLocation?.start?.location === "number" ? currentLocation.start.location + 1 : null;
   const pageTotal = typeof totalLocations === "number" && totalLocations > 0 ? totalLocations : null;
+  const locFallback =
+    typeof currentLocation?.start?.location === "number" &&
+    currentLocation.start.location > 0
+      ? currentLocation.start.location
+      : null;
+  const pageIndex = pageIndexFromAnchor(
+    liveAnchor,
+    pageTotal,
+    locFallback,
+    chromeSeedPercent,
+  );
   // Live counter while scrubbing: 10 → 11 → 12 as the thumb moves.
   const displayPageIndex =
     pageTotal != null && scrubOverride != null
@@ -369,6 +662,8 @@ function ReaderChrome({
 
   // Fixed size — chrome overlays; never resize WebView when panels toggle.
   const readerH = Math.max(220, height - insets.top - insets.bottom);
+  // Side margins: shrink WebView width (epub.js column layout). Do not pad inside HTML.
+  const readerW = Math.max(160, width - prefs.marginPx * 2);
   const pageBg = scheme === "dark" ? "#121212" : "#ffffff";
   // Same gray for top + bottom; a bit lighter than the previous bottom bar.
   const chromePanelBg = scheme === "dark" ? "#3A3A3E" : "#F3F3F7";
@@ -429,9 +724,12 @@ function ReaderChrome({
       scrubOverrideRef.current = null;
       setScrubOverride(null);
     }, 450);
-  }, []);
+    scheduleSyncAnchor(280);
+  }, [scheduleSyncAnchor]);
   const finishScrubRef = useRef(finishScrub);
   finishScrubRef.current = finishScrub;
+  const scheduleSyncAnchorRef = useRef(scheduleSyncAnchor);
+  scheduleSyncAnchorRef.current = scheduleSyncAnchor;
   const ratioFromPageXRef = useRef(ratioFromPageX);
   ratioFromPageXRef.current = ratioFromPageX;
 
@@ -487,6 +785,7 @@ function ReaderChrome({
           setChromeVisible(false);
           if (g.dx < 0) goNextRef.current();
           else goPreviousRef.current();
+          scheduleSyncAnchorRef.current(220);
           return;
         }
         if (adx < 14 && ady < 14) {
@@ -511,13 +810,17 @@ function ReaderChrome({
       <View
         style={[
           styles.readerWrap,
-          { paddingTop: insets.top, paddingBottom: insets.bottom },
+          {
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
+            paddingHorizontal: prefs.marginPx,
+          },
         ]}
       >
         <Reader
-          key={`hz-book-${readerEpoch}-${prefs.scrollMode}`}
+          key={`hz-book-${readerEpoch}`}
           src={src}
-          width={width}
+          width={readerW}
           height={readerH}
           fileSystem={useBookFileSystem}
           defaultTheme={readerTheme}
@@ -525,11 +828,15 @@ function ReaderChrome({
           flow={prefs.scrollMode === "scrolled" ? "scrolled-doc" : "paginated"}
           manager="default"
           snap={prefs.scrollMode === "paginated"}
-          waitForLocationsReady={prefs.scrollMode === "paginated"}
+          waitForLocationsReady
+          keepScrollOffsetOnLocationChange={prefs.scrollMode === "scrolled"}
           enableSwipe={false}
           onLocationChange={onLocationChange}
+          onLocationsReady={() => {
+            scheduleSyncAnchor(200);
+          }}
           renderOpeningBookComponent={() => (
-            <View style={[styles.openingOverlay, { width, height: readerH, backgroundColor: pageBg }]}>
+            <View style={[styles.openingOverlay, { width: readerW, height: readerH, backgroundColor: pageBg }]}>
               <ActivityIndicator size="large" color={theme.colors.accent} />
               <AppText variant="screenHint" tone="muted" style={{ marginTop: 12 }}>
                 {t("book.reader.opening")}
@@ -539,6 +846,21 @@ function ReaderChrome({
           onWebViewMessage={(msg) => {
             // Library passes already-parsed JSON (not { nativeEvent }).
             const data = msg as { type?: string; zone?: string };
+            if (data?.type === "hzRestoreDone") {
+              restoringRef.current = false;
+              scheduleSyncAnchor(120);
+              return;
+            }
+            const anchor = parseLiveAnchorMessage(msg);
+            if (anchor) {
+              applyLiveAnchor(anchor);
+              if (pendingAnchorResolverRef.current) {
+                const resolve = pendingAnchorResolverRef.current;
+                pendingAnchorResolverRef.current = null;
+                resolve(anchor);
+              }
+              return;
+            }
             if (data?.type === "tapZone") {
               const zone = data.zone;
               if (zone === "left" || zone === "center" || zone === "right") {
@@ -548,12 +870,17 @@ function ReaderChrome({
           }}
           onReady={() => {
             injectJavascript(TAP_ZONE_BRIDGE_JS);
-            applyPrefsKeepLocation(prefs, { restore: false });
-            const loc = resumeLocatorRef.current ?? initialLocator;
-            if (loc) {
-              injectJavascript(
-                `try { rendition.display(${JSON.stringify(loc)}); } catch (e) {} true;`,
-              );
+            // defaultTheme already matches prefs — do not re-apply (resets position).
+            try {
+              changeFontSize(`${prefsRef.current.fontSizePx}px`);
+            } catch {
+              /* optional */
+            }
+            if (resumeLocatorRef.current || resumePercentageRef.current != null || resumeSnippetRef.current) {
+              runFocusRestore();
+            } else {
+              restoringRef.current = false;
+              scheduleSyncAnchor(400);
             }
           }}
         />
@@ -887,6 +1214,10 @@ export function BookReaderScreen() {
   const bookLocale = bookLocaleForAppLocale(locale);
   const [src, setSrc] = useState<string | null>(null);
   const [initialLocator, setInitialLocator] = useState<string | null>(null);
+  const [initialPercent, setInitialPercent] = useState<number | null>(null);
+  const [initialChapterLabel, setInitialChapterLabel] = useState<string | null>(null);
+  const [initialSnippet, setInitialSnippet] = useState<string | null>(null);
+  const [initialHref, setInitialHref] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const userId = profile?.id ?? "anon";
 
@@ -903,6 +1234,10 @@ export function BookReaderScreen() {
         const progress = profile?.id ? await loadReadingProgress(profile.id, bookLocale) : null;
         if (cancelled) return;
         setInitialLocator(progress?.locator ?? null);
+        setInitialPercent(normalizeSeedPercent(progress?.percent));
+        setInitialChapterLabel(progress?.chapterLabel?.trim() || null);
+        setInitialSnippet(progress?.snippet?.trim() || null);
+        setInitialHref(progress?.href?.trim() || null);
         setSrc(uri);
       } catch (e) {
         if (!cancelled) {
@@ -957,6 +1292,10 @@ export function BookReaderScreen() {
       <ReaderChrome
         src={src}
         initialLocator={initialLocator}
+        initialPercent={initialPercent}
+        initialChapterLabel={initialChapterLabel}
+        initialSnippet={initialSnippet}
+        initialHref={initialHref}
         bookLocale={bookLocale}
         userId={userId}
       />

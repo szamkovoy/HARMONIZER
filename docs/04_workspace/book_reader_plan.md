@@ -232,9 +232,11 @@ create table public.book_reading_progress (
 - 2026-08-12 (hard-fix): chrome toggle (parsed WebView msg), scrubber по locations, tap zones, prefs keep CFI, `patch-package` на GestureHandler для scrolled-doc, i18n Opening. Page-curl / slide-анимация тапа — **после модерации**.
 - **Не** деплоили Vercel, **не** трогали prod migrations / store EAS.
 
+**Dev Client perf note (2026-08-12):** Do **not** use `expo start -c` on every launch — cache clear forces a full rebundle/redownload («Downloading …» for minutes). Use `-c` only after Metro/config/native changes. `metro.config.js` blockLists `Book/` (DOCX/build) so Metro does not crawl ~50MB sources.
+
 **Следующий шаг Phase A (QA на Dev Client):**
 
-1. `npx expo start --dev-client -c` → Профиль → «Читать…»: chrome hide/show, left/right/center taps, scrubber drag, Aa без прыжка на обложку, vertical scroll без freeze, Opening на языке UI.
+1. `npx expo start --dev-client` (add `-c` only when needed) → Профиль → «Читать…»: chrome hide/show, left/right/center taps, scrubber drag, Aa без прыжка на обложку, vertical scroll без freeze, Opening на языке UI.
 2. `node scripts/book-build-epub.mjs ru` — только если EPUB локально устарел.
 3. Page-curl как в LitRes / анимация сдвига при тапе — после модерации (другая lib или native layer).
 4. Production EAS / Vercel — только после «модерация пройдена».

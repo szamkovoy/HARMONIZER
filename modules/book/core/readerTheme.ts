@@ -15,9 +15,12 @@ export function buildReaderTheme(colors: ColorTokens, prefs: ReaderPrefs, scheme
       background: pageBg,
       color: `${ink} !important`,
       "font-family": FONT_FAMILY_CSS[prefs.fontFamily],
+      "font-size": `${prefs.fontSizePx}px`,
       "line-height": String(prefs.lineHeight),
-      "padding-left": `${prefs.marginPx}px`,
-      "padding-right": `${prefs.marginPx}px`,
+      // Horizontal margins are applied outside the WebView (RN width inset).
+      // Padding inside epub.js columns clips text at larger values.
+      "padding-left": "0",
+      "padding-right": "0",
     },
     html: {
       background: pageBg,
