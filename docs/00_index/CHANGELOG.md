@@ -1,3 +1,12 @@
+- 2026-08-14 (477): Account web — hide book purchase block when overview.book.owned (no prod).
+- 2026-08-14 (476): Account web — book block accordion (Vimeo per locale + blurb ×8, chevron) (no prod).
+- 2026-08-13 (475): Book — FR/IT/ES/PT/NL literary translate pipeline (Gemini Pro) + 8-locale bookIds (no prod).
+- 2026-08-13 (474): Book — DE EPUB via /hz-book; Profile locale de opens German book (no prod).
+- 2026-08-13 (473): Dev — remove node_modules from .watchmanconfig ignore (expo-router resolve) (no prod).
+- 2026-08-13 (472): Book — no EPUB in Metro assets; RU+EN via /hz-book (Dev Downloading fix) (no prod).
+- 2026-08-13 (471): Book — EN via Metro /hz-book (not assets/) to restore Dev cold start (no prod).
+- 2026-08-13 (470): Book — split RU/EN EPUB assets (dynamic import) to avoid Dev black screen (no prod).
+- 2026-08-13 (469): Book — EN EPUB wired; Profile locale en opens English book (no prod).
 - 2026-08-13 (468): Book — flow switch sticks same line (start-% after capture; no CFI initial) (no prod).
 - 2026-08-13 (467): Book — fix TOC part jumps (no bare #frag); footer shows parts; safer paginated place (no prod).
 - 2026-08-13 (466): Book — TOC gray highlight; open chapter with offset under chrome (no prod).

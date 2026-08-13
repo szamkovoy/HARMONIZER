@@ -3,10 +3,20 @@ import type { AppLocale } from "@/modules/i18n";
 /** Canonical product id (matches future API / progress rows). */
 export const BOOK_ID = "yoga_wizards_path";
 
-export type BookLocale = "ru" | "en";
+export type BookLocale = "ru" | "en" | "de" | "fr" | "it" | "es" | "pt" | "nl";
 
-/** Phase A: only RU asset is built. Others fall back until Phase C. */
+/** UI locale → book file. All 8 app locales have EPUBs when built. */
 export function bookLocaleForAppLocale(locale: AppLocale): BookLocale {
-  if (locale === "en") return "en";
-  return "ru";
+  switch (locale) {
+    case "en":
+    case "de":
+    case "fr":
+    case "it":
+    case "es":
+    case "pt":
+    case "nl":
+      return locale;
+    default:
+      return "ru";
+  }
 }

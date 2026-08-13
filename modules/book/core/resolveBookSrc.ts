@@ -17,7 +17,7 @@ import { BOOK_ID, type BookLocale } from "./bookIds";
  * Do NOT key the on-device cache on Metro’s HTTP asset URI — `expo start -c`
  * changes that hash and used to force a multi‑minute re-download every time.
  */
-export const BOOK_EPUB_CACHE_REVISION = "ru-2026-08-12-7835277";
+export const BOOK_EPUB_CACHE_REVISION = "ru-2026-08-13-coldfix";
 
 /** Minimum plausible EPUB size — smaller files are treated as corrupt. */
 const MIN_EPUB_BYTES = 500_000;
@@ -37,15 +37,7 @@ async function writeMeta(metaUri: string, locale: BookLocale, size: number): Pro
   await writeAsStringAsync(metaUri, JSON.stringify(meta));
 }
 
-/**
- * Materialize the bundled EPUB to a stable `file://…/*.epub` URI.
- * Reuses any healthy on-device copy (avoids multi-minute Metro re-download).
- */
-export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale): Promise<string> {
-  const resolved = Image.resolveAssetSource(assetModule);
-  const uri = resolved?.uri;
-  if (!uri) throw new Error("asset uri missing");
-
+async function materializeToCache(sourceUri: string, bookLocale: BookLocale): Promise<string> {
   const root = documentDirectory;
   if (!root) throw new Error("documentDirectory unavailable");
 
@@ -93,15 +85,15 @@ export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale
   }
 
   let outUri: string;
-  if (uri.startsWith("http://") || uri.startsWith("https://")) {
-    const result = await downloadAsync(uri, dest);
+  if (sourceUri.startsWith("http://") || sourceUri.startsWith("https://")) {
+    const result = await downloadAsync(sourceUri, dest);
     if (!result.uri) throw new Error("epub download failed");
     outUri = result.uri;
-  } else if (uri.startsWith("file://")) {
-    await copyAsync({ from: uri, to: dest });
+  } else if (sourceUri.startsWith("file://")) {
+    await copyAsync({ from: sourceUri, to: dest });
     outUri = dest;
   } else {
-    const result = await downloadAsync(uri, dest);
+    const result = await downloadAsync(sourceUri, dest);
     if (!result.uri) throw new Error("epub materialize failed");
     outUri = result.uri;
   }
@@ -113,4 +105,20 @@ export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale
   }
   await writeMeta(metaUri, bookLocale, size);
   return outUri;
+}
+
+/**
+ * Materialize the bundled EPUB to a stable `file://…/*.epub` URI.
+ * Reuses any healthy on-device copy (avoids multi-minute Metro re-download).
+ */
+export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale): Promise<string> {
+  const resolved = Image.resolveAssetSource(assetModule);
+  const uri = resolved?.uri;
+  if (!uri) throw new Error("asset uri missing");
+  return materializeToCache(uri, bookLocale);
+}
+
+/** Dev HTTP EPUB (Metro `/hz-book/{locale}.epub`) → same on-device cache as bundled assets. */
+export async function resolveBookSrcFromUrl(url: string, bookLocale: BookLocale): Promise<string> {
+  return materializeToCache(url, bookLocale);
 }

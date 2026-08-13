@@ -61,7 +61,23 @@ export type AccountWebinarPurchase = {
 /** Разовая покупка книги (ONE_TIME). */
 export type AccountBookPurchase = {
   purchase: AccountPurchase;
+  /** true — у пользователя уже есть active one_time book; кабинет скрывает блок продажи. */
+  owned: boolean;
 };
+
+async function hasActiveBookPurchase(db: SupabaseClient, userId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("payment_contracts")
+    .select("contract_id")
+    .eq("user_id", userId)
+    .eq("product_kind", "one_time")
+    .eq("tier", "book")
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data?.contract_id;
+}
 
 export type AccountOverview = {
   userId: string;
@@ -204,7 +220,10 @@ export async function buildAccountOverview(
   const sellableUpgradeTiers = candidateTiers.filter((tier) => tier !== "practitioner");
 
   if (!gateway.ok) {
-    const nearestWebinar = await nearestWebinarPromise;
+    const [nearestWebinar, bookOwned] = await Promise.all([
+      nearestWebinarPromise,
+      hasActiveBookPurchase(db, userId),
+    ]);
     const emptyPurchase: AccountPurchase = { mode: purchaseMode, price: null, url: null };
     return {
       userId,
@@ -225,7 +244,7 @@ export async function buildAccountOverview(
         webinarId: nearestWebinar.data?.id ?? null,
         purchase: emptyPurchase,
       },
-      book: { purchase: emptyPurchase },
+      book: { purchase: emptyPurchase, owned: bookOwned },
       paymentGateway: {
         available: false,
         provider: null,
@@ -238,7 +257,7 @@ export async function buildAccountOverview(
   const provider = gateway.provider;
   const priceCurrency: LavaCurrency = provider === "yookassa" ? "RUB" : currency;
 
-  const [upgradePrices, nearestWebinar, bookPrice] = await Promise.all([
+  const [upgradePrices, nearestWebinar, bookPrice, bookOwned] = await Promise.all([
     Promise.all(
       sellableUpgradeTiers.map((tier) =>
         resolvePriceForProvider(db, {
@@ -258,6 +277,7 @@ export async function buildAccountOverview(
       currency: priceCurrency,
       periodicity: "ONE_TIME",
     }),
+    hasActiveBookPurchase(db, userId),
   ]);
 
   // ЮKassa Mentor→Master: превью бонуса по ценам каталога (не по тестовой сумме
@@ -319,6 +339,7 @@ export async function buildAccountOverview(
     },
     book: {
       purchase: { mode: purchaseMode, price: bookPrice, url: null },
+      owned: bookOwned,
     },
     paymentGateway: {
       available: true,

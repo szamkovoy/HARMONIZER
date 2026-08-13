@@ -105,6 +105,39 @@
       background: var(--hz-teal-soft); border-radius: 0 10px 10px 0; font-size: 15px; line-height: 1.55;
     }
     #hz-cabinet .hz-thanks-title { font-weight: 600; margin-bottom: 6px; }
+    #hz-cabinet .hz-book-toggle {
+      display:flex; align-items:flex-start; gap:10px; width:100%;
+      margin:0 0 16px; padding:0; border:0; background:none; cursor:pointer;
+      text-align:left; font-family:inherit; color:inherit;
+    }
+    #hz-cabinet .hz-book-toggle:hover .hz-book-title { color:var(--hz-teal-dark); }
+    #hz-cabinet .hz-book-chevron {
+      width:15px; height:13px; margin-top:5px; flex:0 0 auto;
+      transition:transform .18s ease;
+      /* teal accent similar to app day-action chevron tint */
+      filter: invert(48%) sepia(24%) saturate(748%) hue-rotate(131deg) brightness(92%) contrast(88%);
+    }
+    #hz-cabinet .hz-book-toggle[aria-expanded="true"] .hz-book-chevron { transform:rotate(180deg); }
+    #hz-cabinet .hz-book-title { flex:1; font-size:16px; line-height:1.5; }
+    #hz-cabinet .hz-book-panel { margin:0 0 16px; }
+    #hz-cabinet .hz-book-video {
+      position:relative; width:100%; padding-top:56.25%; margin:0 0 14px;
+      background:#0b1a20; border-radius:8px; overflow:hidden;
+    }
+    #hz-cabinet .hz-book-video iframe {
+      position:absolute; inset:0; width:100%; height:100%; border:0;
+    }
+    #hz-cabinet .hz-book-blurb p {
+      margin:0 0 10px; font-size:15px; line-height:1.55; color:var(--hz-text);
+    }
+    #hz-cabinet .hz-book-blurb p:last-child { margin-bottom:0; }
+    #hz-cabinet ul.hz-book-bullets { list-style:none; margin:0 0 10px; padding:0; }
+    #hz-cabinet ul.hz-book-bullets li {
+      position:relative; padding-left:18px; margin:6px 0; font-size:15px; line-height:1.5;
+    }
+    #hz-cabinet ul.hz-book-bullets li::before {
+      content:"–"; position:absolute; left:0; top:0; color:var(--hz-teal); font-weight:600;
+    }
   </style>
 
   <div id="hz-loading" class="hz-center">
@@ -189,6 +222,8 @@
       webinarOneTime:"Разовое участие в ближайшей групповой консультации (вебинаре)",
       signUpBtn:"Записаться", alreadyRegistered:"Вы уже записаны на этот вебинар.",
       bookTitle:"Книга «Йога — путь волшебника»", moreBtn:"Подробнее…", buyBtn:"Купить",
+      bookExpandA11y:"Подробнее о книге",
+      bookBlurb:"Можно годами заниматься йогой, но так и не разобраться как она работает. В этой книге я по полочкам разложил квинтэсенцию моего 30-летнего опыта йоги. Читать книгу вы сможете прямо в Гармононизаторе. В результате вы узнаете:\n- Как \"читать\" события жизни словно карту\n- Как не быть марионеткой в чужой игре\n- Какие асаны полезны именно вам\n- Как йога влияет на реальную жизнь\nи многое многое другое....",
       intensiveTitle:"Месячный интенсив", intensiveChoose:"Выберите…",
       intensives:["Месяц здоровья","Месяц наслаждений","Месяц силы","Месяц любви","Месяц свободы","Месяц мудрости","Месяц святости"],
       copyrightName:"Сергей Замковой",
@@ -224,7 +259,9 @@
       additionalTitle:"Extras",
       webinarOneTime:"One-time participation in the nearest group consultation (webinar)",
       signUpBtn:"Sign up", alreadyRegistered:"You are already signed up for this webinar.",
-      bookTitle:"Book «Yoga - the Way of Wisdom»", moreBtn:"Learn more…", buyBtn:"Buy",
+      bookTitle:"Book «Yoga: The Art of Change»", moreBtn:"Learn more…", buyBtn:"Buy",
+      bookExpandA11y:"More about the book",
+      bookBlurb:"You can practise yoga for years and still never quite understand how it works. In this book, I have carefully laid out the quintessence of my 30 years of yoga experience. You will be able to read the book directly in Harmonizer. As a result, you will discover:\n- How to \"read\" the events of life as if they were a map\n- How not to become a puppet in someone else's game\n- Which asanas are truly beneficial for you\n- How yoga influences real life\nand much, much more....",
       intensiveTitle:"Monthly intensive", intensiveChoose:"Choose…",
       intensives:["Month of Health","Month of Pleasure","Month of Strength","Month of Love","Month of Freedom","Month of Wisdom","Month of Holiness"],
       copyrightName:"Sergei Zamkovoi",
@@ -261,7 +298,9 @@
       additionalTitle:"Zusätzliches",
       webinarOneTime:"Einmalige Teilnahme an der nächsten Gruppensitzung (Webinar)",
       signUpBtn:"Anmelden", alreadyRegistered:"Sie sind bereits für dieses Webinar angemeldet.",
-      bookTitle:"Buch «Yoga — der Weg des Zauberers»", moreBtn:"Mehr erfahren…", buyBtn:"Kaufen",
+      bookTitle:"Buch «Yoga: die Lebenskunst in der Veränderung»", moreBtn:"Mehr erfahren…", buyBtn:"Kaufen",
+      bookExpandA11y:"Mehr über das Buch",
+      bookBlurb:"Man kann jahrelang Yoga praktizieren und doch nie wirklich verstehen, wie es wirkt. In diesem Buch habe ich die Quintessenz meiner 30-jährigen Yoga-Erfahrung sorgfältig geordnet. Sie können das Buch direkt im Harmonizer lesen. Dadurch werden Sie erfahren:\n- Wie Sie die Ereignisse des Lebens wie eine Karte \"lesen\"\n- Wie Sie keine Marionette im Spiel eines anderen werden\n- Welche Asanas gerade für Sie hilfreich sind\n- Wie Yoga das wirkliche Leben beeinflusst\nund vieles, vieles mehr....",
       intensiveTitle:"Monatlicher Intensivkurs", intensiveChoose:"Auswählen…",
       intensives:["Monat der Gesundheit","Monat der Lust","Monat der Kraft","Monat der Liebe","Monat der Freiheit","Monat der Weisheit","Monat der Heiligkeit"],
       copyrightName:"Sergei Zamkovoi",
@@ -297,7 +336,9 @@
       additionalTitle:"En supplément",
       webinarOneTime:"Participation unique à la prochaine consultation de groupe (webinaire)",
       signUpBtn:"S'inscrire", alreadyRegistered:"Vous êtes déjà inscrit à ce webinaire.",
-      bookTitle:"Livre « Yoga — le chemin du magicien »", moreBtn:"En savoir plus…", buyBtn:"Acheter",
+      bookTitle:"Livre «Yoga : L’Art de la Métamorphose»", moreBtn:"En savoir plus…", buyBtn:"Acheter",
+      bookExpandA11y:"En savoir plus sur le livre",
+      bookBlurb:"On peut pratiquer le yoga pendant des années sans jamais vraiment comprendre comment il fonctionne. Dans ce livre, j'ai soigneusement ordonné la quintessence de mes 30 années d'expérience en yoga. Vous pourrez le lire directement dans Harmonizer. Vous y découvrirez notamment :\n- Comment \"lire\" les événements de la vie comme une carte\n- Comment ne pas devenir une marionnette dans le jeu de quelqu'un d'autre\n- Quels asanas vous sont réellement bénéfiques\n- Comment le yoga influence la vie réelle\net bien, bien plus encore....",
       intensiveTitle:"Intensif mensuel", intensiveChoose:"Choisir…",
       intensives:["Mois de la santé","Mois du plaisir","Mois de la force","Mois de l'amour","Mois de la liberté","Mois de la sagesse","Mois de la sainteté"],
       copyrightName:"Sergei Zamkovoi",
@@ -333,7 +374,9 @@
       additionalTitle:"Extra",
       webinarOneTime:"Partecipazione unica alla prossima consulenza di gruppo (webinar)",
       signUpBtn:"Iscriviti", alreadyRegistered:"Sei già iscritto a questo webinar.",
-      bookTitle:"Libro «Yoga — il percorso del mago»", moreBtn:"Scopri di più…", buyBtn:"Acquista",
+      bookTitle:"Libro «Yoga: L’Arte del Cambiamento»", moreBtn:"Scopri di più…", buyBtn:"Acquista",
+      bookExpandA11y:"Scopri di più sul libro",
+      bookBlurb:"Si può praticare yoga per anni senza arrivare davvero a capire come funzioni. In questo libro ho disposto con chiarezza la quintessenza dei miei 30 anni di esperienza nello yoga. Potrai leggere il libro direttamente in Harmonizer. Così scoprirai:\n- Come \"leggere\" gli eventi della vita come una mappa\n- Come non diventare una marionetta nel gioco di qualcun altro\n- Quali asana sono davvero utili proprio per te\n- Come lo yoga influenza la vita reale\ne molto, molto altro....",
       intensiveTitle:"Intensivo mensile", intensiveChoose:"Scegli…",
       intensives:["Mese della salute","Mese del piacere","Mese della forza","Mese dell'amore","Mese della libertà","Mese della saggezza","Mese della santità"],
       copyrightName:"Sergei Zamkovoi",
@@ -369,7 +412,9 @@
       additionalTitle:"Extras",
       webinarOneTime:"Participación única en la próxima consulta grupal (webinar)",
       signUpBtn:"Inscribirse", alreadyRegistered:"Ya estás inscrito en este webinar.",
-      bookTitle:"Libro «Yoga — el camino del mago»", moreBtn:"Más información…", buyBtn:"Comprar",
+      bookTitle:"Libro «Yoga: El Arte del Cambio»", moreBtn:"Más información…", buyBtn:"Comprar",
+      bookExpandA11y:"Más sobre el libro",
+      bookBlurb:"Se puede practicar yoga durante años y aun así no llegar a comprender cómo funciona. En este libro he ordenado con claridad la quintaesencia de mis 30 años de experiencia en yoga. Podrás leerlo directamente en Harmonizer. Como resultado, descubrirás:\n- Cómo \"leer\" los acontecimientos de la vida como si fueran un mapa\n- Cómo no ser una marioneta en el juego de otra persona\n- Qué asanas son realmente beneficiosas para ti\n- Cómo influye el yoga en la vida real\ny mucho, mucho más....",
       intensiveTitle:"Intensivo mensual", intensiveChoose:"Elige…",
       intensives:["Mes de la salud","Mes del placer","Mes de la fuerza","Mes del amor","Mes de la libertad","Mes de la sabiduría","Mes de la santidad"],
       copyrightName:"Sergei Zamkovoi",
@@ -405,7 +450,9 @@
       additionalTitle:"Extras",
       webinarOneTime:"Participação única na próxima consulta de grupo (webinar)",
       signUpBtn:"Inscrever-se", alreadyRegistered:"Já está inscrito neste webinar.",
-      bookTitle:"Livro «Yoga — o caminho do mago»", moreBtn:"Saber mais…", buyBtn:"Comprar",
+      bookTitle:"Livro «Yoga: A Arte da Transformação»", moreBtn:"Saber mais…", buyBtn:"Comprar",
+      bookExpandA11y:"Mais sobre o livro",
+      bookBlurb:"É possível praticar yoga durante anos e, ainda assim, nunca chegar a compreender como ele funciona. Neste livro, organizei com clareza a quintessência dos meus 30 anos de experiência em yoga. Poderá ler o livro diretamente no Harmonizer. Como resultado, irá descobrir:\n- Como \"ler\" os acontecimentos da vida como se fossem um mapa\n- Como não ser uma marioneta no jogo de outra pessoa\n- Que asanas são verdadeiramente benéficos para si\n- Como o yoga influencia a vida real\ne muito, muito mais....",
       intensiveTitle:"Intensivo mensal", intensiveChoose:"Escolher…",
       intensives:["Mês da saúde","Mês do prazer","Mês da força","Mês do amor","Mês da liberdade","Mês da sabedoria","Mês da santidade"],
       copyrightName:"Sergei Zamkovoi",
@@ -441,7 +488,9 @@
       additionalTitle:"Extra's",
       webinarOneTime:"Eenmalige deelname aan de volgende groepsconsult (webinar)",
       signUpBtn:"Aanmelden", alreadyRegistered:"Je bent al aangemeld voor dit webinar.",
-      bookTitle:"Boek «Yoga — het pad van de tovenaar»", moreBtn:"Meer info…", buyBtn:"Kopen",
+      bookTitle:"Boek «Yoga: De Kunst van Verandering»", moreBtn:"Meer info…", buyBtn:"Kopen",
+      bookExpandA11y:"Meer over het boek",
+      bookBlurb:"Je kunt jarenlang yoga beoefenen en toch nooit echt begrijpen hoe het werkt. In dit boek heb ik de essentie van mijn 30 jaar yoga-ervaring zorgvuldig op een rij gezet. Je kunt het boek rechtstreeks in Harmonizer lezen. Daardoor ontdek je:\n- Hoe je de gebeurtenissen in het leven als een kaart kunt \"lezen\"\n- Hoe je geen marionet wordt in het spel van iemand anders\n- Welke asana's juist voor jou heilzaam zijn\n- Hoe yoga het echte leven beïnvloedt\nen nog veel, veel meer....",
       intensiveTitle:"Maandelijkse intensief", intensiveChoose:"Kies…",
       intensives:["Maand van gezondheid","Maand van genot","Maand van kracht","Maand van liefde","Maand van vrijheid","Maand van wijsheid","Maand van heiligheid"],
       copyrightName:"Sergei Zamkovoi",
@@ -459,6 +508,16 @@
   var API_BASE = "https://harmonizer-ten.vercel.app";
     var OFFER_LINKS = {"ru": "Договор оферты", "en": "Offer Agreement", "de": "Öffentliches Angebot", "fr": "Contrat d'offre publique", "it": "Contratto di offerta al pubblico", "es": "Contrato de oferta pública", "pt": "Oferta Pública", "nl": "Aanbiedingsovereenkomst"};
         var BOOK_URL = "https://zamkovoi.yoga/book";
+    var BOOK_VIMEO = {
+      ru: "673979926",
+      en: "1218107163",
+      de: "1218116091",
+      fr: "1218116978",
+      it: "1218117259",
+      es: "1218117464",
+      pt: "1218117635",
+      nl: "1218117866"
+    };
     var INTENSIVE_LINKS = ["https://zamkovoi.yoga/m1","https://zamkovoi.yoga/m2","https://zamkovoi.yoga/m3","https://zamkovoi.yoga/m4","https://zamkovoi.yoga/m5","https://zamkovoi.yoga/m6","https://zamkovoi.yoga/m7"];
 
     var params = new URLSearchParams(window.location.search);
@@ -620,6 +679,45 @@
       if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
       if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
       gotoPayment(apiFetch("/api/account/checkout", { method:"POST", body: JSON.stringify(checkoutBody({ kind:"book" })) }), btn);
+    };
+
+    function formatBookBlurb(text) {
+      var lines = String(text || "").split(/\n/);
+      var html = "";
+      var inList = false;
+      lines.forEach(function (line) {
+        var t = line.trim();
+        if (!t) return;
+        if (t.indexOf("- ") === 0) {
+          if (!inList) { html += '<ul class="hz-book-bullets">'; inList = true; }
+          html += "<li>" + esc(t.slice(2)) + "</li>";
+        } else {
+          if (inList) { html += "</ul>"; inList = false; }
+          html += "<p>" + esc(t) + "</p>";
+        }
+      });
+      if (inList) html += "</ul>";
+      return html;
+    }
+
+    window.hzToggleBook = function (btn) {
+      if (!btn) return;
+      var block = btn.closest ? btn.closest(".hz-book-block") : null;
+      if (!block) return;
+      var panel = block.querySelector(".hz-book-panel");
+      var iframe = block.querySelector("iframe.hz-book-iframe");
+      var open = btn.getAttribute("aria-expanded") === "true";
+      var next = !open;
+      btn.setAttribute("aria-expanded", next ? "true" : "false");
+      if (panel) panel.classList.toggle("hz-hidden", !next);
+      if (iframe) {
+        if (next) {
+          var src = iframe.getAttribute("data-src");
+          if (src && iframe.getAttribute("src") !== src) iframe.setAttribute("src", src);
+        } else {
+          iframe.removeAttribute("src");
+        }
+      }
     };
 
     window.hzCancelSub = function (btn) {
@@ -822,13 +920,27 @@
       }
 
       if (gatewayOk) {
-        var bp = overview.book || { purchase:{ mode:"checkout", price:null, url:null } };
-        var bprice = priceText(bp.purchase && bp.purchase.price, false);
-        var bbtn = T.buyBtn + (bprice ? " — " + bprice : "");
-        html += '<div class="hz-block">';
-        html += '<div class="hz-value" style="margin-bottom:16px">' + esc(T.bookTitle) + '</div>';
-        html += '<button class="hz-btn" data-label="' + esc(bbtn) + '" onclick="hzStartBook(' + JSON.stringify(bp.purchase || {}).replace(/"/g, "&quot;") + ', this)">' + esc(bbtn) + '</button>';
-        html += '</div>';
+        var bp = overview.book || { purchase:{ mode:"checkout", price:null, url:null }, owned:false };
+        // Уже купившим книгу блок продажи не показываем вовсе.
+        if (!bp.owned) {
+          var bprice = priceText(bp.purchase && bp.purchase.price, false);
+          var bbtn = T.buyBtn + (bprice ? " — " + bprice : "");
+          var vimeoId = BOOK_VIMEO[LOCALE_TAG] || BOOK_VIMEO.ru;
+          var vimeoSrc = "https://player.vimeo.com/video/" + vimeoId + "?title=0&byline=0&portrait=0";
+          html += '<div class="hz-block hz-book-block">';
+          html += '<button type="button" class="hz-book-toggle" aria-expanded="false" aria-controls="hz-book-panel" onclick="hzToggleBook(this)">';
+          html += '<img class="hz-book-chevron" src="./icons/day_action_chevron.png" alt="" width="15" height="13" />';
+          html += '<span class="hz-book-title hz-value">' + esc(T.bookTitle) + '</span>';
+          html += '</button>';
+          html += '<div id="hz-book-panel" class="hz-book-panel hz-hidden" role="region" aria-label="' + esc(T.bookExpandA11y || T.bookTitle) + '">';
+          html += '<div class="hz-book-video">';
+          html += '<iframe class="hz-book-iframe" data-src="' + esc(vimeoSrc) + '" title="' + esc(T.bookTitle) + '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
+          html += '</div>';
+          html += '<div class="hz-book-blurb">' + formatBookBlurb(T.bookBlurb || "") + '</div>';
+          html += '</div>';
+          html += '<button class="hz-btn" data-label="' + esc(bbtn) + '" onclick="hzStartBook(' + JSON.stringify(bp.purchase || {}).replace(/"/g, "&quot;") + ', this)">' + esc(bbtn) + '</button>';
+          html += '</div>';
+        }
       }
 
       html += '<div class="hz-block">';

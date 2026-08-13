@@ -9,6 +9,18 @@ code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 
 ## Decision Log
 
+- **2026-08-13 (FR/IT/ES/PT/NL translation pipeline):** EN → chapter MD → Gemini `gemini-3.1-pro-preview` (`scripts/book-translate.mjs` + prompt) → DOCX/EPUB; `bookLocaleForAppLocale` covers all 8 UI locales; temp covers from `cover_En.jpg` until locale art lands.
+
+- **2026-08-13 (DE EPUB):** `Book_De.docx` → `Book/build/de/book.epub`; UI `de` → DE через `/hz-book/de.epub` (без Metro asset). TOC strip: `inhaltsverzeichnis`.
+
+- **2026-08-13 (no Metro EPUB assets):** Dev «Downloading 1%/min» + чёрный экран: телефон качает ~21MB JS, а крупные `require(epub)` в assets усугубляли Metro. Оба языка только `Book/build` + `/hz-book/{locale}.epub`; `bookAssetModule` → null. Watchman на машине отсутствовал (Node crawler).
+
+- **2026-08-13 (EN without second asset):** Два EPUB в `assets/books` → Dev cold-start black screen. EN убран из Metro assets; отдаётся `Book/build/en/book.epub` через `/hz-book/en.epub` + `openBookSrc`. В бандле только RU.
+
+- **2026-08-13 (EN EPUB + cold start):** Сборка EN EPUB; UI `en` → английская книга. Оба `require(epub)` в одном `bookAssets.ts` тянули RU+EN в async-чанк ридера → риск чёрного экрана после QR. Фикс: `bookAssetRu` / `bookAssetEn` + dynamic `import()` только нужной локали.
+
+- **2026-08-13 (EN EPUB):** Сборка `Book_En.docx` → `Book/build/en/book.epub` + `assets/books/yoga-wizards-path-en.epub`. `bookAssetModule('en')` подключает файл; при UI-locale `en` в Профиле открывается английская книга. Пайплайн: strip Word TOC (RU/EN ids), promote Prologue в nav, cover `lang` = locale.
+
 - **2026-08-13 (flow switch stick):** Смена scrolled↔paginated уводила текст: (1) `applyLiveAnchor` затирал start-% center-% середины страницы; (2) CFI как `initialLocation` между managers сажал не туда; (3) `section.find` брал первое вхождение фразы в главе. Фикс: после capture форсируем start-% + spine file; remount без CFI; restore = start-% → nearest snippet → CFI.
 
 - **2026-08-13 (TOC part → wrong spine):** Клик «Часть III: Яма» открывал «Путь»/Пролог: кандидаты `#frag` резолвились в текущем spine; placeHeading брал первый h1 в чужом iframe. Фикс: только `file#frag`; nudge только по совпавшему id+file. Футер «Учебное пособие» на части — leaf-only TOC; теперь allToc + flatToc + sticky от клика.

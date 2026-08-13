@@ -1,9 +1,17 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.12
-updated: 2026-08-04
+version: 1.13
+updated: 2026-08-14
 ---
+
+## 2026-08-14 — Hide book offer when already owned
+
+- `AccountOverview.book.owned` из active one_time `tier=book`; кабинет не рендерит блок продажи книги, если `owned`.
+
+## 2026-08-14 — Book sales accordion (video + blurb)
+
+- В блоке покупки книги: chevron `day_action_chevron.png` + клик по названию раскрывает панель (Vimeo по `lang` + `bookBlurb` на 8 локалях) между заголовком и кнопкой «Купить»; левая teal-линия блока тянется с контентом. Свёртка останавливает iframe (`src` снимается).
 
 ## 2026-08-09 — YooKassa refund: shop mismatch + membership pick
 

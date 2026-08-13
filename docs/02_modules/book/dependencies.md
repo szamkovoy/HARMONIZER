@@ -2,7 +2,7 @@
 id: 02_modules/book/dependencies
 title: Book Dependencies
 version: 1.0
-updated: 2026-08-11
+updated: 2026-08-13
 depends_on: [02_modules/book/spec]
 code_refs:
   [
@@ -29,5 +29,6 @@ code_refs:
 ## 3. Контрактные точки риска
 
 - **Store review:** `resolveBookAccess` в production всегда `false` — нельзя «случайно» открыть книгу без API до Phase B.
-- **Бандловый EPUB** gitignored — без локальной сборки Dev Client упадёт на missing asset.
+- **Dev EPUB** — `Book/build/{ru,en,de,fr,it,es,pt,nl}/book.epub` + Metro `/hz-book/{locale}.epub`; без локальной сборки `openBookSrc` упадёт.
+- **Translate pipeline** — `scripts/book-translate*.mjs` + `GEMINI_API_KEY` (или DeepSeek); артефакты в `Book/translations/` (gitignored).
 - **Не трогать** существующие `/api/account/*` ради книги, пока идёт модерация store (см. `book_reader_plan.md` §0).

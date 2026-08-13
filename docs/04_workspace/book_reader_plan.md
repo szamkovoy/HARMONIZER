@@ -155,8 +155,8 @@ create table public.book_reading_progress (
 
 ### Phase C — языки и полировка
 
-1. EN EPUB из `Book_En.docx` + `cover_En.jpg`.
-2. DE и остальные (перевод premium / внешний инструмент → тот же pipeline).
+1. ~~EN EPUB из `Book_En.docx` + `cover_En.jpg`.~~ **Сделано 2026-08-13** (локально / Dev Client; UI `en` → EN файл). CDN/store — после Phase B.
+2. ~~DE EPUB~~ **Сделано 2026-08-13**. ~~FR/IT/ES/PT/NL pipeline~~ **в работе 2026-08-13** (`scripts/book-translate.mjs` → Gemini 3.1 Pro из EN; assemble DOCX → `book-build-epub.mjs`). Обложки locale — подставить `cover_{Fr,It,Es,Pt,Nl}.jpg` и пересобрать EPUB.
 3. TOC/search UX, шрифты, a11y.
 4. Опционально: закладки/highlights (новые таблицы).
 
@@ -222,7 +222,7 @@ create table public.book_reading_progress (
 
 - Согласован безопасный контур (Dev Client, без prod deploy/migrations).
 - Зафиксирован полный целевой план (этот файл).
-- RU EPUB: `node scripts/book-build-epub.mjs ru` → `Book/build/ru/book.epub` (+ copy в `assets/books/`, gitignored).
+- RU/EN EPUB: `node scripts/book-build-epub.mjs ru|en` → `Book/build/{locale}/book.epub` (+ copy в `assets/books/`, gitignored).
 - Каркас `modules/book`, экран `app/book/[locale].tsx`, карточка в Профиле, local progress (FileSystem), prefs Aa, TOC sheet.
 - Ownership Phase A: `__DEV__` → unlocked; production build → locked + `gate.body.book`.
 - Пакеты: `@epubjs-react-native/core` (+ legacy FS-адаптер `modules/book/core/useBookFileSystem.ts`); `metro.config.js` assetExts `epub`.

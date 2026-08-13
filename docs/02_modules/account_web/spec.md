@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.13
-updated: 2026-07-31
+version: 1.14
+updated: 2026-08-14
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -90,7 +90,7 @@ code_refs:
 | `POST /api/account/webhooks/lava` | заголовок `X-Api-Key` = `LAVATOP_WEBHOOK_SECRET` | Приём событий Lava (см. §3.1) |
 | `POST /api/account/webhooks/yookassa` | опц. `YOOKASSA_WEBHOOK_SECRET` + всегда GET payment у API | События ЮKassa (см. §3.3) |
 
-Кабинетная сессия — компактный HMAC-SHA256 токен (`payload.sig`, TTL 60 мин, секрет `ACCOUNT_CABINET_SECRET`); прав хватает на чтение overview и операции с собственной подпиской. `AccountOverview`: как раньше; цены из активного шлюза. `purchase.mode` — `"checkout"` (POST + redirect) для Lava и ЮKassa; `"link"` — задел под внешний URL без нашего чекаута.
+Кабинетная сессия — компактный HMAC-SHA256 токен (`payload.sig`, TTL 60 мин, секрет `ACCOUNT_CABINET_SECRET`); прав хватает на чтение overview и операции с собственной подпиской. `AccountOverview`: как раньше; цены из активного шлюза. `book.owned` — есть ли active one_time-контракт `tier=book`. `purchase.mode` — `"checkout"` (POST + redirect) для Lava и ЮKassa; `"link"` — задел под внешний URL без нашего чекаута.
 
 ## 3. Внутренняя архитектура
 
@@ -105,7 +105,7 @@ code_refs:
 - **БД** (`20260718230000_fix_webinar_book_offer_ids.sql`): `UPDATE` `webinar/en`, `book/en` → настоящие offerId из `GET /api/v2/products?feedVisibility=ALL` (`offers[].id`); productId ≠ offerId.
 - **БД** (`20260722120000_yookassa_payment_catalog.sql`): `payment_catalog` (SKU ЮKassa/RUB: oracle 950, master 4950, webinar 950, book 1500); на `payment_contracts` — `provider_payment_id`, `payment_method_id`; таблица `yookassa_payment_methods` (задел рекуррента). RLS без политик — service role.
 - **`MembershipEventsBridge`**: (а) Realtime UPDATE своей строки `users` → `refreshProfile()`; (б) foreground — выборка membership-полей и `refreshProfile()` только при изменении отпечатка; (в) сравнение `baseTierFromRow` с сохранённым `lastTier` → модалка повышения уровня («{from} → {to}», `gate.tierChanged.*`); (г) `trial_expires_at` в прошлом при free-базе → одноразовая модалка `gate.trialEnded.*` (кнопки «Закрыть» / «Личный кабинет»); (д) foreground-проверка последней one_time-покупки через `GET /api/account/purchases/last` при **любом** ctx визита в кабинет (профиль, карточка вебинара, апселл) → если это вебинар или книга, оплаченные после `cabinetVisit.ts`, модалка `gate.webinarPaid.*` / `gate.bookPaid.*` (ретрай 10с на задержку вебхука; флаг `purchaseThanksShown.<uid>.<contractId>`; visit чистится только после показа). Раньше вебинар детектился только при `ctx=webinar:<id>` — оплата из профиля не давала модалки.
-- **Страница кабинета** (`web_cabinet/cabinet/index.html`): standalone HTML5. Перед redirect на оплату кладёт кабинетную сессию в `sessionStorage` (чтобы вернуться с `?paid=1` без OTT). При `?paid=1` — блок «Спасибо за оплату» (8 локалей). Блок «Гармонизатор»: период тарифа = `current_period_end − 30d` … `current_period_end` (без +48h grace из `membershipExpiresAt`); при active — «Следующее списание» = `currentPeriodEnd`. **Деплой:** ISPManager папка `cabinet/` → `https://zamkovoi.yoga/cabinet/`; Vercel — API + `offer/*.json`.
+- **Страница кабинета** (`web_cabinet/cabinet/index.html`): standalone HTML5. Перед redirect на оплату кладёт кабинетную сессию в `sessionStorage` (чтобы вернуться с `?paid=1` без OTT). При `?paid=1` — блок «Спасибо за оплату» (8 локалей). Блок «Гармонизатор»: период тарифа = `current_period_end − 30d` … `current_period_end` (без +48h grace из `membershipExpiresAt`); при active — «Следующее списание» = `currentPeriodEnd`. Блок книги: accordion (chevron `icons/day_action_chevron.png` + название) → Vimeo по локали + `bookBlurb` между заголовком и «Купить»; свёртка снимает `iframe.src`. Если `overview.book.owned` (active one_time `tier=book`) — блок продажи книги не рендерится. **Деплой:** ISPManager папка `cabinet/` → `https://zamkovoi.yoga/cabinet/`; Vercel — API + `offer/*.json`.
 
 ### 3.1 Поток оплаты Lava.top
 

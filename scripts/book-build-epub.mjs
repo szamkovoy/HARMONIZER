@@ -1,11 +1,11 @@
 /**
  * Build EPUB 3 from Book/*.docx (local pipeline; no deploy).
  *
- *   node scripts/book-build-epub.mjs ru
- *   node scripts/book-build-epub.mjs en
+ *   node scripts/book-build-epub.mjs ru|en|de|fr|it|es|pt|nl
  *
  * Requires: pandoc + unzip/zip on PATH.
- * Copies result to assets/books/ for Expo Asset bundling (Phase A).
+ * Writes Book/build/{locale}/book.epub (Metro GET /hz-book/{locale}.epub).
+ * Does not copy into assets/books — require() EPUBs break Dev Client cold start.
  */
 import { execFileSync } from "child_process";
 import {
@@ -167,13 +167,65 @@ const SOURCES = {
     lang: "en",
     asset: "yoga-wizards-path-en.epub",
   },
+  de: {
+    docx: "Book_De.docx",
+    cover: "cover_De.jpg",
+    title: "Yoga — der Weg des Zauberers",
+    author: "Sergei Zamkovoi",
+    lang: "de",
+    asset: "yoga-wizards-path-de.epub",
+  },
+  fr: {
+    docx: "Book_Fr.docx",
+    cover: "cover_Fr.jpg",
+    title: "Yoga — la voie du magicien",
+    author: "Sergei Zamkovoi",
+    lang: "fr",
+    asset: "yoga-wizards-path-fr.epub",
+  },
+  it: {
+    docx: "Book_It.docx",
+    cover: "cover_It.jpg",
+    title: "Yoga — la via del mago",
+    author: "Sergei Zamkovoi",
+    lang: "it",
+    asset: "yoga-wizards-path-it.epub",
+  },
+  es: {
+    docx: "Book_Es.docx",
+    cover: "cover_Es.jpg",
+    title: "Yoga — el camino del mago",
+    author: "Sergei Zamkovoi",
+    lang: "es",
+    asset: "yoga-wizards-path-es.epub",
+  },
+  pt: {
+    docx: "Book_Pt.docx",
+    cover: "cover_Pt.jpg",
+    title: "Yoga — o caminho do mago",
+    author: "Sergei Zamkovoi",
+    lang: "pt",
+    asset: "yoga-wizards-path-pt.epub",
+  },
+  nl: {
+    docx: "Book_Nl.docx",
+    cover: "cover_Nl.jpg",
+    title: "Yoga — de weg van de tovenaar",
+    author: "Sergei Zamkovoi",
+    lang: "nl",
+    asset: "yoga-wizards-path-nl.epub",
+  },
 };
 
 const cfg = SOURCES[locale];
 if (!cfg) {
-  console.error("Usage: node scripts/book-build-epub.mjs ru|en");
+  console.error("Usage: node scripts/book-build-epub.mjs ru|en|de|fr|it|es|pt|nl");
   process.exit(1);
 }
+
+/** Word-embedded TOC section ids (pandoc slugs) across locales. */
+const TOC_SECTION_IDS =
+  "оглавление|contents|table-of-contents|toc|inhaltsverzeichnis|table-des-matières|table-des-matieres|indice|índice|inhoudsopgave";
 
 const bookDir = join(root, "Book");
 const docx = join(bookDir, cfg.docx);
@@ -238,12 +290,15 @@ try {
   );
   writeFileSync(opfPath, opf);
 
-  // Strip Word-embedded "Оглавление" block from ch001; keep Пролог and the rest.
+  // Strip Word-embedded TOC block from ch001 (RU/EN/DE ids); keep Prologue and the rest.
   const ch001Path = join(work, "EPUB", "text", "ch001.xhtml");
   if (existsSync(ch001Path)) {
     let html = readFileSync(ch001Path, "utf8");
     html = html.replace(
-      /<section[^>]*id="оглавление"[^>]*>[\s\S]*?<\/section>\s*/u,
+      new RegExp(
+        `<section[^>]*id="(?:${TOC_SECTION_IDS})"[^>]*>[\\s\\S]*?<\\/section>\\s*`,
+        "iu",
+      ),
       "",
     );
     // Drop empty auto-heading leftovers that produce blank TOC entries.
@@ -253,6 +308,23 @@ try {
     // Collapse accidental double wrappers left after TOC strip.
     html = html.replace(/<\/section>\s*<\/section>\s*<\/body>/u, "</section>\n</body>");
     writeFileSync(ch001Path, html);
+  }
+
+  // Promote Prologue (etc.) out of the Word TOC wrapper; drop empty #section.
+  const navPath = join(work, "EPUB", "nav.xhtml");
+  if (existsSync(navPath)) {
+    let nav = readFileSync(navPath, "utf8");
+    nav = nav.replace(
+      new RegExp(
+        `<li[^>]*>\\s*<a[^>]*href="[^"]*#(?:${TOC_SECTION_IDS})"[^>]*>[^<]*<\\/a>\\s*<ol[^>]*>([\\s\\S]*?)<\\/ol>\\s*<\\/li>`,
+        "iu",
+      ),
+      (_, inner) =>
+        String(inner)
+          .replace(/<li[^>]*>\s*<a[^>]*href="[^"]*#section"[^>]*\s*\/>\s*<\/li>/giu, "")
+          .replace(/<li[^>]*>\s*<a[^>]*href="[^"]*#section"[^>]*>\s*<\/a>\s*<\/li>/giu, ""),
+    );
+    writeFileSync(navPath, nav);
   }
 
   // Same image style cleanup for other chapters.
@@ -281,7 +353,7 @@ try {
       coverPath,
       `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ru" xml:lang="ru">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${cfg.lang}" xml:lang="${cfg.lang}">
 <head>
   <meta charset="utf-8" />
   <title>Cover</title>
@@ -320,6 +392,7 @@ try {
   rmSync(work, { recursive: true, force: true });
 }
 
-copyFileSync(outEpub, assetPath);
+// Never copy into assets/books — multi‑MB require() assets wreck Dev Client
+// cold start. Dev serves Book/build/{locale}/book.epub at /hz-book/{locale}.epub.
 console.log("OK", outEpub);
-console.log("→", assetPath);
+console.log("(Dev: GET /hz-book/" + locale + ".epub — not copied to assets/)");

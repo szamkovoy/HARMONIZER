@@ -88,5 +88,6 @@ supabase/backups/*.json
 /Book/build/
 /Book/*.docx
 /Book/*.jpg
+/Book/translations/
 /Book/.DS_Store
 /assets/books/*.epub

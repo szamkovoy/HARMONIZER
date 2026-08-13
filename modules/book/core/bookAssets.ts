@@ -1,13 +1,13 @@
 import type { BookLocale } from "./bookIds";
 
 /**
- * Metro asset entry for the EPUB. Keep this module out of the profile/tabs
- * import graph — requiring the ~14MB file + epub.js at startup freezes the app.
+ * Metro-bundled EPUB module id — intentionally unused in Phase A Dev.
+ *
+ * Large `require("*.epub")` under assets/books made Dev Client cold start
+ * crawl/download unusable (black screen / Downloading 1%/min). Both RU and EN
+ * are served from Book/build via Metro GET /hz-book/{locale}.epub — see
+ * openBookSrc + metro.config.js. Phase B CDN will replace this path.
  */
-export function bookAssetModule(bookLocale: BookLocale): number | null {
-  // Phase A: only RU. EN needs `node scripts/book-build-epub.mjs en` + a require below.
-  if (bookLocale === "ru") {
-    return require("../../../assets/books/yoga-wizards-path-ru.epub");
-  }
+export function bookAssetModule(_bookLocale: BookLocale): number | null {
   return null;
 }

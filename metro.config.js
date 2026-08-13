@@ -1,12 +1,45 @@
 // @ts-check
+const fs = require("fs");
 const path = require("path");
 const { getDefaultConfig } = require("expo/metro-config");
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-// Phase A: bundle local EPUB for the book reader (Dev Client / EAS).
+// Phase A Dev: EPUBs are NOT Metro assets (see /hz-book/ middleware below).
+// Keep .epub in assetExts only so accidental requires resolve if added later.
 config.resolver.assetExts = [...(config.resolver.assetExts ?? []), "epub"];
+
+const prevEnhance = config.server?.enhanceMiddleware;
+config.server = {
+  ...config.server,
+  enhanceMiddleware: (metroMiddleware, server) => {
+    const inner = typeof prevEnhance === "function" ? prevEnhance(metroMiddleware, server) : metroMiddleware;
+    return (req, res, next) => {
+      const raw = req.url || "";
+      const pathname = raw.split("?")[0] || "";
+      const m = pathname.match(/^\/hz-book\/([a-z]{2})\.epub$/);
+      if (m) {
+        const locale = m[1];
+        const file = path.join(__dirname, "Book", "build", locale, "book.epub");
+        if (!fs.existsSync(file)) {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end(`missing Book/build/${locale}/book.epub`);
+          return;
+        }
+        const stat = fs.statSync(file);
+        res.writeHead(200, {
+          "Content-Type": "application/epub+zip",
+          "Content-Length": stat.size,
+          "Cache-Control": "no-store",
+        });
+        fs.createReadStream(file).pipe(res);
+        return;
+      }
+      return inner(req, res, next);
+    };
+  },
+};
 
 /**
  * Heavy trees Metro must not resolve/crawl. Without Watchman, Metro’s Node

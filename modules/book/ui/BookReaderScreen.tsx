@@ -25,7 +25,7 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { useThemePreference } from "@/modules/ui/themePreference";
 
-import { bookAssetModule } from "../core/bookAssets";
+import { openBookSrc } from "../core/openBookSrc";
 import { buildEnsureCoverStageScript } from "../core/coverStage";
 import { chapterTocItems, flattenToc, isChapterFooterLabel } from "../core/flattenToc";
 import { bookLocaleForAppLocale, type BookLocale } from "../core/bookIds";
@@ -62,7 +62,6 @@ import {
   type ReaderPrefs,
 } from "../core/readerPrefs";
 import { buildReaderTheme } from "../core/readerTheme";
-import { resolveBookSrc } from "../core/resolveBookSrc";
 import {
   buildRestoreLocationScript,
   visibleCenterPercentage,
@@ -1478,13 +1477,8 @@ export function BookReaderScreen() {
     let cancelled = false;
     (async () => {
       try {
-        // bookAssets is only pulled via lazy BookReaderScreen chunk (not Profile).
-        const mod = bookAssetModule(bookLocale);
-        if (mod == null) {
-          setError(t("book.reader.missingLocale"));
-          return;
-        }
-        const uri = await resolveBookSrc(mod, bookLocale);
+        // Dev: Metro /hz-book/{locale}.epub (no require() EPUB assets).
+        const uri = await openBookSrc(bookLocale);
         const progress = profile?.id ? await loadReadingProgress(profile.id, bookLocale) : null;
         if (cancelled) return;
         setInitialLocator(progress?.locator ?? null);
