@@ -12,12 +12,34 @@ import {
 
 import { BOOK_ID, type BookLocale } from "./bookIds";
 
-type CacheMeta = { sourceUri: string; size: number };
+/**
+ * Bump only when `assets/books/yoga-wizards-path-*.epub` is intentionally replaced.
+ * Do NOT key the on-device cache on Metro’s HTTP asset URI — `expo start -c`
+ * changes that hash and used to force a multi‑minute re-download every time.
+ */
+export const BOOK_EPUB_CACHE_REVISION = "ru-2026-08-12-7835277";
+
+/** Minimum plausible EPUB size — smaller files are treated as corrupt. */
+const MIN_EPUB_BYTES = 500_000;
+
+type CacheMeta = {
+  revision: string;
+  locale: BookLocale;
+  size: number;
+};
+
+async function writeMeta(metaUri: string, locale: BookLocale, size: number): Promise<void> {
+  const meta: CacheMeta = {
+    revision: BOOK_EPUB_CACHE_REVISION,
+    locale,
+    size,
+  };
+  await writeAsStringAsync(metaUri, JSON.stringify(meta));
+}
 
 /**
  * Materialize the bundled EPUB to a stable `file://…/*.epub` URI.
- * Caches on disk: Dev Client used to re-download the whole EPUB from Metro on
- * every open (minutes on slow links). Re-fetch only when the asset URI changes.
+ * Reuses any healthy on-device copy (avoids multi-minute Metro re-download).
  */
 export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale): Promise<string> {
   const resolved = Image.resolveAssetSource(assetModule);
@@ -37,15 +59,28 @@ export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale
   }
 
   const existing = await getInfoAsync(dest);
-  if (existing.exists && !existing.isDirectory && (existing.size ?? 0) > 0) {
+  const existingSize = existing.exists && !existing.isDirectory ? (existing.size ?? 0) : 0;
+
+  // Fast path: healthy file on disk — never re-fetch from Metro just because meta is old/missing.
+  if (existingSize >= MIN_EPUB_BYTES) {
     try {
-      const meta = JSON.parse(await readAsStringAsync(metaUri)) as CacheMeta;
-      if (meta?.sourceUri === uri && meta.size === existing.size) {
+      const meta = JSON.parse(await readAsStringAsync(metaUri)) as Partial<CacheMeta> & {
+        sourceUri?: string;
+      };
+      const revisionOk = meta?.revision === BOOK_EPUB_CACHE_REVISION;
+      const localeOk = !meta?.locale || meta.locale === bookLocale;
+      if (revisionOk && localeOk && meta.size === existingSize) {
         return dest;
       }
     } catch {
-      /* stale/missing meta → refresh */
+      /* upgrade meta below */
     }
+    try {
+      await writeMeta(metaUri, bookLocale, existingSize);
+    } catch {
+      /* best effort */
+    }
+    return dest;
   }
 
   if (existing.exists) {
@@ -72,7 +107,10 @@ export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale
   }
 
   const written = await getInfoAsync(outUri);
-  const meta: CacheMeta = { sourceUri: uri, size: written.size ?? 0 };
-  await writeAsStringAsync(metaUri, JSON.stringify(meta));
+  const size = written.size ?? 0;
+  if (size < MIN_EPUB_BYTES) {
+    throw new Error("epub materialize produced an empty file");
+  }
+  await writeMeta(metaUri, bookLocale, size);
   return outUri;
 }

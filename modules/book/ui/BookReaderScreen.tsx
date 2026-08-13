@@ -26,7 +26,7 @@ import { useTheme } from "@/modules/ui/theme";
 import { useThemePreference } from "@/modules/ui/themePreference";
 
 import { bookAssetModule } from "../core/bookAssets";
-import { flattenToc } from "../core/flattenToc";
+import { chapterTocItems, flattenToc, isChapterFooterLabel } from "../core/flattenToc";
 import { bookLocaleForAppLocale, type BookLocale } from "../core/bookIds";
 import {
   CAPTURE_LIVE_ANCHOR_JS,
@@ -38,6 +38,7 @@ import {
   pickRicherAnchor,
   progressRatioFromAnchor,
   shouldAcceptAnchor,
+  stabilizeTocHref,
   tocLabelForHref,
   type LiveAnchor,
 } from "../core/liveAnchor";
@@ -155,7 +156,6 @@ function ReaderChrome({
     changeTheme,
     changeFontSize,
     changeFontFamily,
-    changeFlow,
     goToLocation,
     goNext,
     goPrevious,
@@ -212,12 +212,21 @@ function ReaderChrome({
   );
   const resumeSnippetRef = useRef<string | null>(initialSnippet);
   const resumeHrefRef = useRef<string | null>(initialHref);
+  /** After paginated↔scrolled remount, restore by href# / % (CFI jumps many pages). */
+  const preferPercentageRestoreRef = useRef(false);
+  /** Skip stale CFI as Reader initialLocation during flow remount. */
+  const [skipInitialCfi, setSkipInitialCfi] = useState(false);
+  /** Chapter href# used as initialLocation on flow remount (stable across managers). */
+  const [flowResumeHref, setFlowResumeHref] = useState<string | null>(null);
   const restoringRef = useRef(!!initialLocator);
   const liveAnchorRef = useRef<LiveAnchor | null>(null);
   const pendingAnchorResolverRef = useRef<((a: LiveAnchor | null) => void) | null>(null);
-  const [seedChapterLabel] = useState<string | null>(initialChapterLabel);
+  const [stickyChapterLabel, setStickyChapterLabel] = useState<string | null>(() =>
+    isChapterFooterLabel(initialChapterLabel) ? initialChapterLabel!.trim() : null,
+  );
   const totalLocationsRef = useRef(totalLocations);
   totalLocationsRef.current = totalLocations;
+  const chapterTocRef = useRef<ReturnType<typeof chapterTocItems>>([]);
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
   const scrollModeRef = useRef(prefs.scrollMode);
@@ -239,6 +248,8 @@ function ReaderChrome({
   );
 
   const flatToc = useMemo(() => flattenToc(toc as never), [toc]);
+  const chapterToc = useMemo(() => chapterTocItems(flatToc), [flatToc]);
+  chapterTocRef.current = chapterToc;
 
   useEffect(() => {
     void loadReaderPrefs().then((loaded) => {
@@ -259,41 +270,71 @@ function ReaderChrome({
     changeTheme(buildReaderTheme(theme.colors, prefsRef.current, scheme));
   }, [prefsReady, scheme, theme.colors, changeTheme]);
 
+  const forceAcceptNavRef = useRef(false);
+
   const applyLiveAnchor = useCallback((anchor: LiveAnchor | null) => {
     if (!anchor) return;
+    const forceAccept = forceAcceptNavRef.current;
     if (
       !shouldAcceptAnchor(liveAnchorRef.current, anchor, {
         restoring: restoringRef.current,
         resumePercentage: resumePercentageRef.current,
         seedPercent: chromeSeedPercentRef.current,
+        forceAccept,
       })
     ) {
       return;
     }
-    liveAnchorRef.current = anchor;
-    setLiveAnchor(anchor);
-    if (anchor.cfi) {
-      resumeLocatorRef.current = anchor.cfi;
-      setResumeLocator(anchor.cfi);
+    const prev = liveAnchorRef.current;
+    const prevFile = (prev?.href ?? "").split("#")[0]?.replace(/^.*\//, "").toLowerCase() ?? "";
+    const nextFile = (anchor.href ?? "").split("#")[0]?.replace(/^.*\//, "").toLowerCase() ?? "";
+    const crossedSpine = !!(prevFile && nextFile && prevFile !== nextFile);
+
+    // After search/TOC across files, do not keep the old chapter fragment.
+    const incomingToc =
+      crossedSpine && !anchor.tocHref?.includes("#") ? null : anchor.tocHref;
+    const stableToc = stabilizeTocHref(
+      crossedSpine ? null : prev?.tocHref,
+      incomingToc,
+      chapterTocRef.current,
+      crossedSpine ? null : prev?.percentage,
+      anchor.percentage,
+      { tocSource: anchor.tocSource },
+    );
+    const next: LiveAnchor = { ...anchor, tocHref: stableToc };
+    liveAnchorRef.current = next;
+    setLiveAnchor(next);
+    if (forceAccept) forceAcceptNavRef.current = false;
+    if (next.cfi) {
+      resumeLocatorRef.current = next.cfi;
+      setResumeLocator(next.cfi);
     }
     if (
-      typeof anchor.percentage === "number" &&
-      Number.isFinite(anchor.percentage) &&
-      !isZeroishProgress(anchor.percentage, anchor.location)
+      typeof next.percentage === "number" &&
+      Number.isFinite(next.percentage) &&
+      !isZeroishProgress(next.percentage, next.location)
     ) {
-      resumePercentageRef.current = anchor.percentage;
-      setChromeSeedPercent(Math.round(anchor.percentage * 1000) / 10);
+      resumePercentageRef.current = next.percentage;
+      setChromeSeedPercent(Math.round(next.percentage * 1000) / 10);
+    } else if (forceAccept || crossedSpine) {
+      // Drop stale seed so page chrome can follow the new place.
+      resumePercentageRef.current = null;
+      setChromeSeedPercent(null);
     }
-    if (anchor.snippet) resumeSnippetRef.current = anchor.snippet;
-    if (anchor.href) resumeHrefRef.current = anchor.href;
-    if (restoringRef.current && isUsableAnchor(anchor)) {
+    if (next.snippet) resumeSnippetRef.current = next.snippet;
+    if (next.tocHref) resumeHrefRef.current = next.tocHref;
+    else if (next.href) resumeHrefRef.current = next.href;
+    const label = tocLabelForHref(next.tocHref ?? next.href, chapterTocRef.current);
+    if (label && isChapterFooterLabel(label)) setStickyChapterLabel(label);
+    else if (crossedSpine || forceAccept) setStickyChapterLabel(null);
+    if (restoringRef.current && isUsableAnchor(next)) {
       const resumePct = resumePercentageRef.current;
       const okPct =
-        typeof anchor.percentage !== "number" ||
+        typeof next.percentage !== "number" ||
         resumePct == null ||
-        Math.abs(anchor.percentage - resumePct) < 0.12 ||
-        !!anchor.snippet;
-      if (okPct || anchor.atEnd) {
+        Math.abs(next.percentage - resumePct) < 0.12 ||
+        !!next.snippet;
+      if (okPct || next.atEnd || forceAccept || crossedSpine) {
         restoringRef.current = false;
       }
     }
@@ -340,13 +381,19 @@ function ReaderChrome({
   );
 
   const runFocusRestore = useCallback(() => {
-    const cfi = resumeLocatorRef.current ?? initialLocator;
+    const preferPercentage = preferPercentageRestoreRef.current;
+    const cfi = preferPercentage
+      ? resumeLocatorRef.current
+      : resumeLocatorRef.current ?? initialLocator;
     const percentage = resumePercentageRef.current;
     const snippet = resumeSnippetRef.current;
     const href = resumeHrefRef.current;
     restoringRef.current = !!(cfi || percentage != null || snippet);
-    if (!(cfi || percentage != null || snippet)) {
+    if (!(cfi || percentage != null || snippet || href)) {
       restoringRef.current = false;
+      preferPercentageRestoreRef.current = false;
+      setSkipInitialCfi(false);
+      setFlowResumeHref(null);
       return;
     }
     restoreTokenRef.current += 1;
@@ -357,11 +404,15 @@ function ReaderChrome({
         snippet,
         href,
         token: restoreTokenRef.current,
+        preferPercentage,
       }),
     );
     setTimeout(() => {
       if (!restoringRef.current) return;
       restoringRef.current = false;
+      preferPercentageRestoreRef.current = false;
+      setSkipInitialCfi(false);
+      setFlowResumeHref(null);
       scheduleSyncAnchor(80);
     }, 3600);
   }, [initialLocator, scheduleSyncAnchor]);
@@ -381,14 +432,18 @@ function ReaderChrome({
       const marginChanged = patch.marginPx != null && patch.marginPx !== prev.marginPx;
       const scrollChanged = patch.scrollMode != null && patch.scrollMode !== prev.scrollMode;
 
-      // Margins are RN insets around the WebView — recalc columns after width change.
+      // Margins are RN insets around the WebView — resize after width change.
       if (marginChanged && !fontishChanged && !scrollChanged) {
         setTimeout(() => {
+          const side =
+            next.scrollMode === "scrolled" ? next.marginPx + 6 : next.marginPx;
+          const w = Math.max(160, widthRef.current - side * 2);
+          const h = Math.max(220, height - insets.bottom - insets.top);
           injectJavascriptRef.current(`
             (function () {
               try {
                 if (typeof rendition !== "undefined" && rendition && typeof rendition.resize === "function") {
-                  rendition.resize();
+                  rendition.resize(${w}, ${h});
                 }
               } catch (e) {}
               return true;
@@ -417,36 +472,37 @@ function ReaderChrome({
             resumePercentageRef.current = percentage;
             setChromeSeedPercent(Math.round(percentage * 1000) / 10);
           }
-          if (cfi) {
-            setResumeLocator(cfi);
-            resumeLocatorRef.current = cfi;
-          }
           if (anchor?.snippet) resumeSnippetRef.current = anchor.snippet;
           if (anchor?.href) resumeHrefRef.current = anchor.href;
+          if (anchor?.tocHref) resumeHrefRef.current = anchor.tocHref;
           if (anchor && isUsableAnchor(anchor)) applyLiveAnchor(anchor);
 
           if (scrollChanged) {
-            // In-place flow change — remount re-triggers Opening and often never clears.
-            const flow = next.scrollMode === "scrolled" ? "scrolled-doc" : "paginated";
-            try {
-              changeFlow(flow);
-            } catch {
-              /* optional */
-            }
-            injectJavascriptRef.current(`
-              (function () {
-                try {
-                  if (typeof rendition !== "undefined" && rendition) {
-                    rendition.flow(${JSON.stringify(flow)});
-                    if (typeof rendition.resize === "function") rendition.resize();
-                  }
-                } catch (e) {}
-                return true;
-              })();
-              true;
-            `);
-            setTimeout(() => runFocusRestore(), 400);
+            // Whole-book scroll needs manager=continuous + scrolled-continuous (remount).
+            // CFI from the other manager often lands many screens away — open on
+            // chapter href# + restore by % once locations exist.
+            const chapterHref =
+              (anchor?.tocHref && anchor.tocHref.includes("#")
+                ? anchor.tocHref
+                : null) ??
+              (resumeHrefRef.current && resumeHrefRef.current.includes("#")
+                ? resumeHrefRef.current
+                : null) ??
+              (anchor?.href && anchor.href.includes("#") ? anchor.href : null);
+            preferPercentageRestoreRef.current = true;
+            setSkipInitialCfi(true);
+            setFlowResumeHref(chapterHref);
+            if (chapterHref) resumeHrefRef.current = chapterHref;
+            setResumeLocator(null);
+            resumeLocatorRef.current = null;
+            restoringRef.current = true;
+            setReaderEpoch((n) => n + 1);
             return;
+          }
+
+          if (cfi) {
+            setResumeLocator(cfi);
+            resumeLocatorRef.current = cfi;
           }
 
           // Font/size/line: keep WebView alive — remount was losing focus by many pages.
@@ -469,11 +525,13 @@ function ReaderChrome({
     [
       applyLiveAnchor,
       captureLiveAnchorRich,
-      changeFlow,
       changeFontFamily,
       changeFontSize,
       changeTheme,
       getCurrentLocation,
+      height,
+      insets.bottom,
+      insets.top,
       runFocusRestore,
       scheme,
       theme.colors,
@@ -522,8 +580,9 @@ function ReaderChrome({
       if (typeof percent === "number" && percent <= 1 && typeof resume === "number" && resume > 0.05) {
         return;
       }
-      const href = anchor?.href ?? resumeHrefRef.current ?? loc?.start?.href ?? null;
-      const chapterLabel = tocLabelForHref(href, flatToc) ?? undefined;
+      const href =
+        anchor?.tocHref ?? anchor?.href ?? resumeHrefRef.current ?? loc?.start?.href ?? null;
+      const chapterLabel = tocLabelForHref(href, chapterToc) ?? undefined;
       await saveReadingProgress(userId, bookLocale, {
         locator: cfi,
         percent,
@@ -534,7 +593,7 @@ function ReaderChrome({
     } catch {
       /* best effort */
     }
-  }, [bookLocale, chromeSeedPercent, flatToc, getCurrentLocation, totalLocations, userId]);
+  }, [bookLocale, chapterToc, chromeSeedPercent, getCurrentLocation, totalLocations, userId]);
 
   const onLocationChange = useCallback(
     (
@@ -556,18 +615,28 @@ function ReaderChrome({
         // Library sends 0–100 floored percent in the WebView bridge.
         percentage = progress > 1 ? progress / 100 : progress;
       }
+      const atEnd = !!loc?.atEnd || (typeof percentage === "number" && percentage >= 0.995);
+      const nextHref = loc?.start?.href ?? null;
+      const prevHref = liveAnchorRef.current?.href ?? null;
+      const prevFile = (prevHref ?? "").split("#")[0]?.replace(/^.*\//, "").toLowerCase() ?? "";
+      const nextFile = (nextHref ?? "").split("#")[0]?.replace(/^.*\//, "").toLowerCase() ?? "";
+      const sameSpine = !!(prevFile && nextFile && prevFile === nextFile);
       applyLiveAnchor({
         cfi: loc?.start?.cfi ?? null,
-        href: loc?.start?.href ?? null,
+        href: nextHref,
+        // Keep chapter fragment only inside the same xhtml; clear across spine jumps (search/TOC).
+        tocHref: sameSpine ? liveAnchorRef.current?.tocHref ?? null : null,
+        tocSource: sameSpine ? liveAnchorRef.current?.tocSource ?? null : null,
         location: typeof loc?.start?.location === "number" ? loc.start.location : null,
         percentage,
-        atEnd: !!loc?.atEnd || (typeof percentage === "number" && percentage >= 0.995),
-        snippet: liveAnchorRef.current?.snippet ?? null,
+        atEnd,
+        snippet: sameSpine ? liveAnchorRef.current?.snippet ?? null : null,
       });
-      // Refresh snippet from WebView after relocate (skip while CFI/snippet restore is in flight).
-      if (!restoringRef.current) {
-        scheduleSyncAnchor(260);
-      }
+      // Always refresh chapter after relocate (incl. search). Do not gate on restoringRef —
+      // a stuck restoring flag was freezing the footer after jumps.
+      scheduleSyncAnchor(
+        atEnd || scrollModeRef.current === "scrolled" || !sameSpine ? 80 : 260,
+      );
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         void persistLocation();
@@ -607,27 +676,29 @@ function ReaderChrome({
 
   const goToTocHref = useCallback(
     (href: string) => {
+      forceAcceptNavRef.current = true;
+      restoringRef.current = false;
+      setStickyChapterLabel(null);
       injectJavascript(buildTocNavigateScript(href));
       setTocOpen(false);
       setChromeVisible(true);
-      scheduleSyncAnchor(320);
+      // After display settles, capture heading fragment for shared xhtml chapters.
+      scheduleSyncAnchor(350);
+      scheduleSyncAnchor(800);
     },
     [injectJavascript, scheduleSyncAnchor],
   );
 
-  const hrefForChrome = liveAnchor?.href ?? resumeHrefRef.current ?? currentLocation?.start?.href ?? null;
-  // Never trust library `section` — getChapter often sticks on the last TOC entry ("Полезные ссылки").
-  const lastTocLabel = flatToc.length ? flatToc[flatToc.length - 1]?.label?.trim() : "";
-  const seedChapterLooksStale =
-    !!seedChapterLabel &&
-    !!lastTocLabel &&
-    seedChapterLabel === lastTocLabel &&
-    typeof chromeSeedPercent === "number" &&
-    chromeSeedPercent < 95;
+  const hrefForChrome =
+    liveAnchor?.tocHref ??
+    liveAnchor?.href ??
+    resumeHrefRef.current ??
+    currentLocation?.start?.href ??
+    null;
+  // Footer: chapters only (leaf TOC). Sticky last good label — never flash library seed / parts.
   const sectionLabel = (
-    tocLabelForHref(hrefForChrome, flatToc) ??
-    tocLabelForHref(initialHref, flatToc) ??
-    (seedChapterLooksStale ? null : seedChapterLabel) ??
+    tocLabelForHref(hrefForChrome, chapterToc) ??
+    stickyChapterLabel ??
     ""
   ).trim();
   const atFrontMatter =
@@ -662,12 +733,14 @@ function ReaderChrome({
 
   // Fixed size — chrome overlays; never resize WebView when panels toggle.
   const readerH = Math.max(220, height - insets.top - insets.bottom);
-  // Side margins: shrink WebView width (epub.js column layout). Do not pad inside HTML.
-  const readerW = Math.max(160, width - prefs.marginPx * 2);
+  const isPaginated = prefs.scrollMode === "paginated";
+  // Same RN inset mechanism; scrolled gets a touch more air (continuous feels tighter).
+  const rnSideInset =
+    prefs.scrollMode === "scrolled" ? prefs.marginPx + 6 : prefs.marginPx;
+  const readerW = Math.max(160, width - rnSideInset * 2);
   const pageBg = scheme === "dark" ? "#121212" : "#ffffff";
   // Same gray for top + bottom; a bit lighter than the previous bottom bar.
   const chromePanelBg = scheme === "dark" ? "#3A3A3E" : "#F3F3F7";
-  const isPaginated = prefs.scrollMode === "paginated";
   const fillWidth = trackWidth > 0 ? Math.max(0, trackWidth * scrubRatio - 8) : 0;
   const thumbLeft = trackWidth > 0 ? trackWidth * scrubRatio : 0;
 
@@ -813,26 +886,87 @@ function ReaderChrome({
           {
             paddingTop: insets.top,
             paddingBottom: insets.bottom,
-            paddingHorizontal: prefs.marginPx,
+            paddingHorizontal: rnSideInset,
+            alignItems: "center",
           },
         ]}
       >
+        <View style={{ width: readerW, height: readerH, overflow: "hidden" }}>
         <Reader
-          key={`hz-book-${readerEpoch}`}
+          key={`hz-book-${readerEpoch}-${prefs.scrollMode}`}
           src={src}
           width={readerW}
           height={readerH}
           fileSystem={useBookFileSystem}
           defaultTheme={readerTheme}
-          initialLocation={resumeLocator ?? initialLocator ?? undefined}
-          flow={prefs.scrollMode === "scrolled" ? "scrolled-doc" : "paginated"}
-          manager="default"
+          initialLocation={
+            skipInitialCfi
+              ? flowResumeHref ?? undefined
+              : resumeLocator ?? initialLocator ?? undefined
+          }
+          flow={prefs.scrollMode === "scrolled" ? "scrolled-continuous" : "paginated"}
+          manager={prefs.scrollMode === "scrolled" ? "continuous" : "default"}
           snap={prefs.scrollMode === "paginated"}
           waitForLocationsReady
           keepScrollOffsetOnLocationChange={prefs.scrollMode === "scrolled"}
           enableSwipe={false}
           onLocationChange={onLocationChange}
           onLocationsReady={() => {
+            // Lock continuous stage to the inset WebView size (avoids edge-to-edge text).
+            injectJavascript(`
+              (function () {
+                try {
+                  if (!rendition) return true;
+                  var w = ${readerW};
+                  var h = ${readerH};
+                  try {
+                    var viewer = document.getElementById("viewer");
+                    if (viewer) {
+                      viewer.style.width = "100%";
+                      viewer.style.maxWidth = "100%";
+                      viewer.style.overflow = "hidden";
+                    }
+                    document.documentElement.style.width = "100%";
+                    document.body.style.width = "100%";
+                    document.body.style.margin = "0";
+                    document.body.style.paddingLeft = "0";
+                    document.body.style.paddingRight = "0";
+                  } catch (e0) {}
+                  if (typeof rendition.resize === "function") rendition.resize(w, h);
+                  var rules = {
+                    body: {
+                      "padding-left": "0 !important",
+                      "padding-right": "0 !important",
+                      "margin-left": "0 !important",
+                      "margin-right": "0 !important",
+                      width: "100%",
+                      "max-width": "100%",
+                      "box-sizing": "border-box"
+                    },
+                    html: { width: "100%", "max-width": "100%" }
+                  };
+                  if (rendition.themes && typeof rendition.themes.default === "function") {
+                    rendition.themes.default(rules);
+                  }
+                  var list = rendition.getContents && rendition.getContents();
+                  if (list && list.length) {
+                    for (var i = 0; i < list.length; i++) {
+                      try {
+                        if (list[i] && typeof list[i].addStylesheetRules === "function") {
+                          list[i].addStylesheetRules(rules);
+                        }
+                        if (list[i] && list[i].document && list[i].document.documentElement) {
+                          list[i].document.documentElement.style.width = "100%";
+                          list[i].document.documentElement.style.maxWidth = "100%";
+                        }
+                      } catch (e1) {}
+                    }
+                  }
+                } catch (e) {}
+                return true;
+              })();
+              true;
+            `);
             scheduleSyncAnchor(200);
           }}
           renderOpeningBookComponent={() => (
@@ -848,6 +982,9 @@ function ReaderChrome({
             const data = msg as { type?: string; zone?: string };
             if (data?.type === "hzRestoreDone") {
               restoringRef.current = false;
+              preferPercentageRestoreRef.current = false;
+              setSkipInitialCfi(false);
+              setFlowResumeHref(null);
               scheduleSyncAnchor(120);
               return;
             }
@@ -887,6 +1024,7 @@ function ReaderChrome({
         {isPaginated ? (
           <View style={styles.pageGestureLayer} {...pagePan.panHandlers} />
         ) : null}
+        </View>
       </View>
 
       {chromeVisible ? (
@@ -1186,10 +1324,22 @@ function ReaderChrome({
               <Pressable
                 key={`${hit.cfi}-${hit.excerpt}`}
                 onPress={() => {
-                  if (hit.cfi) goToLocation(hit.cfi);
+                  if (hit.cfi) {
+                    forceAcceptNavRef.current = true;
+                    restoringRef.current = false;
+                    setStickyChapterLabel(null);
+                    setChromeSeedPercent(null);
+                    resumePercentageRef.current = null;
+                    liveAnchorRef.current = liveAnchorRef.current
+                      ? { ...liveAnchorRef.current, tocHref: null, tocSource: null }
+                      : null;
+                    goToLocation(hit.cfi);
+                    scheduleSyncAnchor(350);
+                    scheduleSyncAnchor(900);
+                  }
                   clearSearchResults();
                   setSearchOpen(false);
-                  setChromeVisible(false);
+                  setChromeVisible(true);
                 }}
                 style={[styles.tocRow, { borderBottomColor: theme.colors.surfaceBorder }]}
               >
@@ -1225,6 +1375,7 @@ export function BookReaderScreen() {
     let cancelled = false;
     (async () => {
       try {
+        // bookAssets is only pulled via lazy BookReaderScreen chunk (not Profile).
         const mod = bookAssetModule(bookLocale);
         if (mod == null) {
           setError(t("book.reader.missingLocale"));

@@ -2,7 +2,7 @@
 id: 02_modules/book/spec
 title: Book Spec
 version: 1.0
-updated: 2026-08-12
+updated: 2026-08-13
 depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -35,8 +35,8 @@ Barrel `modules/book/index.ts`:
 - **`BOOK_ID`** — канонический id книги (`yoga_wizards_path`).
 - **`bookLocaleForAppLocale(locale)`** — UI-locale → `BookLocale` (`ru` | `en`); Phase A: всё кроме `en` → `ru`.
 - **`resolveBookAccess(): Promise<boolean>`** — Phase A: `__DEV__` → `true`, иначе `false` (store-safe, без нового API).
-- **`BookProfileCard`** — карточка «Учебное пособие» + кнопка «Читать…».
-- **`BookReaderScreen`** — не в barrel; lazy `app/book/[locale].tsx` (Suspense + prefetch). Chrome overlay + scrubber. Шрифт/размер — in-place + snippet-first restore; боковые поля — inset ширины WebView (не padding в HTML). `scrollMode` — `changeFlow` без remount; patch epubjs template (await locations + safe %). Футер: seed percent + `tocLabelForHref`. Cover center; caption gap.
+- **`BookProfileCard`** — карточка «Учебное пособие» + кнопка «Читать…» (без prefetch ридера — иначе epub.js/EPUB тянутся при заходе в Профиль).
+- **`BookReaderScreen`** — не в barrel; lazy `app/book/[locale].tsx` (Suspense). Chrome overlay + scrubber. Шрифт/размер — in-place + snippet-first restore. Смена scroll flow — remount + chapter `href#` + percentage retry (CFI между managers нестабилен). Боковые поля (`marginPx`, default 16): одинаковый RN inset WebView в paginated и scrolled (+ clip + `rendition.resize(w,h)`). Вертикальный скролл — `scrolled-continuous` + `manager=continuous`. Футер: leaf TOC; visible heading mid-viewport + горизонтальный hit-test (paginated columns); `tocSource` visible/cfi/eof. Cover center; caption gap.
 
 Маршрут: `app/book/[locale].tsx` → lazy `BookReaderScreen`.
 

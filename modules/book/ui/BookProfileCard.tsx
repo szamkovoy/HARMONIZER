@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 
 import { AppButton } from "@/modules/ui/AppButton";
@@ -6,16 +5,9 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { useTranslate } from "@/modules/i18n";
 
-import { prefetchBookReader } from "../core/prefetchReader";
-
 export function BookProfileCard({ onRead }: { onRead: () => void }) {
   const theme = useTheme();
   const { t } = useTranslate();
-
-  // Warm epub.js chunk while user is on Profile (avoids ~1min blank spinner on open).
-  useEffect(() => {
-    void prefetchBookReader();
-  }, []);
 
   return (
     <View

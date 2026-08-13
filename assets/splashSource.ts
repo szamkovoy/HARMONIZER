@@ -1,15 +1,16 @@
 /**
- * Единый сплэш-ассет: нативный экран (expo-splash-screen plugin) и JS-оверлей
- * берут один и тот же файл `assets/images/splash.png`.
+ * JS splash overlay asset (EarlySplashCover / AppStartupSplashOverlay).
  *
- * iOS: `enableFullScreenImage_legacy: true` + `EarlySplashCover`.
- * Android 12+: `with-android-splash-hide-icon` — прозрачный system icon,
- * full-bleed `windowBackground` из того же PNG, `SplashScreenManager.hide()`
- * в MainActivity.onCreate (большая заставка без ожидания JS / без mini-icon).
- * Смена PNG / плагина → native rebuild / prebuild.
+ * Native splash (expo-splash-screen plugin / Android windowBackground) still
+ * uses `assets/images/splash.png` via app.json — do not change that without a
+ * native rebuild.
+ *
+ * JS uses a smaller JPEG (`splash-js.jpg`) so Dev Client after `expo start -c`
+ * can paint the logo immediately. A 2.4MB PNG over Metro often stayed blank
+ * while TEMP SplashAppNamePreview already showed the app name.
  */
 import type { ImageSourcePropType } from "react-native";
 
-const splashImage: ImageSourcePropType = require("./images/splash.png");
+const splashImage: ImageSourcePropType = require("./images/splash-js.jpg");
 
 export default splashImage;

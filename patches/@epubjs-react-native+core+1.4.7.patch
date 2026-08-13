@@ -11,10 +11,33 @@ index 0de0fef..b491bd5 100644
        onPress();
        onSingleTap();
 diff --git a/node_modules/@epubjs-react-native/core/lib/commonjs/template.js b/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
-index 889bb46..f5ed069 100644
+index 889bb46..d7a5ca9 100644
 --- a/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
 +++ b/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
-@@ -165,20 +165,32 @@ var _default = exports.default = `
+@@ -23,12 +23,19 @@ var _default = exports.default = `
+       }
+ 
+       #viewer {
+-        height: 100vh;
+-        width: 100vw;
++        /* Use % not vw/vh — iOS WKWebView 100vw is often the device width, not the
++           inset WebView width, so side margins looked different in scrolled vs paginated. */
++        height: 100%;
++        width: 100%;
+         overflow: hidden !important;
+         display: flex;
+         justify-content: center;
+-        align-items: center;
++        align-items: stretch;
++      }
++      html, body {
++        width: 100%;
++        height: 100%;
++        margin: 0;
+       }
+ 
+       [ref="epubjs-mk-balloon"] {
+@@ -165,20 +172,32 @@ var _default = exports.default = `
          });
        }
  
@@ -50,7 +73,7 @@ index 889bb46..f5ed069 100644
              }));
            });
          })
-@@ -192,7 +204,14 @@ var _default = exports.default = `
+@@ -192,7 +211,14 @@ var _default = exports.default = `
                type: "onReady",
                totalLocations: book.locations.total,
                currentLocation: currentLocation,
@@ -66,7 +89,7 @@ index 889bb46..f5ed069 100644
              }));
            });
  
-@@ -256,7 +275,7 @@ var _default = exports.default = `
+@@ -256,7 +282,7 @@ var _default = exports.default = `
        });
  
        rendition.on("relocated", function (location) {
@@ -115,10 +138,33 @@ index 63f3c24..653ecb5 100644
        onPress();
        onSingleTap();
 diff --git a/node_modules/@epubjs-react-native/core/lib/module/template.js b/node_modules/@epubjs-react-native/core/lib/module/template.js
-index dadb7a6..95c67ca 100644
+index dadb7a6..705836c 100644
 --- a/node_modules/@epubjs-react-native/core/lib/module/template.js
 +++ b/node_modules/@epubjs-react-native/core/lib/module/template.js
-@@ -157,20 +157,32 @@ export default `
+@@ -15,12 +15,19 @@ export default `
+       }
+ 
+       #viewer {
+-        height: 100vh;
+-        width: 100vw;
++        /* Use % not vw/vh — iOS WKWebView 100vw is often the device width, not the
++           inset WebView width, so side margins looked different in scrolled vs paginated. */
++        height: 100%;
++        width: 100%;
+         overflow: hidden !important;
+         display: flex;
+         justify-content: center;
+-        align-items: center;
++        align-items: stretch;
++      }
++      html, body {
++        width: 100%;
++        height: 100%;
++        margin: 0;
+       }
+ 
+       [ref="epubjs-mk-balloon"] {
+@@ -157,20 +164,32 @@ export default `
          });
        }
  
@@ -154,7 +200,7 @@ index dadb7a6..95c67ca 100644
              }));
            });
          })
-@@ -184,7 +196,14 @@ export default `
+@@ -184,7 +203,14 @@ export default `
                type: "onReady",
                totalLocations: book.locations.total,
                currentLocation: currentLocation,
@@ -170,7 +216,7 @@ index dadb7a6..95c67ca 100644
              }));
            });
  
-@@ -248,7 +267,7 @@ export default `
+@@ -248,7 +274,7 @@ export default `
        });
  
        rendition.on("relocated", function (location) {

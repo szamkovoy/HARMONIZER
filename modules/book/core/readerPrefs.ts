@@ -36,7 +36,7 @@ export const DEFAULT_READER_PREFS: ReaderPrefs = {
   fontFamily: "serif",
   fontSizePx: 18,
   lineHeight: 1.55,
-  marginPx: 20,
+  marginPx: 16,
   scrollMode: "paginated",
 };
 

@@ -17,8 +17,8 @@ export function buildReaderTheme(colors: ColorTokens, prefs: ReaderPrefs, scheme
       "font-family": FONT_FAMILY_CSS[prefs.fontFamily],
       "font-size": `${prefs.fontSizePx}px`,
       "line-height": String(prefs.lineHeight),
-      // Horizontal margins are applied outside the WebView (RN width inset).
-      // Padding inside epub.js columns clips text at larger values.
+      // Side gaps come from RN WebView inset (same for paginated + scrolled).
+      // HTML horizontal padding clips epub.js columns and was unreliable in continuous.
       "padding-left": "0",
       "padding-right": "0",
     },

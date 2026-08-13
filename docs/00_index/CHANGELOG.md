@@ -1,3 +1,17 @@
+- 2026-08-13 (463): Book — paginated footer X-hit-test; flow switch restore via chapter href# (no prod).
+- 2026-08-13 (462): Metro/Watchman — block ios/dist/_legacy_web/.next+node_modules/ambient raw/Book (Dev Downloading) (no prod).
+- 2026-08-13 (461): Book — footer chapter: screen-space headings; no EOF last-leaf before visible (no prod).
+- 2026-08-13 (460): Book — mid-viewport chapter footer; % restore on flow switch; JS splash via splash-js.jpg (native PNG unchanged).
+- 2026-08-13 (459): Book — unfreeze footer after search; revert mistaken splash/metro side-fixes (no prod).
+- 2026-08-13 (458): Book open — reuse on-device EPUB cache (≥500KB); scrolled margins +6px (no prod).
+- 2026-08-13 (457): Book reader — same RN side margins for scrolled and paginated (no prod).
+- 2026-08-13 (455): Watchman — ignore `Book/` only (Metro already blockLists it) (no prod).
+- 2026-08-13 (454): Book reader — remove Profile prefetch of epub.js/EPUB (fixes slow Downloading after -c) (no prod).
+- 2026-08-13 (453): Book reader — EPUB disk cache ignores Metro URI churn after `expo start -c` (no prod).
+- 2026-08-13 (452): Book reader — scrolled mode side margins via body padding (match paginated) (no prod).
+- 2026-08-13 (451): Book reader — EOF/fast-scroll chapter footer; equal side margins scrolled vs paginated (no prod).
+- 2026-08-13 (450): Book reader — footer shows chapters only; fix ch.13 flash on vertical scroll (no prod).
+- 2026-08-13 (449): Book reader — whole-book continuous scroll; chapter label by TOC fragment (no prod).
 - 2026-08-13 (448): Book reader — margins via WebView width inset; scroll via changeFlow (no Opening hang) (no prod).
 - 2026-08-13 (447): Book reader — side margins apply; vertical scroll no longer stuck on Opening (no prod).
 - 2026-08-13 (446): Book reader — in-place font (no remount); ignore zeroish page flash; snippet-first restore (no prod).

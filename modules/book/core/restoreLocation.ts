@@ -8,6 +8,11 @@ export function buildRestoreLocationScript(opts: {
   snippet: string | null;
   href: string | null;
   token: number;
+  /**
+   * Scroll flow remount (paginated ↔ continuous): CFI offsets often land pages
+   * away. Prefer chapter href#, then percentage (retry until locations ready).
+   */
+  preferPercentage?: boolean;
 }): string {
   const cfi = opts.cfi;
   const pct =
@@ -17,6 +22,7 @@ export function buildRestoreLocationScript(opts: {
   const snippet = opts.snippet && opts.snippet.length >= 12 ? opts.snippet : null;
   const href = opts.href;
   const token = opts.token;
+  const preferPercentage = !!opts.preferPercentage;
 
   return `
     (function () {
@@ -26,6 +32,7 @@ export function buildRestoreLocationScript(opts: {
       var cfi = ${JSON.stringify(cfi)};
       var snippet = ${JSON.stringify(snippet)};
       var hrefHint = ${JSON.stringify(href)};
+      var preferPercentage = ${preferPercentage ? "true" : "false"};
       var finished = false;
       function alive() { return window.__hzRestoreToken === token; }
       function normSpace(s) {
@@ -40,6 +47,17 @@ export function buildRestoreLocationScript(opts: {
           }
         } catch (e) {}
       }
+      function byHref() {
+        try {
+          if (!alive() || !hrefHint || typeof rendition === "undefined" || !rendition) return false;
+          // Fragment href is stable across paginated ↔ continuous managers.
+          if (String(hrefHint).indexOf("#") < 0) return false;
+          rendition.display(hrefHint);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
       function byCfi() {
         try {
           if (!alive() || !cfi || typeof rendition === "undefined" || !rendition) return false;
@@ -52,12 +70,21 @@ export function buildRestoreLocationScript(opts: {
       function byPercentage() {
         try {
           if (!alive() || pct == null || !book || !book.locations) return false;
+          var len = 0;
+          try {
+            len = typeof book.locations.length === "function"
+              ? book.locations.length()
+              : (book.locations.length || 0);
+          } catch (eLen) { len = 0; }
+          if (!(len > 1) && typeof book.locations.cfiFromPercentage !== "function") return false;
           var target = null;
           if (typeof book.locations.cfiFromPercentage === "function") {
             target = book.locations.cfiFromPercentage(pct);
-          } else if (book.locations.length) {
-            var idx = Math.round(pct * Math.max(0, book.locations.length - 1));
-            target = book.locations[idx];
+          } else if (len > 1) {
+            var idx = Math.round(pct * Math.max(0, len - 1));
+            target = typeof book.locations.cfiFromLocation === "function"
+              ? book.locations.cfiFromLocation(idx)
+              : null;
           }
           if (!target) return false;
           rendition.display(target);
@@ -65,6 +92,18 @@ export function buildRestoreLocationScript(opts: {
         } catch (e) {
           return false;
         }
+      }
+      function byPercentageWithRetry(left, then) {
+        if (!alive()) return;
+        if (byPercentage()) {
+          setTimeout(finishRestore, 220);
+          return;
+        }
+        if (left > 0) {
+          setTimeout(function () { byPercentageWithRetry(left - 1, then); }, 280);
+          return;
+        }
+        then();
       }
       function spineGet(h) {
         if (!h || !book || !book.spine) return null;
@@ -160,7 +199,47 @@ export function buildRestoreLocationScript(opts: {
         byPercentage();
         setTimeout(finishRestore, 220);
       }
-      // Snippet first — CFI character offsets shift after font/size reflow.
+      function fallbackPctThenCfi() {
+        if (!alive()) return;
+        if (byPercentage()) {
+          setTimeout(finishRestore, 220);
+          return;
+        }
+        if (byCfi()) {
+          setTimeout(finishRestore, 220);
+          return;
+        }
+        setTimeout(finishRestore, 120);
+      }
+      // Flow switch: href# (chapter) → % (wait for locations) → snippet → CFI.
+      // Empty initialLocation before locations are ready opens at book start.
+      if (preferPercentage) {
+        if (byHref()) {
+          // Landed on chapter; optionally fine-tune with % — never fall back to
+          // snippet/CFI after a good href# (those jump far across managers).
+          byPercentageWithRetry(12, function () {
+            setTimeout(finishRestore, 180);
+          });
+          return;
+        }
+        byPercentageWithRetry(12, function () {
+          if (!alive()) return;
+          if (snippet) {
+            bySnippet(function (ok) {
+              if (!alive()) return;
+              if (ok) {
+                setTimeout(finishRestore, 180);
+                return;
+              }
+              fallbackPctThenCfi();
+            });
+          } else {
+            fallbackPctThenCfi();
+          }
+        });
+        return;
+      }
+      // Font/size reflow: snippet first — CFI character offsets shift.
       if (snippet) {
         bySnippet(function (ok) {
           if (!alive()) return;

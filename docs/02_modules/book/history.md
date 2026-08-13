@@ -9,6 +9,34 @@ code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 
 ## Decision Log
 
+- **2026-08-13 (paginated footer + flow jump):** Горизонтальный режим: «Падмасана» на экране, футер «Полезные ссылки» — multi-column: поздние главы с тем же Y справа; нужен X-intersection. Смена → scrolled уводила далеко: remount без initialLocation до locations → начало книги. Фикс: onPage по X; flow restore через href# + % retry (без snippet/CFI после успешного href#).
+
+- **2026-08-13 (footer vs screen near EOF):** На экране «23. Падмасана», в футере «Полезные ссылки»: (1) `atEnd` форсил last-leaf до visible; (2) iframe-local `rect.top` у нижележащих секций. Фикс: visible→cfi→eof; screen coords через `frameElement`.
+
+- **2026-08-13 (mid-viewport chapter + flow focus):** Футер в scrolled менял главу только когда заголовок доходил до ~top (≤140px) — на скрине гл.5 уже на экране, а подпись ещё «4.…». Фикс: reading line ≈48% высоты, скан всех contents. Смена paginated↔scrolled уводила фокус на много экранов: CFI continuous≠paginated; restore по % (+ skip initial CFI).
+
+- **2026-08-13 (search freezes footer):** После поиска в scrolled футер залипал (гл.7 при тексте гл.3): `shouldAcceptAnchor` резал location=0 после jump при mid-book seed; sync не шёл. Фикс: accept при смене spine; forceAccept + clear toc/seed на search/TOC; sync всегда. (Ошибочный «фикс» сплэша через `expo-asset` откатан — он давал белый кадр без картинки.)
+
+- **2026-08-13 (book open hang):** «Открываю книгу…» — `resolveBookSrc` отклонял здоровый кэш без `revision` и снова качал 7.5MB с Metro. Фикс: любой файл ≥500KB → hit + upgrade meta. Scrolled inset = `marginPx+6`.
+
+- **2026-08-13 (same RN margins both flows):** Scrolled снова был уже paginated — body padding в continuous не держался. Одинаковый RN inset + clip-обёртка + `rendition.resize(w,h)` для обоих режимов.
+
+- **2026-08-13 (Metro Downloading stuck):** Dev Client «Downloading» еле полз (Watchman не установлен → Node crawl). Корневые гиганты: `ios`~1G, `dist`~0.5G, `_legacy_web/.next`~1.3G + `node_modules`~1G, ambient `raw`, `Book/`. Фикс: metro `blockList` + `.watchmanconfig` на эти деревья (не весь `_legacy_web`). Код мандалы/аудио не менялся.
+
+- **2026-08-13 (Watchman Book/):** После появления `Book/` (~50MB) crawl при `-c` стал долгим. `.watchmanconfig` ignore только `Book/` (Metro `blockList` на `Book/` уже был в Phase A).
+
+- **2026-08-13 (no Profile prefetch):** Доп. тормоз — `BookProfileCard` → `prefetchBookReader()` (epub.js + EPUB). Prefetch убран; EPUB/epub.js тянутся только через lazy `app/book/[locale].tsx`.
+
+- **2026-08-13 (EPUB cache vs Metro -c):** `resolveBookSrc` больше не ключует кэш на HTTP URI ассета Metro (после `-c` хэш менялся → лишний re-download 7.5MB). Ключ: `BOOK_EPUB_CACHE_REVISION` + size.
+
+- **2026-08-13 (scrolled side padding):** После `100%` viewer текст в scrolled шёл к краям экрана (continuous игнорит узкий WebView). Paginated — по-прежнему RN inset; scrolled — `body` padding = `marginPx` на полной ширине WebView.
+
+- **2026-08-13 (EOF chapter + scroll margins):** У конца книги футер залипал на асане 21 (stabilize резал переход Эпилог/Полезные ссылки при pct≈1); быстрый скролл залипал на чужой главе. Фикс: `tocSource` visible/eof/cfi; eof → последний leaf; stabilize только CFI same-file flash; sync чаще в scrolled. Отступы scrolled≠paginated из‑за `#viewer { width:100vw }` в WKWebView — `100%` + default `marginPx=16`.
+
+- **2026-08-13 (footer chapters only + ch.13 flash):** Футер показывал «Часть…»/Практикум (parent TOC) и мигал «13.…» при скролле (CFI/visible id без leaf-фильтра + sticky seed). Фикс: `chapterTocItems` в chrome; capture только leaf TOC + contents iframe по `start.href`; `stabilizeTocHref` отбрасывает скачок главы при малом Δ%; sticky только валидные chapter labels.
+
+- **2026-08-13 (continuous scroll + chapter fragment):** `scrolled-doc` крутил только один xhtml; вертикальный режим → `scrolled-continuous` + `manager=continuous` (remount). Подпись главы: много глав в `ch003.xhtml` — `tocHref` по id/CFI, не последний пункт TOC.
+
 - **2026-08-13 (margins RN + scroll changeFlow):** Отступы внутри EPUB резали текст слева при 24px — теперь inset ширины WebView (`paddingHorizontal` + `readerW`). Скролл: без remount (`changeFlow` in-place); patch template — await `locations.generate` + safe `percentageFromCfi` (Opening hang).
 
 - **2026-08-13 (margins + scroll Opening hang):** Боковые отступы не работали — book CSS `padding: 0.6em 0` обнулял горизонталь; фикс `!important` + inject в contents. Вертикальный скролл вечно «Открываю…»: `waitForLocationsReady=false` → Opening ждёт `onReady`, а тот падает на `percentageFromCfi` до generate; теперь always wait for locations.

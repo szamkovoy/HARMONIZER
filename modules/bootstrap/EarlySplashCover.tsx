@@ -28,13 +28,9 @@ export function EarlySplashCover({ onPainted }: { onPainted: () => void }) {
     onPainted();
   }, [onPainted]);
 
-  // Android: native layer already shows full-bleed — dismiss expo splash ASAP.
-  // iOS: wait for image paint (legacy full-screen native → JS handoff).
+  // Wait for JS image paint before dismissing native splash (both platforms).
+  // Instant Android notify left a white frame when Metro was still serving the asset.
   useEffect(() => {
-    if (Platform.OS === "android") {
-      notify();
-      return;
-    }
     const t = setTimeout(notify, NATIVE_HIDE_SAFETY_MS);
     return () => clearTimeout(t);
   }, [notify]);

@@ -1,0 +1,21 @@
+{
+  "ignore_dirs": [
+    ".git",
+    "node_modules",
+    ".expo",
+    ".next",
+    "Book",
+    "ios",
+    "android",
+    "dist",
+    "docs",
+    "supabase",
+    "PHOTOS",
+    "import",
+    "web_cabinet",
+    "assets/audio/ambient/raw",
+    "_legacy_web/node_modules",
+    "_legacy_web/.next",
+    "_legacy_web/out"
+  ]
+}

@@ -232,7 +232,7 @@ create table public.book_reading_progress (
 - 2026-08-12 (hard-fix): chrome toggle (parsed WebView msg), scrubber по locations, tap zones, prefs keep CFI, `patch-package` на GestureHandler для scrolled-doc, i18n Opening. Page-curl / slide-анимация тапа — **после модерации**.
 - **Не** деплоили Vercel, **не** трогали prod migrations / store EAS.
 
-**Dev Client perf note (2026-08-12):** Do **not** use `expo start -c` on every launch — cache clear forces a full rebundle/redownload («Downloading …» for minutes). Use `-c` only after Metro/config/native changes. `metro.config.js` blockLists `Book/` (DOCX/build) so Metro does not crawl ~50MB sources.
+**Dev Client perf note (2026-08-13):** Slow/stuck “Downloading …” after the book work: (1) Profile prefetch of reader — removed; (2) Metro Node crawler (Watchman often absent) walking `ios`/~1G, `dist`/~0.5G, `_legacy_web/.next`/~1.3G, `_legacy_web/node_modules`/~1G, ambient `raw`, `Book/`. Do **not** block all of `_legacy_web` (app imports `@shared` / `_legacy_web/app/api/_utils`). Fix: `.watchmanconfig` + metro `blockList` on those heavy subtrees only. Restart Metro after changing `metro.config.js` (no need for `-c` every time). Optional: `brew install watchman`.
 
 **Следующий шаг Phase A (QA на Dev Client):**
 
