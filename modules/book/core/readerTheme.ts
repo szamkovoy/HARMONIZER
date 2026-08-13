@@ -51,10 +51,13 @@ export function buildReaderTheme(colors: ColorTokens, prefs: ReaderPrefs, scheme
     img: {
       background: pageBg,
     },
+    // Cover: avoid min-height:100% (collapses in scrolled-continuous iframes).
+    // Scrolled mode also pins px height via buildEnsureCoverStageScript.
     "body#cover": {
       margin: "0 !important",
       padding: "0 !important",
       height: "100vh",
+      "min-height": "100vh",
       display: "flex",
       "align-items": "center",
       "justify-content": "center",
@@ -63,14 +66,15 @@ export function buildReaderTheme(colors: ColorTokens, prefs: ReaderPrefs, scheme
     "#cover-image": {
       width: "100%",
       "max-height": "90vh",
+      "min-height": "50vh",
       display: "flex",
       "align-items": "center",
       "justify-content": "center",
     },
     "#cover-image svg, #cover-image img": {
-      width: "auto",
-      "max-width": "92%",
-      "max-height": "88vh",
+      width: "100%",
+      "max-width": "100%",
+      "max-height": "96vh",
       height: "auto",
       "object-fit": "contain",
     },

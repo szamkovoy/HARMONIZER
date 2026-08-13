@@ -9,8 +9,9 @@ export function buildRestoreLocationScript(opts: {
   href: string | null;
   token: number;
   /**
-   * Scroll flow remount (paginated ↔ continuous): CFI offsets often land pages
-   * away. Prefer chapter href#, then percentage (retry until locations ready).
+   * Scroll flow remount (paginated ↔ continuous): keep the same on-screen line.
+   * Order: start-% → snippet (nearest to CFI in this spine file) → CFI.
+   * Never href# (chapter heading) and never first-match snippet alone.
    */
   preferPercentage?: boolean;
 }): string {
@@ -114,14 +115,51 @@ export function buildRestoreLocationScript(opts: {
             || null;
         } catch (e) { return null; }
       }
+      function pickNearestCfi(matches) {
+        if (!matches || !matches.length) return null;
+        var first = matches[0] && matches[0].cfi ? matches[0].cfi : null;
+        if (!first || !cfi || matches.length === 1) return first;
+        var best = first;
+        var bestDist = Infinity;
+        var targetPct = null;
+        try {
+          if (book.locations && typeof book.locations.percentageFromCfi === "function") {
+            targetPct = book.locations.percentageFromCfi(cfi);
+          }
+        } catch (ePct) { targetPct = null; }
+        if (typeof targetPct !== "number" || !isFinite(targetPct)) {
+          if (pct != null) targetPct = pct;
+        }
+        for (var mi = 0; mi < matches.length; mi++) {
+          var mCfi = matches[mi] && matches[mi].cfi;
+          if (!mCfi) continue;
+          var dist = Infinity;
+          try {
+            if (typeof targetPct === "number" && book.locations &&
+                typeof book.locations.percentageFromCfi === "function") {
+              var mp = book.locations.percentageFromCfi(mCfi);
+              if (typeof mp === "number" && isFinite(mp)) dist = Math.abs(mp - targetPct);
+            } else if (typeof ePub !== "undefined" && ePub.CFI && ePub.CFI.prototype &&
+                typeof ePub.CFI.prototype.compare === "function") {
+              dist = Math.abs(ePub.CFI.prototype.compare(mCfi, cfi));
+            }
+          } catch (eDist) { dist = Infinity; }
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = mCfi;
+          }
+        }
+        return best;
+      }
       function findInSection(section, needle, done) {
         if (!section) { done(null); return; }
         try {
           section.load(book.load.bind(book)).then(function () {
             try {
               var found = section.find(needle);
-              if (found && found.length && found[0] && found[0].cfi) {
-                done(found[0].cfi);
+              var chosen = pickNearestCfi(found);
+              if (chosen) {
+                done(chosen);
                 return;
               }
             } catch (e1) {}
@@ -138,6 +176,7 @@ export function buildRestoreLocationScript(opts: {
         }
         var full = normSpace(snippet);
         var needles = [];
+        if (full.length >= 18) needles.push(full.slice(0, 72));
         if (full.length >= 12) needles.push(full.slice(0, 56));
         if (full.length >= 24) needles.push(full.slice(0, 32));
         if (full.length >= 40) needles.push(full.slice(0, 20));
@@ -149,24 +188,36 @@ export function buildRestoreLocationScript(opts: {
         var sections = [];
         var primary = spineGet(hrefHint);
         if (primary) sections.push(primary);
-        try {
-          var items = [];
-          book.spine.each(function (s) { items.push(s); });
-          var startIdx = primary ? items.indexOf(primary) : -1;
-          if (startIdx < 0 && hrefHint) {
-            var leaf = hrefHint.replace(/^.*\\//, "");
-            for (var si = 0; si < items.length; si++) {
-              if (String(items[si].href || "").indexOf(leaf) >= 0) { startIdx = si; break; }
+        // Flow switch: stay inside the current spine file only — scanning the
+        // whole book matches duplicate phrases and jumps many screens away.
+        if (!preferPercentage) {
+          try {
+            var items = [];
+            book.spine.each(function (s) { items.push(s); });
+            var startIdx = primary ? items.indexOf(primary) : -1;
+            if (startIdx < 0 && hrefHint) {
+              var leaf = hrefHint.replace(/^.*\\//, "").split("#")[0];
+              for (var si = 0; si < items.length; si++) {
+                if (String(items[si].href || "").indexOf(leaf) >= 0) { startIdx = si; break; }
+              }
             }
-          }
-          if (startIdx < 0) startIdx = Math.max(0, Math.floor(items.length * (pct != null ? pct : 0.5)) - 1);
-          for (var d = 0; d <= 4; d++) {
-            var a = startIdx - d;
-            var b = startIdx + d;
-            if (a >= 0 && a < items.length && sections.indexOf(items[a]) < 0) sections.push(items[a]);
-            if (b >= 0 && b < items.length && sections.indexOf(items[b]) < 0) sections.push(items[b]);
-          }
-        } catch (e3) {}
+            if (startIdx < 0) startIdx = Math.max(0, Math.floor(items.length * (pct != null ? pct : 0.5)) - 1);
+            for (var d = 0; d <= 4; d++) {
+              var a = startIdx - d;
+              var b = startIdx + d;
+              if (a >= 0 && a < items.length && sections.indexOf(items[a]) < 0) sections.push(items[a]);
+              if (b >= 0 && b < items.length && sections.indexOf(items[b]) < 0) sections.push(items[b]);
+            }
+          } catch (e3) {}
+        } else if (!sections.length && hrefHint) {
+          try {
+            var leaf2 = String(hrefHint).replace(/^.*\\//, "").split("#")[0];
+            book.spine.each(function (s) {
+              if (sections.length) return;
+              if (String(s.href || "").indexOf(leaf2) >= 0) sections.push(s);
+            });
+          } catch (e3b) {}
+        }
         var sIdx = 0;
         var nIdx = 0;
         function step() {
@@ -190,6 +241,18 @@ export function buildRestoreLocationScript(opts: {
         }
         step();
       }
+      function byCfiWithRetry(left, then) {
+        if (!alive()) return;
+        if (byCfi()) {
+          setTimeout(finishRestore, 220);
+          return;
+        }
+        if (left > 0) {
+          setTimeout(function () { byCfiWithRetry(left - 1, then); }, 240);
+          return;
+        }
+        then();
+      }
       function fallbackCfiThenPct() {
         if (!alive()) return;
         if (byCfi()) {
@@ -211,19 +274,10 @@ export function buildRestoreLocationScript(opts: {
         }
         setTimeout(finishRestore, 120);
       }
-      // Flow switch: href# (chapter) → % (wait for locations) → snippet → CFI.
-      // Empty initialLocation before locations are ready opens at book start.
+      // Flow switch: same on-screen line — start-% first (manager-stable), then
+      // nearest snippet in this spine file, then CFI. Never href#.
       if (preferPercentage) {
-        if (byHref()) {
-          // Landed on chapter; optionally fine-tune with % — never fall back to
-          // snippet/CFI after a good href# (those jump far across managers).
-          byPercentageWithRetry(12, function () {
-            setTimeout(finishRestore, 180);
-          });
-          return;
-        }
-        byPercentageWithRetry(12, function () {
-          if (!alive()) return;
+        function afterPct() {
           if (snippet) {
             bySnippet(function (ok) {
               if (!alive()) return;
@@ -231,12 +285,17 @@ export function buildRestoreLocationScript(opts: {
                 setTimeout(finishRestore, 180);
                 return;
               }
-              fallbackPctThenCfi();
+              byCfiWithRetry(8, function () {
+                setTimeout(finishRestore, 160);
+              });
             });
-          } else {
-            fallbackPctThenCfi();
+            return;
           }
-        });
+          byCfiWithRetry(8, function () {
+            setTimeout(finishRestore, 160);
+          });
+        }
+        byPercentageWithRetry(14, afterPct);
         return;
       }
       // Font/size reflow: snippet first — CFI character offsets shift.
@@ -257,7 +316,7 @@ export function buildRestoreLocationScript(opts: {
   `;
 }
 
-/** Midpoint percentage of the visible page (fallback only). */
+/** Midpoint percentage of the visible page (chrome / scrub fallback only). */
 export function visibleCenterPercentage(
   loc: {
     start?: { percentage?: number; location?: number };
@@ -271,6 +330,27 @@ export function visibleCenterPercentage(
   if (typeof sp === "number" && typeof ep === "number" && Number.isFinite(sp) && Number.isFinite(ep)) {
     return (sp + ep) / 2;
   }
+  if (typeof sp === "number" && Number.isFinite(sp) && sp > 0.002) return sp;
+  const total = typeof totalLocations === "number" ? totalLocations : 0;
+  const idx = loc.start.location;
+  if (typeof idx === "number" && idx > 0 && total > 1) {
+    return idx / (total - 1);
+  }
+  return null;
+}
+
+/**
+ * Top-of-view percentage — use for paginated↔scrolled remount.
+ * Center % of a full page starting at a chapter heading lands mid-chapter.
+ */
+export function visibleStartPercentage(
+  loc: {
+    start?: { percentage?: number; location?: number };
+  } | null | undefined,
+  totalLocations: number | null | undefined,
+): number | null {
+  if (!loc?.start) return null;
+  const sp = loc.start.percentage;
   if (typeof sp === "number" && Number.isFinite(sp) && sp > 0.002) return sp;
   const total = typeof totalLocations === "number" ? totalLocations : 0;
   const idx = loc.start.location;

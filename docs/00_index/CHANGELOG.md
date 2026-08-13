@@ -1,3 +1,8 @@
+- 2026-08-13 (468): Book — flow switch sticks same line (start-% after capture; no CFI initial) (no prod).
+- 2026-08-13 (467): Book — fix TOC part jumps (no bare #frag); footer shows parts; safer paginated place (no prod).
+- 2026-08-13 (466): Book — TOC gray highlight; open chapter with offset under chrome (no prod).
+- 2026-08-13 (465): Book — full-width scrolled cover; flow restore via start-%/snippet; TOC highlight+scroll (no prod).
+- 2026-08-13 (464): Book — show cover at start of scrolled-continuous (px stage; no prod).
 - 2026-08-13 (463): Book — paginated footer X-hit-test; flow switch restore via chapter href# (no prod).
 - 2026-08-13 (462): Metro/Watchman — block ios/dist/_legacy_web/.next+node_modules/ambient raw/Book (Dev Downloading) (no prod).
 - 2026-08-13 (461): Book — footer chapter: screen-space headings; no EOF last-leaf before visible (no prod).

@@ -40,7 +40,7 @@ export const CAPTURE_LIVE_ANCHOR_JS = `
       if (!raw) return "";
       try { return decodeURIComponent(raw).toLowerCase(); } catch (e) { return raw.toLowerCase(); }
     }
-    /** Only chapter-level TOC entries (no parents with subitems). */
+    /** Chapter-level TOC entries (no parents with subitems). */
     function flattenLeafToc(items, out) {
       if (!items || !items.length) return out;
       for (var i = 0; i < items.length; i++) {
@@ -55,10 +55,29 @@ export const CAPTURE_LIVE_ANCHOR_JS = `
       }
       return out;
     }
+    /** All TOC entries with href — includes «Часть…» parents for footer/nav. */
+    function flattenAllToc(items, out) {
+      if (!items || !items.length) return out;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        if (!it) continue;
+        if (it.href) out.push(it);
+        if (it.subitems && it.subitems.length) flattenAllToc(it.subitems, out);
+      }
+      return out;
+    }
     function leafToc() {
       try {
         if (!book || !book.navigation || !book.navigation.toc) return [];
         return flattenLeafToc(book.navigation.toc, []);
+      } catch (e) {
+        return [];
+      }
+    }
+    function allToc() {
+      try {
+        if (!book || !book.navigation || !book.navigation.toc) return [];
+        return flattenAllToc(book.navigation.toc, []);
       } catch (e) {
         return [];
       }
@@ -69,13 +88,13 @@ export const CAPTURE_LIVE_ANCHOR_JS = `
       if (!fa || !fb) return false;
       return fa === fb || fa.endsWith(fb) || fb.endsWith(fa);
     }
-    /** Canonical leaf TOC href for file + id, or null if id is a part/section (not in leaf TOC). */
-    function leafHrefForId(file, id) {
-      var leaves = leafToc();
+    /** Canonical TOC href for file + id (chapters and «Часть…» parents). */
+    function tocHrefForId(file, id) {
+      var entries = allToc();
       var idNorm = normFrag(id);
       if (!idNorm) return null;
-      for (var i = 0; i < leaves.length; i++) {
-        var h = leaves[i].href || "";
+      for (var i = 0; i < entries.length; i++) {
+        var h = entries[i].href || "";
         if (!sameFile(h, file)) continue;
         var hash = h.indexOf("#") >= 0 ? h.split("#")[1] : "";
         var hf = normFrag(hash);
@@ -190,7 +209,7 @@ export const CAPTURE_LIVE_ANCHOR_JS = `
             var el = nodes[i];
             var id = el.id;
             if (!id) continue;
-            var leafHref = leafHrefForId(file, id);
+            var leafHref = tocHrefForId(file, id);
             if (!leafHref) continue;
             var scr = screenBoxForElement(contents, el);
             // Current page only (X) — critical for paginated multi-column.

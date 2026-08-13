@@ -18,7 +18,7 @@ function cleanLabel(label: string | undefined): string {
   return (label ?? "").replace(/\s+/g, " ").trim();
 }
 
-/** Part-level headings — not shown in the reader footer. */
+/** Part-level headings («Часть I…» / «Part II…»). */
 export function isPartTocLabel(label: string | null | undefined): boolean {
   const s = (label ?? "").trim();
   if (!s) return false;
@@ -54,10 +54,14 @@ export function chapterTocItems(toc: TocFlatItem[]): TocFlatItem[] {
   return toc.filter((item) => item.isLeaf && !isPartTocLabel(item.label));
 }
 
-/** Drop part/workshop parent titles from sticky seed labels. */
+/**
+ * Labels allowed in the reader footer sticky/seed.
+ * Parts («Часть III: Яма») are allowed — they are real navigation targets.
+ * Workshop parent «Практикум» is not a reading position label.
+ */
 export function isChapterFooterLabel(label: string | null | undefined): boolean {
   const s = (label ?? "").trim();
-  if (!s || isPartTocLabel(s)) return false;
+  if (!s) return false;
   if (/^практикум$/i.test(s) || /^практика$/i.test(s)) return false;
   return true;
 }

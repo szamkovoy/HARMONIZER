@@ -9,6 +9,16 @@ code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 
 ## Decision Log
 
+- **2026-08-13 (flow switch stick):** Смена scrolled↔paginated уводила текст: (1) `applyLiveAnchor` затирал start-% center-% середины страницы; (2) CFI как `initialLocation` между managers сажал не туда; (3) `section.find` брал первое вхождение фразы в главе. Фикс: после capture форсируем start-% + spine file; remount без CFI; restore = start-% → nearest snippet → CFI.
+
+- **2026-08-13 (TOC part → wrong spine):** Клик «Часть III: Яма» открывал «Путь»/Пролог: кандидаты `#frag` резолвились в текущем spine; placeHeading брал первый h1 в чужом iframe. Фикс: только `file#frag`; nudge только по совпавшему id+file. Футер «Учебное пособие» на части — leaf-only TOC; теперь allToc + flatToc + sticky от клика.
+
+- **2026-08-13 (TOC chrome offset + gray row):** Подсветка TOC — серый фон (light/dark), без bold/accent. Переход из оглавления: после `display` nudge заголовка на ~topBar+3 строки (`anchorOffsetPx`), иначе chrome перекрывает название; в paginated при залипании внизу — несколько next.
+
+- **2026-08-13 (cover width + flow + TOC):** Scrolled cover была маркой по центру (`img width:auto !important`); full-width через setProperty important. Flow: href#→center-% уводил с начала «Эпилог» в середину — теперь snippet → start-% → href#. TOC: подсветка текущего + scrollTo mid-list.
+
+- **2026-08-13 (cover in scrolled):** В vertical scroll обложки не было (в paginated была): continuous iframe считает высоту по контенту, а `body#cover` с `min-height:100%`/`100vh` схлопывался. Фикс: `buildEnsureCoverStageScript(readerH)` + theme/CSS `min-height:100vh`; нумерация страниц не трогалась (cover уже в spine).
+
 - **2026-08-13 (paginated footer + flow jump):** Горизонтальный режим: «Падмасана» на экране, футер «Полезные ссылки» — multi-column: поздние главы с тем же Y справа; нужен X-intersection. Смена → scrolled уводила далеко: remount без initialLocation до locations → начало книги. Фикс: onPage по X; flow restore через href# + % retry (без snippet/CFI после успешного href#).
 
 - **2026-08-13 (footer vs screen near EOF):** На экране «23. Падмасана», в футере «Полезные ссылки»: (1) `atEnd` форсил last-leaf до visible; (2) iframe-local `rect.top` у нижележащих секций. Фикс: visible→cfi→eof; screen coords через `frameElement`.

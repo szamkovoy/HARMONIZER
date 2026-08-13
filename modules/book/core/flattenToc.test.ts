@@ -59,8 +59,9 @@ describe("isPartTocLabel / isChapterFooterLabel", () => {
     assert.equal(isPartTocLabel("7. Три гуны"), false);
   });
 
-  it("rejects workshop parent as footer seed", () => {
+  it("allows parts and chapters; rejects workshop parent", () => {
     assert.equal(isChapterFooterLabel("Практикум"), false);
+    assert.equal(isChapterFooterLabel("Часть III: Яма"), true);
     assert.equal(isChapterFooterLabel("Эпилог"), true);
     assert.equal(isChapterFooterLabel("13. Этика"), true);
   });

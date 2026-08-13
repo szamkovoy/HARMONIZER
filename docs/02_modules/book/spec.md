@@ -13,6 +13,7 @@ code_refs:
     modules/book/core/readerPrefs.ts,
     modules/book/core/liveAnchor.ts,
     modules/book/core/restoreLocation.ts,
+    modules/book/core/coverStage.ts,
     modules/book/ui/BookProfileCard.tsx,
     modules/book/ui/BookReaderScreen.tsx,
     app/book/[locale].tsx,
@@ -36,7 +37,7 @@ Barrel `modules/book/index.ts`:
 - **`bookLocaleForAppLocale(locale)`** — UI-locale → `BookLocale` (`ru` | `en`); Phase A: всё кроме `en` → `ru`.
 - **`resolveBookAccess(): Promise<boolean>`** — Phase A: `__DEV__` → `true`, иначе `false` (store-safe, без нового API).
 - **`BookProfileCard`** — карточка «Учебное пособие» + кнопка «Читать…» (без prefetch ридера — иначе epub.js/EPUB тянутся при заходе в Профиль).
-- **`BookReaderScreen`** — не в barrel; lazy `app/book/[locale].tsx` (Suspense). Chrome overlay + scrubber. Шрифт/размер — in-place + snippet-first restore. Смена scroll flow — remount + chapter `href#` + percentage retry (CFI между managers нестабилен). Боковые поля (`marginPx`, default 16): одинаковый RN inset WebView в paginated и scrolled (+ clip + `rendition.resize(w,h)`). Вертикальный скролл — `scrolled-continuous` + `manager=continuous`. Футер: leaf TOC; visible heading mid-viewport + горизонтальный hit-test (paginated columns); `tocSource` visible/cfi/eof. Cover center; caption gap.
+- **`BookReaderScreen`** — не в barrel; lazy `app/book/[locale].tsx` (Suspense). Chrome overlay + scrubber. Шрифт/размер — in-place + snippet-first restore. Смена scroll flow — remount + start-% (top-of-view) → nearest snippet in spine → CFI; `initialLocation` = spine file без `#` (CFI/`href#` между managers уводят фокус). Боковые поля (`marginPx`, default 16): одинаковый RN inset WebView в paginated и scrolled (+ clip + `rendition.resize(w,h)`). Вертикальный скролл — `scrolled-continuous` + `manager=continuous`; обложка в начале через `buildEnsureCoverStageScript` (px min-height — иначе iframe схлопывается). Футер: главы и «Часть…» (flat TOC); visible heading mid-viewport + горизонтальный hit-test; `tocSource` visible/cfi/eof. TOC navigate: только `file#frag` (без bare `#id`). Cover center; caption gap.
 
 Маршрут: `app/book/[locale].tsx` → lazy `BookReaderScreen`.
 

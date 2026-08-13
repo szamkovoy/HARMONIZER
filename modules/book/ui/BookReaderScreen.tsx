@@ -26,6 +26,7 @@ import { useTheme } from "@/modules/ui/theme";
 import { useThemePreference } from "@/modules/ui/themePreference";
 
 import { bookAssetModule } from "../core/bookAssets";
+import { buildEnsureCoverStageScript } from "../core/coverStage";
 import { chapterTocItems, flattenToc, isChapterFooterLabel } from "../core/flattenToc";
 import { bookLocaleForAppLocale, type BookLocale } from "../core/bookIds";
 import {
@@ -65,6 +66,7 @@ import { resolveBookSrc } from "../core/resolveBookSrc";
 import {
   buildRestoreLocationScript,
   visibleCenterPercentage,
+  visibleStartPercentage,
 } from "../core/restoreLocation";
 import { buildTocNavigateScript, TAP_ZONE_BRIDGE_JS } from "../core/tocNavigate";
 import { useBookFileSystem } from "../core/useBookFileSystem";
@@ -212,12 +214,15 @@ function ReaderChrome({
   );
   const resumeSnippetRef = useRef<string | null>(initialSnippet);
   const resumeHrefRef = useRef<string | null>(initialHref);
-  /** After paginated↔scrolled remount, restore by href# / % (CFI jumps many pages). */
+  /** After paginated↔scrolled remount: restore by start-% / snippet (not CFI initial). */
   const preferPercentageRestoreRef = useRef(false);
-  /** Skip stale CFI as Reader initialLocation during flow remount. */
+  /** Skip CFI as Reader initialLocation on flow remount (CFI lands wrong across managers). */
   const [skipInitialCfi, setSkipInitialCfi] = useState(false);
-  /** Chapter href# used as initialLocation on flow remount (stable across managers). */
+  /** Spine file only (no #) as initialLocation on flow remount — then snap by start-%. */
   const [flowResumeHref, setFlowResumeHref] = useState<string | null>(null);
+  const tocListRef = useRef<ScrollView>(null);
+  const tocListHeightRef = useRef(360);
+  const tocScrollPendingRef = useRef(false);
   const restoringRef = useRef(!!initialLocator);
   const liveAnchorRef = useRef<LiveAnchor | null>(null);
   const pendingAnchorResolverRef = useRef<((a: LiveAnchor | null) => void) | null>(null);
@@ -227,6 +232,7 @@ function ReaderChrome({
   const totalLocationsRef = useRef(totalLocations);
   totalLocationsRef.current = totalLocations;
   const chapterTocRef = useRef<ReturnType<typeof chapterTocItems>>([]);
+  const flatTocRef = useRef<ReturnType<typeof flattenToc>>([]);
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
   const scrollModeRef = useRef(prefs.scrollMode);
@@ -250,6 +256,7 @@ function ReaderChrome({
   const flatToc = useMemo(() => flattenToc(toc as never), [toc]);
   const chapterToc = useMemo(() => chapterTocItems(flatToc), [flatToc]);
   chapterTocRef.current = chapterToc;
+  flatTocRef.current = flatToc;
 
   useEffect(() => {
     void loadReaderPrefs().then((loaded) => {
@@ -324,7 +331,8 @@ function ReaderChrome({
     if (next.snippet) resumeSnippetRef.current = next.snippet;
     if (next.tocHref) resumeHrefRef.current = next.tocHref;
     else if (next.href) resumeHrefRef.current = next.href;
-    const label = tocLabelForHref(next.tocHref ?? next.href, chapterTocRef.current);
+    // flatToc includes «Часть…» parents — chapterToc alone left footer as «Учебное пособие».
+    const label = tocLabelForHref(next.tocHref ?? next.href, flatTocRef.current);
     if (label && isChapterFooterLabel(label)) setStickyChapterLabel(label);
     else if (crossedSpine || forceAccept) setStickyChapterLabel(null);
     if (restoringRef.current && isUsableAnchor(next)) {
@@ -382,12 +390,14 @@ function ReaderChrome({
 
   const runFocusRestore = useCallback(() => {
     const preferPercentage = preferPercentageRestoreRef.current;
-    const cfi = preferPercentage
-      ? resumeLocatorRef.current
-      : resumeLocatorRef.current ?? initialLocator;
+    // Flow switch keeps CFI; font reflow may fall back to initialLocator.
+    const cfi = resumeLocatorRef.current ?? (preferPercentage ? null : initialLocator);
     const percentage = resumePercentageRef.current;
     const snippet = resumeSnippetRef.current;
-    const href = resumeHrefRef.current;
+    // Flow switch: spine file only (strip fragment so restore won't byHref to heading).
+    const href = preferPercentage
+      ? (resumeHrefRef.current ?? "").split("#")[0] || null
+      : resumeHrefRef.current;
     restoringRef.current = !!(cfi || percentage != null || snippet);
     if (!(cfi || percentage != null || snippet || href)) {
       restoringRef.current = false;
@@ -463,8 +473,51 @@ function ReaderChrome({
           const loc = getCurrentLocation();
           const cfi =
             anchor?.cfi ?? loc?.start?.cfi ?? loc?.end?.cfi ?? resumeLocatorRef.current;
+
+          if (scrollChanged) {
+            // Remount continuous↔paginated — keep the same on-screen line.
+            // Critical: use TOP-OF-VIEW % (not anchor center %). applyLiveAnchor
+            // would overwrite with mid-page % and jump many screens.
+            const spineFile =
+              (anchor?.href ?? loc?.start?.href ?? resumeHrefRef.current ?? "")
+                .split("#")[0]
+                ?.trim() || null;
+            const startPct =
+              visibleStartPercentage(loc, totalLocationsRef.current) ??
+              (typeof loc?.start?.percentage === "number" && loc.start.percentage > 0.002
+                ? loc.start.percentage
+                : null) ??
+              (typeof anchor?.percentage === "number" &&
+              !isZeroishProgress(anchor.percentage, anchor.location)
+                ? anchor.percentage
+                : null) ??
+              resumePercentageRef.current;
+            const snippet = anchor?.snippet ?? resumeSnippetRef.current;
+
+            if (anchor && isUsableAnchor(anchor)) applyLiveAnchor(anchor);
+
+            preferPercentageRestoreRef.current = true;
+            // Do not open on CFI — between managers it lands elsewhere; restore by %.
+            setSkipInitialCfi(true);
+            setFlowResumeHref(spineFile);
+            if (spineFile) resumeHrefRef.current = spineFile;
+            if (typeof startPct === "number" && startPct > 0.002) {
+              resumePercentageRef.current = startPct;
+              setChromeSeedPercent(Math.round(startPct * 1000) / 10);
+            }
+            if (snippet) resumeSnippetRef.current = snippet;
+            if (cfi) {
+              setResumeLocator(cfi);
+              resumeLocatorRef.current = cfi;
+            }
+            restoringRef.current = true;
+            setReaderEpoch((n) => n + 1);
+            return;
+          }
+
           let percentage =
-            typeof anchor?.percentage === "number" && !isZeroishProgress(anchor.percentage, anchor.location)
+            typeof anchor?.percentage === "number" &&
+            !isZeroishProgress(anchor.percentage, anchor.location)
               ? anchor.percentage
               : visibleCenterPercentage(loc, totalLocationsRef.current) ??
                 resumePercentageRef.current;
@@ -476,29 +529,6 @@ function ReaderChrome({
           if (anchor?.href) resumeHrefRef.current = anchor.href;
           if (anchor?.tocHref) resumeHrefRef.current = anchor.tocHref;
           if (anchor && isUsableAnchor(anchor)) applyLiveAnchor(anchor);
-
-          if (scrollChanged) {
-            // Whole-book scroll needs manager=continuous + scrolled-continuous (remount).
-            // CFI from the other manager often lands many screens away — open on
-            // chapter href# + restore by % once locations exist.
-            const chapterHref =
-              (anchor?.tocHref && anchor.tocHref.includes("#")
-                ? anchor.tocHref
-                : null) ??
-              (resumeHrefRef.current && resumeHrefRef.current.includes("#")
-                ? resumeHrefRef.current
-                : null) ??
-              (anchor?.href && anchor.href.includes("#") ? anchor.href : null);
-            preferPercentageRestoreRef.current = true;
-            setSkipInitialCfi(true);
-            setFlowResumeHref(chapterHref);
-            if (chapterHref) resumeHrefRef.current = chapterHref;
-            setResumeLocator(null);
-            resumeLocatorRef.current = null;
-            restoringRef.current = true;
-            setReaderEpoch((n) => n + 1);
-            return;
-          }
 
           if (cfi) {
             setResumeLocator(cfi);
@@ -675,18 +705,26 @@ function ReaderChrome({
   handleTapZoneRef.current = handleTapZone;
 
   const goToTocHref = useCallback(
-    (href: string) => {
+    (href: string, label?: string) => {
       forceAcceptNavRef.current = true;
       restoringRef.current = false;
-      setStickyChapterLabel(null);
-      injectJavascript(buildTocNavigateScript(href));
+      // Seed footer immediately (parts are not leaf TOC — capture used to miss them).
+      if (label && isChapterFooterLabel(label)) {
+        setStickyChapterLabel(label.trim());
+      } else {
+        setStickyChapterLabel(null);
+      }
+      resumeHrefRef.current = href;
+      // WebView sits under absolute chrome — park heading below top bar + ~3 lines.
+      const anchorOffsetPx = insets.top + TOP_CHROME_BODY + 56;
+      injectJavascript(buildTocNavigateScript(href, { anchorOffsetPx }));
       setTocOpen(false);
       setChromeVisible(true);
       // After display settles, capture heading fragment for shared xhtml chapters.
       scheduleSyncAnchor(350);
       scheduleSyncAnchor(800);
     },
-    [injectJavascript, scheduleSyncAnchor],
+    [injectJavascript, insets.top, scheduleSyncAnchor],
   );
 
   const hrefForChrome =
@@ -695,9 +733,9 @@ function ReaderChrome({
     resumeHrefRef.current ??
     currentLocation?.start?.href ??
     null;
-  // Footer: chapters only (leaf TOC). Sticky last good label — never flash library seed / parts.
+  // Footer: chapters + parts (flat TOC). Fallback book title only when unknown.
   const sectionLabel = (
-    tocLabelForHref(hrefForChrome, chapterToc) ??
+    tocLabelForHref(hrefForChrome, flatToc) ??
     stickyChapterLabel ??
     ""
   ).trim();
@@ -967,6 +1005,10 @@ function ReaderChrome({
               })();
               true;
             `);
+            // Scrolled-continuous: cover iframe collapses without an explicit px stage.
+            if (prefs.scrollMode === "scrolled") {
+              injectJavascript(buildEnsureCoverStageScript(readerH, readerW));
+            }
             scheduleSyncAnchor(200);
           }}
           renderOpeningBookComponent={() => (
@@ -1013,7 +1055,15 @@ function ReaderChrome({
             } catch {
               /* optional */
             }
-            if (resumeLocatorRef.current || resumePercentageRef.current != null || resumeSnippetRef.current) {
+            if (prefsRef.current.scrollMode === "scrolled") {
+              injectJavascript(buildEnsureCoverStageScript(readerH, readerW));
+            }
+            if (
+              resumeLocatorRef.current ||
+              resumePercentageRef.current != null ||
+              resumeSnippetRef.current ||
+              resumeHrefRef.current
+            ) {
               runFocusRestore();
             } else {
               restoringRef.current = false;
@@ -1067,7 +1117,10 @@ function ReaderChrome({
                 <Ionicons name="settings-outline" size={20} color={theme.colors.textPrimary} />
               </Pressable>
               <Pressable
-                onPress={() => setTocOpen(true)}
+                onPress={() => {
+                  tocScrollPendingRef.current = true;
+                  setTocOpen(true);
+                }}
                 style={styles.topIconBtn}
                 accessibilityLabel={t("book.reader.toc")}
               >
@@ -1154,16 +1207,66 @@ function ReaderChrome({
                 <Ionicons name="close" size={22} color={theme.colors.textPrimary} />
               </Pressable>
             </View>
-            <ScrollView style={styles.tocList}>
-              {flatToc.map((item) => (
-                <Pressable
-                  key={`${item.href}-${item.label}`}
-                  onPress={() => goToTocHref(item.href)}
-                  style={[styles.tocRow, { borderBottomColor: theme.colors.surfaceBorder, paddingLeft: 8 + item.depth * 14 }]}
-                >
-                  <AppText variant="dialogBody">{item.label}</AppText>
-                </Pressable>
-              ))}
+            <ScrollView
+              ref={tocListRef}
+              style={styles.tocList}
+              onLayout={(e) => {
+                const h = e.nativeEvent.layout.height;
+                if (h > 0) tocListHeightRef.current = h;
+              }}
+            >
+              {flatToc.map((item) => {
+                const activeLabel = (sectionLabel || stickyChapterLabel || "").trim();
+                const activeHref = (liveAnchor?.tocHref ?? hrefForChrome ?? "").trim();
+                const sameLabel =
+                  !!activeLabel &&
+                  item.label.trim() === activeLabel &&
+                  isChapterFooterLabel(item.label);
+                const sameHref =
+                  !!activeHref &&
+                  (item.href === activeHref ||
+                    (activeHref.includes("#") &&
+                      item.href.includes("#") &&
+                      item.href.split("#")[1] === activeHref.split("#")[1] &&
+                      (item.href.split("#")[0] ?? "")
+                        .replace(/^.*\//, "")
+                        .toLowerCase() ===
+                        (activeHref.split("#")[0] ?? "")
+                          .replace(/^.*\//, "")
+                          .toLowerCase()));
+                const isActive = sameLabel || sameHref;
+                return (
+                  <Pressable
+                    key={`${item.href}-${item.label}`}
+                    onPress={() => goToTocHref(item.href, item.label)}
+                    onLayout={(e) => {
+                      if (!isActive || !tocScrollPendingRef.current) return;
+                      tocScrollPendingRef.current = false;
+                      const rowY = e.nativeEvent.layout.y;
+                      const rowH = e.nativeEvent.layout.height || 48;
+                      const listH = tocListHeightRef.current || 360;
+                      const target = Math.max(0, rowY - listH / 2 + rowH / 2);
+                      requestAnimationFrame(() => {
+                        tocListRef.current?.scrollTo({ y: target, animated: false });
+                      });
+                    }}
+                    style={[
+                      styles.tocRow,
+                      {
+                        borderBottomColor: theme.colors.surfaceBorder,
+                        paddingLeft: 8 + item.depth * 14,
+                        backgroundColor: isActive
+                          ? scheme === "dark"
+                            ? "rgba(255, 255, 255, 0.10)"
+                            : "rgba(15, 23, 42, 0.08)"
+                          : "transparent",
+                      },
+                    ]}
+                  >
+                    <AppText variant="dialogBody">{item.label}</AppText>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           </View>
         </View>
