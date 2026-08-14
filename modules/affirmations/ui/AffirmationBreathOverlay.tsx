@@ -55,7 +55,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
     const insets = useSafeAreaInsets();
     const [row, setRow] = useState<AffirmationDto | null>(null);
     const [mode, setMode] = useState<"hidden" | "intro" | "finale">("hidden");
-    const slide = useRef(new Animated.Value(-140)).current;
+    const slide = useRef(new Animated.Value(-200)).current;
     const prevKindRef = useRef<PhaseKind | null>(null);
     const introStartedRef = useRef(false);
     const introDoneRef = useRef(false);
@@ -96,7 +96,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
 
     const hidePanel = useCallback(() => {
       Animated.timing(slide, {
-        toValue: -160,
+        toValue: -220,
         duration: 380,
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
@@ -214,7 +214,9 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
 
       const avgCycle = Math.max(6_000, cycleMs || 12_000);
       const remaining = Math.max(0, practiceTotalMs - elapsedMs);
-      const inFinale = remaining <= avgCycle * 3.2;
+      // Start ~1 cycle earlier than before so the 3rd voice play finishes
+      // before the practice dim-to-black window (~5s).
+      const inFinale = remaining <= avgCycle * 4.2;
 
       // Intro: first exhale → show; next exhale → hide
       if (!introStartedRef.current) {
@@ -233,11 +235,12 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
           showPanel("finale");
           finaleExhaleCountRef.current = 0;
         }
+        // Cap at 3 plays even with the wider window.
+        if (finaleExhaleCountRef.current >= 3) return;
         finaleExhaleCountRef.current += 1;
         if (row.audioSignedUrl) {
           void playOnExhale();
-        }
-        if (!row.audioSignedUrl && finaleExhaleCountRef.current >= 3) {
+        } else if (finaleExhaleCountRef.current >= 3) {
           resolveFinaleWaiter();
         }
       }
@@ -271,13 +274,18 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
 
     if (!row || mode === "hidden") return null;
 
+    // Drop the whole panel ~2× status/safe-area height so Dynamic Island / clock
+    // do not cover the affirmation text (intro and finale).
+    const panelTop = Math.max(insets.top * 2, insets.top + 44);
+
     return (
       <Animated.View
         pointerEvents="none"
         style={[
           styles.panel,
           {
-            paddingTop: Math.max(10, insets.top + 4),
+            top: panelTop,
+            paddingTop: 12,
             backgroundColor: theme.colors.controlButtonBg,
             borderColor: theme.colors.surfaceBorder,
             transform: [{ translateY: slide }],

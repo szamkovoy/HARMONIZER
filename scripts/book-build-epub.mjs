@@ -9,7 +9,6 @@
  */
 import { execFileSync } from "child_process";
 import {
-  copyFileSync,
   mkdirSync,
   existsSync,
   mkdtempSync,
@@ -157,7 +156,6 @@ const SOURCES = {
     title: "Йога — путь волшебника",
     author: "Сергей Замковой",
     lang: "ru",
-    asset: "yoga-wizards-path-ru.epub",
   },
   en: {
     docx: "Book_En.docx",
@@ -165,7 +163,6 @@ const SOURCES = {
     title: "Yoga — the Way of Wisdom",
     author: "Sergei Zamkovoi",
     lang: "en",
-    asset: "yoga-wizards-path-en.epub",
   },
   de: {
     docx: "Book_De.docx",
@@ -173,7 +170,6 @@ const SOURCES = {
     title: "Yoga — der Weg des Zauberers",
     author: "Sergei Zamkovoi",
     lang: "de",
-    asset: "yoga-wizards-path-de.epub",
   },
   fr: {
     docx: "Book_Fr.docx",
@@ -181,7 +177,6 @@ const SOURCES = {
     title: "Yoga — la voie du magicien",
     author: "Sergei Zamkovoi",
     lang: "fr",
-    asset: "yoga-wizards-path-fr.epub",
   },
   it: {
     docx: "Book_It.docx",
@@ -189,7 +184,6 @@ const SOURCES = {
     title: "Yoga — la via del mago",
     author: "Sergei Zamkovoi",
     lang: "it",
-    asset: "yoga-wizards-path-it.epub",
   },
   es: {
     docx: "Book_Es.docx",
@@ -197,7 +191,6 @@ const SOURCES = {
     title: "Yoga — el camino del mago",
     author: "Sergei Zamkovoi",
     lang: "es",
-    asset: "yoga-wizards-path-es.epub",
   },
   pt: {
     docx: "Book_Pt.docx",
@@ -205,7 +198,6 @@ const SOURCES = {
     title: "Yoga — o caminho do mago",
     author: "Sergei Zamkovoi",
     lang: "pt",
-    asset: "yoga-wizards-path-pt.epub",
   },
   nl: {
     docx: "Book_Nl.docx",
@@ -213,7 +205,6 @@ const SOURCES = {
     title: "Yoga — de weg van de tovenaar",
     author: "Sergei Zamkovoi",
     lang: "nl",
-    asset: "yoga-wizards-path-nl.epub",
   },
 };
 
@@ -233,8 +224,6 @@ const cover = join(bookDir, cfg.cover);
 const css = join(bookDir, "epub-reader.css");
 const outDir = join(bookDir, "build", locale);
 const outEpub = join(outDir, "book.epub");
-const assetDir = join(root, "assets", "books");
-const assetPath = join(assetDir, cfg.asset);
 
 if (!existsSync(docx)) {
   console.error("Missing", docx);
@@ -250,7 +239,6 @@ if (!existsSync(css)) {
 }
 
 mkdirSync(outDir, { recursive: true });
-mkdirSync(assetDir, { recursive: true });
 
 console.log("pandoc", locale, "…");
 // No --toc: Word already contains a TOC chapter; pandoc still builds nav.xhtml from headings.

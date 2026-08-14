@@ -373,7 +373,10 @@
     "affirmation.create.micA11y": "Запись голоса",
     "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
     "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
-    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию.",
+    "book.reader.notOwned": "Книга доступна после покупки в Личном кабинете.",
+    "book.reader.cdnUnavailable": "Файл книги пока недоступен на сервере. Попробуйте позже.",
+    "book.reader.authRequired": "Войдите в аккаунт, чтобы открыть книгу."
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -749,7 +752,10 @@
     "affirmation.create.micA11y": "Запись голоса",
     "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
     "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
-    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию.",
+    "book.reader.notOwned": "Книга доступна после покупки в Личном кабинете.",
+    "book.reader.cdnUnavailable": "Файл книги пока недоступен на сервере. Попробуйте позже.",
+    "book.reader.authRequired": "Войдите в аккаунт, чтобы открыть книгу."
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -1125,7 +1131,10 @@
     "affirmation.create.micA11y": "Запись голоса",
     "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
     "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
-    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию.",
+    "book.reader.notOwned": "Книга доступна после покупки в Личном кабинете.",
+    "book.reader.cdnUnavailable": "Файл книги пока недоступен на сервере. Попробуйте позже.",
+    "book.reader.authRequired": "Войдите в аккаунт, чтобы открыть книгу."
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -1501,7 +1510,10 @@
     "affirmation.create.micA11y": "Запись голоса",
     "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
     "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
-    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию.",
+    "book.reader.notOwned": "Книга доступна после покупки в Личном кабинете.",
+    "book.reader.cdnUnavailable": "Файл книги пока недоступен на сервере. Попробуйте позже.",
+    "book.reader.authRequired": "Войдите в аккаунт, чтобы открыть книгу."
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -1877,7 +1889,10 @@
     "affirmation.create.micA11y": "Запись голоса",
     "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
     "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
-    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию.",
+    "book.reader.notOwned": "Книга доступна после покупки в Личном кабинете.",
+    "book.reader.cdnUnavailable": "Файл книги пока недоступен на сервере. Попробуйте позже.",
+    "book.reader.authRequired": "Войдите в аккаунт, чтобы открыть книгу."
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -2253,7 +2268,10 @@
     "affirmation.create.micA11y": "Запись голоса",
     "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
     "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
-    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию.",
+    "book.reader.notOwned": "Книга доступна после покупки в Личном кабинете.",
+    "book.reader.cdnUnavailable": "Файл книги пока недоступен на сервере. Попробуйте позже.",
+    "book.reader.authRequired": "Войдите в аккаунт, чтобы открыть книгу."
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -2629,6 +2647,9 @@
     "affirmation.create.micA11y": "Запись голоса",
     "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
     "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
-    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию.",
+    "book.reader.notOwned": "Книга доступна после покупки в Личном кабинете.",
+    "book.reader.cdnUnavailable": "Файл книги пока недоступен на сервере. Попробуйте позже.",
+    "book.reader.authRequired": "Войдите в аккаунт, чтобы открыть книгу."
   }
 }

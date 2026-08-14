@@ -52,8 +52,17 @@ export async function saveReadingProgress(
   userId: string,
   locale: BookLocale,
   progress: Omit<ReadingProgress, "updatedAt"> & { updatedAt?: string },
-): Promise<void> {
-  if (!documentDirectory) return;
+): Promise<ReadingProgress> {
+  if (!documentDirectory) {
+    return {
+      locator: progress.locator,
+      percent: progress.percent,
+      chapterLabel: progress.chapterLabel,
+      snippet: progress.snippet,
+      href: progress.href,
+      updatedAt: progress.updatedAt ?? new Date().toISOString(),
+    };
+  }
   await ensureDir();
   const payload: ReadingProgress = {
     locator: progress.locator,
@@ -64,4 +73,5 @@ export async function saveReadingProgress(
     updatedAt: progress.updatedAt ?? new Date().toISOString(),
   };
   await writeAsStringAsync(progressUri(userId, locale), JSON.stringify(payload));
+  return payload;
 }

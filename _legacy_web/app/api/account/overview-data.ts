@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { baseTierFromRow, hasActiveTrial } from "../../../modules/access/core/paidAccess";
 import { VISIBLE_PAID_PRODUCT_TIERS, TIER_ORDER, type ProductTier } from "../../../modules/access/core/tiers";
+import { hasActiveBookPurchase } from "./bookOwnership";
 import { isLavaCurrency, resolveLavaPrice, type LavaCurrency, type LavaPeriodicity, type SellableTier } from "./lava";
 import { resolveCatalogPrice, type CatalogTier } from "./paymentCatalog";
 import {
@@ -64,20 +65,6 @@ export type AccountBookPurchase = {
   /** true — у пользователя уже есть active one_time book; кабинет скрывает блок продажи. */
   owned: boolean;
 };
-
-async function hasActiveBookPurchase(db: SupabaseClient, userId: string): Promise<boolean> {
-  const { data, error } = await db
-    .from("payment_contracts")
-    .select("contract_id")
-    .eq("user_id", userId)
-    .eq("product_kind", "one_time")
-    .eq("tier", "book")
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return !!data?.contract_id;
-}
 
 export type AccountOverview = {
   userId: string;

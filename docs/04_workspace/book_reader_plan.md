@@ -2,17 +2,16 @@
 id: 04_workspace/book_reader_plan
 title: Book reader — full plan + freeze/resume
 updated: 2026-08-14
-status: phase_a_soft_turn_done
+status: phase_b_done
 ---
 
 # Book reader — план и инструкция для продолжения после модерации
 
-> **Модерация сторов завершена (2026-08-14).** Soft paginated slide сделан. Phase B (ownership API / CDN / progress sync) и LitRes 3D curl — только по явной просьбе.
-> Агент обязан перечитать этот документ + `docs/00_index/MAP.md` + триады `account_web`, `profile`, `i18n` перед Phase B.
+> **Phase B сделана (2026-08-14):** ownership API, CDN manifest, progress sync. Заливка EPUB — `docs/04_workspace/book_cdn_upload.md`. LitRes 3D curl / закладки — по отдельной просьбе.
 
-## 0. Красные линии (исторически — пока билд был на модерации)
+## 0. Красные линии (исторически)
 
-Раньше без «модерация пройдена» были запрещены: prod Vercel, prod migrations, store `production` EAS, ломка `/api/account/*`. **Сейчас:** development EAS можно; Phase B / prod deploy — только по явной просьбе владельца.
+Модерация завершена. Prod Vercel / migrations / Phase B — разрешены по запросу владельца (выполнены 2026-08-14).
 
 ---
 
@@ -94,7 +93,7 @@ create table public.book_reading_progress (
 
 ### 2.5 Хостинг EPUB (Phase B)
 
-- Путь на сервере (черновик): `https://zamkovoi.yoga/books/yoga_wizards_path/{locale}/v{N}/book.epub` + `cover.jpg`.
+- Путь на сервере: `https://zamkovoi.yoga/book/{locale}/book.epub` (+ optional `cover.jpg`). Cache bust: bump `BOOK_EPUB_VERSION` на Vercel.
 - Версия в manifest → клиент инвалидирует кэш при обновлении вёрстки.
 - ISPManager upload вручную или rsync; не через Vercel body limits.
 
@@ -214,16 +213,12 @@ create table public.book_reading_progress (
 - Фикс cold-start: lazy `app/book/[locale]`, EPUB require только в `bookAssets.ts`, barrel без ридера.
 - 2026-08-12: LitRes-like chrome, TOC fix, EPUB CSS/white page, prefs persist, vertical scroll; page-curl 3D — open (стек epub.js).
 - 2026-08-12 (hard-fix): chrome toggle (parsed WebView msg), scrubber по locations, tap zones, prefs keep CFI, `patch-package` на GestureHandler для scrolled-doc, i18n Opening. Page-curl / slide-анимация тапа — **после модерации**.
-- 2026-08-14: Soft slide+fade on paginated tap/swipe (Metro-only; not LitRes 3D curl). Moderation done — Phase B / native curl still optional product follow-ups.
-- **Не** деплоили Vercel ради книги; affirmations migration на prod применена отдельно (2026-08-14).
+- 2026-08-14: Soft slide+fade on paginated tap/swipe (Metro-only; not LitRes 3D curl).
+- 2026-08-14 (Phase B): `purchases/book`, `/api/book/manifest`, `/api/book/progress`, migration `book_reading_progress` on prod; Vercel `BOOK_CDN_*`; client CDN + progress LWW; Dev unlock via `EXPO_PUBLIC_BOOK_DEV_UNLOCK`; Metro fallback. Upload checklist: `book_cdn_upload.md`.
 
-**Dev Client perf note (2026-08-13):** Slow/stuck “Downloading …” after the book work: (1) Profile prefetch of reader — removed; (2) Metro Node crawler (Watchman often absent) walking `ios`/~1G, `dist`/~0.5G, `_legacy_web/.next`/~1.3G, `_legacy_web/node_modules`/~1G, ambient `raw`, `Book/`. Do **not** block all of `_legacy_web` (app imports `@shared` / `_legacy_web/app/api/_utils`). Fix: `.watchmanconfig` + metro `blockList` on those heavy subtrees only. Restart Metro after changing `metro.config.js` (no need for `-c` every time). Optional: `brew install watchman`. **EAS development rebuild does not fix JS bundle download over QR/LAN** — use USB/`--localhost` or ensure Watchman + blockList for faster Metro.
+**Следующий шаг (ops):**
 
-**Следующий шаг Phase A (QA на Dev Client):**
-
-1. `npx expo start --dev-client` (add `-c` only when needed) → Профиль → «Читать…»: soft page turn, chrome hide/show, left/right/center taps, scrubber, Aa, vertical scroll, Opening i18n.
-2. `node scripts/book-build-epub.mjs ru` — только если EPUB локально устарел.
-3. Page-curl как в LitRes — по-прежнему отдельный стек/native (soft slide уже есть).
-4. Development EAS — можно; production store build — по отдельному решению.
-
-**Phase B (ownership API / progress sync / CDN)** — можно начинать, когда владелец явно попросит.
+1. Залить RU/EN/DE/FR/IT EPUB на zamkovoi по `docs/04_workspace/book_cdn_upload.md`.
+2. QA: owned buyer → reader from CDN; non-buyer → gate; progress A→B.
+3. ES/PT/NL — после перевода + upload в те же пути `v1/`.
+4. LitRes 3D curl / закладки — только по явной просьбе.

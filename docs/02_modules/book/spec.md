@@ -1,25 +1,30 @@
 ---
 id: 02_modules/book/spec
 title: Book Spec
-version: 1.0
-updated: 2026-08-13
-depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/subscription/spec]
+version: 2.0
+updated: 2026-08-14
+depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/subscription/spec, 02_modules/account_web/spec]
 code_refs:
   [
     modules/book/index.ts,
     modules/book/core/bookIds.ts,
     modules/book/core/bookAccess.ts,
+    modules/book/core/bookManifestClient.ts,
+    modules/book/core/bookProgressClient.ts,
+    modules/book/core/openBookSrc.ts,
     modules/book/core/readingProgress.ts,
-    modules/book/core/readerPrefs.ts,
-    modules/book/core/liveAnchor.ts,
-    modules/book/core/restoreLocation.ts,
-    modules/book/core/coverStage.ts,
+    modules/book/core/resolveBookSrc.ts,
     modules/book/ui/BookProfileCard.tsx,
     modules/book/ui/BookReaderScreen.tsx,
     app/book/[locale].tsx,
     app/(tabs)/profile.tsx,
+    _legacy_web/app/api/account/purchases/book/route.ts,
+    _legacy_web/app/api/book/manifest/route.ts,
+    _legacy_web/app/api/book/progress/route.ts,
+    supabase/migrations/20260814160000_book_reading_progress.sql,
     scripts/book-build-epub.mjs,
     docs/04_workspace/book_reader_plan.md,
+    docs/04_workspace/book_cdn_upload.md,
   ]
 ---
 
@@ -27,36 +32,44 @@ code_refs:
 
 ## 1. Назначение
 
-Клиентский модуль **учебного пособия** («Йога — путь волшебника»): карточка в Профиле, гейт доступа и EPUB-ридер (epub.js / WebView). Доступ к материалу — отдельная one-time покупка `tier=book` (не тарифы Навигатор/Наставник/Мастер). Полный целевой план и фазы — `docs/04_workspace/book_reader_plan.md`.
+Клиентский модуль **учебного пособия** («Йога — путь волшебника»): карточка в Профиле, гейт доступа и EPUB-ридер (epub.js / WebView). Доступ — one-time покупка `tier=book` (не тарифы Навигатор/Наставник/Мастер). План: `docs/04_workspace/book_reader_plan.md`. CDN upload: `docs/04_workspace/book_cdn_upload.md`.
 
 ## 2. Публичный контракт
 
 Barrel `modules/book/index.ts`:
 
-- **`BOOK_ID`** — канонический id книги (`yoga_wizards_path`).
-- **`bookLocaleForAppLocale(locale)`** — UI-locale → `BookLocale` (`ru` | `en` | `de` | `fr` | `it` | `es` | `pt` | `nl`); все 8 локалей приложения → свой EPUB (после сборки).
-- **`resolveBookAccess(): Promise<boolean>`** — Phase A: `__DEV__` → `true`, иначе `false` (store-safe, без нового API).
-- **`BookProfileCard`** — карточка «Учебное пособие» + кнопка «Читать…» (без prefetch ридера — иначе epub.js/EPUB тянутся при заходе в Профиль).
-- **`BookReaderScreen`** — не в barrel; lazy `app/book/[locale].tsx` (Suspense). Chrome overlay + scrubber. Шрифт/размер — in-place + snippet-first restore. Смена scroll flow — remount + start-% (top-of-view) → nearest snippet in spine → CFI; `initialLocation` = spine file без `#` (CFI/`href#` между managers уводят фокус). Боковые поля (`marginPx`, default 16): одинаковый RN inset WebView в paginated и scrolled (+ clip + `rendition.resize(w,h)`). Вертикальный скролл — `scrolled-continuous` + `manager=continuous`; обложка в начале через `buildEnsureCoverStageScript` (px min-height — иначе iframe схлопывается). Футер: главы и «Часть…» (flat TOC); visible heading mid-viewport + горизонтальный hit-test; `tocSource` visible/cfi/eof. TOC navigate: только `file#frag` (без bare `#id`). Cover center; caption gap.
+- **`BOOK_ID`** — `yoga_wizards_path`.
+- **`bookLocaleForAppLocale(locale)`** — UI → `BookLocale` (8 локалей).
+- **`resolveBookAccess(): Promise<boolean>`** — `GET /api/account/purchases/book`; в `EXPO_PUBLIC_APP_ENV=development` дополнительно `EXPO_PUBLIC_BOOK_DEV_UNLOCK=true`.
+- **`BookProfileCard`** — карточка «Учебное пособие» + «Читать…».
+- **`BookReaderScreen`** — lazy `app/book/[locale].tsx` (не в barrel).
 
-Маршрут: `app/book/[locale].tsx` → lazy `BookReaderScreen`.
+### Ownership / CDN / progress (Phase B)
+
+| Method | Path | Назначение |
+|---|---|---|
+| GET | `/api/account/purchases/book` | `{ owned, contractId?, purchasedAt? }` |
+| GET | `/api/book/manifest?locale=` | `{ epubUrl, version, title, coverUrl, bookId }` (403 если не owned) |
+| GET/PUT | `/api/book/progress` | синк locator; LWW по `updated_at` |
+
+EPUB URL: `{BOOK_CDN_BASE_URL}/{locale}/book.epub` (на сервере папка `book/ru/…`).  
+Клиент: CDN → disk cache (`cdn-v{BOOK_EPUB_VERSION}`); в development при отсутствии файла на CDN → Metro `/hz-book/{locale}.epub`.  
+Прогресс: local FileSystem + remote `book_reading_progress` (merge по `updatedAt`).
 
 ## 3. Внутренняя архитектура
 
-- EPUB (Phase A Dev): только `Book/build/{locale}/book.epub`, отдача Metro `GET /hz-book/{locale}.epub` → `openBookSrc`. **Нет** `require(*.epub)` в `assets/books` — иначе Dev Client зависает на Downloading % / чёрном экране.
-- Metro: `assetExts` включает `epub`.
-- Прогресс / prefs: `expo-file-system/legacy` (`book-progress/`, `book-reader/prefs.json`).
-- Стек ридера: `@epubjs-react-native/core` + `useBookFileSystem` (legacy FS).
-- EPUB: `resolveBookSrc` → `documentDirectory/books/{BOOK_ID}-{locale}.epub`.
+- Ридер: `@epubjs-react-native/core` + `useBookFileSystem` (legacy FS).
+- Prefs: `book-reader/prefs.json`; progress local: `book-progress/`.
+- Shared owned helper: `_legacy_web/app/api/account/bookOwnership.ts` (overview + purchases/book + book/*).
 
-## 4. Конфигурация и параметры
+## 4. Конфигурация
 
-- i18n: `book.*`, `gate.body.book` (RU source → sync).
-- Ownership API / CDN / remote progress — **не** в Phase A (см. план Phase B).
+- Vercel: `BOOK_CDN_BASE_URL`, `BOOK_EPUB_VERSION`.
+- Client development unlock: `EXPO_PUBLIC_BOOK_DEV_UNLOCK` (только при `EXPO_PUBLIC_APP_ENV=development`).
+- i18n: `book.*`, `gate.body.book`.
 
-## 5. Известные ограничения
+## 5. Ограничения
 
-- Production/store билд всегда locked до Phase B API.
-- Dev EPUB: все 8 локалей через `/hz-book/{locale}.epub` (`Book/build/…`). Литературный перевод FR/IT/ES/PT/NL — `scripts/book-translate.mjs` (Gemini 3.1 Pro) + `book-assemble-docx.mjs` + `book-build-epub.mjs`. Store/CDN — Phase B.
-- Нет поиска, history-back, remote sync, CDN download в текущем коде.
-- Крупный EPUB не в git — локально пересобрать перед Dev Client QA.
+- ES/PT/NL EPUB на CDN — после перевода + upload (см. checklist).
+- Закладки / LitRes 3D curl — не в scope.
+- Store-билд без покупки всегда locked (нет `__DEV__`-автоunlock).

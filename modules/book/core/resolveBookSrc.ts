@@ -13,9 +13,8 @@ import {
 import { BOOK_ID, type BookLocale } from "./bookIds";
 
 /**
- * Bump only when `assets/books/yoga-wizards-path-*.epub` is intentionally replaced.
- * Do NOT key the on-device cache on Metro’s HTTP asset URI — `expo start -c`
- * changes that hash and used to force a multi‑minute re-download every time.
+ * Legacy revision for Metro/dev downloads when no CDN version is provided.
+ * CDN path passes `v{BOOK_EPUB_VERSION}` so bumping env invalidates on-device cache.
  */
 export const BOOK_EPUB_CACHE_REVISION = "ru-2026-08-13-coldfix";
 
@@ -28,16 +27,25 @@ type CacheMeta = {
   size: number;
 };
 
-async function writeMeta(metaUri: string, locale: BookLocale, size: number): Promise<void> {
+async function writeMeta(
+  metaUri: string,
+  locale: BookLocale,
+  size: number,
+  revision: string,
+): Promise<void> {
   const meta: CacheMeta = {
-    revision: BOOK_EPUB_CACHE_REVISION,
+    revision,
     locale,
     size,
   };
   await writeAsStringAsync(metaUri, JSON.stringify(meta));
 }
 
-async function materializeToCache(sourceUri: string, bookLocale: BookLocale): Promise<string> {
+async function materializeToCache(
+  sourceUri: string,
+  bookLocale: BookLocale,
+  cacheRevision: string,
+): Promise<string> {
   const root = documentDirectory;
   if (!root) throw new Error("documentDirectory unavailable");
 
@@ -53,26 +61,28 @@ async function materializeToCache(sourceUri: string, bookLocale: BookLocale): Pr
   const existing = await getInfoAsync(dest);
   const existingSize = existing.exists && !existing.isDirectory ? (existing.size ?? 0) : 0;
 
-  // Fast path: healthy file on disk — never re-fetch from Metro just because meta is old/missing.
+  // Fast path: healthy file on disk with matching revision.
   if (existingSize >= MIN_EPUB_BYTES) {
     try {
-      const meta = JSON.parse(await readAsStringAsync(metaUri)) as Partial<CacheMeta> & {
-        sourceUri?: string;
-      };
-      const revisionOk = meta?.revision === BOOK_EPUB_CACHE_REVISION;
+      const meta = JSON.parse(await readAsStringAsync(metaUri)) as Partial<CacheMeta>;
+      const revisionOk = meta?.revision === cacheRevision;
       const localeOk = !meta?.locale || meta.locale === bookLocale;
       if (revisionOk && localeOk && meta.size === existingSize) {
         return dest;
       }
     } catch {
-      /* upgrade meta below */
+      /* re-download below when revision mismatch */
     }
-    try {
-      await writeMeta(metaUri, bookLocale, existingSize);
-    } catch {
-      /* best effort */
+    // Stale revision → re-fetch. Missing/corrupt meta with healthy file + same
+    // legacy revision still upgrades meta without re-download.
+    if (cacheRevision === BOOK_EPUB_CACHE_REVISION) {
+      try {
+        await writeMeta(metaUri, bookLocale, existingSize, cacheRevision);
+        return dest;
+      } catch {
+        /* fall through to re-download */
+      }
     }
-    return dest;
   }
 
   if (existing.exists) {
@@ -99,11 +109,11 @@ async function materializeToCache(sourceUri: string, bookLocale: BookLocale): Pr
   }
 
   const written = await getInfoAsync(outUri);
-  const size = written.size ?? 0;
+  const size = written.exists && !written.isDirectory ? (written.size ?? 0) : 0;
   if (size < MIN_EPUB_BYTES) {
     throw new Error("epub materialize produced an empty file");
   }
-  await writeMeta(metaUri, bookLocale, size);
+  await writeMeta(metaUri, bookLocale, size, cacheRevision);
   return outUri;
 }
 
@@ -115,10 +125,14 @@ export async function resolveBookSrc(assetModule: number, bookLocale: BookLocale
   const resolved = Image.resolveAssetSource(assetModule);
   const uri = resolved?.uri;
   if (!uri) throw new Error("asset uri missing");
-  return materializeToCache(uri, bookLocale);
+  return materializeToCache(uri, bookLocale, BOOK_EPUB_CACHE_REVISION);
 }
 
-/** Dev HTTP EPUB (Metro `/hz-book/{locale}.epub`) → same on-device cache as bundled assets. */
-export async function resolveBookSrcFromUrl(url: string, bookLocale: BookLocale): Promise<string> {
-  return materializeToCache(url, bookLocale);
+/** HTTP EPUB (CDN or Metro `/hz-book`) → on-device cache keyed by `cacheRevision`. */
+export async function resolveBookSrcFromUrl(
+  url: string,
+  bookLocale: BookLocale,
+  cacheRevision: string = BOOK_EPUB_CACHE_REVISION,
+): Promise<string> {
+  return materializeToCache(url, bookLocale, cacheRevision);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { Pressable, StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
@@ -22,22 +22,25 @@ export function AffirmationWidget() {
   const { canUseFeature } = useAccess();
   const [affirmation, setAffirmation] = useState<AffirmationDto | null>(null);
   const [gateOpen, setGateOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  /** In-flight GET so a tap before cache resolve still routes correctly — never dim/disable the banner. */
+  const fetchRef = useRef<Promise<AffirmationDto | null> | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setLoading(true);
-      void fetchActiveAffirmation()
+      const p = fetchActiveAffirmation()
         .then((row) => {
           if (!cancelled) setAffirmation(row);
+          return row;
         })
         .catch(() => {
           if (!cancelled) setAffirmation(null);
+          return null;
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (fetchRef.current === p) fetchRef.current = null;
         });
+      fetchRef.current = p;
       return () => {
         cancelled = true;
       };
@@ -49,11 +52,21 @@ export function AffirmationWidget() {
       setGateOpen(true);
       return;
     }
-    if (affirmation) {
-      router.push("/affirmation/manage" as Href);
-    } else {
-      router.push("/affirmation/create" as Href);
-    }
+    void (async () => {
+      let row = affirmation;
+      if (fetchRef.current) {
+        try {
+          row = await fetchRef.current;
+        } catch {
+          row = affirmation;
+        }
+      }
+      if (row) {
+        router.push("/affirmation/manage" as Href);
+      } else {
+        router.push("/affirmation/create" as Href);
+      }
+    })();
   };
 
   const displayLabel = affirmation
@@ -64,14 +77,13 @@ export function AffirmationWidget() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t("affirmation.widget.a11y")}
-        disabled={loading}
         onPress={onPress}
         style={({ pressed }) => [
           styles.banner,
           {
             backgroundColor: theme.colors.controlButtonBg,
             borderColor: theme.colors.surfaceBorder,
-            opacity: pressed ? 0.72 : loading ? 0.55 : 1,
+            opacity: pressed ? 0.72 : 1,
           },
         ]}
       >

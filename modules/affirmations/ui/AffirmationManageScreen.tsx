@@ -117,6 +117,7 @@ export function AffirmationManageScreen() {
   };
 
   const toggleVoice = async () => {
+    if (busy && !recording) return;
     if (recording) {
       const rec = recordingRef.current;
       recordingRef.current = null;
@@ -138,6 +139,8 @@ export function AffirmationManageScreen() {
       }
       return;
     }
+    if (recordingRef.current) return;
+    setBusy(true);
     try {
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
@@ -148,8 +151,12 @@ export function AffirmationManageScreen() {
       recordingRef.current = rec;
       setRecording(true);
     } catch {
+      recordingRef.current = null;
+      setRecording(false);
       await resetPlaybackAudioMode();
       Alert.alert(t("affirmation.error.generic"));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -331,9 +338,10 @@ function ProgressChart({
 }
 
 const styles = StyleSheet.create({
-  pad: { paddingBottom: 48, gap: 14 },
+  pad: { paddingBottom: 48, gap: 14, paddingTop: 8 },
   block: { gap: 12 },
-  day: { fontSize: 28 },
+  /** Larger size than sectionTitle token — keep lineHeight so glyphs are not clipped. */
+  day: { fontSize: 28, lineHeight: 36, marginTop: 6 },
   text: { lineHeight: 24 },
   zoneList: { gap: 4 },
   chartWrap: { alignItems: "center", gap: 4 },

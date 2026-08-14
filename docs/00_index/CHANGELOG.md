@@ -1,3 +1,6 @@
+- 2026-08-14 (482): Affirmations QA — widget no disable flash; mic arming; scroll after refine; manage/breath spacing; finale voice −1 cycle.
+- 2026-08-14 (481): Book CDN path — `https://zamkovoi.yoga/book/{locale}/book.epub` (no slug/vN folders).
+- 2026-08-14 (480): Book Phase B — ownership API, CDN manifest, progress sync; CDN upload checklist.
 - 2026-08-14 (479): Affirmations UX (breath-only widget, close, Communicator mic + recording fix); book finger-follow page turn.
 - 2026-08-14 (478): Affirmations wired (Practices widget + breath overlay + Stack); prod migration `user_affirmations`; book soft paginated turn (not 3D curl).
 - 2026-08-14 (477): Account web — hide book purchase block when overview.book.owned (no prod).

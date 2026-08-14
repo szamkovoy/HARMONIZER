@@ -5,6 +5,10 @@ version: 1.13
 updated: 2026-08-14
 ---
 
+## 2026-08-14 — Book Phase B ownership endpoint
+
+- `GET /api/account/purchases/book` + shared `bookOwnership.ts` (overview `book.owned` + reader access). Manifest/progress — модуль `book`.
+
 ## 2026-08-14 — Hide book offer when already owned
 
 - `AccountOverview.book.owned` из active one_time `tier=book`; кабинет не рендерит блок продажи книги, если `owned`.

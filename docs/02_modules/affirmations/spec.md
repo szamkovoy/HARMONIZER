@@ -45,10 +45,10 @@ code_refs:
 
 ### Клиент (`modules/affirmations`)
 
-- **`AffirmationWidget`** — на экране Практик **только** в группе «Дыхание»; add / «День X из 30».
-- **Create wizard** — STT через communicator v2 (аудио intake ephemeral); generate/refine; finalize + optional voice upload. Закрытие: `FloatingCloseButton`. Запись: MicRecordButton + `startWhisperRecording` (ретраи как Communicator).
-- **Manage** — текст, плеер/перезапись голоса, график 4 зон, смена/завершение цикла; close + hardened recording.
-- **`AffirmationBreathOverlay`** — intro ~1 цикл с первого выдоха; финал последние ~3 выдоха; playback на onset выдоха; `waitForFinaleAudio` / `notifyPracticeComplete`.
+- **`AffirmationWidget`** — на экране Практик **только** в группе «Дыхание»; add / «День X из 30»; без disabled/dim на время fetch.
+- **Create wizard** — STT через communicator v2; generate/refine; после обновления списка — scroll to top; Mic: фаза `arming` + защита от double-start (как Communicator); finalize + optional voice. Закрытие: `FloatingCloseButton`.
+- **Manage** — текст, плеер/перезапись голоса, график 4 зон, смена/завершение цикла; day counter с lineHeight без клиппинга.
+- **`AffirmationBreathOverlay`** — intro ~1 цикл с первого выдоха; финал: окно ≈4.2 цикла / 3 play (раньше dim); панель `top ≈ 2× safe-area`; playback на onset выдоха; `waitForFinaleAudio` / `notifyPracticeComplete`.
 
 ### API (`_legacy_web/app/api/affirmations`)
 

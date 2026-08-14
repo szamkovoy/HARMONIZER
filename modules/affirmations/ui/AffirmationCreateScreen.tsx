@@ -7,6 +7,7 @@ import {
   Alert,
   Animated,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -51,6 +52,8 @@ export function AffirmationCreateScreen() {
   const [step, setStep] = useState<WizardStep>("intake");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
+  /** Immediate visual while Audio session arms (mirrors Communicator `arming`). */
+  const [arming, setArming] = useState(false);
   const [options, setOptions] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [history, setHistory] = useState<AffirmationHistoryTurn[]>([]);
@@ -65,6 +68,9 @@ export function AffirmationCreateScreen() {
   const modeRef = useRef<"intake" | "refine" | "voice">("intake");
   const voiceLevel = useRef(new Animated.Value(0.2)).current;
   const finishRecordingRef = useRef<() => Promise<void>>(async () => undefined);
+  const startInFlightRef = useRef(false);
+  const startGenerationRef = useRef(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   const clearMaxTimer = () => {
     if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
@@ -74,6 +80,7 @@ export function AffirmationCreateScreen() {
   useEffect(
     () => () => {
       clearMaxTimer();
+      startGenerationRef.current += 1;
       const rec = recordingRef.current;
       recordingRef.current = null;
       if (rec) void rec.stopAndUnloadAsync().catch(() => undefined);
@@ -90,6 +97,8 @@ export function AffirmationCreateScreen() {
     const rec = recordingRef.current;
     recordingRef.current = null;
     setRecording(false);
+    setArming(false);
+    startInFlightRef.current = false;
     clearMaxTimer();
     voiceLevel.setValue(0.2);
     if (!rec) return null;
@@ -119,6 +128,9 @@ export function AffirmationCreateScreen() {
           { role: "assistant", content: opts.join("\n") },
         ]);
         setStep("options");
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollTo({ y: 0, animated: true });
+        });
       } catch {
         Alert.alert(t("affirmation.error.generate"));
       } finally {
@@ -175,18 +187,36 @@ export function AffirmationCreateScreen() {
 
   const startRecording = useCallback(
     async (mode: "intake" | "refine" | "voice") => {
-      if (busy || recording) return;
+      if (busy || recording || startInFlightRef.current || recordingRef.current) return;
       modeRef.current = mode;
+      const generation = ++startGenerationRef.current;
+      startInFlightRef.current = true;
+      setArming(true);
+      voiceLevel.setValue(0.28);
       try {
         const perm = await Audio.requestPermissionsAsync();
+        if (generation !== startGenerationRef.current) return;
         if (!perm.granted) {
+          setArming(false);
+          startInFlightRef.current = false;
           Alert.alert(t("affirmation.error.micPermission"));
           return;
         }
         const rec = await startWhisperRecording({ isMeteringEnabled: true });
+        if (generation !== startGenerationRef.current) {
+          try {
+            await rec.stopAndUnloadAsync();
+          } catch {
+            /* ignore */
+          }
+          await resetPlaybackAudioMode();
+          return;
+        }
         recordingRef.current = rec;
         recordStartRef.current = Date.now();
         setRecording(true);
+        setArming(false);
+        startInFlightRef.current = false;
         rec.setOnRecordingStatusUpdate((status) => {
           const metering =
             "metering" in status && typeof status.metering === "number" ? status.metering : null;
@@ -206,8 +236,11 @@ export function AffirmationCreateScreen() {
           }, MAX_INTAKE_MS);
         }
       } catch {
+        if (generation !== startGenerationRef.current) return;
         recordingRef.current = null;
         setRecording(false);
+        setArming(false);
+        startInFlightRef.current = false;
         await resetPlaybackAudioMode();
         Alert.alert(t("affirmation.error.generic"));
       }
@@ -217,11 +250,15 @@ export function AffirmationCreateScreen() {
 
   const toggleMic = useCallback(
     (mode: "intake" | "refine" | "voice") => {
-      if (busy) return;
-      if (recording) void finishRecording();
-      else void startRecording(mode);
+      // Stop always wins once a take is live.
+      if (recording) {
+        void finishRecording();
+        return;
+      }
+      if (busy || arming || startInFlightRef.current) return;
+      void startRecording(mode);
     },
-    [busy, finishRecording, recording, startRecording],
+    [arming, busy, finishRecording, recording, startRecording],
   );
 
   const onSelectOption = (index: number) => {
@@ -267,13 +304,15 @@ export function AffirmationCreateScreen() {
     }
   };
 
+  const micActive = recording || arming;
+
   return (
     <StackScreenLayout>
       <FloatingCloseButton
         onPress={closeWizard}
         accessibilityLabel={t("common.close")}
       />
-      <StackScrollView contentContainerStyle={styles.pad}>
+      <StackScrollView ref={scrollRef} contentContainerStyle={styles.pad}>
         <ScreenHeader title={t("affirmation.create.title")} />
 
         {step === "intake" ? (
@@ -282,13 +321,13 @@ export function AffirmationCreateScreen() {
               {t("affirmation.create.step1.instruction")}
             </AppText>
             <MicCluster
-              recording={recording}
+              recording={micActive}
               busy={busy}
               voiceLevel={voiceLevel}
               onPress={() => toggleMic("intake")}
               a11yLabel={t("affirmation.create.micA11y")}
               hint={
-                recording
+                micActive
                   ? t("affirmation.create.micHintStop")
                   : t("affirmation.create.micHintStart")
               }
@@ -358,13 +397,13 @@ export function AffirmationCreateScreen() {
                 </AppText>
               ) : null}
               <MicCluster
-                recording={recording}
+                recording={micActive}
                 busy={busy}
                 voiceLevel={voiceLevel}
                 onPress={() => toggleMic("refine")}
                 a11yLabel={t("affirmation.create.micA11y")}
                 hint={
-                  recording
+                  micActive
                     ? t("affirmation.create.micHintStop")
                     : t("affirmation.create.micHintStart")
                 }
@@ -405,20 +444,20 @@ export function AffirmationCreateScreen() {
               {t("affirmation.create.step4.voiceHint")}
             </AppText>
             <MicCluster
-              recording={recording}
+              recording={micActive}
               busy={busy}
               voiceLevel={voiceLevel}
               onPress={() => toggleMic("voice")}
               a11yLabel={t("affirmation.create.micA11y")}
               hint={
-                recording
+                micActive
                   ? t("affirmation.create.micHintStop")
                   : voiceUri
                     ? t("affirmation.create.step4.rerecord")
                     : t("affirmation.create.step4.recordVoice")
               }
             />
-            {voiceUri && !recording ? (
+            {voiceUri && !recording && !arming ? (
               <AppButton
                 label={t("affirmation.create.step4.playVoice")}
                 onPress={() => void playVoice()}

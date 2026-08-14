@@ -28,6 +28,11 @@ import { useTheme } from "@/modules/ui/theme";
 import { useThemePreference } from "@/modules/ui/themePreference";
 
 import { openBookSrc } from "../core/openBookSrc";
+import {
+  fetchRemoteReadingProgress,
+  pickNewerProgress,
+  pushRemoteReadingProgress,
+} from "../core/bookProgressClient";
 import { buildEnsureCoverStageScript } from "../core/coverStage";
 import { chapterTocItems, flattenToc, isChapterFooterLabel } from "../core/flattenToc";
 import { bookLocaleForAppLocale, type BookLocale } from "../core/bookIds";
@@ -664,13 +669,16 @@ function ReaderChrome({
       const href =
         anchor?.tocHref ?? anchor?.href ?? resumeHrefRef.current ?? loc?.start?.href ?? null;
       const chapterLabel = tocLabelForHref(href, chapterToc) ?? undefined;
-      await saveReadingProgress(userId, bookLocale, {
+      const saved = await saveReadingProgress(userId, bookLocale, {
         locator: cfi,
         percent,
         chapterLabel,
         snippet: anchor?.snippet ?? resumeSnippetRef.current ?? undefined,
         href: href ?? undefined,
       });
+      if (userId !== "anon") {
+        void pushRemoteReadingProgress(bookLocale, saved);
+      }
     } catch {
       /* best effort */
     }
@@ -1621,9 +1629,20 @@ export function BookReaderScreen() {
     let cancelled = false;
     (async () => {
       try {
-        // Dev: Metro /hz-book/{locale}.epub (no require() EPUB assets).
         const uri = await openBookSrc(bookLocale);
-        const progress = profile?.id ? await loadReadingProgress(profile.id, bookLocale) : null;
+        const local = profile?.id ? await loadReadingProgress(profile.id, bookLocale) : null;
+        const remote = profile?.id ? await fetchRemoteReadingProgress(bookLocale) : null;
+        const progress = pickNewerProgress(local, remote);
+        if (progress && profile?.id) {
+          const localMs = local?.updatedAt ? Date.parse(local.updatedAt) : 0;
+          const remoteMs = remote?.updatedAt ? Date.parse(remote.updatedAt) : 0;
+          const progressMs = Date.parse(progress.updatedAt);
+          if (!local || progressMs > localMs) {
+            await saveReadingProgress(profile.id, bookLocale, progress);
+          } else if (!remote || progressMs > remoteMs) {
+            void pushRemoteReadingProgress(bookLocale, progress);
+          }
+        }
         if (cancelled) return;
         setInitialLocator(progress?.locator ?? null);
         setInitialPercent(normalizeSeedPercent(progress?.percent));
@@ -1633,7 +1652,16 @@ export function BookReaderScreen() {
         setSrc(uri);
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : t("book.reader.openError"));
+          const code = e instanceof Error ? e.message : "";
+          if (code === "book_not_owned") {
+            setError(t("book.reader.notOwned"));
+          } else if (code === "book_cdn_unavailable") {
+            setError(t("book.reader.cdnUnavailable"));
+          } else if (code === "book_auth_required") {
+            setError(t("book.reader.authRequired"));
+          } else {
+            setError(e instanceof Error ? e.message : t("book.reader.openError"));
+          }
         }
       }
     })();
