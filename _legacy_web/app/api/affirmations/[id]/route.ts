@@ -5,14 +5,12 @@ import {
   requireUserId,
 } from "@legacy/app/api/_utils/supabase";
 import {
+  AFFIRMATION_SELECT,
   type AffirmationRow,
   serializeAffirmation,
-} from "../route";
+} from "../affirmationShared";
 
 export const runtime = "nodejs";
-
-const SELECT =
-  "id, user_id, text, audio_url, status, current_day, last_practiced_at, cycle_started_at, created_at, updated_at";
 
 type PatchBody = {
   text?: string;
@@ -73,7 +71,7 @@ export async function PATCH(
       .update(patch)
       .eq("id", id)
       .eq("user_id", userId)
-      .select(SELECT)
+      .select(AFFIRMATION_SELECT)
       .maybeSingle();
     if (error) throw error;
     if (!data) return json({ error: "Не найдено." }, { status: 404 });
