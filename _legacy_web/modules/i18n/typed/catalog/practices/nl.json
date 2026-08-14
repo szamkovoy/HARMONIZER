@@ -83,6 +83,7 @@
   },
   "soundLabel": "Geluid",
   "startPractice": "Oefening starten",
+  "tempoLabel": "Tempo:",
   "videoLabel": "Video",
   "videoUnavailableMessage": "Deze asana heeft nog geen Vimeo-ID voor Remote Play.",
   "videoUnavailableTitle": "Video niet beschikbaar",
@@ -114,6 +115,5 @@
   "yogaLateHint": "Supabase reageert trager dan normaal. De catalogus is al geopend en de asana's verschijnen hier automatisch.",
   "yogaLateLoading": "laden...",
   "yogaLateLoadingTitle": "Asana's worden nog geladen",
-  "yogaTitlePrefix": "Praktijk",
-  "tempoLabel": "Tempo:"
+  "yogaTitlePrefix": "Praktijk"
 }

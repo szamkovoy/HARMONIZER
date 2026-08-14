@@ -83,6 +83,7 @@
   },
   "soundLabel": "Klang",
   "startPractice": "Übung starten",
+  "tempoLabel": "Tempo:",
   "videoLabel": "Video",
   "videoUnavailableMessage": "Für diese Asana gibt es noch keine Vimeo-ID für Remote Play.",
   "videoUnavailableTitle": "Video nicht verfügbar",
@@ -114,6 +115,5 @@
   "yogaLateHint": "Supabase antwortet langsamer als gewöhnlich. Der Katalog ist bereits geöffnet und die Asanas erscheinen hier automatisch.",
   "yogaLateLoading": "wird geladen...",
   "yogaLateLoadingTitle": "Asanas werden noch geladen",
-  "yogaTitlePrefix": "Übung",
-  "tempoLabel": "Tempo:"
+  "yogaTitlePrefix": "Übung"
 }

@@ -11,7 +11,7 @@ import {
   AFFIRMATION_REFINEMENT_PROMPT,
   AFFIRMATION_SYSTEM_PROMPT,
   parseAffirmationLines,
-} from "./prompts";
+} from "../prompts";
 
 export const runtime = "nodejs";
 
