@@ -93,3 +93,23 @@ export function getDayUrl(): string {
 export function getAiProposalRespondUrl(proposalId: string): string {
   return `${getCommunicatorApiBaseUrl()}/api/proposals/${proposalId}/respond`;
 }
+
+export function getAffirmationsUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/affirmations`;
+}
+
+export function getAffirmationsGenerateUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/affirmations/generate`;
+}
+
+export function getAffirmationsUploadsUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/affirmations/uploads`;
+}
+
+export function getAffirmationsPracticeCompleteUrl(): string {
+  return `${getCommunicatorApiBaseUrl()}/api/affirmations/practice-complete`;
+}
+
+export function getAffirmationByIdUrl(id: string): string {
+  return `${getCommunicatorApiBaseUrl()}/api/affirmations/${encodeURIComponent(id)}`;
+}

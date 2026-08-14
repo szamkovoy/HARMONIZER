@@ -33,6 +33,7 @@ const FEATURE_BODY_KEY: Record<FeatureKey, string> = {
   meditations: "gate.body.practices",
   asana_practices: "gate.body.practices",
   webinar_community: "gate.body.webinar",
+  affirmations: "gate.body.affirmation",
   profile: "gate.body.default",
   stats: "gate.body.default",
 };

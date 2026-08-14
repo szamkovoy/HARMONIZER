@@ -11,6 +11,7 @@ export type FeatureKey =
   | "meditations"
   | "asana_practices"
   | "webinar_community"
+  | "affirmations"
   | "profile"
   | "stats";
 
@@ -20,8 +21,8 @@ export type FeatureKey =
  *   oracle («Наставник») — + персональный прогноз, калибровка, ИИ-ассистент,
  *                          планирование дня, статистика;
  *   practitioner         — скрытый legacy-уровень, эквивалент «Наставника»;
- *   master («Мастер»)    — + весь каталог практик (асаны, дыхание, медитации)
- *                          и вебинары.
+ *   master («Мастер»)    — + весь каталог практик (асаны, дыхание, медитации),
+ *                          вебинары и персональные аффирмации.
  */
 const ORACLE_FEATURES: readonly FeatureKey[] = [
   "global_daily_forecast",
@@ -44,6 +45,7 @@ export const TIER_FEATURES: Record<ProductTier, readonly FeatureKey[]> = {
     "meditations",
     "asana_practices",
     "webinar_community",
+    "affirmations",
   ],
 };
 
@@ -58,6 +60,7 @@ export const FEATURE_REQUIRED_TIER: Record<FeatureKey, ProductTier> = {
   meditations: "master",
   asana_practices: "master",
   webinar_community: "master",
+  affirmations: "master",
   profile: "free",
   stats: "oracle",
 };
