@@ -1,6 +1,9 @@
 {
   "affirmation.breath.finaleHint": "On the exhale, speaking to yourself, read this affirmation:",
   "affirmation.create.generating": "Generating options…",
+  "affirmation.create.micA11y": "Voice recording",
+  "affirmation.create.micHintStart": "Tap to start recording",
+  "affirmation.create.micHintStop": "Tap to stop",
   "affirmation.create.record": "Record",
   "affirmation.create.retry": "Try Again",
   "affirmation.create.saving": "Saving…",
@@ -23,6 +26,7 @@
   "affirmation.create.transcribing": "Transcribing speech…",
   "affirmation.error.generate": "Could not generate affirmations. Please try again.",
   "affirmation.error.generic": "Could not complete action. Please try again.",
+  "affirmation.error.micPermission": "We need microphone access to record your affirmation.",
   "affirmation.error.transcribe": "Could not transcribe speech. Please try again.",
   "affirmation.manage.changeCta": "End or Change Affirmation",
   "affirmation.manage.chartTitle": "Phases of Integration",

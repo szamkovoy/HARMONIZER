@@ -1,3 +1,5 @@
+- 2026-08-14 (479): Affirmations UX (breath-only widget, close, Communicator mic + recording fix); book finger-follow page turn.
+- 2026-08-14 (478): Affirmations wired (Practices widget + breath overlay + Stack); prod migration `user_affirmations`; book soft paginated turn (not 3D curl).
 - 2026-08-14 (477): Account web — hide book purchase block when overview.book.owned (no prod).
 - 2026-08-14 (476): Account web — book block accordion (Vimeo per locale + blurb ×8, chevron) (no prod).
 - 2026-08-13 (475): Book — FR/IT/ES/PT/NL literary translate pipeline (Gemini Pro) + 8-locale bookIds (no prod).

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.8
-updated: 2026-07-31
+version: 1.9
+updated: 2026-08-14
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -77,10 +77,11 @@ code_refs:
 - **Продуктовая модель (с 2026-07-14, три видимых уровня):**
   - `free` → **«Навигатор»**: `global_daily_forecast`, `profile`.
   - `oracle` → **«Наставник»**: + `personal_daily_forecast`, `calibration`, `assistant_dialog`, `day_planning`, `stats` (последние три переехали с уровня practitioner).
-  - `master` → **«Мастер»**: + `practice_catalog`, `breath_practices`, `meditations`, `asana_practices`, `webinar_community`.
+  - `master` → **«Мастер»**: + `practice_catalog`, `breath_practices`, `meditations`, `asana_practices`, `webinar_community`, `affirmations`.
   - `practitioner` — **скрытый legacy-уровень**: DB-значение сохранено, матрица фич = oracle, в UI/админ-выдаче не показывается (`VISIBLE_*`-константы; в `PaymentFormModal` опция видна только при редактировании существующей записи).
 - **Ключ `day_planning`** — открывает вкладку «День», доступен с уровня `oracle`.
 - **Ключ `stats`** — открывает как старую клиентскую статистику практик, так и новые server-backed profile reports (`/api/profile/life-matrix`, `/api/profile/practice-by-chakra`); доступен с уровня `oracle`.
+- **Ключ `affirmations`** — виджет на Практиках + overlay в дыхании; Master; soft gate `gate.body.affirmation` (см. `affirmations` module).
 - **Каталог тарифов** — единственная точка: `modules/access/core/tiers.ts` (id, порядок, `PAID_PRODUCT_TIERS`, `VISIBLE_*`, `TIER_LABELS` / `TIER_LABELS_RU`) + матрица фич в `features.ts`. Смена названий/числа тарифов в будущем правится здесь (и в SQL CHECK / RPC `recompute_user_membership`).
 - **Порядок тарифов** — `TIER_ORDER` / `tierAtLeast` в `modules/access/core/tiers.ts`.
 - **Схема БД** — `supabase/migrations/20260501193000_free_tier_global_content.sql` (`membership_tier`, `trial_expires_at`) + `supabase/migrations/20260708010000_admin_panel_tier_foundation.sql`: constraint расширен до `check in ('free','oracle','practitioner','master')` (данные `premium` нормализованы в `oracle`), добавлен `membership_expires_at timestamptz` (истечение ручного гранта/оплаты; NULL = бессрочно; истёкший грант = `free`). Пересчёт из леджера: `20260710023000_reconcile_expired_memberships.sql` (`recompute_user_membership`, hourly Edge). **Trial = 1 сутки** уровня «Мастер» с `20260714210000_trial_one_day.sql` (default колонки + триггер `handle_new_auth_user`, который также пишет `locale` из user_metadata email-OTP регистрации).

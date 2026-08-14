@@ -11,11 +11,15 @@ import {
   type AffirmationDto,
   uploadAffirmationAudio,
 } from "@/modules/affirmations/core/affirmationsClient";
+import {
+  resetPlaybackAudioMode,
+  startWhisperRecording,
+} from "@/modules/affirmations/core/startWhisperRecording";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
-import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
 import { useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
@@ -93,10 +97,15 @@ export function AffirmationManageScreen() {
     }
   };
 
+  const closeScreen = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/practices");
+  }, []);
+
   const playAudio = async () => {
     if (!row?.audioSignedUrl) return;
     try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      await resetPlaybackAudioMode();
       const { sound } = await Audio.Sound.createAsync({ uri: row.audioSignedUrl });
       await sound.playAsync();
       sound.setOnPlaybackStatusUpdate((s) => {
@@ -116,6 +125,7 @@ export function AffirmationManageScreen() {
       setBusy(true);
       try {
         await rec.stopAndUnloadAsync();
+        await resetPlaybackAudioMode();
         const uri = rec.getURI();
         if (!uri) return;
         const path = await uploadAffirmationAudio(uri, mimeFromRecordingUri(uri));
@@ -130,12 +140,15 @@ export function AffirmationManageScreen() {
     }
     try {
       const perm = await Audio.requestPermissionsAsync();
-      if (!perm.granted) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(whisperRecordingOptions());
+      if (!perm.granted) {
+        Alert.alert(t("affirmation.error.micPermission"));
+        return;
+      }
+      const rec = await startWhisperRecording({ isMeteringEnabled: false });
       recordingRef.current = rec;
       setRecording(true);
     } catch {
+      await resetPlaybackAudioMode();
       Alert.alert(t("affirmation.error.generic"));
     }
   };
@@ -154,6 +167,7 @@ export function AffirmationManageScreen() {
 
   return (
     <StackScreenLayout>
+      <FloatingCloseButton onPress={closeScreen} accessibilityLabel={t("common.close")} />
       <StackScrollView contentContainerStyle={styles.pad}>
         <ScreenHeader title={t("affirmation.manage.title")} />
         {loading || !row ? (

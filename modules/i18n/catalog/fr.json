@@ -1,6 +1,9 @@
 {
   "affirmation.breath.finaleHint": "À l'expiration, en vous adressant à vous-même, lisez cette affirmation :",
   "affirmation.create.generating": "Génération de suggestions…",
+  "affirmation.create.micA11y": "Enregistrement vocal",
+  "affirmation.create.micHintStart": "Appuyez pour commencer l'enregistrement",
+  "affirmation.create.micHintStop": "Appuyez pour arrêter",
   "affirmation.create.record": "Enregistrer",
   "affirmation.create.retry": "Réessayer",
   "affirmation.create.saving": "Enregistrement en cours…",
@@ -23,6 +26,7 @@
   "affirmation.create.transcribing": "Transcription en cours…",
   "affirmation.error.generate": "Impossible de générer des affirmations. Veuillez réessayer.",
   "affirmation.error.generic": "L'action n'a pas pu être effectuée. Veuillez réessayer.",
+  "affirmation.error.micPermission": "L'accès au microphone est nécessaire pour enregistrer une affirmation.",
   "affirmation.error.transcribe": "Impossible de transcrire la parole. Veuillez réessayer.",
   "affirmation.manage.changeCta": "Terminer ou changer l'affirmation",
   "affirmation.manage.chartTitle": "Phases d'intégration",

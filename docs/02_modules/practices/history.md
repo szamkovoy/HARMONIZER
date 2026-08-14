@@ -17,6 +17,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-14 (affirmations entry):** `AffirmationWidget` в `PracticeCatalogScreen` listHeader — только при `selectedKind === "breath"` (Master gate).
+
 - **2026-08-04 (keep-awake flash + asana):** «Медитация — вспышка» и асаны держат экран через общий `PracticeKeepAwake` (`expo-keep-awake` + AppState re-activate). «Спокойствие» без keep-awake. Дыхание уже было (CoherenceBreathScreen).
 
 - **2026-08-02 (camera QC fail vs ring «0»):** Между «0» на кольце и диалогом «Пульс не распознан» была пауза: кольцо — wall clock, QC fail — camera elapsed. Fix: wall fail-lead `COHERENCE_QC_FAIL_LEAD_MS` (3 с до «0») форсирует final fail для любого непройденного QC.

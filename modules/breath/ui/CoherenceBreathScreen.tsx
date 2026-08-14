@@ -209,6 +209,10 @@ import {
   logRuntimeEvent,
 } from "@/services/runtimeDiagnostics";
 import type { Json } from "@/services/supabase-types";
+import {
+  AffirmationBreathOverlay,
+  type AffirmationBreathGate,
+} from "@/modules/affirmations";
 
 import { BreathPracticeShell, useBreathPhaseLabel } from "./BreathPracticeShell";
 
@@ -852,6 +856,7 @@ function CoherenceBreathScreenInner({
   );
   const theme = useTheme();
   const str = useMemo(() => getCoherenceBreathStrings(locale), [locale]);
+  const affirmationGateRef = useRef<AffirmationBreathGate | null>(null);
   /** Catalog / Day / assistant — leave breath screen without the legacy idle picker. */
   const returnToPracticeOrigin = useCallback(() => {
     const normalized = (launchSource ?? "").trim().toLowerCase();
@@ -3804,7 +3809,16 @@ function CoherenceBreathScreenInner({
         rsaBpm: decimateSeries(rsaSeries, 120),
       });
 
-      setPhase("results");
+      // Affirmation finale audio must finish before results; day bump is best-effort.
+      void (async () => {
+        try {
+          await affirmationGateRef.current?.waitForFinaleAudio();
+        } catch {
+          /* ignore */
+        }
+        affirmationGateRef.current?.notifyPracticeComplete();
+        setPhase("results");
+      })();
     }, UI_TICK_MS);
     return () => clearInterval(id);
   }, [
@@ -5541,7 +5555,16 @@ function CoherenceBreathScreenInner({
               indicatorKind={practice.indicatorKind}
               onScreenTap={handleScreenTap}
               overlay={
-                <BreathOverlayControlPanel
+                <>
+                  <AffirmationBreathOverlay
+                    ref={affirmationGateRef}
+                    phaseKind={activePhase?.kind ?? null}
+                    elapsedMs={elapsedMs}
+                    practiceTotalMs={practiceTotalMs}
+                    cycleMs={currentPlan?.cycleMs ?? 12_000}
+                    active={phase === "running" && isBreathTimingActive}
+                  />
+                  <BreathOverlayControlPanel
                   visible={overlayVisible}
                   title={str.practiceName[practiceId]}
                   subtitle={str.practiceSanskritName[practiceId]}
@@ -5591,6 +5614,7 @@ function CoherenceBreathScreenInner({
                   onInteraction={handleOverlayInteraction}
                   accessibilityLabel={`${str.baseBeatsAccessibilityLabel}: ${formatTempoLabel(tempoKey)}`}
                 />
+                </>
               }
               center={
                 <View style={styles.centerStack}>

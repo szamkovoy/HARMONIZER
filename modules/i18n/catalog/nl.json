@@ -1,6 +1,9 @@
 {
   "affirmation.breath.finaleHint": "Lees bij de uitademing, tot jezelf sprekend, deze affirmatie voor:",
   "affirmation.create.generating": "Opties genereren…",
+  "affirmation.create.micA11y": "Stemopname",
+  "affirmation.create.micHintStart": "Tik om op te nemen",
+  "affirmation.create.micHintStop": "Tik om te stoppen",
   "affirmation.create.record": "Opnemen",
   "affirmation.create.retry": "Opnieuw proberen",
   "affirmation.create.saving": "Opslaan…",
@@ -23,6 +26,7 @@
   "affirmation.create.transcribing": "Spraak herkennen…",
   "affirmation.error.generate": "Het is niet gelukt om affirmaties te genereren. Probeer het opnieuw.",
   "affirmation.error.generic": "De actie kon niet worden uitgevoerd. Probeer het opnieuw.",
+  "affirmation.error.micPermission": "We hebben toegang tot je microfoon nodig om een affirmatie op te nemen.",
   "affirmation.error.transcribe": "Het is niet gelukt om de spraak te herkennen. Probeer het opnieuw.",
   "affirmation.manage.changeCta": "Affirmatie beëindigen of wijzigen",
   "affirmation.manage.chartTitle": "Fasen van integratie",

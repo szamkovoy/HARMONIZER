@@ -369,7 +369,11 @@
     "affirmation.breath.finaleHint": "На выдохе, обращаясь к самому себе, прочитайте эту аффирмацию:",
     "affirmation.error.generic": "Не удалось выполнить действие. Попробуйте ещё раз.",
     "affirmation.error.generate": "Не удалось подобрать аффирмации. Попробуйте ещё раз.",
-    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз."
+    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз.",
+    "affirmation.create.micA11y": "Запись голоса",
+    "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
+    "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -741,7 +745,11 @@
     "affirmation.breath.finaleHint": "На выдохе, обращаясь к самому себе, прочитайте эту аффирмацию:",
     "affirmation.error.generic": "Не удалось выполнить действие. Попробуйте ещё раз.",
     "affirmation.error.generate": "Не удалось подобрать аффирмации. Попробуйте ещё раз.",
-    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз."
+    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз.",
+    "affirmation.create.micA11y": "Запись голоса",
+    "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
+    "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -1113,7 +1121,11 @@
     "affirmation.breath.finaleHint": "На выдохе, обращаясь к самому себе, прочитайте эту аффирмацию:",
     "affirmation.error.generic": "Не удалось выполнить действие. Попробуйте ещё раз.",
     "affirmation.error.generate": "Не удалось подобрать аффирмации. Попробуйте ещё раз.",
-    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз."
+    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз.",
+    "affirmation.create.micA11y": "Запись голоса",
+    "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
+    "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -1485,7 +1497,11 @@
     "affirmation.breath.finaleHint": "На выдохе, обращаясь к самому себе, прочитайте эту аффирмацию:",
     "affirmation.error.generic": "Не удалось выполнить действие. Попробуйте ещё раз.",
     "affirmation.error.generate": "Не удалось подобрать аффирмации. Попробуйте ещё раз.",
-    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз."
+    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз.",
+    "affirmation.create.micA11y": "Запись голоса",
+    "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
+    "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -1857,7 +1873,11 @@
     "affirmation.breath.finaleHint": "На выдохе, обращаясь к самому себе, прочитайте эту аффирмацию:",
     "affirmation.error.generic": "Не удалось выполнить действие. Попробуйте ещё раз.",
     "affirmation.error.generate": "Не удалось подобрать аффирмации. Попробуйте ещё раз.",
-    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз."
+    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз.",
+    "affirmation.create.micA11y": "Запись голоса",
+    "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
+    "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -2229,7 +2249,11 @@
     "affirmation.breath.finaleHint": "На выдохе, обращаясь к самому себе, прочитайте эту аффирмацию:",
     "affirmation.error.generic": "Не удалось выполнить действие. Попробуйте ещё раз.",
     "affirmation.error.generate": "Не удалось подобрать аффирмации. Попробуйте ещё раз.",
-    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз."
+    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз.",
+    "affirmation.create.micA11y": "Запись голоса",
+    "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
+    "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -2601,6 +2625,10 @@
     "affirmation.breath.finaleHint": "На выдохе, обращаясь к самому себе, прочитайте эту аффирмацию:",
     "affirmation.error.generic": "Не удалось выполнить действие. Попробуйте ещё раз.",
     "affirmation.error.generate": "Не удалось подобрать аффирмации. Попробуйте ещё раз.",
-    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз."
+    "affirmation.error.transcribe": "Не удалось распознать речь. Попробуйте ещё раз.",
+    "affirmation.create.micA11y": "Запись голоса",
+    "affirmation.create.micHintStart": "Нажмите, чтобы начать запись",
+    "affirmation.create.micHintStop": "Нажмите, чтобы остановить",
+    "affirmation.error.micPermission": "Нужен доступ к микрофону, чтобы записать аффирмацию."
   }
 }

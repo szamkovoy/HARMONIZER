@@ -2,12 +2,16 @@
 id: 02_modules/book/history
 title: Book History
 version: 1.0
-updated: 2026-08-12
+updated: 2026-08-14
 depends_on: [02_modules/book/spec]
 code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 ---
 
 ## Decision Log
+
+- **2026-08-14 (finger-follow paginated):** Soft turn усилен: страница следует за пальцем при свайпе, порог commit / snap-back; tap zones — более длинный slide (не 28px «дёрганье»). По-прежнему не LitRes continuous gutter-scroll и не 3D curl.
+
+- **2026-08-14 (soft paginated turn):** После модерации — лёгкий slide+fade при тапе/свайпе в paginated (не LitRes 3D curl; curl по-прежнему требует другой стек).
 
 - **2026-08-13 (FR/IT/ES/PT/NL translation pipeline):** EN → chapter MD → Gemini `gemini-3.1-pro-preview` (`scripts/book-translate.mjs` + prompt) → DOCX/EPUB; `bookLocaleForAppLocale` covers all 8 UI locales; temp covers from `cover_En.jpg` until locale art lands.
 

@@ -358,6 +358,14 @@ function RootLayoutNav() {
             name="breath-coherence"
             options={{ headerShown: false }}
           />
+          <Stack.Screen
+            name="affirmation/create"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="affirmation/manage"
+            options={{ headerShown: false }}
+          />
           <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="webinar/[id]" options={{ headerShown: false }} />
           <Stack.Screen

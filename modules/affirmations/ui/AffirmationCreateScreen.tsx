@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Pressable,
   StyleSheet,
   TextInput,
@@ -17,12 +18,20 @@ import {
   type AffirmationHistoryTurn,
   uploadAffirmationAudio,
 } from "@/modules/affirmations/core/affirmationsClient";
+import {
+  resetPlaybackAudioMode,
+  startWhisperRecording,
+} from "@/modules/affirmations/core/startWhisperRecording";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
-import { whisperRecordingOptions } from "@/modules/communicator/core/whisperRecording";
+import {
+  MicCancelButton,
+  MicRecordButton,
+} from "@/modules/communicator/ui/MicRecordButton";
 import { useAuth } from "@/modules/auth";
 import { useAppLocale, useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
+import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
@@ -42,7 +51,6 @@ export function AffirmationCreateScreen() {
   const [step, setStep] = useState<WizardStep>("intake");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [meterLevel, setMeterLevel] = useState(0);
   const [options, setOptions] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [history, setHistory] = useState<AffirmationHistoryTurn[]>([]);
@@ -53,25 +61,37 @@ export function AffirmationCreateScreen() {
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordStartRef = useRef(0);
-  const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeRef = useRef<"intake" | "refine" | "voice">("intake");
+  const voiceLevel = useRef(new Animated.Value(0.2)).current;
+  const finishRecordingRef = useRef<() => Promise<void>>(async () => undefined);
 
-  const clearMeters = () => {
-    if (meterTimerRef.current) clearInterval(meterTimerRef.current);
-    meterTimerRef.current = null;
+  const clearMaxTimer = () => {
     if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
     maxTimerRef.current = null;
-    setMeterLevel(0);
   };
 
-  useEffect(() => () => clearMeters(), []);
+  useEffect(
+    () => () => {
+      clearMaxTimer();
+      const rec = recordingRef.current;
+      recordingRef.current = null;
+      if (rec) void rec.stopAndUnloadAsync().catch(() => undefined);
+    },
+    [],
+  );
+
+  const closeWizard = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/practices");
+  }, []);
 
   const stopAndGetUri = useCallback(async (): Promise<string | null> => {
     const rec = recordingRef.current;
     recordingRef.current = null;
     setRecording(false);
-    clearMeters();
+    clearMaxTimer();
+    voiceLevel.setValue(0.2);
     if (!rec) return null;
     try {
       await rec.stopAndUnloadAsync();
@@ -79,53 +99,7 @@ export function AffirmationCreateScreen() {
     } catch {
       return null;
     }
-  }, []);
-
-  const startRecording = useCallback(
-    async (mode: "intake" | "refine" | "voice") => {
-      if (busy || recording) return;
-      modeRef.current = mode;
-      try {
-        const perm = await Audio.requestPermissionsAsync();
-        if (!perm.granted) {
-          Alert.alert(t("affirmation.error.generic"));
-          return;
-        }
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-        const { recording: rec } = await Audio.Recording.createAsync(
-          whisperRecordingOptions({ isMeteringEnabled: true }),
-        );
-        recordingRef.current = rec;
-        recordStartRef.current = Date.now();
-        setRecording(true);
-        meterTimerRef.current = setInterval(async () => {
-          try {
-            const status = await rec.getStatusAsync();
-            if (status.isRecording && typeof status.metering === "number") {
-              // metering is typically -160..0 dB
-              const norm = Math.min(1, Math.max(0, (status.metering + 50) / 50));
-              setMeterLevel(norm);
-            }
-          } catch {
-            /* ignore */
-          }
-        }, 120);
-        if (mode !== "voice") {
-          maxTimerRef.current = setTimeout(() => {
-            void finishRecording();
-          }, MAX_INTAKE_MS);
-        }
-      } catch {
-        Alert.alert(t("affirmation.error.generic"));
-      }
-    },
-    // finishRecording defined below — intentional late bind via void call
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [busy, recording, t],
-  );
+  }, [voiceLevel]);
 
   const runGenerate = useCallback(
     async (message: string, nextHistory: AffirmationHistoryTurn[]) => {
@@ -157,6 +131,7 @@ export function AffirmationCreateScreen() {
   const finishRecording = useCallback(async () => {
     const mode = modeRef.current;
     const uri = await stopAndGetUri();
+    await resetPlaybackAudioMode();
     const durationMs = Date.now() - recordStartRef.current;
     if (!uri || durationMs < MIN_VOICE_MS) return;
 
@@ -196,6 +171,59 @@ export function AffirmationCreateScreen() {
     }
   }, [history, locale, runGenerate, stopAndGetUri, t]);
 
+  finishRecordingRef.current = finishRecording;
+
+  const startRecording = useCallback(
+    async (mode: "intake" | "refine" | "voice") => {
+      if (busy || recording) return;
+      modeRef.current = mode;
+      try {
+        const perm = await Audio.requestPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(t("affirmation.error.micPermission"));
+          return;
+        }
+        const rec = await startWhisperRecording({ isMeteringEnabled: true });
+        recordingRef.current = rec;
+        recordStartRef.current = Date.now();
+        setRecording(true);
+        rec.setOnRecordingStatusUpdate((status) => {
+          const metering =
+            "metering" in status && typeof status.metering === "number" ? status.metering : null;
+          const fallbackPulse = 0.28 + 0.12 * Math.sin(Date.now() / 180);
+          const normalized =
+            metering == null ? fallbackPulse : Math.max(0.08, Math.min(1, (metering + 60) / 60));
+          Animated.timing(voiceLevel, {
+            toValue: normalized,
+            duration: 90,
+            useNativeDriver: true,
+          }).start();
+        });
+        rec.setProgressUpdateInterval(90);
+        if (mode !== "voice") {
+          maxTimerRef.current = setTimeout(() => {
+            void finishRecordingRef.current();
+          }, MAX_INTAKE_MS);
+        }
+      } catch {
+        recordingRef.current = null;
+        setRecording(false);
+        await resetPlaybackAudioMode();
+        Alert.alert(t("affirmation.error.generic"));
+      }
+    },
+    [busy, recording, t, voiceLevel],
+  );
+
+  const toggleMic = useCallback(
+    (mode: "intake" | "refine" | "voice") => {
+      if (busy) return;
+      if (recording) void finishRecording();
+      else void startRecording(mode);
+    },
+    [busy, finishRecording, recording, startRecording],
+  );
+
   const onSelectOption = (index: number) => {
     setSelectedIndex(index);
   };
@@ -209,10 +237,7 @@ export function AffirmationCreateScreen() {
   const playVoice = async () => {
     if (!voiceUri) return;
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
+      await resetPlaybackAudioMode();
       const { sound } = await Audio.Sound.createAsync({ uri: voiceUri });
       await sound.playAsync();
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -244,6 +269,10 @@ export function AffirmationCreateScreen() {
 
   return (
     <StackScreenLayout>
+      <FloatingCloseButton
+        onPress={closeWizard}
+        accessibilityLabel={t("common.close")}
+      />
       <StackScrollView contentContainerStyle={styles.pad}>
         <ScreenHeader title={t("affirmation.create.title")} />
 
@@ -252,20 +281,25 @@ export function AffirmationCreateScreen() {
             <AppText variant="screenHint" tone="muted" style={styles.instruction}>
               {t("affirmation.create.step1.instruction")}
             </AppText>
-            <MeterBar level={meterLevel} color={theme.colors.accent} track={theme.colors.surfaceBorder} />
-            <AppButton
-              label={recording ? t("affirmation.create.stop") : t("affirmation.create.record")}
-              onPress={() => {
-                if (recording) void finishRecording();
-                else void startRecording("intake");
-              }}
-              disabled={busy}
+            <MicCluster
+              recording={recording}
+              busy={busy}
+              voiceLevel={voiceLevel}
+              onPress={() => toggleMic("intake")}
+              a11yLabel={t("affirmation.create.micA11y")}
+              hint={
+                recording
+                  ? t("affirmation.create.micHintStop")
+                  : t("affirmation.create.micHintStart")
+              }
             />
             {busy ? (
               <View style={styles.busyRow}>
                 <ActivityIndicator color={theme.colors.accent} />
                 <AppText variant="technicalCaption" tone="muted">
-                  {t("affirmation.create.generating")}
+                  {recording
+                    ? t("affirmation.create.transcribing")
+                    : t("affirmation.create.generating")}
                 </AppText>
               </View>
             ) : null}
@@ -323,14 +357,17 @@ export function AffirmationCreateScreen() {
                   {t("affirmation.create.step3.softHint")}
                 </AppText>
               ) : null}
-              <MeterBar level={meterLevel} color={theme.colors.accent} track={theme.colors.surfaceBorder} />
-              <AppButton
-                label={recording ? t("affirmation.create.stop") : t("affirmation.create.record")}
-                onPress={() => {
-                  if (recording) void finishRecording();
-                  else void startRecording("refine");
-                }}
-                disabled={busy}
+              <MicCluster
+                recording={recording}
+                busy={busy}
+                voiceLevel={voiceLevel}
+                onPress={() => toggleMic("refine")}
+                a11yLabel={t("affirmation.create.micA11y")}
+                hint={
+                  recording
+                    ? t("affirmation.create.micHintStop")
+                    : t("affirmation.create.micHintStart")
+                }
               />
               {busy ? (
                 <View style={styles.busyRow}>
@@ -367,30 +404,27 @@ export function AffirmationCreateScreen() {
             <AppText variant="screenHint" tone="muted" style={styles.instruction}>
               {t("affirmation.create.step4.voiceHint")}
             </AppText>
-            <MeterBar level={meterLevel} color={theme.colors.accent} track={theme.colors.surfaceBorder} />
-            <View style={styles.row}>
+            <MicCluster
+              recording={recording}
+              busy={busy}
+              voiceLevel={voiceLevel}
+              onPress={() => toggleMic("voice")}
+              a11yLabel={t("affirmation.create.micA11y")}
+              hint={
+                recording
+                  ? t("affirmation.create.micHintStop")
+                  : voiceUri
+                    ? t("affirmation.create.step4.rerecord")
+                    : t("affirmation.create.step4.recordVoice")
+              }
+            />
+            {voiceUri && !recording ? (
               <AppButton
-                label={
-                  recording
-                    ? t("affirmation.create.stop")
-                    : voiceUri
-                      ? t("affirmation.create.step4.rerecord")
-                      : t("affirmation.create.step4.recordVoice")
-                }
-                onPress={() => {
-                  if (recording) void finishRecording();
-                  else void startRecording("voice");
-                }}
-                disabled={busy}
+                label={t("affirmation.create.step4.playVoice")}
+                onPress={() => void playVoice()}
+                variant="secondary"
               />
-              {voiceUri && !recording ? (
-                <AppButton
-                  label={t("affirmation.create.step4.playVoice")}
-                  onPress={() => void playVoice()}
-                  variant="secondary"
-                />
-              ) : null}
-            </View>
+            ) : null}
             <AppButton
               label={busy ? t("affirmation.create.saving") : t("affirmation.create.step4.save")}
               onPress={() => void save()}
@@ -403,27 +437,49 @@ export function AffirmationCreateScreen() {
   );
 }
 
-function MeterBar({
-  level,
-  color,
-  track,
+function MicCluster({
+  recording,
+  busy,
+  voiceLevel,
+  onPress,
+  a11yLabel,
+  hint,
 }: {
-  level: number;
-  color: string;
-  track: string;
+  recording: boolean;
+  busy: boolean;
+  voiceLevel: Animated.Value;
+  onPress: () => void;
+  a11yLabel: string;
+  hint: string;
 }) {
   return (
-    <View style={[styles.meterTrack, { backgroundColor: track }]}>
-      <View style={[styles.meterFill, { width: `${Math.round(level * 100)}%`, backgroundColor: color }]} />
+    <View style={styles.micCluster}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={a11yLabel}
+        disabled={busy && !recording}
+        onPress={onPress}
+        hitSlop={12}
+        style={({ pressed }) => [styles.micHit, pressed ? styles.micHitPressed : null]}
+      >
+        {busy && !recording ? (
+          <MicCancelButton />
+        ) : (
+          <MicRecordButton active={recording} level={voiceLevel} />
+        )}
+      </Pressable>
+      <AppText variant="technicalCaption" tone="muted" style={styles.micHint}>
+        {hint}
+      </AppText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pad: { paddingBottom: 40, gap: 16 },
+  pad: { paddingBottom: 40, gap: 16, paddingTop: 8 },
   block: { gap: 12 },
   instruction: { lineHeight: 22 },
-  busyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  busyRow: { flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "center" },
   option: {
     borderWidth: 1,
     borderRadius: 14,
@@ -458,14 +514,19 @@ const styles = StyleSheet.create({
     padding: 12,
     textAlignVertical: "top",
   },
-  row: { gap: 10 },
-  meterTrack: {
-    height: 6,
-    borderRadius: 999,
-    overflow: "hidden",
+  micCluster: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
   },
-  meterFill: {
-    height: "100%",
-    borderRadius: 999,
+  micHit: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micHitPressed: {
+    opacity: 0.85,
+  },
+  micHint: {
+    textAlign: "center",
   },
 });

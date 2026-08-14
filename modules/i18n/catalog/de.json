@@ -1,6 +1,9 @@
 {
   "affirmation.breath.finaleHint": "Lies beim Ausatmen, an dich selbst gerichtet, diese Affirmation:",
   "affirmation.create.generating": "Optionen werden generiert…",
+  "affirmation.create.micA11y": "Sprachaufnahme",
+  "affirmation.create.micHintStart": "Tippen Sie, um die Aufnahme zu starten",
+  "affirmation.create.micHintStop": "Tippen Sie, um zu stoppen",
   "affirmation.create.record": "Aufnehmen",
   "affirmation.create.retry": "Erneut versuchen",
   "affirmation.create.saving": "Wird gespeichert…",
@@ -23,6 +26,7 @@
   "affirmation.create.transcribing": "Sprache wird transkribiert…",
   "affirmation.error.generate": "Affirmationen konnten nicht generiert werden. Bitte versuche es erneut.",
   "affirmation.error.generic": "Aktion konnte nicht ausgeführt werden. Bitte versuche es erneut.",
+  "affirmation.error.micPermission": "Wir benötigen Zugriff auf Ihr Mikrofon, um eine Affirmation aufzunehmen.",
   "affirmation.error.transcribe": "Sprache konnte nicht erkannt werden. Bitte versuche es erneut.",
   "affirmation.manage.changeCta": "Affirmation beenden oder ändern",
   "affirmation.manage.chartTitle": "Phasen der Verinnerlichung",

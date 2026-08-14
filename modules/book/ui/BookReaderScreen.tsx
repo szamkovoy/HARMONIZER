@@ -2,6 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
@@ -244,6 +246,56 @@ function ReaderChrome({
   goNextRef.current = goNext;
   const goPreviousRef = useRef(goPrevious);
   goPreviousRef.current = goPrevious;
+  /** Soft slide when turning pages in paginated mode (finger-follow + settle; not LitRes 3D curl). */
+  const pageTurnShift = useRef(new Animated.Value(0)).current;
+  const pageTurnOpacity = useRef(new Animated.Value(1)).current;
+  const pageTurnBusyRef = useRef(false);
+  const dragActiveRef = useRef(false);
+
+  const settlePageTurn = useCallback(
+    (toX: number, toOpacity: number, onDone?: () => void) => {
+      Animated.parallel([
+        Animated.timing(pageTurnShift, {
+          toValue: toX,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pageTurnOpacity, {
+          toValue: toOpacity,
+          duration: 180,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) onDone?.();
+      });
+    },
+    [pageTurnOpacity, pageTurnShift],
+  );
+
+  const turnPaginatedPage = useCallback(
+    (dir: "next" | "prev") => {
+      if (pageTurnBusyRef.current) return;
+      pageTurnBusyRef.current = true;
+      const sign = dir === "next" ? -1 : 1;
+      const distance = Math.max(96, Math.min(widthRef.current * 0.42, 180));
+      pageTurnShift.setValue(0);
+      pageTurnOpacity.setValue(1);
+      settlePageTurn(sign * distance, 0.55, () => {
+        if (dir === "next") goNextRef.current();
+        else goPreviousRef.current();
+        pageTurnShift.setValue(sign * -distance * 0.55);
+        pageTurnOpacity.setValue(0.7);
+        settlePageTurn(0, 1, () => {
+          pageTurnBusyRef.current = false;
+        });
+      });
+    },
+    [pageTurnOpacity, pageTurnShift, settlePageTurn],
+  );
+  const turnPaginatedPageRef = useRef(turnPaginatedPage);
+  turnPaginatedPageRef.current = turnPaginatedPage;
   const injectJavascriptRef = useRef(injectJavascript);
   injectJavascriptRef.current = injectJavascript;
 
@@ -694,8 +746,8 @@ function ReaderChrome({
         return;
       }
       setChromeVisible(false);
-      if (zone === "left") goPreviousRef.current();
-      else goNextRef.current();
+      if (zone === "left") turnPaginatedPageRef.current("prev");
+      else turnPaginatedPageRef.current("next");
       scheduleSyncAnchor(220);
     },
     [scheduleSyncAnchor, toggleChrome],
@@ -881,23 +933,101 @@ function ReaderChrome({
   ).current;
 
   // Paginated: own taps + horizontal swipes (library Exclusive gestures steal WebView clicks).
+  // Finger follows the page during drag; release past threshold commits turn, else snaps back.
   const pagePan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !sheetOpenRef.current,
       onMoveShouldSetPanResponder: (_, g) =>
         !sheetOpenRef.current && (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8),
       onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        dragActiveRef.current = false;
+        if (pageTurnBusyRef.current) return;
+        pageTurnShift.stopAnimation();
+        pageTurnOpacity.stopAnimation();
+      },
+      onPanResponderMove: (_, g) => {
+        if (sheetOpenRef.current || pageTurnBusyRef.current) return;
+        const adx = Math.abs(g.dx);
+        const ady = Math.abs(g.dy);
+        if (adx < 10 || adx < ady) return;
+        dragActiveRef.current = true;
+        const w = Math.max(1, widthRef.current);
+        const clamped = Math.max(-w * 0.55, Math.min(w * 0.55, g.dx));
+        pageTurnShift.setValue(clamped);
+        pageTurnOpacity.setValue(Math.max(0.55, 1 - Math.abs(clamped) / (w * 0.9)));
+      },
       onPanResponderRelease: (evt, g) => {
         if (sheetOpenRef.current) return;
         const adx = Math.abs(g.dx);
         const ady = Math.abs(g.dy);
-        if (adx > 48 && adx > ady) {
+        const wasDrag = dragActiveRef.current;
+        dragActiveRef.current = false;
+
+        if (wasDrag && adx > 48 && adx > ady) {
           setChromeVisible(false);
-          if (g.dx < 0) goNextRef.current();
-          else goPreviousRef.current();
-          scheduleSyncAnchorRef.current(220);
+          const dir = g.dx < 0 ? "next" : "prev";
+          if (pageTurnBusyRef.current) return;
+          pageTurnBusyRef.current = true;
+          const sign = dir === "next" ? -1 : 1;
+          const w = Math.max(1, widthRef.current);
+          const exitX = sign * w * 0.72;
+          Animated.parallel([
+            Animated.timing(pageTurnShift, {
+              toValue: exitX,
+              duration: 160,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(pageTurnOpacity, {
+              toValue: 0.4,
+              duration: 160,
+              useNativeDriver: true,
+            }),
+          ]).start(({ finished }) => {
+            if (finished) {
+              if (dir === "next") goNextRef.current();
+              else goPreviousRef.current();
+            }
+            pageTurnShift.setValue(-exitX * 0.35);
+            pageTurnOpacity.setValue(0.65);
+            Animated.parallel([
+              Animated.timing(pageTurnShift, {
+                toValue: 0,
+                duration: 200,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }),
+              Animated.timing(pageTurnOpacity, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+              }),
+            ]).start(() => {
+              pageTurnBusyRef.current = false;
+            });
+            scheduleSyncAnchorRef.current(220);
+          });
           return;
         }
+
+        if (wasDrag) {
+          Animated.parallel([
+            Animated.spring(pageTurnShift, {
+              toValue: 0,
+              useNativeDriver: true,
+              friction: 8,
+              tension: 80,
+            }),
+            Animated.timing(pageTurnOpacity, {
+              toValue: 1,
+              duration: 140,
+              useNativeDriver: true,
+            }),
+          ]).start();
+          return;
+        }
+
         if (adx < 14 && ady < 14) {
           const x = evt.nativeEvent.locationX;
           const w = Math.max(1, widthRef.current);
@@ -906,6 +1036,12 @@ function ReaderChrome({
           else if (ratio > 0.72) handleTapZoneRef.current("right");
           else handleTapZoneRef.current("center");
         }
+      },
+      onPanResponderTerminate: () => {
+        dragActiveRef.current = false;
+        if (pageTurnBusyRef.current) return;
+        pageTurnShift.setValue(0);
+        pageTurnOpacity.setValue(1);
       },
     }),
   ).current;
@@ -928,7 +1064,15 @@ function ReaderChrome({
           },
         ]}
       >
-        <View style={{ width: readerW, height: readerH, overflow: "hidden" }}>
+        <Animated.View
+          style={{
+            width: readerW,
+            height: readerH,
+            overflow: "hidden",
+            opacity: pageTurnOpacity,
+            transform: [{ translateX: pageTurnShift }],
+          }}
+        >
         <Reader
           key={`hz-book-${readerEpoch}-${prefs.scrollMode}`}
           src={src}
@@ -1073,7 +1217,7 @@ function ReaderChrome({
         {isPaginated ? (
           <View style={styles.pageGestureLayer} {...pagePan.panHandlers} />
         ) : null}
-        </View>
+        </Animated.View>
       </View>
 
       {chromeVisible ? (

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.17
-updated: 2026-07-06
+version: 1.18
+updated: 2026-08-14
 depends_on:
   [
     01_foundation/product_model,
@@ -11,6 +11,7 @@ depends_on:
     02_modules/audio/spec,
     02_modules/bindu/spec,
     02_modules/daily_forecast/spec,
+    02_modules/affirmations/spec,
   ]
 code_refs:
   [
@@ -54,6 +55,9 @@ code_refs:
 
 - **`i18n`**  
   `getPracticeCatalogStrings(locale)` (typed gate + overlays; поля `durationMinUnit`, `durationFromPrefix`, `practiceCountOne` / `practiceCountWithTotal` / `catalogFooterTemplate`); `catalog.ts` — `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` для jsonb-полей йоги; `PracticeCard` / `PracticeCatalogScreen` — `useAppLocale().locale`. Парная запись: `docs/02_modules/i18n/dependencies.md` §2.
+
+- **`affirmations`**  
+  `PracticeCatalogScreen` монтирует **`AffirmationWidget`** в listHeader **только** для группы `breath` (Master / `FeatureKey affirmations`). `CoherenceBreathScreen` монтирует **`AffirmationBreathOverlay`** поверх дыхания; day bump через `practice-complete`. Парная запись: `docs/02_modules/affirmations/dependencies.md`.
 
 ## 2. От него зависят
 

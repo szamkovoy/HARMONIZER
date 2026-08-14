@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, mod
 
 ## Decision Log
 
+- **2026-08-14 (affirmations FeatureKey):** `affirmations` → master + `gate.body.affirmation` (мягкий текст про дыхательные практики / кабинет).
+
 - **2026-08-11 (gate bodyKey):** `AccountGateDialog` принимает опциональный `bodyKey` (книга: `gate.body.book`). Ownership книги не через `FeatureKey`.
 
 - **2026-07-31 (trial ≠ webinars):** Демо (`isTrial`) больше не открывает `webinar_community` — тот же `AccountGateDialog` / кабинет, что у «Навигатора». Остальные master-фичи на trial без изменений. `canUseFeatureForAccess` + тест.

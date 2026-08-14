@@ -31,6 +31,8 @@ import { loadCachedYogaPractices, peekCachedYogaPractices, saveCachedYogaPractic
 import { fetchPracticeVimeoThumbnails } from "@/services/practice-thumbnails";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
 
+import { AffirmationWidget } from "@/modules/affirmations";
+
 import { PracticeCard } from "./PracticeCard";
 import { launchPractice } from "./launchPractice";
 
@@ -529,6 +531,8 @@ export function PracticeCatalogScreen() {
                 );
               })}
             </View>
+
+            {selectedKind === "breath" ? <AffirmationWidget /> : null}
 
             {selectedKind === "yoga" ? (
               <View style={[styles.filterPanel, { borderColor: theme.colors.surfaceBorder }]}>

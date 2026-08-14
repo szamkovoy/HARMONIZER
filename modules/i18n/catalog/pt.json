@@ -1,6 +1,9 @@
 {
   "affirmation.breath.finaleHint": "Na expiração, dirigindo-se a si mesmo, leia esta afirmação:",
   "affirmation.create.generating": "Gerando opções…",
+  "affirmation.create.micA11y": "Gravação de voz",
+  "affirmation.create.micHintStart": "Toque para começar a gravar",
+  "affirmation.create.micHintStop": "Toque para parar",
   "affirmation.create.record": "Gravar",
   "affirmation.create.retry": "Tentar novamente",
   "affirmation.create.saving": "Salvando…",
@@ -23,6 +26,7 @@
   "affirmation.create.transcribing": "Transcrevendo fala…",
   "affirmation.error.generate": "Não foi possível gerar afirmações. Tente novamente.",
   "affirmation.error.generic": "Não foi possível realizar a ação. Tente novamente.",
+  "affirmation.error.micPermission": "Precisamos de acesso ao microfone para gravar sua afirmação.",
   "affirmation.error.transcribe": "Não foi possível transcrever a fala. Tente novamente.",
   "affirmation.manage.changeCta": "Concluir ou mudar afirmação",
   "affirmation.manage.chartTitle": "Fases de assimilação",
