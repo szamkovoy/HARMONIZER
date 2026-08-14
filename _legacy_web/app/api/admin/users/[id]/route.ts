@@ -377,6 +377,8 @@ type TierUpdatePayload = {
   amount?: number;
   currency?: string;
   comment?: string;
+  /** Optional webinar id for one-time webinar grants. */
+  product_ref?: string | null;
   skip_email_automations?: boolean;
   display_name?: string | null;
   last_name?: string | null;
