@@ -7,7 +7,7 @@ import { isChakra, type Chakra } from "@/modules/breath/core/chakra";
 import { resolveTempoKey } from "@/modules/breath/core/breath-tempo";
 import type { BreathPracticeId } from "@/modules/breath/i18n/coherence";
 import { useAppLocale } from "@/modules/i18n";
-import { parseSoundBedId } from "@/modules/mandala-sound";
+import { parseSoundBedId } from "@/modules/mandala-sound/core/soundBed";
 import type { WearableDeviceProvider } from "@/modules/practices/core/types";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 

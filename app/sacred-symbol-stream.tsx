@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams } from "expo-router";
 
 import { SacredSymbolStreamScreen } from "@/modules/mandala/experiments/SacredSymbolStreamScreen";
-import { parseSoundBedId } from "@/modules/mandala-sound";
+import { parseSoundBedId } from "@/modules/mandala-sound/core/soundBed";
 import { useAssistantPracticeOverlayDismiss } from "@/modules/practices/ui/useAssistantPracticeOverlayDismiss";
 
 function positiveIntParam(value: string | undefined): number | undefined {

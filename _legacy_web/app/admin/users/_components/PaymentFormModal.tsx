@@ -41,6 +41,7 @@ export function PaymentFormModal({
   if (!open) return null;
 
   const isPaid = form.tier !== "free";
+  const isOneTimeAddon = form.tier === "book" || form.tier === "webinar";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -57,8 +58,11 @@ export function PaymentFormModal({
         </div>
 
         <p className="mb-3 text-xs text-zinc-500">
-          Платный тариф попадает в леджер. Пустая дата окончания — бессрочно. Время окончания — текущее на момент
-          сохранения.
+          {isOneTimeAddon
+            ? form.tier === "book"
+              ? "Книга — разовая покупка в payment_contracts (бессрочный доступ). Дата окончания не нужна."
+              : "Вебинар — разовая покупка + запись на ближайший опубликованный вебинар. Дата окончания не нужна."
+            : "Платный тариф попадает в леджер. Пустая дата окончания — бессрочно. Время окончания — текущее на момент сохранения."}
         </p>
 
         <div className="flex flex-col gap-2">
@@ -79,12 +83,14 @@ export function PaymentFormModal({
 
           {isPaid ? (
             <>
-              <input
-                type="date"
-                value={form.expiresAt}
-                onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none"
-              />
+              {!isOneTimeAddon ? (
+                <input
+                  type="date"
+                  value={form.expiresAt}
+                  onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
+                  className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-500 focus:outline-none"
+                />
+              ) : null}
               <div className="flex gap-2">
                 <input
                   value={form.amount}
@@ -134,7 +140,12 @@ export function PaymentFormModal({
             <button
               type="button"
               disabled={saving}
-              onClick={() => void onSubmit(form, isPaid ? expiryIsoFromDateInput(form.expiresAt) : null)}
+              onClick={() =>
+                void onSubmit(
+                  form,
+                  isPaid && !isOneTimeAddon ? expiryIsoFromDateInput(form.expiresAt) : null,
+                )
+              }
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : null}

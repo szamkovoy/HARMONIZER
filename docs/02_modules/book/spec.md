@@ -40,7 +40,7 @@ Barrel `modules/book/index.ts`:
 
 - **`BOOK_ID`** — `yoga_wizards_path`.
 - **`bookLocaleForAppLocale(locale)`** — UI → `BookLocale` (8 локалей).
-- **`resolveBookAccess(): Promise<boolean>`** — `GET /api/account/purchases/book`; в `EXPO_PUBLIC_APP_ENV=development` дополнительно `EXPO_PUBLIC_BOOK_DEV_UNLOCK=true`.
+- **`resolveBookAccess(): Promise<boolean>`** — `GET /api/account/purchases/book` (`payment_contracts` one_time `tier=book` active). Опциональный Dev unlock (`EXPO_PUBLIC_BOOK_DEV_UNLOCK`) не обязателен: админ может выдать книгу через «Добавить платёж» → книга.
 - **`BookProfileCard`** — карточка «Учебное пособие» + «Читать…».
 - **`BookReaderScreen`** — lazy `app/book/[locale].tsx` (не в barrel).
 

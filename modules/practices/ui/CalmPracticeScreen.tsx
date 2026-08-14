@@ -11,9 +11,9 @@ import { router } from "expo-router";
 import { useAppLocale } from "@/modules/i18n";
 import {
   MandalaSoundProvider,
-  SOUND_BED_NEURO_SYNC,
   type SoundBedId,
 } from "@/modules/mandala-sound";
+import { SOUND_BED_NEURO_SYNC } from "@/modules/mandala-sound/core/soundBed";
 import { CALM_BED_IMAGES } from "@/modules/practices/core/calmBedImages";
 import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";

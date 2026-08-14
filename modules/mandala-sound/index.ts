@@ -1,8 +1,8 @@
-export { MANDALA_SOUND_ASSETS } from "@/modules/mandala-sound/core/assets";
-export { AMBIENT_SOUND_ASSETS } from "@/modules/mandala-sound/core/ambientAssets";
-export { AmbientLoopEngine } from "@/modules/mandala-sound/core/ambientEngine";
-export { ExpoMandalaSoundEngine } from "@/modules/mandala-sound/core/engine";
-export { binauralCrossfadeGains } from "@/modules/mandala-sound/core/binaural";
+/**
+ * Public barrel for practice screens that mount sound.
+ * Tab UI (PracticeCard) must import IDs from `core/soundBed` only —
+ * this barrel pulls expo-av engines + ~24MB ambient/mandala audio assets.
+ */
 export {
   isNatureSoundBedId,
   isSoundBedId,

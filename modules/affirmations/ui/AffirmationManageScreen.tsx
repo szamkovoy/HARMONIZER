@@ -15,6 +15,7 @@ import {
   resetPlaybackAudioMode,
   startWhisperRecording,
 } from "@/modules/affirmations/core/startWhisperRecording";
+import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import { useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -105,12 +106,7 @@ export function AffirmationManageScreen() {
   const playAudio = async () => {
     if (!row?.audioSignedUrl) return;
     try {
-      await resetPlaybackAudioMode();
-      const { sound } = await Audio.Sound.createAsync({ uri: row.audioSignedUrl });
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((s) => {
-        if (s.isLoaded && s.didJustFinish) void sound.unloadAsync();
-      });
+      await playAffirmationAudio(row.audioSignedUrl);
     } catch {
       Alert.alert(t("affirmation.error.generic"));
     }

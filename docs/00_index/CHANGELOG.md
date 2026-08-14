@@ -1,3 +1,5 @@
+- 2026-08-14 (484): Admin one-time book/webinar grant via payment_contracts; affirmation overlay hint/voice lead/fade/dim.
+- 2026-08-14 (483): Dev Downloading — PracticeCard imports soundBed only (not mandala-sound barrel / ~24MB audio).
 - 2026-08-14 (482): Affirmations QA — widget no disable flash; mic arming; scroll after refine; manage/breath spacing; finale voice −1 cycle.
 - 2026-08-14 (481): Book CDN path — `https://zamkovoi.yoga/book/{locale}/book.epub` (no slug/vN folders).
 - 2026-08-14 (480): Book Phase B — ownership API, CDN manifest, progress sync; CDN upload checklist.

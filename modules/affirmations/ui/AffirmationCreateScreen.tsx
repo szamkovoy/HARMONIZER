@@ -23,6 +23,7 @@ import {
   resetPlaybackAudioMode,
   startWhisperRecording,
 } from "@/modules/affirmations/core/startWhisperRecording";
+import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import {
   MicCancelButton,
@@ -274,13 +275,7 @@ export function AffirmationCreateScreen() {
   const playVoice = async () => {
     if (!voiceUri) return;
     try {
-      await resetPlaybackAudioMode();
-      const { sound } = await Audio.Sound.createAsync({ uri: voiceUri });
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
-        if (status.didJustFinish) void sound.unloadAsync();
-      });
+      await playAffirmationAudio(voiceUri);
     } catch {
       Alert.alert(t("affirmation.error.generic"));
     }

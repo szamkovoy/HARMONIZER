@@ -185,11 +185,11 @@ import { useAuth } from "@/modules/auth";
 import { BreathBinduMandala } from "@/modules/breath/ui/BreathBinduMandala";
 import {
   MandalaSoundProvider,
-  SOUND_BED_NEURO_SYNC,
   useMandalaSoundFrame,
   useMandalaSoundSync,
   type SoundBedId,
 } from "@/modules/mandala-sound";
+import { SOUND_BED_NEURO_SYNC } from "@/modules/mandala-sound/core/soundBed";
 import { BreathOverlayControlPanel } from "@/modules/breath/ui/BreathOverlayControlPanel";
 import { PpgMiniChart } from "@/modules/breath/ui/PpgMiniChart";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -5563,6 +5563,7 @@ function CoherenceBreathScreenInner({
                     practiceTotalMs={practiceTotalMs}
                     cycleMs={currentPlan?.cycleMs ?? 12_000}
                     active={phase === "running" && isBreathTimingActive}
+                    dimOpacity={dimOpacity}
                   />
                   <BreathOverlayControlPanel
                   visible={overlayVisible}

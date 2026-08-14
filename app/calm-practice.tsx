@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
 
-import { parseSoundBedId } from "@/modules/mandala-sound";
+import { parseSoundBedId } from "@/modules/mandala-sound/core/soundBed";
 import { CalmPracticeScreen } from "@/modules/practices/ui/CalmPracticeScreen";
 
 function positiveIntParam(value: string | undefined): number | undefined {

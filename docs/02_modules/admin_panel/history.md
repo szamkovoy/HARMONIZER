@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-08-14 (one-time grant):** «Добавить платёж» для книги/вебинара пишет `payment_contracts` (`grantOneTimeAddon`), не membership-леджер `payments` (там нет tier book). Вебинар → ближайший опубликованный + регистрация.
+
 - **2026-08-10 (admin lists infinite scroll):** Подзагрузка как у пользователей/видео — платежи (`offset`), поддержка, вебинары; уведомления и рассылки — вместо «Назад/Вперёд». Хук `useAdminInfiniteScroll`. Сторис/промпты без (малый объём).
 
 - **2026-08-10 (add-user empty fields):** `POST /api/admin/users` не сохраняет пустые поля и UI-placeholder (`Фамилия`, `Имя`, …); в списке имя+фамилия только если фамилия реально есть.

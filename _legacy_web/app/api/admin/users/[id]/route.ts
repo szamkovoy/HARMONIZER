@@ -15,6 +15,10 @@ import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../
 import { emailsByUserId } from "../../_utils/authEmails";
 import { loadAdminPaymentLedger } from "../../_utils/paymentLedger";
 import { ALL_TIERS, PAID_TIERS, recomputeUserMembershipFromPayments } from "../../_utils/payments";
+import {
+  grantOneTimeAddon,
+  ONE_TIME_ADDON_TIERS,
+} from "../../_utils/grantOneTimeAddon";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -548,6 +552,37 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     }
 
     const tier = payload.tier?.trim() ?? "";
+    if (ONE_TIME_ADDON_TIERS.has(tier)) {
+      const amount =
+        typeof payload.amount === "number" && payload.amount >= 0 ? payload.amount : 0;
+      const currency = normalizeFxCurrency(payload.currency) ?? "RUB";
+      try {
+        const granted = await grantOneTimeAddon(db, {
+          userId: id,
+          tier: tier as "book" | "webinar",
+          amount,
+          currency,
+          comment: payload.comment?.trim() || null,
+          productRef: typeof payload.product_ref === "string" ? payload.product_ref : null,
+        });
+        const { data: user, error: readError } = await db
+          .from("users")
+          .select(
+            "id, membership_tier, membership_expires_at, membership_started_at, trial_expires_at",
+          )
+          .eq("id", id)
+          .single();
+        if (readError) throw readError;
+        return json({
+          user,
+          oneTime: { tier, contractId: granted.contractId, productRef: granted.productRef },
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return json({ error: msg }, { status: 400 });
+      }
+    }
+
     if (!ALL_TIERS.has(tier)) {
       return json({ error: `Неизвестный тариф: ${tier || "не указан"}` }, { status: 400 });
     }

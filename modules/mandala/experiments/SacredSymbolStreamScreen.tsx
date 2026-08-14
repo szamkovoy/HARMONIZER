@@ -10,10 +10,10 @@ import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
 import { BinduSuccessionFlowCanvas } from "@/modules/mandala/experiments/BinduSuccessionFlowCanvas";
 import {
   MandalaSoundProvider,
-  SOUND_BED_NEURO_SYNC,
   useMandalaSoundSync,
   type SoundBedId,
 } from "@/modules/mandala-sound";
+import { SOUND_BED_NEURO_SYNC } from "@/modules/mandala-sound/core/soundBed";
 import { AppButton } from "@/modules/ui/AppButton";
 import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
 import { ImmersiveScreenLayout } from "@/modules/ui/ImmersiveScreenLayout";

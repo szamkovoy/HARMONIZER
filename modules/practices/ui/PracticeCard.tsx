@@ -13,7 +13,7 @@ import {
   NATURE_SOUND_BED_IDS,
   SOUND_BED_NEURO_SYNC,
   type SoundBedId,
-} from "@/modules/mandala-sound";
+} from "@/modules/mandala-sound/core/soundBed";
 import type { PracticeSummary, PracticeVideoThumbnail } from "@/modules/practices/core/types";
 import { clipDurationMinutesToSelectableMinutes } from "@/modules/practices/core/assistantSelectableDurations";
 import { CALM_DURATION_MINUTES, isCalmDurationMinutes, isCalmPractice } from "@/modules/practices/core/calmPractice";

@@ -9,6 +9,8 @@ code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 
 ## Decision Log
 
+- **2026-08-14 (admin grant):** Книгу удобнее выдавать из админки («Добавить платёж» → Книга → `payment_contracts`); Dev unlock env опционален.
+
 - **2026-08-14 (CDN path simplify):** Публичные URL без `yoga_wizards_path` и без `/vN/`: `https://zamkovoi.yoga/book/{locale}/book.epub`. Версия только в `BOOK_EPUB_VERSION` (клиентский cache key).
 
 - **2026-08-14 (Phase B):** Ownership API `purchases/book`; CDN manifest + versioned cache; `book_reading_progress` + LWW sync; Dev unlock только через `EXPO_PUBLIC_BOOK_DEV_UNLOCK` (не `__DEV__`); Metro fallback для незалитых локалей. Checklist: `docs/04_workspace/book_cdn_upload.md`.

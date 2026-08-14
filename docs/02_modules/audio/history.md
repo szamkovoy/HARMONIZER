@@ -9,6 +9,8 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 ## Decision Log
 
+- **2026-08-14 (Dev Downloading):** `PracticeCard` (вкладки День/Практики) больше не импортирует barrel `@/modules/mandala-sound` — только `core/soundBed`. Barrel тянул engines + ~24MB ambient/mandala `require()` в стартовый Dev Client download. EPUB уже вне бандла (`Book/` в blockList, CDN).
+
 - **2026-08-02 (shorter session fades):** Fade-in/out практики сокращены с ~2 s / ~2.5 s до ~0.6 s / ~0.8 s (`MandalaSoundProvider` + дефолты `AmbientLoopEngine`) — длинный вход/выход ощущался слишком затянутым.
 
 - **2026-08-02:** Добавлены взаимоисключающие nature sound beds для breath/meditation. Почему: нужен выбор спокойного фона вместо Neuro-sync без слоя поверх binaural. Что изменилось: `AmbientLoopEngine` + `assets/audio/ambient/*.m4a` (seamless 4 s crossfade), prop `soundBed` у `MandalaSoundProvider`, fade in/out на старте и штатном/досрочном стопе; visual sync по-прежнему от timeline даже на nature bed.

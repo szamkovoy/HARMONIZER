@@ -15,7 +15,8 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 - `MANDALA_SOUND_ASSETS: MandalaSoundAssetPreset`  
   Манифест локальных ассетов: `drones`, `textures`, `binaural`, `gongs`.
-- `AMBIENT_SOUND_ASSETS` / `SOUND_BED_*` / `parseSoundBedId` / `isNatureSoundBedId` — id фона и `require()` AAC-лупов из `assets/audio/ambient/`.
+- `AMBIENT_SOUND_ASSETS` / `MANDALA_SOUND_ASSETS` — локальные `require()` в `core/ambientAssets.ts` / `core/assets.ts` (не реэкспорт из barrel). Tab UI (`PracticeCard`) импортирует только `core/soundBed`, иначе Dev Client качает ~24MB аудио при каждом QR-старте.
+- `SOUND_BED_*` / `parseSoundBedId` / `isNatureSoundBedId` — id фона; AAC-лупы подключаются только при монтировании `MandalaSoundProvider`.
 - `class ExpoMandalaSoundEngine implements MandalaSoundEngineControls`  
   `start(chakra: number): Promise<void>`  
   `update(frame: MandalaSoundSyncFrame): Promise<void>`  
