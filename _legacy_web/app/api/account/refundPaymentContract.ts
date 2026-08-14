@@ -7,7 +7,7 @@ import {
   fetchYookassaPayment,
 } from "./yookassa";
 
-export type RefundMode = "lavatop_mark" | "yookassa_api" | "yookassa_mark";
+export type RefundMode = "lavatop_mark" | "yookassa_api" | "yookassa_mark" | "manual_mark";
 
 export type RefundResult =
   | { ok: true; mode: RefundMode; contractId: string; yookassaRefundId?: string }
@@ -138,6 +138,10 @@ export async function refundPaymentContract(
   } else if (params.mode === "lavatop_mark") {
     if (provider !== "lavatop" && provider !== "lava") {
       return { ok: false, code: "wrong_provider", error: "Этот платёж не через Lava.top" };
+    }
+  } else if (params.mode === "manual_mark") {
+    if (provider !== "manual") {
+      return { ok: false, code: "wrong_provider", error: "Этот платёж не ручной грант" };
     }
   } else if (params.mode === "yookassa_mark") {
     if (provider !== "yookassa") {

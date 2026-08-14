@@ -81,7 +81,9 @@ export function PaymentHistorySection({
     setRefundMessage(null);
   }
 
-  async function runRefund(mode: "lavatop_mark" | "yookassa_api" | "yookassa_mark") {
+  async function runRefund(
+    mode: "lavatop_mark" | "yookassa_api" | "yookassa_mark" | "manual_mark",
+  ) {
     if (!refundTarget?.contract_id) return;
     setRefundPhase("working");
     setRefundMessage(null);
@@ -97,7 +99,9 @@ export function PaymentHistorySection({
       setRefundMessage(
         mode === "yookassa_api"
           ? `Возврат выполнен успешно${result.yookassaRefundId ? ` (id ${result.yookassaRefundId})` : ""}. Статус платежа: возврат. Тариф по этому платежу отключён.`
-          : "Статус платежа изменён на «возврат». Запись сохранится, в статистике как оплата учитываться не будет. Тариф по этому платежу отключён.",
+          : mode === "manual_mark"
+            ? "Статус платежа изменён на «возврат». Запись сохранится; доступ к книге/вебинару по этому гранту снят."
+            : "Статус платежа изменён на «возврат». Запись сохранится, в статистике как оплата учитываться не будет. Тариф по этому платежу отключён.",
       );
       await onChanged?.();
     } catch (err) {
@@ -115,7 +119,12 @@ export function PaymentHistorySection({
   async function confirmRefund() {
     if (!refundTarget?.contract_id) return;
     const provider = (refundTarget.provider || refundTarget.source || "").toLowerCase();
-    const mode = provider === "yookassa" ? "yookassa_api" : "lavatop_mark";
+    const mode =
+      provider === "yookassa"
+        ? "yookassa_api"
+        : provider === "manual"
+          ? "manual_mark"
+          : "lavatop_mark";
     await runRefund(mode);
   }
 

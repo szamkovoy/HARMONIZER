@@ -5,9 +5,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST { contractId, mode: "lavatop_mark" | "yookassa_api" | "yookassa_mark" }
+ * POST { contractId, mode: "lavatop_mark" | "yookassa_api" | "yookassa_mark" | "manual_mark" }
  * yookassa_api — только при status=succeeded от ЮKassa меняет статус и тариф;
  * yookassa_mark — ручная пометка как у Lava (после отказа/pending API).
+ * manual_mark — ручной грант книги/вебинара (provider=manual), только статус в БД.
  */
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -17,12 +18,16 @@ export async function POST(req: Request): Promise<Response> {
     const mode =
       body.mode === "yookassa_api" ||
       body.mode === "lavatop_mark" ||
-      body.mode === "yookassa_mark"
+      body.mode === "yookassa_mark" ||
+      body.mode === "manual_mark"
         ? body.mode
         : null;
     if (!contractId || !mode) {
       return json(
-        { error: "Нужны contractId и mode (lavatop_mark|yookassa_api|yookassa_mark)" },
+        {
+          error:
+            "Нужны contractId и mode (lavatop_mark|yookassa_api|yookassa_mark|manual_mark)",
+        },
         { status: 400 },
       );
     }

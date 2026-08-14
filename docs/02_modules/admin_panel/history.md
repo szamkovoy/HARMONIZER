@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-08-14 (manual refund UX):** Ручные гранты книги/вебинара (`provider=manual`) — режим `manual_mark` и текст без Lava.top (раньше UI слал `lavatop_mark` и API отклонял).
+
 - **2026-08-14 (one-time grant):** «Добавить платёж» для книги/вебинара пишет `payment_contracts` (`grantOneTimeAddon`), не membership-леджер `payments` (там нет tier book). Вебинар → ближайший опубликованный + регистрация.
 
 - **2026-08-10 (admin lists infinite scroll):** Подзагрузка как у пользователей/видео — платежи (`offset`), поддержка, вебинары; уведомления и рассылки — вместо «Назад/Вперёд». Хук `useAdminInfiniteScroll`. Сторис/промпты без (малый объём).
