@@ -1,3 +1,4 @@
+- 2026-08-15 (489): Affirmations — manage UX polish + voice edge-trim; i18n catalog keys synced.
 - 2026-08-15 (488): Book CDN complete — ES/PT/NL on zamkovoi; `BOOK_EPUB_VERSION=2` + prod redeploy.
 - 2026-08-15 (487): Book ES/PT/NL EPUBs built (`book/build`); source folder `Book`→`book`; CDN upload pending.
 - 2026-08-14 (486): Book — drop DEV unlock, default font 16, thanks on cold start.
