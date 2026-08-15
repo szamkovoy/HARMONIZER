@@ -1,5 +1,5 @@
 import { Audio } from "expo-av";
-import { getInfoAsync, readAsStringAsync } from "expo-file-system/legacy";
+import { getInfoAsync } from "expo-file-system/legacy";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -25,30 +25,33 @@ import {
   saveAudioEdgeTrim,
   type AudioEdgeTrim,
 } from "@/modules/affirmations/core/audioEdgeTrim";
+import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
 import {
   resetPlaybackAudioMode,
   startWhisperRecording,
 } from "@/modules/affirmations/core/startWhisperRecording";
-import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
+import { transcribeAffirmationRecording } from "@/modules/affirmations/core/transcribeAffirmationRecording";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import {
   MicCancelButton,
   MicRecordButton,
 } from "@/modules/communicator/ui/MicRecordButton";
 import { useAuth } from "@/modules/auth";
-import { useAppLocale, useTranslate } from "@/modules/i18n";
+import { getTranscribeLocale, useAppLocale, useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
-import { transcribeCommunicatorAudio } from "@/services/communicator-client";
 
 type WizardStep = "intake" | "options" | "finalize";
+type ProcessPhase = "idle" | "transcribing" | "generating";
 
 const MIN_VOICE_MS = 450;
 const MAX_INTAKE_MS = 3 * 60_000;
+/** Show remaining seconds under the mic for the last N ms of the hard limit. */
+const COUNTDOWN_VISIBLE_MS = 20_000;
 
 export function AffirmationCreateScreen() {
   const theme = useTheme();
@@ -58,9 +61,12 @@ export function AffirmationCreateScreen() {
 
   const [step, setStep] = useState<WizardStep>("intake");
   const [busy, setBusy] = useState(false);
+  const [processPhase, setProcessPhase] = useState<ProcessPhase>("idle");
   const [recording, setRecording] = useState(false);
   /** Immediate visual while Audio session arms (mirrors Communicator `arming`). */
   const [arming, setArming] = useState(false);
+  /** Remaining seconds while within the last 20s of the 3-minute intake cap; null = hidden. */
+  const [countdownSec, setCountdownSec] = useState<number | null>(null);
   const [options, setOptions] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [history, setHistory] = useState<AffirmationHistoryTurn[]>([]);
@@ -75,6 +81,7 @@ export function AffirmationCreateScreen() {
   const speechTrackerRef = useRef<RecordingSpeechTracker | null>(null);
   const recordStartRef = useRef(0);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const modeRef = useRef<"intake" | "refine" | "voice">("intake");
   const voiceLevel = useRef(new Animated.Value(0.2)).current;
   const finishRecordingRef = useRef<() => Promise<void>>(async () => undefined);
@@ -87,9 +94,16 @@ export function AffirmationCreateScreen() {
     maxTimerRef.current = null;
   };
 
+  const clearCountdownTimer = () => {
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    countdownTimerRef.current = null;
+    setCountdownSec(null);
+  };
+
   useEffect(
     () => () => {
       clearMaxTimer();
+      clearCountdownTimer();
       startGenerationRef.current += 1;
       const rec = recordingRef.current;
       recordingRef.current = null;
@@ -115,6 +129,7 @@ export function AffirmationCreateScreen() {
     setArming(false);
     startInFlightRef.current = false;
     clearMaxTimer();
+    clearCountdownTimer();
     voiceLevel.setValue(0.2);
     if (!rec) return { uri: null, trim: null };
     try {
@@ -129,6 +144,7 @@ export function AffirmationCreateScreen() {
   const runGenerate = useCallback(
     async (message: string, nextHistory: AffirmationHistoryTurn[]) => {
       setBusy(true);
+      setProcessPhase("generating");
       try {
         const opts = await generateAffirmationOptions({
           message,
@@ -151,6 +167,7 @@ export function AffirmationCreateScreen() {
         Alert.alert(t("affirmation.error.generate"));
       } finally {
         setBusy(false);
+        setProcessPhase("idle");
       }
     },
     [locale, profile?.display_name, t],
@@ -174,13 +191,11 @@ export function AffirmationCreateScreen() {
     }
 
     setBusy(true);
+    setProcessPhase("transcribing");
     try {
-      const mimeType = mimeFromRecordingUri(uri);
-      const base64 = await readAsStringAsync(uri, { encoding: "base64" });
-      const transcript = await transcribeCommunicatorAudio({
-        mimeType,
-        base64,
-        language: locale,
+      const transcript = await transcribeAffirmationRecording({
+        uri,
+        language: getTranscribeLocale(),
       });
       const text = transcript.text?.trim() ?? "";
       if (text.length < 12) {
@@ -197,8 +212,9 @@ export function AffirmationCreateScreen() {
       Alert.alert(t("affirmation.error.transcribe"));
     } finally {
       setBusy(false);
+      setProcessPhase("idle");
     }
-  }, [history, locale, runGenerate, stopAndGetUri, t]);
+  }, [history, runGenerate, stopAndGetUri, t]);
 
   finishRecordingRef.current = finishRecording;
 
@@ -208,6 +224,8 @@ export function AffirmationCreateScreen() {
       modeRef.current = mode;
       const generation = ++startGenerationRef.current;
       startInFlightRef.current = true;
+      clearMaxTimer();
+      clearCountdownTimer();
       setArming(true);
       voiceLevel.setValue(0.28);
       try {
@@ -258,6 +276,19 @@ export function AffirmationCreateScreen() {
           maxTimerRef.current = setTimeout(() => {
             void finishRecordingRef.current();
           }, MAX_INTAKE_MS);
+          countdownTimerRef.current = setInterval(() => {
+            const elapsed = Date.now() - recordStartRef.current;
+            const remainingMs = MAX_INTAKE_MS - elapsed;
+            if (remainingMs <= 0) {
+              clearCountdownTimer();
+              return;
+            }
+            if (remainingMs <= COUNTDOWN_VISIBLE_MS) {
+              setCountdownSec(Math.max(1, Math.ceil(remainingMs / 1000)));
+            } else {
+              setCountdownSec(null);
+            }
+          }, 250);
         }
       } catch {
         if (generation !== startGenerationRef.current) return;
@@ -330,6 +361,18 @@ export function AffirmationCreateScreen() {
   };
 
   const micActive = recording || arming;
+  const micHint =
+    countdownSec != null
+      ? t("affirmation.create.recordingCountdown", { seconds: countdownSec })
+      : micActive
+        ? t("affirmation.create.micHintStop")
+        : t("affirmation.create.micHintStart");
+  const processStatusLabel =
+    processPhase === "transcribing"
+      ? t("affirmation.create.transcribing")
+      : processPhase === "generating"
+        ? t("affirmation.create.generating")
+        : null;
 
   return (
     <StackScreenLayout>
@@ -351,22 +394,11 @@ export function AffirmationCreateScreen() {
               voiceLevel={voiceLevel}
               onPress={() => toggleMic("intake")}
               a11yLabel={t("affirmation.create.micA11y")}
-              hint={
-                micActive
-                  ? t("affirmation.create.micHintStop")
-                  : t("affirmation.create.micHintStart")
-              }
+              hint={micHint}
+              statusLabel={processStatusLabel}
+              accentColor={theme.colors.accent}
+              countdownActive={countdownSec != null}
             />
-            {busy ? (
-              <View style={styles.busyRow}>
-                <ActivityIndicator color={theme.colors.accent} />
-                <AppText variant="technicalCaption" tone="muted">
-                  {recording
-                    ? t("affirmation.create.transcribing")
-                    : t("affirmation.create.generating")}
-                </AppText>
-              </View>
-            ) : null}
           </View>
         ) : null}
 
@@ -405,6 +437,9 @@ export function AffirmationCreateScreen() {
                 </Pressable>
               );
             })}
+            <AppText variant="screenHint" tone="muted" style={styles.instruction}>
+              {t("affirmation.create.step3.selectHint")}
+            </AppText>
             <AppButton
               label={t("affirmation.create.select")}
               onPress={goFinalize}
@@ -427,20 +462,11 @@ export function AffirmationCreateScreen() {
                 voiceLevel={voiceLevel}
                 onPress={() => toggleMic("refine")}
                 a11yLabel={t("affirmation.create.micA11y")}
-                hint={
-                  micActive
-                    ? t("affirmation.create.micHintStop")
-                    : t("affirmation.create.micHintStart")
-                }
+                hint={micHint}
+                statusLabel={processStatusLabel}
+                accentColor={theme.colors.accent}
+                countdownActive={countdownSec != null}
               />
-              {busy ? (
-                <View style={styles.busyRow}>
-                  <ActivityIndicator color={theme.colors.accent} />
-                  <AppText variant="technicalCaption" tone="muted">
-                    {t("affirmation.create.generating")}
-                  </AppText>
-                </View>
-              ) : null}
             </View>
           </View>
         ) : null}
@@ -477,11 +503,7 @@ export function AffirmationCreateScreen() {
               voiceLevel={voiceLevel}
               onPress={() => toggleMic("voice")}
               a11yLabel={t("affirmation.create.micA11y")}
-              hint={
-                micActive
-                  ? t("affirmation.create.micHintStop")
-                  : t("affirmation.create.micHintStart")
-              }
+              hint={micHint}
             />
             {voiceUri && !recording && !arming ? (
               <AppButton
@@ -511,6 +533,9 @@ function MicCluster({
   onPress,
   a11yLabel,
   hint,
+  statusLabel,
+  accentColor,
+  countdownActive = false,
 }: {
   recording: boolean;
   busy: boolean;
@@ -518,7 +543,11 @@ function MicCluster({
   onPress: () => void;
   a11yLabel: string;
   hint: string;
+  statusLabel?: string | null;
+  accentColor?: string;
+  countdownActive?: boolean;
 }) {
+  const showStatus = Boolean(busy && !recording && statusLabel);
   return (
     <View style={styles.micCluster}>
       <Pressable
@@ -535,9 +564,22 @@ function MicCluster({
           <MicRecordButton active={recording} level={voiceLevel} />
         )}
       </Pressable>
-      <AppText variant="technicalCaption" tone="muted" style={styles.micHint}>
-        {hint}
-      </AppText>
+      {showStatus ? (
+        <View style={styles.busyRow}>
+          <ActivityIndicator color={accentColor} />
+          <AppText variant="technicalCaption" tone="muted" style={styles.micHint}>
+            {statusLabel}
+          </AppText>
+        </View>
+      ) : (
+        <AppText
+          variant="technicalCaption"
+          tone={countdownActive ? "primary" : "muted"}
+          style={styles.micHint}
+        >
+          {hint}
+        </AppText>
+      )}
     </View>
   );
 }
@@ -546,7 +588,13 @@ const styles = StyleSheet.create({
   pad: { paddingBottom: 40, gap: 16, paddingTop: 8 },
   block: { gap: 12 },
   instruction: { lineHeight: 22 },
-  busyRow: { flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "center" },
+  busyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 18,
+  },
   option: {
     borderWidth: 1,
     borderRadius: 14,

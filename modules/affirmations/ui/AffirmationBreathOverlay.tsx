@@ -16,7 +16,11 @@ import {
   markAffirmationPracticeComplete,
   type AffirmationDto,
 } from "@/modules/affirmations/core/affirmationsClient";
-import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
+import {
+  invalidateAffirmationPlayback,
+  playAffirmationAudio,
+  warmAffirmationPlayback,
+} from "@/modules/affirmations/core/playAffirmationAudio";
 import { loadAudioEdgeTrim } from "@/modules/affirmations/core/audioEdgeTrim";
 import { useTranslate } from "@/modules/i18n";
 import { AppText } from "@/modules/ui/AppText";
@@ -99,6 +103,9 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
       void fetchActiveAffirmation()
         .then((a) => {
           if (!cancelled) setRow(a);
+          if (!cancelled && a?.audioPath && a.audioSignedUrl) {
+            void warmAffirmationPlayback(a.audioPath, a.audioSignedUrl);
+          }
         })
         .catch(() => {
           if (!cancelled) setRow(null);
@@ -149,12 +156,9 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
         } catch {
           /* ignore */
         }
-        try {
-          await s.unloadAsync();
-        } catch {
-          /* ignore */
-        }
       }
+      // Drop warmed Sound too — unmount / hard stop; disk cache remains.
+      await invalidateAffirmationPlayback();
     }, []);
 
     useEffect(
@@ -209,10 +213,11 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
         return;
       }
       try {
-        await unloadSound();
+        // Keep the pre-warmed Sound — unloading it before each cue reintroduced lag.
         ensureFinaleWaiter();
         const trim = await loadAudioEdgeTrim(row.audioPath);
         const sound = await playAffirmationAudio(row.audioSignedUrl, {
+          audioPath: row.audioPath,
           trim,
           onFinished: () => {
             playingRef.current = false;
@@ -228,7 +233,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
         playingRef.current = false;
         resolveFinaleWaiter();
       }
-    }, [row?.audioPath, row?.audioSignedUrl, unloadSound]);
+    }, [row?.audioPath, row?.audioSignedUrl]);
 
     // Phase transitions
     useEffect(() => {
@@ -262,6 +267,9 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
       if (!finaleArmedRef.current) {
         finaleArmedRef.current = true;
         finaleExhaleCountRef.current = 0;
+        if (row.audioPath && row.audioSignedUrl) {
+          void warmAffirmationPlayback(row.audioPath, row.audioSignedUrl);
+        }
       }
 
       // Start voice + panel ~1s before exhale: schedule on inhale onset using

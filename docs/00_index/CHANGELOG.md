@@ -1,3 +1,8 @@
+- 2026-08-15 (497): Affirmation audio — disk cache + Sound warm; shorter fade-in (fix Listen lag / breath cue drift).
+- 2026-08-15 (496): Affirmation create select hint; phase hint casing (lowercase in parens for RU + locale rules).
+- 2026-08-15 (495): Affirmation create — last-20s countdown + auto-stop at 3 min; STT timeout scales 60–120s with file size.
+- 2026-08-15 (494): Affirmation create — long-recording STT timeout fix; busy status under mic; «Подготовка аффирмаций».
+- 2026-08-15 (493): Admin prompt playground uses resolved AI_MODEL_* (no silent FALLBACK); show model next to Run.
 - 2026-08-15 (492): Affirmation prompts in admin (`affirmation_generate` / `affirmation_refinement`); generate uses active DB templates.
 - 2026-08-15 (491): Affirmations create step1 instruction copy refreshed (8 locales).
 - 2026-08-15 (490): Affirmations QA — catalog gap, manage chart/legend/mic, archive rename+retry, adaptive trim, finale voice sync with exhale.

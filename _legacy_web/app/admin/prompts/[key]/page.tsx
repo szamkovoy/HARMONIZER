@@ -18,6 +18,8 @@ type PromptVersion = {
   template: string;
   variables: Record<string, unknown>;
   model_hint: string | null;
+  /** Resolved via getModelByHint(model_hint) against server AI_MODEL_* env. */
+  resolved_model: string | null;
   temperature: number | null;
   max_output_tokens: number | null;
   response_format: string | null;
@@ -48,7 +50,13 @@ export default function AdminPromptKeyPage() {
   // Playground
   const [varsJson, setVarsJson] = useState("{}");
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ output: string; modelUsed: string; latencyMs: number } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    output: string;
+    modelUsed: string;
+    requestedModel?: string;
+    modelHint?: string;
+    latencyMs: number;
+  } | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
 
   const selected = useMemo(
@@ -140,20 +148,23 @@ export default function AdminPromptKeyPage() {
       } catch {
         throw new Error("Переменные — некорректный JSON");
       }
-      const result = await adminFetch<{ output: string; modelUsed: string; latencyMs: number }>(
-        "/api/admin/prompts/test",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            template,
-            variables,
-            model_hint: selected.model_hint,
-            temperature: selected.temperature,
-            max_output_tokens: selected.max_output_tokens,
-            response_format: selected.response_format,
-          }),
-        },
-      );
+      const result = await adminFetch<{
+        output: string;
+        modelUsed: string;
+        requestedModel?: string;
+        modelHint?: string;
+        latencyMs: number;
+      }>("/api/admin/prompts/test", {
+        method: "POST",
+        body: JSON.stringify({
+          template,
+          variables,
+          model_hint: selected.model_hint,
+          temperature: selected.temperature,
+          max_output_tokens: selected.max_output_tokens,
+          response_format: selected.response_format,
+        }),
+      });
       setTestResult(result);
     } catch (err) {
       setTestError(err instanceof Error ? err.message : "Тест не удался");
@@ -190,7 +201,8 @@ export default function AdminPromptKeyPage() {
         <h1 className="font-mono text-lg font-bold text-zinc-900">{params.key}</h1>
         <p className="text-xs text-zinc-500">
           {selected.prompt_type}
-          {selected.use_case ? ` · ${selected.use_case}` : ""} · модель: {selected.model_hint ?? "по умолчанию"} · t=
+          {selected.use_case ? ` · ${selected.use_case}` : ""} · hint: {selected.model_hint ?? "standard"} →{" "}
+          <span className="font-mono text-zinc-800">{selected.resolved_model ?? "—"}</span> · t=
           {selected.temperature ?? "—"} · max {selected.max_output_tokens ?? "—"} токенов ·{" "}
           {selected.response_format ?? "text"}
         </p>
@@ -282,7 +294,7 @@ export default function AdminPromptKeyPage() {
           spellCheck={false}
           className="w-full rounded-xl border border-zinc-200 bg-white p-3 font-mono text-xs leading-relaxed text-zinc-900 focus:border-emerald-500 focus:outline-none"
         />
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => void runTest()}
@@ -292,10 +304,13 @@ export default function AdminPromptKeyPage() {
             {testing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             {testing ? "Генерирую…" : "Прогнать"}
           </button>
+          <span className="font-mono text-xs text-zinc-600" title="Модель из AI_MODEL_* по model_hint промпта">
+            {selected.resolved_model ?? "модель не задана в env"}
+          </span>
           {testError ? <span className="text-xs text-red-400">{testError}</span> : null}
           {testResult ? (
             <span className="text-xs text-zinc-500">
-              {testResult.modelUsed} · {(testResult.latencyMs / 1000).toFixed(1)} с
+              факт: {testResult.modelUsed} · {(testResult.latencyMs / 1000).toFixed(1)} с
             </span>
           ) : null}
         </div>

@@ -15,8 +15,9 @@ type TestPayload = {
 };
 
 /**
- * Playground: рендерит шаблон с переданными переменными и гоняет через боевой
- * Gemini-пайплайн (с цепочкой fallback-моделей). Ничего не пишет в БД.
+ * Playground: рендерит шаблон с переменными и гоняет через ту же модель, что
+ * прод для `model_hint` (`getModelByHint` → AI_MODEL_*). Без env-fallback:
+ * иначе при сбое primary в ответе оказывается AI_MODEL_FALLBACK (часто flash).
  */
 export async function POST(req: Request) {
   try {
@@ -27,7 +28,8 @@ export async function POST(req: Request) {
 
     const variables = payload.variables ?? {};
     const rendered = renderPrompt(template, variables);
-    const model = getModelByHint(payload.model_hint);
+    const modelHint = payload.model_hint?.trim() || "standard";
+    const model = getModelByHint(modelHint);
     const temperature = payload.temperature ?? 0.85;
     const maxOutputTokens = payload.max_output_tokens ?? 4096;
 
@@ -38,10 +40,13 @@ export async function POST(req: Request) {
         model,
         temperature,
         maxOutputTokens,
+        disableEnvFallback: true,
       });
       return json({
         renderedPrompt: rendered,
         output: JSON.stringify(result.json, null, 2),
+        modelHint,
+        requestedModel: model,
         modelUsed: result.modelUsed,
         latencyMs: Date.now() - startedAt,
       });
@@ -52,10 +57,13 @@ export async function POST(req: Request) {
       model,
       temperature,
       maxOutputTokens,
+      disableEnvFallback: true,
     });
     return json({
       renderedPrompt: rendered,
       output: result.text,
+      modelHint,
+      requestedModel: model,
       modelUsed: result.modelUsed,
       latencyMs: Date.now() - startedAt,
     });

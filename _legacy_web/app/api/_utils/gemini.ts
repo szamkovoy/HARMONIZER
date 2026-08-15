@@ -17,6 +17,11 @@ export interface GeminiContent {
 type GeminiBaseRequest = {
   model?: string | null;
   fallbackModels?: readonly string[];
+  /**
+   * When true (default), append `AI_MODEL_FALLBACK` after the preferred model.
+   * Admin playground sets false so the run matches the prompt's configured model.
+   */
+  disableEnvFallback?: boolean;
   fallbackBehavior?: "immediate" | "background_primary_retries";
   sameModelRetryDelaysMs?: readonly number[];
   temperature?: number | null;
@@ -217,13 +222,19 @@ function throwFinalGeminiError(lastError: unknown): never {
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
-function geminiAttemptModelChain(preferred?: string | null, extraFallbacks?: readonly string[]): string[] {
+function geminiAttemptModelChain(
+  preferred?: string | null,
+  extraFallbacks?: readonly string[],
+  options?: { disableEnvFallback?: boolean },
+): string[] {
   const primary = preferred?.trim() || getModelByHint("standard");
-  const fallback = resolveEnvModelId("AI_MODEL_FALLBACK");
   const tail: string[] = [];
 
-  if (fallback != null && fallback !== primary) {
-    tail.push(fallback);
+  if (!options?.disableEnvFallback) {
+    const fallback = resolveEnvModelId("AI_MODEL_FALLBACK");
+    if (fallback != null && fallback !== primary) {
+      tail.push(fallback);
+    }
   }
 
   tail.push(...(extraFallbacks ?? []));
@@ -236,8 +247,12 @@ function geminiAttemptModelChain(preferred?: string | null, extraFallbacks?: rea
   return out;
 }
 
-export function getModelAttemptChainForTest(preferred?: string | null, extraFallbacks?: readonly string[]): string[] {
-  return geminiAttemptModelChain(preferred, extraFallbacks);
+export function getModelAttemptChainForTest(
+  preferred?: string | null,
+  extraFallbacks?: readonly string[],
+  options?: { disableEnvFallback?: boolean },
+): string[] {
+  return geminiAttemptModelChain(preferred, extraFallbacks, options);
 }
 
 function normalizeSameModelRetryDelays(delays: readonly number[] | undefined): number[] {
@@ -332,6 +347,7 @@ function toStructuredRequest(options: GenerateTextOptions): GeminiStructuredRequ
       responseMimeType: options.responseMimeType,
       cachedContent: options.cachedContent,
       fallbackModels: options.fallbackModels,
+      disableEnvFallback: options.disableEnvFallback,
     };
   }
 
@@ -342,6 +358,7 @@ function toStructuredRequest(options: GenerateTextOptions): GeminiStructuredRequ
     maxOutputTokens: options.maxOutputTokens,
     responseMimeType: options.responseMimeType,
     fallbackModels: options.fallbackModels,
+    disableEnvFallback: options.disableEnvFallback,
   };
 }
 
@@ -551,7 +568,9 @@ export async function generateGeminiJson<T>(options: GenerateJsonOptions): Promi
   };
   let lastError: unknown;
   const request = toStructuredRequest(options);
-  const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
+  const chain = geminiAttemptModelChain(request.model, request.fallbackModels, {
+    disableEnvFallback: request.disableEnvFallback,
+  });
   const primaryRetryDelays = backgroundRetryDelaysFor(options);
   const geminiRequestTimeoutMs = resolveRequestTimeoutMs(options, "gemini");
   const deepseekRequestTimeoutMs = resolveRequestTimeoutMs(options, "deepseek");
@@ -620,7 +639,9 @@ export async function generateGeminiText(options: GenerateTextOptions): Promise<
   };
   let lastError: unknown;
   const request = toStructuredRequest(options);
-  const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
+  const chain = geminiAttemptModelChain(request.model, request.fallbackModels, {
+    disableEnvFallback: request.disableEnvFallback,
+  });
   const primaryRetryDelays = backgroundRetryDelaysFor(options);
 
   for (let i = 0; i < chain.length; i += 1) {
@@ -683,7 +704,9 @@ export async function* streamGeminiText(options: GenerateTextOptions): AsyncGene
   };
   let lastError: unknown;
   const request = toStructuredRequest(options);
-  const chain = geminiAttemptModelChain(request.model, request.fallbackModels);
+  const chain = geminiAttemptModelChain(request.model, request.fallbackModels, {
+    disableEnvFallback: request.disableEnvFallback,
+  });
   const primaryRetryDelays = backgroundRetryDelaysFor(options);
 
   for (let i = 0; i < chain.length; i += 1) {

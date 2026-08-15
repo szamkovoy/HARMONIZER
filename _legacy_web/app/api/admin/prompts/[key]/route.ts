@@ -1,4 +1,5 @@
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
+import { getModelByHint } from "../../../_utils/gemini";
 
 export const runtime = "nodejs";
 
@@ -6,6 +7,14 @@ type RouteContext = { params: Promise<{ key: string }> };
 
 const VERSION_FIELDS =
   "id, prompt_key, prompt_type, use_case, version, is_active, template, variables, model_hint, temperature, max_output_tokens, response_format, notes, created_at";
+
+function resolveModelId(modelHint: string | null | undefined): string | null {
+  try {
+    return getModelByHint(modelHint?.trim() || "standard");
+  } catch {
+    return null;
+  }
+}
 
 /** Все версии одного prompt_key, свежие сверху. */
 export async function GET(req: Request, ctx: RouteContext) {
@@ -19,7 +28,11 @@ export async function GET(req: Request, ctx: RouteContext) {
       .order("version", { ascending: false });
     if (error) throw error;
     if (!data || data.length === 0) return json({ error: "Промпт не найден" }, { status: 404 });
-    return json({ versions: data });
+    const versions = data.map((row) => ({
+      ...row,
+      resolved_model: resolveModelId(row.model_hint),
+    }));
+    return json({ versions });
   } catch (error) {
     return errorResponse(error);
   }

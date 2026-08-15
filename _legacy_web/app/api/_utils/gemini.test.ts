@@ -89,6 +89,15 @@ describe("getModelAttemptChainForTest", () => {
 
     expect(getModelAttemptChainForTest("standard-model")).toEqual(["standard-model", "fallback-model"]);
   });
+
+  it("can disable env fallback for admin playground", () => {
+    process.env.AI_MODEL_STANDARD = "standard-model";
+    process.env.AI_MODEL_FALLBACK = "fallback-model";
+
+    expect(getModelAttemptChainForTest("standard-model", undefined, { disableEnvFallback: true })).toEqual([
+      "standard-model",
+    ]);
+  });
 });
 
 describe("extractJson", () => {

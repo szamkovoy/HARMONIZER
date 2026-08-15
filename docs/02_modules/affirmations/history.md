@@ -9,6 +9,14 @@ code_refs: []
 
 ## Decision Log
 
+- **2026-08-15 (audio warm):** «Прослушать» / breath voice ждали сеть на каждый `createAsync(signedUrl)` + 1 с fade-in → ощущение 3–5 с лага и сдвиг относительно выдоха. Disk-cache + `warmAffirmationPlayback`, fade-in 280 ms; breath больше не unload-ит warm Sound перед каждым cue.
+
+- **2026-08-15 (select hint + phase casing):** Create step3 — подсказка над «Выбрать» (`selectHint`). Manage legend: zone hints в скобках с строчной (RU); остальные локали — по орфографии языка (DE — существительные с заглавной).
+
+- **2026-08-15 (3 min cap UX + STT scale):** Intake/refine уже hard-stop на 3 мин; добавлен countdown последние 20 с под микрофоном, затем auto-stop → Whisper. STT timeout масштабируется по размеру файла (60–120s ×2) — фиксированных 60s мало для полного 3-мин take. 10-минутная запись невозможна по дизайну.
+
+- **2026-08-15 (STT long take):** Intake/refine STT больше не использует 12s communicator timeout (длинная запись → false «Не удалось распознать»); `transcribeAffirmationRecording` 60s ×2. Busy-статус под микрофоном вместо mic-hint; `generating` → «Подготовка аффирмаций…».
+
 - **2026-08-15 (admin prompts):** `affirmation_generate` + `affirmation_refinement` в таблице `prompts` (миграция `20260815150000`); generate читает active через `getActivePrompt` + `{{vars}}`; playground seed из `variables` JSON. Без `{{user_message}}` тест бессмысленен.
 
 - **2026-08-15 (create intro copy):** Обновлён `affirmation.create.step1.instruction` (3 пункта фокуса + лимит 1–2 / max 3 мин) во всех 8 локалях.

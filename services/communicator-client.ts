@@ -723,13 +723,17 @@ const TRANSCRIBE_TIMEOUT_MS = 12_000;
 
 export async function transcribeCommunicatorAudio(
   req: TranscribeAudioRequest,
-  options?: { useNetworkRetry?: boolean },
+  options?: { useNetworkRetry?: boolean; timeoutMs?: number },
 ): Promise<TranscribeAudioResponse> {
+  const timeoutMs =
+    typeof options?.timeoutMs === "number" && options.timeoutMs > 0
+      ? options.timeoutMs
+      : TRANSCRIBE_TIMEOUT_MS;
   const runOnce = async () => {
     const token = await getAccessToken();
     const url = getCommunicatorV2TranscribeUrl();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TRANSCRIBE_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     req.signal?.addEventListener("abort", () => controller.abort(), { once: true });
     let res: Response;
     try {
@@ -747,7 +751,7 @@ export async function transcribeCommunicatorAudio(
       });
     } catch (error) {
       if (controller.signal.aborted && !req.signal?.aborted) {
-        throw new Error(`Transcription timed out after ${Math.round(TRANSCRIBE_TIMEOUT_MS / 1000)}s`);
+        throw new Error(`Transcription timed out after ${Math.round(timeoutMs / 1000)}s`);
       }
       throw wrapConnectivityFailure(error, "communicator-transcribe");
     } finally {

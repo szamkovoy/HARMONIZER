@@ -29,7 +29,11 @@ import {
   resetPlaybackAudioMode,
   startWhisperRecording,
 } from "@/modules/affirmations/core/startWhisperRecording";
-import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
+import {
+  invalidateAffirmationPlayback,
+  playAffirmationAudio,
+  warmAffirmationPlayback,
+} from "@/modules/affirmations/core/playAffirmationAudio";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
 import {
   MicCancelButton,
@@ -87,6 +91,13 @@ export function AffirmationManageScreen() {
   }, []);
 
   useFocusEffect(reload);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!row?.audioPath || !row.audioSignedUrl) return;
+      void warmAffirmationPlayback(row.audioPath, row.audioSignedUrl);
+    }, [row?.audioPath, row?.audioSignedUrl]),
+  );
 
   const day = row?.currentDay ?? 0;
   const displayDay = Math.max(1, day || 1);
@@ -151,6 +162,7 @@ export function AffirmationManageScreen() {
     try {
       const trim = await loadAudioEdgeTrim(row.audioPath);
       const sound = await playAffirmationAudio(row.audioSignedUrl, {
+        audioPath: row.audioPath,
         trim,
         onFinished: () => {
           playingSoundRef.current = null;
@@ -186,8 +198,12 @@ export function AffirmationManageScreen() {
           tracker?.finalize(lastRecordingDurationMsRef.current || null) ?? null;
         const path = await uploadAffirmationAudio(uri, mimeFromRecordingUri(uri));
         await saveAudioEdgeTrim(path, trim);
+        await invalidateAffirmationPlayback();
         const updated = await patchAffirmation(row.id, { audioPath: path });
         setRow(updated);
+        if (updated.audioPath && updated.audioSignedUrl) {
+          void warmAffirmationPlayback(updated.audioPath, updated.audioSignedUrl);
+        }
       } catch {
         Alert.alert(t("affirmation.error.generic"));
       } finally {
