@@ -9,6 +9,8 @@ code_refs: []
 
 ## Decision Log
 
+- **2026-08-14 (manage UX + edge trim):** Manage: spinner вместо «Подбираем…»; listen lock; MicRecordButton + «Обновить…»; affirmation card; «Фаза освоения: день…»; график A–D equal bands / past green / future muted; «Закрыть» chip; CTA rename. Voice: metering edge-trim (>1s silence → keep 1s) at playback.
+
 - **2026-08-14 (overlay polish):** Intro hint = finale hint; voice −1s before exhale; panel follows practice dim; 0.5s audio fade on play (manage + breath).
 
 - **2026-08-14 (QA polish):** Виджет без disabled-flash; mic arming + anti-double-start; scroll-to-top после generate/refine; manage day lineHeight; breath panel `2×` safe-area; finale voice на ~1 цикл раньше (окно 4.2, cap 3).

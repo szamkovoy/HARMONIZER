@@ -20,6 +20,12 @@ import {
   uploadAffirmationAudio,
 } from "@/modules/affirmations/core/affirmationsClient";
 import {
+  loadAudioEdgeTrim,
+  RecordingSpeechTracker,
+  saveAudioEdgeTrim,
+  type AudioEdgeTrim,
+} from "@/modules/affirmations/core/audioEdgeTrim";
+import {
   resetPlaybackAudioMode,
   startWhisperRecording,
 } from "@/modules/affirmations/core/startWhisperRecording";
@@ -62,8 +68,11 @@ export function AffirmationCreateScreen() {
   const [editText, setEditText] = useState("");
   const [voiceUri, setVoiceUri] = useState<string | null>(null);
   const [voiceMime, setVoiceMime] = useState<string | null>(null);
+  const [voiceTrim, setVoiceTrim] = useState<AudioEdgeTrim | null>(null);
+  const [playingVoice, setPlayingVoice] = useState(false);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const speechTrackerRef = useRef<RecordingSpeechTracker | null>(null);
   const recordStartRef = useRef(0);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeRef = useRef<"intake" | "refine" | "voice">("intake");
@@ -94,20 +103,26 @@ export function AffirmationCreateScreen() {
     else router.replace("/(tabs)/practices");
   }, []);
 
-  const stopAndGetUri = useCallback(async (): Promise<string | null> => {
+  const stopAndGetUri = useCallback(async (): Promise<{
+    uri: string | null;
+    trim: AudioEdgeTrim | null;
+  }> => {
     const rec = recordingRef.current;
+    const tracker = speechTrackerRef.current;
     recordingRef.current = null;
+    speechTrackerRef.current = null;
     setRecording(false);
     setArming(false);
     startInFlightRef.current = false;
     clearMaxTimer();
     voiceLevel.setValue(0.2);
-    if (!rec) return null;
+    if (!rec) return { uri: null, trim: null };
     try {
       await rec.stopAndUnloadAsync();
-      return rec.getURI();
+      const trim = tracker?.finalize() ?? null;
+      return { uri: rec.getURI(), trim };
     } catch {
-      return null;
+      return { uri: null, trim: null };
     }
   }, [voiceLevel]);
 
@@ -143,7 +158,7 @@ export function AffirmationCreateScreen() {
 
   const finishRecording = useCallback(async () => {
     const mode = modeRef.current;
-    const uri = await stopAndGetUri();
+    const { uri, trim } = await stopAndGetUri();
     await resetPlaybackAudioMode();
     const durationMs = Date.now() - recordStartRef.current;
     if (!uri || durationMs < MIN_VOICE_MS) return;
@@ -154,6 +169,7 @@ export function AffirmationCreateScreen() {
       if (!size || size < 16) return;
       setVoiceUri(uri);
       setVoiceMime(mimeFromRecordingUri(uri));
+      setVoiceTrim(trim);
       return;
     }
 
@@ -215,12 +231,15 @@ export function AffirmationCreateScreen() {
         }
         recordingRef.current = rec;
         recordStartRef.current = Date.now();
+        const tracker = new RecordingSpeechTracker(recordStartRef.current);
+        speechTrackerRef.current = tracker;
         setRecording(true);
         setArming(false);
         startInFlightRef.current = false;
         rec.setOnRecordingStatusUpdate((status) => {
           const metering =
             "metering" in status && typeof status.metering === "number" ? status.metering : null;
+          tracker.onMetering(metering);
           const fallbackPulse = 0.28 + 0.12 * Math.sin(Date.now() / 180);
           const normalized =
             metering == null ? fallbackPulse : Math.max(0.08, Math.min(1, (metering + 60) / 60));
@@ -239,6 +258,7 @@ export function AffirmationCreateScreen() {
       } catch {
         if (generation !== startGenerationRef.current) return;
         recordingRef.current = null;
+        speechTrackerRef.current = null;
         setRecording(false);
         setArming(false);
         startInFlightRef.current = false;
@@ -273,10 +293,15 @@ export function AffirmationCreateScreen() {
   };
 
   const playVoice = async () => {
-    if (!voiceUri) return;
+    if (!voiceUri || playingVoice) return;
+    setPlayingVoice(true);
     try {
-      await playAffirmationAudio(voiceUri);
+      await playAffirmationAudio(voiceUri, {
+        trim: voiceTrim,
+        onFinished: () => setPlayingVoice(false),
+      });
     } catch {
+      setPlayingVoice(false);
       Alert.alert(t("affirmation.error.generic"));
     }
   };
@@ -289,6 +314,7 @@ export function AffirmationCreateScreen() {
       let audioPath: string | null = null;
       if (voiceUri && voiceMime) {
         audioPath = await uploadAffirmationAudio(voiceUri, voiceMime);
+        await saveAudioEdgeTrim(audioPath, voiceTrim);
       }
       await createAffirmation({ text, audioPath });
       router.replace("/affirmation/manage");
@@ -438,6 +464,9 @@ export function AffirmationCreateScreen() {
             <AppText variant="screenHint" tone="muted" style={styles.instruction}>
               {t("affirmation.create.step4.voiceHint")}
             </AppText>
+            <AppText variant="screenHint" tone="muted" style={styles.micUpdateLabel}>
+              {t("affirmation.manage.updateVoice")}
+            </AppText>
             <MicCluster
               recording={micActive}
               busy={busy}
@@ -447,9 +476,7 @@ export function AffirmationCreateScreen() {
               hint={
                 micActive
                   ? t("affirmation.create.micHintStop")
-                  : voiceUri
-                    ? t("affirmation.create.step4.rerecord")
-                    : t("affirmation.create.step4.recordVoice")
+                  : t("affirmation.create.micHintStart")
               }
             />
             {voiceUri && !recording && !arming ? (
@@ -457,6 +484,8 @@ export function AffirmationCreateScreen() {
                 label={t("affirmation.create.step4.playVoice")}
                 onPress={() => void playVoice()}
                 variant="secondary"
+                disabled={playingVoice}
+                busy={playingVoice}
               />
             ) : null}
             <AppButton
@@ -562,5 +591,9 @@ const styles = StyleSheet.create({
   },
   micHint: {
     textAlign: "center",
+  },
+  micUpdateLabel: {
+    textAlign: "center",
+    marginBottom: -4,
   },
 });

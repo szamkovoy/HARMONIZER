@@ -1,9 +1,17 @@
 import { Audio } from "expo-av";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
-import { Alert, Modal, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Modal,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import { router } from "expo-router";
-import Svg, { Line, Path, Rect } from "react-native-svg";
+import Svg, { Line, Path, Rect, Text as SvgText } from "react-native-svg";
 
 import {
   fetchActiveAffirmation,
@@ -12,22 +20,32 @@ import {
   uploadAffirmationAudio,
 } from "@/modules/affirmations/core/affirmationsClient";
 import {
+  loadAudioEdgeTrim,
+  RecordingSpeechTracker,
+  saveAudioEdgeTrim,
+  type AudioEdgeTrim,
+} from "@/modules/affirmations/core/audioEdgeTrim";
+import {
   resetPlaybackAudioMode,
   startWhisperRecording,
 } from "@/modules/affirmations/core/startWhisperRecording";
 import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
 import { mimeFromRecordingUri } from "@/modules/communicator/core/audioMime";
+import {
+  MicCancelButton,
+  MicRecordButton,
+} from "@/modules/communicator/ui/MicRecordButton";
 import { useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
-import { FloatingCloseButton } from "@/modules/ui/FloatingCloseButton";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { StackScreenLayout, StackScrollView } from "@/modules/ui/StackScreenLayout";
 import { useTheme } from "@/modules/ui/theme";
 
 const CHART_W = 320;
-const CHART_H = 180;
-const PAD = { l: 8, r: 8, t: 12, b: 24 };
+const CHART_H = 168;
+const PAD = { l: 8, r: 8, t: 10, b: 10 };
+const ZONE_LETTERS = ["A", "B", "C", "D"] as const;
 
 export function AffirmationManageScreen() {
   const theme = useTheme();
@@ -36,8 +54,13 @@ export function AffirmationManageScreen() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"early" | "done" | null>(null);
   const [recording, setRecording] = useState(false);
+  const [arming, setArming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const recordingRef = useState<{ current: Audio.Recording | null }>({ current: null })[0];
+  const [playing, setPlaying] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const speechTrackerRef = useRef<RecordingSpeechTracker | null>(null);
+  const voiceLevel = useRef(new Animated.Value(0.2)).current;
+  const playingSoundRef = useRef<Audio.Sound | null>(null);
 
   const reload = useCallback(() => {
     let cancelled = false;
@@ -104,10 +127,21 @@ export function AffirmationManageScreen() {
   }, []);
 
   const playAudio = async () => {
-    if (!row?.audioSignedUrl) return;
+    if (!row?.audioSignedUrl || playing) return;
+    setPlaying(true);
     try {
-      await playAffirmationAudio(row.audioSignedUrl);
+      const trim = await loadAudioEdgeTrim(row.audioPath);
+      const sound = await playAffirmationAudio(row.audioSignedUrl, {
+        trim,
+        onFinished: () => {
+          playingSoundRef.current = null;
+          setPlaying(false);
+        },
+      });
+      playingSoundRef.current = sound;
     } catch {
+      playingSoundRef.current = null;
+      setPlaying(false);
       Alert.alert(t("affirmation.error.generic"));
     }
   };
@@ -116,8 +150,12 @@ export function AffirmationManageScreen() {
     if (busy && !recording) return;
     if (recording) {
       const rec = recordingRef.current;
+      const tracker = speechTrackerRef.current;
       recordingRef.current = null;
+      speechTrackerRef.current = null;
       setRecording(false);
+      setArming(false);
+      voiceLevel.setValue(0.2);
       if (!rec || !row) return;
       setBusy(true);
       try {
@@ -125,7 +163,9 @@ export function AffirmationManageScreen() {
         await resetPlaybackAudioMode();
         const uri = rec.getURI();
         if (!uri) return;
+        const trim: AudioEdgeTrim | null = tracker?.finalize() ?? null;
         const path = await uploadAffirmationAudio(uri, mimeFromRecordingUri(uri));
+        await saveAudioEdgeTrim(path, trim);
         const updated = await patchAffirmation(row.id, { audioPath: path });
         setRow(updated);
       } catch {
@@ -135,95 +175,177 @@ export function AffirmationManageScreen() {
       }
       return;
     }
-    if (recordingRef.current) return;
+    if (recordingRef.current || arming || playing) return;
     setBusy(true);
+    setArming(true);
     try {
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
         Alert.alert(t("affirmation.error.micPermission"));
         return;
       }
-      const rec = await startWhisperRecording({ isMeteringEnabled: false });
+      const rec = await startWhisperRecording({ isMeteringEnabled: true });
+      const tracker = new RecordingSpeechTracker();
+      speechTrackerRef.current = tracker;
       recordingRef.current = rec;
       setRecording(true);
+      rec.setOnRecordingStatusUpdate((status) => {
+        const metering =
+          "metering" in status && typeof status.metering === "number" ? status.metering : null;
+        tracker.onMetering(metering);
+        const fallbackPulse = 0.28 + 0.12 * Math.sin(Date.now() / 180);
+        const normalized =
+          metering == null ? fallbackPulse : Math.max(0.08, Math.min(1, (metering + 60) / 60));
+        Animated.timing(voiceLevel, {
+          toValue: normalized,
+          duration: 90,
+          useNativeDriver: true,
+        }).start();
+      });
+      rec.setProgressUpdateInterval(90);
     } catch {
       recordingRef.current = null;
+      speechTrackerRef.current = null;
       setRecording(false);
       await resetPlaybackAudioMode();
       Alert.alert(t("affirmation.error.generic"));
     } finally {
+      setArming(false);
       setBusy(false);
     }
   };
 
   const zones = useMemo(
     () => [
-      { key: "1", label: t("affirmation.manage.zone1"), hint: t("affirmation.manage.zone1Hint"), from: 1, to: 7 },
-      { key: "2", label: t("affirmation.manage.zone2"), hint: t("affirmation.manage.zone2Hint"), from: 8, to: 15 },
-      { key: "3", label: t("affirmation.manage.zone3"), hint: t("affirmation.manage.zone3Hint"), from: 16, to: 23 },
-      { key: "4", label: t("affirmation.manage.zone4"), hint: t("affirmation.manage.zone4Hint"), from: 24, to: 30 },
+      { key: "1", letter: ZONE_LETTERS[0], label: t("affirmation.manage.zone1"), hint: t("affirmation.manage.zone1Hint"), from: 1, to: 7 },
+      { key: "2", letter: ZONE_LETTERS[1], label: t("affirmation.manage.zone2"), hint: t("affirmation.manage.zone2Hint"), from: 8, to: 15 },
+      { key: "3", letter: ZONE_LETTERS[2], label: t("affirmation.manage.zone3"), hint: t("affirmation.manage.zone3Hint"), from: 16, to: 23 },
+      { key: "4", letter: ZONE_LETTERS[3], label: t("affirmation.manage.zone4"), hint: t("affirmation.manage.zone4Hint"), from: 24, to: 30 },
     ],
     [t],
   );
 
   const activeZone = zones.find((z) => displayDay >= z.from && displayDay <= z.to) ?? zones[0];
+  const micActive = recording || arming;
 
   return (
     <StackScreenLayout>
-      <FloatingCloseButton onPress={closeScreen} accessibilityLabel={t("common.close")} />
       <StackScrollView contentContainerStyle={styles.pad}>
-        <ScreenHeader title={t("affirmation.manage.title")} />
+        <ScreenHeader
+          title={t("affirmation.manage.title")}
+          trailing={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("common.close")}
+              onPress={closeScreen}
+              style={({ pressed }) => [
+                styles.closeChip,
+                {
+                  backgroundColor: theme.colors.controlButtonBg,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <AppText variant="buttonLabel">{t("common.close")}</AppText>
+            </Pressable>
+          }
+        />
         {loading || !row ? (
-          <AppText tone="muted">{t("affirmation.create.generating")}</AppText>
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={theme.colors.accent} size="large" />
+          </View>
         ) : (
           <View style={styles.block}>
-            <AppText variant="sectionTitle" style={styles.day}>
-              {t("affirmation.manage.dayCounter", { day: displayDay })}
-            </AppText>
-            <AppText variant="screenHint" style={styles.text}>
-              {row.text}
-            </AppText>
+            <View
+              style={[
+                styles.affirmationCard,
+                {
+                  backgroundColor: theme.colors.surfaceElevated,
+                  borderColor: theme.colors.surfaceBorder,
+                },
+              ]}
+            >
+              <AppText variant="screenHint" style={styles.affirmationText}>
+                {row.text}
+              </AppText>
+            </View>
 
             {row.audioSignedUrl ? (
-              <AppButton label={t("affirmation.create.step4.playVoice")} onPress={() => void playAudio()} />
+              <AppButton
+                label={t("affirmation.create.step4.playVoice")}
+                onPress={() => void playAudio()}
+                disabled={playing || micActive}
+                busy={playing}
+              />
             ) : (
               <AppText tone="muted" variant="technicalCaption">
                 {t("affirmation.manage.noAudio")}
               </AppText>
             )}
-            <AppButton
-              label={
-                recording ? t("affirmation.create.stop") : t("affirmation.manage.updateVoice")
-              }
-              onPress={() => void toggleVoice()}
-              variant="secondary"
-              disabled={busy}
-              busy={busy && !recording}
-            />
 
-            <AppText variant="sectionTitle">{t("affirmation.manage.chartTitle")}</AppText>
+            <View style={styles.micCluster}>
+              <AppText variant="screenHint" tone="muted" style={styles.micLabel}>
+                {t("affirmation.manage.updateVoice")}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("affirmation.create.micA11y")}
+                disabled={(busy && !recording) || playing}
+                onPress={() => void toggleVoice()}
+                hitSlop={12}
+                style={({ pressed }) => [styles.micHit, pressed ? styles.micHitPressed : null]}
+              >
+                {busy && !recording && !arming ? (
+                  <MicCancelButton />
+                ) : (
+                  <MicRecordButton active={micActive} level={voiceLevel} />
+                )}
+              </Pressable>
+              <AppText variant="technicalCaption" tone="muted" style={styles.micHint}>
+                {micActive
+                  ? t("affirmation.create.micHintStop")
+                  : t("affirmation.create.micHintStart")}
+              </AppText>
+            </View>
+
+            <AppText variant="sectionTitle">
+              {t("affirmation.manage.chartTitleWithDay", { day: displayDay })}
+            </AppText>
             <ProgressChart
               day={displayDay}
               accent={theme.colors.accent}
+              muted={theme.colors.textMuted}
               border={theme.colors.surfaceBorder}
               zoneFill={theme.colors.controlButtonBg}
+              labelColor={theme.colors.textPrimary}
             />
-            <AppText variant="technicalCaption" tone="muted">
-              {activeZone.label}: {activeZone.hint}
+            <AppText variant="screenHint">
+              {t("affirmation.manage.currentPhase", {
+                label: activeZone.label,
+                hint: activeZone.hint,
+              })}
             </AppText>
             <View style={styles.zoneList}>
               {zones.map((z) => (
                 <AppText
                   key={z.key}
-                  variant="technicalCaption"
+                  variant="screenHint"
                   tone={z === activeZone ? undefined : "muted"}
                 >
-                  {z.from}–{z.to}: {z.label}
+                  {t("affirmation.manage.zoneLegend", {
+                    letter: z.letter,
+                    label: z.label,
+                  })}
                 </AppText>
               ))}
             </View>
 
-            <AppButton label={t("affirmation.manage.changeCta")} onPress={onChangePress} variant="secondary" />
+            <AppButton
+              label={t("affirmation.manage.changeCta")}
+              onPress={onChangePress}
+              variant="secondary"
+              style={styles.changeCta}
+            />
           </View>
         )}
       </StackScrollView>
@@ -274,29 +396,47 @@ export function AffirmationManageScreen() {
 function ProgressChart({
   day,
   accent,
+  muted,
   border,
   zoneFill,
+  labelColor,
 }: {
   day: number;
   accent: string;
+  muted: string;
   border: string;
   zoneFill: string;
+  labelColor: string;
 }) {
   const innerW = CHART_W - PAD.l - PAD.r;
   const innerH = CHART_H - PAD.t - PAD.b;
   const x = (d: number) => PAD.l + ((d - 1) / 29) * innerW;
-  const y = (d: number) => PAD.t + innerH - ((d - 1) / 29) * innerH;
+  /** Equal-height phase bands (A–D), bottom → top. */
+  const bandBottom = (bandIndex: number) => PAD.t + innerH - (bandIndex / 4) * innerH;
+  const bandMidY = (bandIndex: number) => bandBottom(bandIndex) - innerH / 8;
+  const yOnDiagonal = (d: number) => PAD.t + innerH - ((d - 1) / 29) * innerH;
   const markers = [1, 5, 10, 15, 20, 25, 30];
-  const zoneEnds = [7.5, 15.5, 23.5];
-  const path = `M ${x(1)} ${y(1)} L ${x(30)} ${y(30)}`;
-  const cx = x(Math.min(30, Math.max(1, day)));
-  const cy = y(Math.min(30, Math.max(1, day)));
+  const clamped = Math.min(30, Math.max(1, day));
+  const cx = x(clamped);
+  const cy = yOnDiagonal(clamped);
+  const pastPath = `M ${x(1)} ${yOnDiagonal(1)} L ${cx} ${cy}`;
+  const futurePath =
+    clamped < 30 ? `M ${cx} ${cy} L ${x(30)} ${yOnDiagonal(30)}` : null;
 
   return (
     <View style={styles.chartWrap}>
       <Svg width={CHART_W} height={CHART_H}>
-        {zoneEnds.map((z, i) => {
-          const yy = y(z);
+        <Rect
+          x={PAD.l}
+          y={PAD.t}
+          width={innerW}
+          height={innerH}
+          fill={zoneFill}
+          opacity={0.35}
+          rx={8}
+        />
+        {[1, 2, 3].map((i) => {
+          const yy = bandBottom(i);
           return (
             <Line
               key={i}
@@ -310,16 +450,22 @@ function ProgressChart({
             />
           );
         })}
-        <Rect
-          x={PAD.l}
-          y={PAD.t}
-          width={innerW}
-          height={innerH}
-          fill={zoneFill}
-          opacity={0.35}
-          rx={8}
-        />
-        <Path d={path} stroke={accent} strokeWidth={2.5} fill="none" />
+        {ZONE_LETTERS.map((letter, i) => (
+          <SvgText
+            key={letter}
+            x={PAD.l + 10}
+            y={bandMidY(i) + 4}
+            fill={labelColor}
+            fontSize={12}
+            opacity={0.55}
+          >
+            {letter}
+          </SvgText>
+        ))}
+        <Path d={pastPath} stroke={accent} strokeWidth={2.5} fill="none" />
+        {futurePath ? (
+          <Path d={futurePath} stroke={muted} strokeWidth={2.5} fill="none" opacity={0.55} />
+        ) : null}
         <Rect x={cx - 5} y={cy - 5} width={10} height={10} rx={5} fill={accent} />
       </Svg>
       <View style={styles.markers}>
@@ -336,11 +482,38 @@ function ProgressChart({
 const styles = StyleSheet.create({
   pad: { paddingBottom: 48, gap: 14, paddingTop: 8 },
   block: { gap: 12 },
-  /** Larger size than sectionTitle token — keep lineHeight so glyphs are not clipped. */
-  day: { fontSize: 28, lineHeight: 36, marginTop: 6 },
-  text: { lineHeight: 24 },
-  zoneList: { gap: 4 },
-  chartWrap: { alignItems: "center", gap: 4 },
+  loadingWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 64,
+  },
+  closeChip: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  affirmationCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  affirmationText: {
+    lineHeight: 24,
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  micCluster: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  micLabel: { textAlign: "center" },
+  micHit: { alignItems: "center", justifyContent: "center" },
+  micHitPressed: { opacity: 0.85 },
+  micHint: { textAlign: "center" },
+  zoneList: { gap: 6 },
+  chartWrap: { alignItems: "center", gap: 2 },
   markers: {
     width: CHART_W,
     flexDirection: "row",
@@ -348,6 +521,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   marker: { width: 28, textAlign: "center" },
+  changeCta: { marginTop: 16 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

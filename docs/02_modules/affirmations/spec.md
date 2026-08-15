@@ -46,9 +46,9 @@ code_refs:
 ### Клиент (`modules/affirmations`)
 
 - **`AffirmationWidget`** — на экране Практик **только** в группе «Дыхание»; add / «День X из 30»; без disabled/dim на время fetch.
-- **Create wizard** — STT через communicator v2; generate/refine; после обновления списка — scroll to top; Mic: фаза `arming` + защита от double-start (как Communicator); finalize + optional voice. Закрытие: `FloatingCloseButton`.
-- **Manage** — текст, плеер/перезапись голоса, график 4 зон, смена/завершение цикла; day counter с lineHeight без клиппинга.
-- **`AffirmationBreathOverlay`** — intro/финал: hint как в конце; голос за ~1с до выдоха; fade in/out ~0.5с; панель растворяется с `dimOpacity` практики; окно финала ≈4.2 цикла / 3 play.
+- **Create wizard** — STT через communicator v2; generate/refine; после обновления списка — scroll to top; Mic: фаза `arming` + защита от double-start (как Communicator); finalize + optional voice (MicRecordButton + «Обновить голосовую аффирмацию»; edge-trim тишины >1с с запасом 1с под fade). Закрытие: `FloatingCloseButton`.
+- **Manage** — текст в карточке, «Прослушать» без наложений, MicRecordButton для голоса, график 4 равных зон A–D (зелёная линия до сегодня / серая будущее), «Фаза освоения: день X из 30»; закрытие — текстовая «Закрыть» вровень с заголовком.
+- **`AffirmationBreathOverlay`** — intro/финал: hint как в конце; голос за ~1с до выдоха; fade in/out ~0.5с + optional edge-trim; панель растворяется с `dimOpacity` практики; окно финала ≈4.2 цикла / 3 play.
 
 ### API (`_legacy_web/app/api/affirmations`)
 

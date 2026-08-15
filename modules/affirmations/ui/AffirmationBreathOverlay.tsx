@@ -17,6 +17,7 @@ import {
   type AffirmationDto,
 } from "@/modules/affirmations/core/affirmationsClient";
 import { playAffirmationAudio } from "@/modules/affirmations/core/playAffirmationAudio";
+import { loadAudioEdgeTrim } from "@/modules/affirmations/core/audioEdgeTrim";
 import { useTranslate } from "@/modules/i18n";
 import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
@@ -196,7 +197,9 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
       try {
         await unloadSound();
         ensureFinaleWaiter();
+        const trim = await loadAudioEdgeTrim(row.audioPath);
         const sound = await playAffirmationAudio(row.audioSignedUrl, {
+          trim,
           onFinished: () => {
             playingRef.current = false;
             soundRef.current = null;
@@ -211,7 +214,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
         playingRef.current = false;
         resolveFinaleWaiter();
       }
-    }, [row?.audioSignedUrl, unloadSound]);
+    }, [row?.audioPath, row?.audioSignedUrl, unloadSound]);
 
     // Phase transitions
     useEffect(() => {
