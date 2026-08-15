@@ -2,12 +2,18 @@
 id: 02_modules/book/history
 title: Book History
 version: 1.0
-updated: 2026-08-14
+updated: 2026-08-15
 depends_on: [02_modules/book/spec]
 code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 ---
 
 ## Decision Log
+
+- **2026-08-15 (CDN complete):** ES/PT/NL залиты на zamkovoi (`/book/{es,pt,nl}/book.epub`). Vercel `BOOK_EPUB_VERSION=2` (prod/preview/dev) + prod redeploy — клиентский cache bust.
+
+- **2026-08-15 (ES/PT/NL):** Перевод глав complete (`ALL COMPLETE`); собраны `book/build/{es,pt,nl}/book.epub` + DOCX; папка исходников переименована `Book` → `book` (scripts/metro/docs).
+
+- **2026-08-14 (no DEV unlock):** Удалён `EXPO_PUBLIC_BOOK_DEV_UNLOCK`; доступ только через ownership API. Default reader font 16px.
 
 - **2026-08-14 (admin grant):** Книгу удобнее выдавать из админки («Добавить платёж» → Книга → `payment_contracts`); Dev unlock env опционален.
 

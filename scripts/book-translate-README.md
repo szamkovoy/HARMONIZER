@@ -1,6 +1,6 @@
 # Book literary translation (FR / IT / ES / PT / NL)
 
-Pipeline for Phase C locales. Source of truth for meaning: **English** (`Book/Book_En.docx`), with German/Russian only as sense-check when a passage is unclear.
+Pipeline for Phase C locales. Source of truth for meaning: **English** (`book/Book_En.docx`), with German/Russian only as sense-check when a passage is unclear.
 
 ## Prompt
 
@@ -10,14 +10,14 @@ See `scripts/book-translate-prompt.md` (system instructions for the LLM).
 
 ```bash
 # 1) Extract EN markdown + media (once)
-pandoc Book/Book_En.docx -t markdown \
-  --extract-media=Book/translations/_media \
-  -o Book/translations/en/book.md
+pandoc book/Book_En.docx -t markdown \
+  --extract-media=book/translations/_media \
+  -o book/translations/en/book.md
 node scripts/book-split-chapters.mjs
 
 # 2) Translate (premium Gemini; resume-safe loop — best in Terminal.app)
 #    DeepSeek premium in .env may be unpaid → use Gemini 3.1 Pro.
-open Book/translations/run-translate.command
+open book/translations/run-translate.command
 # or:
 ./scripts/book-translate-run.sh
 
@@ -25,7 +25,7 @@ open Book/translations/run-translate.command
 node scripts/book-translate.mjs --locale fr --only 002-prologue --provider gemini
 
 # Progress:
-tail -f Book/translations/translate.log
+tail -f book/translations/translate.log
 
 # 3) Assemble DOCX (temp cover ← cover_En.jpg if missing)
 node scripts/book-assemble-docx.mjs --all
@@ -42,4 +42,4 @@ done
 
 ## After covers exist
 
-Replace `Book/cover_Fr.jpg` … `cover_Nl.jpg`, then rebuild EPUBs.
+Replace `book/cover_Fr.jpg` … `cover_Nl.jpg`, then rebuild EPUBs.

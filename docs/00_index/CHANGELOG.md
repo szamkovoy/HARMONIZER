@@ -1,3 +1,6 @@
+- 2026-08-15 (488): Book CDN complete — ES/PT/NL on zamkovoi; `BOOK_EPUB_VERSION=2` + prod redeploy.
+- 2026-08-15 (487): Book ES/PT/NL EPUBs built (`book/build`); source folder `Book`→`book`; CDN upload pending.
+- 2026-08-14 (486): Book — drop DEV unlock, default font 16, thanks on cold start.
 - 2026-08-14 (485): Admin — manual book/webinar refund mode (`manual_mark`) without LavaTop copy.
 - 2026-08-14 (484): Admin one-time book/webinar grant via payment_contracts; affirmation overlay hint/voice lead/fade/dim.
 - 2026-08-14 (483): Dev Downloading — PracticeCard imports soundBed only (not mandala-sound barrel / ~24MB audio).

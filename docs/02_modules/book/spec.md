@@ -2,7 +2,7 @@
 id: 02_modules/book/spec
 title: Book Spec
 version: 2.0
-updated: 2026-08-14
+updated: 2026-08-15
 depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/subscription/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -40,7 +40,7 @@ Barrel `modules/book/index.ts`:
 
 - **`BOOK_ID`** — `yoga_wizards_path`.
 - **`bookLocaleForAppLocale(locale)`** — UI → `BookLocale` (8 локалей).
-- **`resolveBookAccess(): Promise<boolean>`** — `GET /api/account/purchases/book` (`payment_contracts` one_time `tier=book` active). Опциональный Dev unlock (`EXPO_PUBLIC_BOOK_DEV_UNLOCK`) не обязателен: админ может выдать книгу через «Добавить платёж» → книга.
+- **`resolveBookAccess(): Promise<boolean>`** — `GET /api/account/purchases/book` (`payment_contracts` one_time `tier=book` active). Доступ выдаётся покупкой в кабинете или админским «Добавить платёж» → Книга.
 - **`BookProfileCard`** — карточка «Учебное пособие» + «Читать…».
 - **`BookReaderScreen`** — lazy `app/book/[locale].tsx` (не в barrel).
 
@@ -65,11 +65,11 @@ EPUB URL: `{BOOK_CDN_BASE_URL}/{locale}/book.epub` (на сервере папк
 ## 4. Конфигурация
 
 - Vercel: `BOOK_CDN_BASE_URL`, `BOOK_EPUB_VERSION`.
-- Client development unlock: `EXPO_PUBLIC_BOOK_DEV_UNLOCK` (только при `EXPO_PUBLIC_APP_ENV=development`).
 - i18n: `book.*`, `gate.body.book`.
+- Reader prefs default: `fontSizePx: 16` (user changes persist in `book-reader/prefs.json`).
 
 ## 5. Ограничения
 
-- ES/PT/NL EPUB на CDN — после перевода + upload (см. checklist).
+- Все 8 локалей на CDN: `https://zamkovoi.yoga/book/{locale}/book.epub` (cache key = `BOOK_EPUB_VERSION`). Исходники пайплайна: папка **`book/`** (lowercase).
 - Закладки / LitRes 3D curl — не в scope.
 - Store-билд без покупки всегда locked (нет `__DEV__`-автоunlock).

@@ -110,37 +110,40 @@ export function MembershipEventsBridge() {
     return () => sub.remove();
   }, [refreshProfile, userId]);
 
-  // ── 2bc. Foreground: благодарность за разовую покупку (вебинар/книга) ────────
-  // При возврате из Личного кабинета (любой ctx — профиль, карточка вебинара,
-  // апселл) проверяем последнюю разовую покупку через GET /api/account/purchases/last.
-  // Если это вебинар или книга, оплаченные после момента визита в кабинет, и мы
-  // ещё не благодарили за этот контракт — показываем модалку. Работает для любого
-  // входа в кабинет, а не только ctx=webinar:<id> (раньше вебинар детектился только
-  // при входе из карточки вебинара — оплата из профиля не давала модалки). Вебхук
-  // payment.success может прийти чуть позже — один ретрай через 10с. Visit чистим
-  // только после показа (до этого храним для ретрая).
+  // ── 2bc. Благодарность за разовую покупку (вебинар/книга) ──────────────────
+  // Показываем на cold start и при возврате в foreground (не только после кабинета).
+  // Админ-грант и оплата в кабинете: один раз на contractId.
+  // Кабинетный визит по-прежнему помогает поймать webhook с задержкой (ретрай 10с).
   useEffect(() => {
     if (!userId) return;
     const uid = userId;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    /** Не благодарим за старые контракты при обновлении приложения. */
+    const RECENT_PURCHASE_MS = 7 * 24 * 60 * 60 * 1000;
 
     async function checkPurchase(): Promise<"shown" | "pending" | "none"> {
-      const visit = await readFreshCabinetVisit(uid);
-      if (!visit) return "none";
       const purchase = await fetchLastPurchase();
       if (cancelled) return "none";
-      const recentVisit = Date.now() - visit.ts < 90_000;
+      const visit = await readFreshCabinetVisit(uid);
+      const recentVisit = visit ? Date.now() - visit.ts < 90_000 : false;
       const kind = purchase?.kind;
       if (!purchase || (kind !== "book" && kind !== "webinar")) {
         return recentVisit ? "pending" : "none";
       }
       const paidAt = new Date(purchase.createdAt).getTime();
-      if (!Number.isFinite(paidAt) || paidAt <= visit.ts) return recentVisit ? "pending" : "none";
+      if (!Number.isFinite(paidAt)) return recentVisit ? "pending" : "none";
+      const afterCabinetVisit = Boolean(visit && paidAt > visit.ts);
+      const recentGrant = Date.now() - paidAt < RECENT_PURCHASE_MS;
+      if (!afterCabinetVisit && !recentGrant) {
+        // Из кабинета только что, вебхук ещё не пришёл — подождём.
+        return recentVisit ? "pending" : "none";
+      }
       const shownFlag = `purchaseThanksShown.${uid}.${purchase.contractId}`;
-      if ((await readAccountFlag(shownFlag)) === visit.ts.toString()) return "none";
-      await writeAccountFlag(shownFlag, visit.ts.toString());
-      await clearCabinetVisit(uid);
+      const alreadyShown = await readAccountFlag(shownFlag);
+      if (alreadyShown) return "none";
+      await writeAccountFlag(shownFlag, "1");
+      if (visit) await clearCabinetVisit(uid);
       if (cancelled || noticeVisibleRef.current) return "none";
       logRuntimeEvent(
         kind === "webinar" ? "membership:webinar_paid_notice" : "membership:book_paid_notice",
@@ -149,6 +152,13 @@ export function MembershipEventsBridge() {
       setNotice({ kind: kind === "webinar" ? "webinar_paid" : "book_paid" });
       return "shown";
     }
+
+    void checkPurchase().then((status) => {
+      if (status === "pending" && !cancelled) {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => void checkPurchase(), 10000);
+      }
+    });
 
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;

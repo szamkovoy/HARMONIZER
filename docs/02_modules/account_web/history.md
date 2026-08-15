@@ -5,6 +5,10 @@ version: 1.13
 updated: 2026-08-14
 ---
 
+## 2026-08-14 — Book/webinar thanks on cold start
+
+- `MembershipEventsBridge`: модалка «спасибо» за книгу/вебинар на mount + foreground (не только после кабинета); один раз на `contractId`; окно 7 дней для админ-грантов без cabinetVisit.
+
 ## 2026-08-14 — Book Phase B ownership endpoint
 
 - `GET /api/account/purchases/book` + shared `bookOwnership.ts` (overview `book.owned` + reader access). Manifest/progress — модуль `book`.

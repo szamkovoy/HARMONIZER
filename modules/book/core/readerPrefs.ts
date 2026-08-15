@@ -34,7 +34,7 @@ export const MARGIN_STEP = 4;
 
 export const DEFAULT_READER_PREFS: ReaderPrefs = {
   fontFamily: "serif",
-  fontSizePx: 18,
+  fontSizePx: 16,
   lineHeight: 1.55,
   marginPx: 16,
   scrollMode: "paginated",

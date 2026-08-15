@@ -1,13 +1,14 @@
 ---
 id: 04_workspace/book_reader_plan
 title: Book reader — full plan + freeze/resume
-updated: 2026-08-14
-status: phase_b_done
+updated: 2026-08-15
+status: phase_c_locales_done
 ---
 
 # Book reader — план и инструкция для продолжения после модерации
 
-> **Phase B сделана (2026-08-14):** ownership API, CDN manifest, progress sync. Заливка EPUB — `docs/04_workspace/book_cdn_upload.md`. LitRes 3D curl / закладки — по отдельной просьбе.
+> **Phase B сделана (2026-08-14):** ownership API, CDN manifest, progress sync.  
+> **Локали 8/8 на CDN (2026-08-15):** RU…NL залиты; `BOOK_EPUB_VERSION=2`. LitRes 3D curl / закладки — по отдельной просьбе.
 
 ## 0. Красные линии (исторически)
 
@@ -139,9 +140,9 @@ create table public.book_reading_progress (
 ### Phase C — языки и полировка
 
 1. ~~EN EPUB из `Book_En.docx` + `cover_En.jpg`.~~ **Сделано 2026-08-13** (локально / Dev Client; UI `en` → EN файл). CDN/store — после Phase B.
-2. ~~DE EPUB~~ **Сделано 2026-08-13**. ~~FR/IT/ES/PT/NL pipeline~~ **в работе 2026-08-13** (`scripts/book-translate.mjs` → Gemini 3.1 Pro из EN; assemble DOCX → `book-build-epub.mjs`). Обложки locale — подставить `cover_{Fr,It,Es,Pt,Nl}.jpg` и пересобрать EPUB.
-3. TOC/search UX, шрифты, a11y.
-4. Опционально: закладки/highlights (новые таблицы).
+2. ~~DE/FR/IT/ES/PT/NL~~ **Сделано 2026-08-15** (перевод + EPUB + CDN; temp covers из EN где нет locale art).
+3. TOC/search UX, шрифты, a11y — полировка по запросу.
+4. Опционально: закладки/highlights (новые таблицы); LitRes 3D curl — по явной просьбе.
 
 ---
 
@@ -199,26 +200,17 @@ create table public.book_reading_progress (
 
 ## 8. Точка остановки / статус
 
-**Status:** `phase_a_in_progress` (2026-08-11)
+**Status:** `phase_c_locales_done` (2026-08-15) — плановый scope книги закрыт.
 
 **Сделано:**
 
-- Согласован безопасный контур (Dev Client, без prod deploy/migrations).
-- Зафиксирован полный целевой план (этот файл).
-- RU/EN EPUB: `node scripts/book-build-epub.mjs ru|en` → `Book/build/{locale}/book.epub` (+ copy в `assets/books/`, gitignored).
-- Каркас `modules/book`, экран `app/book/[locale].tsx`, карточка в Профиле, local progress (FileSystem), prefs Aa, TOC sheet.
-- Ownership Phase A: `__DEV__` → unlocked; production build → locked + `gate.body.book`.
-- Пакеты: `@epubjs-react-native/core` (+ legacy FS-адаптер `modules/book/core/useBookFileSystem.ts`); `metro.config.js` assetExts `epub`.
-- Фикс SDK 54: jszip write через `expo-file-system/legacy`; chrome без Stack header.
-- Фикс cold-start: lazy `app/book/[locale]`, EPUB require только в `bookAssets.ts`, barrel без ридера.
-- 2026-08-12: LitRes-like chrome, TOC fix, EPUB CSS/white page, prefs persist, vertical scroll; page-curl 3D — open (стек epub.js).
-- 2026-08-12 (hard-fix): chrome toggle (parsed WebView msg), scrubber по locations, tap zones, prefs keep CFI, `patch-package` на GestureHandler для scrolled-doc, i18n Opening. Page-curl / slide-анимация тапа — **после модерации**.
-- 2026-08-14: Soft slide+fade on paginated tap/swipe (Metro-only; not LitRes 3D curl).
-- 2026-08-14 (Phase B): `purchases/book`, `/api/book/manifest`, `/api/book/progress`, migration `book_reading_progress` on prod; Vercel `BOOK_CDN_*`; client CDN + progress LWW; Dev unlock via `EXPO_PUBLIC_BOOK_DEV_UNLOCK`; Metro fallback. Upload checklist: `book_cdn_upload.md`.
+- Phase A/B: ридер, ownership, CDN manifest, progress sync (см. историю выше / `book/history.md`).
+- Все 8 локалей: перевод (где нужно) → DOCX/EPUB → CDN `https://zamkovoi.yoga/book/{locale}/book.epub`.
+- 2026-08-15: ES/PT/NL на CDN; `BOOK_EPUB_VERSION=2` + prod redeploy.
+- Исходники: папка `book/` (lowercase). Checklist: `book_cdn_upload.md`.
 
-**Следующий шаг (ops):**
+**Вне планового scope (по отдельной просьбе):**
 
-1. Залить RU/EN/DE/FR/IT EPUB на zamkovoi по `docs/04_workspace/book_cdn_upload.md`.
-2. QA: owned buyer → reader from CDN; non-buyer → gate; progress A→B.
-3. ES/PT/NL — после перевода + upload в те же пути `v1/`.
-4. LitRes 3D curl / закладки — только по явной просьбе.
+1. Smoke QA: owned buyer → CDN reader (в т.ч. ES/PT/NL); non-buyer → gate; progress A→B.
+2. LitRes 3D curl / закладки / отдельные обложки locale art.
+3. Полировка TOC/search/a11y.

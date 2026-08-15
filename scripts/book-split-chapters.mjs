@@ -1,5 +1,5 @@
 /**
- * Split Book/translations/en/book.md into ordered chapter files.
+ * Split book/translations/en/book.md into ordered chapter files.
  *
  *   node scripts/book-split-chapters.mjs
  */
@@ -8,8 +8,8 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const enBook = join(root, "Book/translations/en/book.md");
-const outDir = join(root, "Book/translations/en/chapters");
+const enBook = join(root, "book/translations/en/book.md");
+const outDir = join(root, "book/translations/en/chapters");
 
 if (!existsSync(enBook)) {
   console.error("Missing", enBook, "— run pandoc extract first");

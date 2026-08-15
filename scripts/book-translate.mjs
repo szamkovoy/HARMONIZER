@@ -11,14 +11,22 @@
  *   - deepseek (default if AI_MODEL_PREMIUM is deepseek-*): DEEPSEEK_API_KEY
  *   - gemini: GEMINI_API_KEY (preferred for literary quality when DeepSeek balance is empty)
  *
- * Resume-safe: skips chapters that already exist under Book/translations/{locale}/chapters/.
+ * Resume-safe: skips chapters that already exist under book/translations/{locale}/chapters/.
  */
 import { spawnSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// Cursor sandbox / corporate HTTP(S)_PROXY: make global fetch honor the proxy.
+try {
+  setGlobalDispatcher(new EnvHttpProxyAgent());
+} catch {
+  /* undici optional at runtime */
+}
 
 const LOCALES = {
   fr: {
@@ -113,7 +121,7 @@ function resolveModel(provider, args) {
 }
 
 function ensureEnChapters() {
-  const manifest = join(root, "Book/translations/en/chapters/manifest.json");
+  const manifest = join(root, "book/translations/en/chapters/manifest.json");
   if (existsSync(manifest)) return;
   console.log("Splitting EN chapters…");
   const r = spawnSync(process.execPath, [join(root, "scripts/book-split-chapters.mjs")], {
@@ -287,13 +295,13 @@ function writeQuotaPause(retryAfterMs, detail) {
     retryAfterMs,
     detail: String(detail).slice(0, 500),
   };
-  mkdirSync(join(root, "Book/translations"), { recursive: true });
-  writeFileSync(join(root, "Book/translations/quota-pause.json"), JSON.stringify(payload, null, 2));
+  mkdirSync(join(root, "book/translations"), { recursive: true });
+  writeFileSync(join(root, "book/translations/quota-pause.json"), JSON.stringify(payload, null, 2));
   console.error(`QUOTA_PAUSE resumeAfter=${until} (~${Math.round(retryAfterMs / 3600000)}h)`);
 }
 
 async function translateChapter(ctx) {
-  const srcPath = join(root, "Book/translations/en/chapters", `${ctx.chapter.id}.md`);
+  const srcPath = join(root, "book/translations/en/chapters", `${ctx.chapter.id}.md`);
   const source = readFileSync(srcPath, "utf8");
   const attempts = 4;
   let lastErr;
@@ -355,9 +363,9 @@ async function translateLocale(locale, opts) {
     process.exit(1);
   }
   const manifest = JSON.parse(
-    readFileSync(join(root, "Book/translations/en/chapters/manifest.json"), "utf8"),
+    readFileSync(join(root, "book/translations/en/chapters/manifest.json"), "utf8"),
   );
-  const outDir = join(root, "Book/translations", locale, "chapters");
+  const outDir = join(root, "book/translations", locale, "chapters");
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
   // Localized TOC stub (Word TOC body is stripped at EPUB build).
@@ -404,7 +412,7 @@ async function translateLocale(locale, opts) {
         // Empty pandoc leftover headings — copy as-is.
         if (chapter.words < 3) {
           const src = readFileSync(
-            join(root, "Book/translations/en/chapters", `${chapter.id}.md`),
+            join(root, "book/translations/en/chapters", `${chapter.id}.md`),
             "utf8",
           );
           writeFileSync(dest, src);

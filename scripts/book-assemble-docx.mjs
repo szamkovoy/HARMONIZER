@@ -1,10 +1,10 @@
 /**
- * Assemble translated chapter Markdown → Book/Book_{Locale}.docx
+ * Assemble translated chapter Markdown → book/Book_{Locale}.docx
  *
  *   node scripts/book-assemble-docx.mjs fr
  *   node scripts/book-assemble-docx.mjs --all
  *
- * Uses EN media extract at Book/translations/_media (image paths preserved).
+ * Uses EN media extract at book/translations/_media (image paths preserved).
  * Cover for EPUB build: cover_{Locale}.jpg if present, else cover_En.jpg.
  */
 import { execFileSync } from "child_process";
@@ -53,8 +53,8 @@ function assemble(locale) {
     console.error("Usage: node scripts/book-assemble-docx.mjs fr|it|es|pt|nl|--all");
     process.exit(1);
   }
-  const chapDir = join(root, "Book/translations", locale, "chapters");
-  const enManifest = join(root, "Book/translations/en/chapters/manifest.json");
+  const chapDir = join(root, "book/translations", locale, "chapters");
+  const enManifest = join(root, "book/translations/en/chapters/manifest.json");
   if (!existsSync(enManifest)) {
     console.error("Missing EN manifest — run book-split-chapters.mjs");
     process.exit(1);
@@ -69,13 +69,13 @@ function assemble(locale) {
     process.exit(1);
   }
 
-  const outMdDir = join(root, "Book/translations", locale);
+  const outMdDir = join(root, "book/translations", locale);
   mkdirSync(outMdDir, { recursive: true });
   const bookMd = join(outMdDir, "book.md");
   const chunks = manifest.map((c) => readFileSync(join(chapDir, `${c.id}.md`), "utf8").trimEnd());
   writeFileSync(bookMd, chunks.join("\n\n") + "\n");
 
-  const docxPath = join(root, "Book", meta.docx);
+  const docxPath = join(root, "book", meta.docx);
   console.log("pandoc", locale, "→", meta.docx);
   execFileSync(
     "pandoc",
@@ -93,8 +93,8 @@ function assemble(locale) {
 
   // Cover for EPUB: cover_Fr.jpg etc. Until locale art exists, copy EN.
   const coverName = `cover_${locale.charAt(0).toUpperCase()}${locale.slice(1)}.jpg`;
-  const coverPath = join(root, "Book", coverName);
-  const enCover = join(root, "Book", "cover_En.jpg");
+  const coverPath = join(root, "book", coverName);
+  const enCover = join(root, "book", "cover_En.jpg");
   if (!existsSync(coverPath) && existsSync(enCover)) {
     copyFileSync(enCover, coverPath);
     console.log("(temp cover)", coverName, "← cover_En.jpg");

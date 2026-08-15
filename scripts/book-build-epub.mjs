@@ -1,10 +1,10 @@
 /**
- * Build EPUB 3 from Book/*.docx (local pipeline; no deploy).
+ * Build EPUB 3 from book/*.docx (local pipeline; no deploy).
  *
  *   node scripts/book-build-epub.mjs ru|en|de|fr|it|es|pt|nl
  *
  * Requires: pandoc + unzip/zip on PATH.
- * Writes Book/build/{locale}/book.epub (Metro GET /hz-book/{locale}.epub).
+ * Writes book/build/{locale}/book.epub (Metro GET /hz-book/{locale}.epub).
  * Does not copy into assets/books — require() EPUBs break Dev Client cold start.
  */
 import { execFileSync } from "child_process";
@@ -218,7 +218,7 @@ if (!cfg) {
 const TOC_SECTION_IDS =
   "оглавление|contents|table-of-contents|toc|inhaltsverzeichnis|table-des-matières|table-des-matieres|indice|índice|inhoudsopgave";
 
-const bookDir = join(root, "Book");
+const bookDir = join(root, "book");
 const docx = join(bookDir, cfg.docx);
 const cover = join(bookDir, cfg.cover);
 const css = join(bookDir, "epub-reader.css");
@@ -381,6 +381,6 @@ try {
 }
 
 // Never copy into assets/books — multi‑MB require() assets wreck Dev Client
-// cold start. Dev serves Book/build/{locale}/book.epub at /hz-book/{locale}.epub.
+// cold start. Dev serves book/build/{locale}/book.epub at /hz-book/{locale}.epub.
 console.log("OK", outEpub);
 console.log("(Dev: GET /hz-book/" + locale + ".epub — not copied to assets/)");

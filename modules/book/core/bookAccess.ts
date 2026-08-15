@@ -1,7 +1,6 @@
 /**
  * Book ownership — Phase B:
- * - Production / preview: GET /api/account/purchases/book → owned.
- * - Development profile: optional EXPO_PUBLIC_BOOK_DEV_UNLOCK=true bypass (never in store).
+ * GET /api/account/purchases/book → owned (admin grant or cabinet one-time purchase).
  */
 import { getCommunicatorApiBaseUrl } from "@/services/communicatorConfig";
 import { getSupabaseAccessToken } from "@/services/supabase";
@@ -11,16 +10,6 @@ export type BookOwnership = {
   contractId?: string;
   purchasedAt?: string;
 };
-
-function isDevelopmentAppEnv(): boolean {
-  return (process.env.EXPO_PUBLIC_APP_ENV ?? "").trim().toLowerCase() === "development";
-}
-
-function isDevUnlockEnabled(): boolean {
-  if (!isDevelopmentAppEnv()) return false;
-  const raw = (process.env.EXPO_PUBLIC_BOOK_DEV_UNLOCK ?? "").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "yes";
-}
 
 export async function fetchBookOwnership(): Promise<BookOwnership> {
   const accessToken = await getSupabaseAccessToken();
@@ -52,7 +41,6 @@ export async function fetchBookOwnership(): Promise<BookOwnership> {
 }
 
 export async function resolveBookAccess(): Promise<boolean> {
-  if (isDevUnlockEnabled()) return true;
   const ownership = await fetchBookOwnership();
   return ownership.owned;
 }

@@ -21,10 +21,10 @@ config.server = {
       const m = pathname.match(/^\/hz-book\/([a-z]{2})\.epub$/);
       if (m) {
         const locale = m[1];
-        const file = path.join(__dirname, "Book", "build", locale, "book.epub");
+        const file = path.join(__dirname, "book", "build", locale, "book.epub");
         if (!fs.existsSync(file)) {
           res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end(`missing Book/build/${locale}/book.epub`);
+          res.end(`missing book/build/${locale}/book.epub`);
           return;
         }
         const stat = fs.statSync(file);
@@ -44,7 +44,7 @@ config.server = {
 /**
  * Heavy trees Metro must not resolve/crawl. Without Watchman, Metro’s Node
  * crawler walks the project root — `_legacy_web/.next` (~1.3G), `ios` (~1G),
- * `dist` (~0.5G), ambient `raw`, `Book/` make Dev Client “Downloading …” crawl
+ * `dist` (~0.5G), ambient `raw`, `book/` make Dev Client “Downloading …” crawl
  * for minutes at a few percent.
  *
  * Do NOT block all of `_legacy_web/` — the app imports `@shared` and
@@ -58,7 +58,7 @@ function absDirRe(relDir) {
 }
 
 const heavyBlocks = [
-  absDirRe("Book"),
+  absDirRe("book"),
   absDirRe("dist"),
   absDirRe("ios"),
   absDirRe("android"),

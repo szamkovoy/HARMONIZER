@@ -3,9 +3,11 @@
 # On Gemini daily quota (exit 3) sleeps until resumeAfter, then continues.
 set -uo pipefail
 export PATH=/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin:$PATH
+# Node fetch ignores HTTP(S)_PROXY unless this is set (Cursor sandbox / corporate proxy).
+export NODE_USE_ENV_PROXY=1
 cd /Users/sergey/Desktop/HARMONIZER
 
-LOG=Book/translations/translate.log
+LOG=book/translations/translate.log
 echo "START $(date)" | tee -a "$LOG"
 
 missing_count() {
@@ -13,13 +15,13 @@ missing_count() {
 const fs = require("fs");
 const path = require("path");
 const manifest = JSON.parse(
-  fs.readFileSync("Book/translations/en/chapters/manifest.json", "utf8"),
+  fs.readFileSync("book/translations/en/chapters/manifest.json", "utf8"),
 );
 const ids = manifest.filter((c) => !c.skipTranslate).map((c) => c.id);
 let missing = 0;
 for (const loc of ["fr", "it", "es", "pt", "nl"]) {
   for (const id of ids) {
-    if (!fs.existsSync(path.join("Book/translations", loc, "chapters", `${id}.md`))) {
+    if (!fs.existsSync(path.join("book/translations", loc, "chapters", `${id}.md`))) {
       missing += 1;
     }
   }
@@ -29,7 +31,7 @@ NODE
 }
 
 wait_quota_if_needed() {
-  local pause=Book/translations/quota-pause.json
+  local pause=book/translations/quota-pause.json
   [[ -f "$pause" ]] || return 0
   local resume_epoch
   resume_epoch=$(node -e "

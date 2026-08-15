@@ -34,5 +34,5 @@ code_refs:
 ## 3. Контрактные точки риска
 
 - Store: без active one_time book → gate; без `BOOK_CDN_*` manifest падает.
-- Dev: `EXPO_PUBLIC_BOOK_DEV_UNLOCK` + Metro fallback для незалитых локалей.
+- Dev: Metro fallback `/hz-book/{locale}.epub` из `book/build/{locale}/book.epub` для локалей без CDN.
 - Не ломать существующие `/api/account/{ott,session,overview,checkout,webhooks}` — только новые routes.
