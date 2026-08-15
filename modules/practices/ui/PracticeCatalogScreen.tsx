@@ -664,7 +664,8 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     gap: 18,
-    paddingBottom: 18,
+    /** ~10px tighter under affirmation widget before first practice card. */
+    paddingBottom: 8,
   },
   groupGrid: {
     flexDirection: "row",

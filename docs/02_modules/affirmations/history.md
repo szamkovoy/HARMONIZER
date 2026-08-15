@@ -9,6 +9,12 @@ code_refs: []
 
 ## Decision Log
 
+- **2026-08-15 (admin prompts):** `affirmation_generate` + `affirmation_refinement` в таблице `prompts` (миграция `20260815150000`); generate читает active через `getActivePrompt` + `{{vars}}`; playground seed из `variables` JSON. Без `{{user_message}}` тест бессмысленен.
+
+- **2026-08-15 (create intro copy):** Обновлён `affirmation.create.step1.instruction` (3 пункта фокуса + лимит 1–2 / max 3 мин) во всех 8 локалях.
+
+- **2026-08-15 (QA polish 2):** Catalog gap −10px; manage mic hint removed; A–D outside chart; one-line phases legend (period at end, same for life-matrix spheres); `warnChange` → «Завершить аффирмацию» ×8; archive in-flight + retry-safe; adaptive edge-trim + 1s fade; finale voice/panel sync via plan `msInhaleToExhale` (not cycle/2). Noise reduction not available via expo-av.
+
 - **2026-08-14 (manage UX + edge trim):** Manage: spinner вместо «Подбираем…»; listen lock; MicRecordButton + «Обновить…»; affirmation card; «Фаза освоения: день…»; график A–D equal bands / past green / future muted; «Закрыть» chip; CTA rename. Voice: metering edge-trim (>1s silence → keep 1s) at playback.
 
 - **2026-08-14 (overlay polish):** Intro hint = finale hint; voice −1s before exhale; panel follows practice dim; 0.5s audio fade on play (manage + breath).

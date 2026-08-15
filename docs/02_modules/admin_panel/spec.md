@@ -112,7 +112,7 @@ code_refs:
 **Промпты (реализовано, этап 8):**
 
 - `GET /api/admin/prompts` — сводка по `prompt_key` (активная/последняя версия, число версий). `GET /api/admin/prompts/[key]` — все версии. `POST /api/admin/prompts/[key]` — новая версия (version = max+1, метаданные наследуются, `activate` — деактивирует остальные). `PATCH /api/admin/prompts/versions/[id]` — активация (единственная активная на ключ; деактивировать активную напрямую нельзя) и правка notes. `POST /api/admin/prompts/test` — playground: рендер шаблона с переменными + прогон через боевой Gemini-пайплайн (`maxDuration 120`), в БД не пишет.
-- UI `/admin/prompts` (список ключей) и `/admin/prompts/[key]` (версии, редактор шаблона, playground с автозаготовкой `{{переменных}}`).
+- UI `/admin/prompts` (список ключей) и `/admin/prompts/[key]` (версии, редактор шаблона, playground с автозаготовкой `{{переменных}}` — значения из `prompts.variables`, если заданы). В т.ч. `affirmation_generate` / `affirmation_refinement`.
 - Временный Prompt Studio (`/api/ai/prompt-studio` + `middleware.ts` + WordPress-страница) выведен из эксплуатации: роут и middleware удалены, функциональность покрыта этим разделом. `PROMPT_STUDIO_TOKEN` в Vercel больше не нужен.
 
 **Загрузки:** `POST /api/admin/uploads` `{bucket: 'story-media'|'post-covers', contentType}` → signed upload URL (браузер грузит напрямую в Storage, мимо лимита тела Vercel). Для stories raw upload: файлы ≤45 MiB — signed URL в `tmp/stories/*`; **>45 MiB** — chunked `POST /api/admin/stories/upload-chunk`, сборка в `process` (обход Supabase Free global limit 50 MiB без Pro). После загрузки — `POST /api/admin/stories/process`. На Free-тарифе `supabase config push` **не** поднимет global limit выше 50 MiB (402); chunked path — штатный.

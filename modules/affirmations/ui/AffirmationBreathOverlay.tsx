@@ -39,6 +39,11 @@ type Props = {
   practiceTotalMs: number;
   /** Average cycle length estimate (ms). */
   cycleMs: number;
+  /**
+   * Time from inhale onset to the next exhale onset in the current plan.
+   * Includes any hold between them (triangle-down / square). 0 → fallback.
+   */
+  msInhaleToExhale?: number;
   /** Practice is in running phase. */
   active: boolean;
   /**
@@ -57,7 +62,15 @@ const DIM_BEFORE_END_MS = 5_000;
  */
 export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>(
   function AffirmationBreathOverlay(
-    { phaseKind, elapsedMs, practiceTotalMs, cycleMs, active, dimOpacity = 0 },
+    {
+      phaseKind,
+      elapsedMs,
+      practiceTotalMs,
+      cycleMs,
+      msInhaleToExhale = 0,
+      active,
+      dimOpacity = 0,
+    },
     ref,
   ) {
     const theme = useTheme();
@@ -70,6 +83,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
     const introStartedRef = useRef(false);
     const introDoneRef = useRef(false);
     const finaleExhaleCountRef = useRef(0);
+    const finaleArmedRef = useRef(false);
     const skipNextExhaleRef = useRef(false);
     const soundRef = useRef<Audio.Sound | null>(null);
     const playingRef = useRef(false);
@@ -245,21 +259,29 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
 
       if (!inFinale) return;
 
-      if (modeRef.current !== "finale") {
-        showPanel("finale");
+      if (!finaleArmedRef.current) {
+        finaleArmedRef.current = true;
         finaleExhaleCountRef.current = 0;
       }
 
-      // Start voice ~1s before exhale: schedule on inhale onset.
+      // Start voice + panel ~1s before exhale: schedule on inhale onset using
+      // real plan gap (inhale→…→exhale), not cycle/2.
       if (phaseKind === "inhale" && prev !== "inhale") {
         if (finaleExhaleCountRef.current >= 3) return;
         clearVoiceTimer();
-        const inhaleMs = Math.max(2_000, avgCycle / 2);
-        const delay = Math.max(0, inhaleMs - VOICE_LEAD_MS);
+        const gapMs =
+          msInhaleToExhale > 0
+            ? msInhaleToExhale
+            : Math.max(2_000, avgCycle / 2);
+        const delay = Math.max(0, gapMs - VOICE_LEAD_MS);
         voiceTimerRef.current = setTimeout(() => {
           voiceTimerRef.current = null;
           if (finaleExhaleCountRef.current >= 3) return;
           finaleExhaleCountRef.current += 1;
+          // Panel and voice start together.
+          if (modeRef.current !== "finale") {
+            showPanel("finale");
+          }
           if (row.audioSignedUrl) {
             void playVoice();
           } else if (finaleExhaleCountRef.current >= 3) {
@@ -272,6 +294,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
       cycleMs,
       elapsedMs,
       hidePanel,
+      msInhaleToExhale,
       phaseKind,
       playVoice,
       practiceTotalMs,

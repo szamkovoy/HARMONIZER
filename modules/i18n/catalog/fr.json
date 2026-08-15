@@ -8,7 +8,7 @@
   "affirmation.create.retry": "Réessayer",
   "affirmation.create.saving": "Enregistrement en cours…",
   "affirmation.create.select": "Sélectionner",
-  "affirmation.create.step1.instruction": "Parlez-moi de ce qui vous préoccupe actuellement et des changements que vous aimeriez voir dans votre vie.\n\nExprimez-vous librement, avec vos propres mots. Pour que je puisse mieux vous comprendre, vous pouvez me dire :\n— ce qui vous tracasse ou ce qui vous manque actuellement ;\n— ce que vous aimeriez changer ;\n— comment vous aimeriez vous sentir à la place ;\n— ce que vous souhaitez pour vous-même à l'avenir ;\n— ce qui est vraiment important pour vous.\n\nIl n'est pas nécessaire de choisir de beaux mots ou de préparer une affirmation à l'avance. Appuyez simplement sur le bouton ci-dessous et parlez de vous.\nVous pouvez parler jusqu'à 3 minutes, mais 1 à 2 minutes suffisent généralement.",
+  "affirmation.create.step1.instruction": "Parlez de ce qui compte pour vous en ce moment et du changement que vous aimeriez dans votre vie.\n\nPour rendre votre récit plus précis, essayez de réfléchir tour à tour à trois choses :\n— ce qui vous préoccupe actuellement, ce qui ne vous convient pas ou ce qui vous manque ;\n— ce que vous aimeriez changer en vous, dans votre vie ou dans le monde ;\n— quelle personne vous aimeriez être, ou quel état intérieur vous aimeriez ressentir.\n\nIl n’est pas nécessaire de répondre à chaque point séparément. Parlez simplement avec vos propres mots, comme cela vous convient. Pas besoin de chercher de belles formulations ni d’inventer une affirmation à l’avance — nous le ferons ensemble.\n\nEn général, 1 à 2 minutes suffisent. La durée maximale d’enregistrement est de 3 minutes.",
   "affirmation.create.step3.refineHint": "Dites-moi ce que vous aimeriez changer ou ajouter. Vous pouvez exprimer ce qui ne vous a pas plu, le sens que vous souhaitez transmettre ou comment vous aimeriez vous sentir.\nExprimez-vous avec vos propres mots — il n'est pas nécessaire de créer une nouvelle affirmation vous-même.",
   "affirmation.create.step3.refineTitle": "Aucune option ne vous convient ?",
   "affirmation.create.step3.softHint": "Si aucune option ne vous semble encore parfaite, vous pouvez choisir la plus proche et la modifier avec vos propres mots à l'étape suivante.",
@@ -42,7 +42,7 @@
   "affirmation.manage.title": "Votre affirmation",
   "affirmation.manage.updateVoice": "Mettre à jour l'affirmation vocale",
   "affirmation.manage.warnBody": "Une nouvelle intention s'ancre dans le subconscient en 30 jours minimum. Si vous changez d'affirmation maintenant, la progression du cycle actuel sera réinitialisée.",
-  "affirmation.manage.warnChange": "Changer quand même",
+  "affirmation.manage.warnChange": "Terminer l'affirmation",
   "affirmation.manage.warnContinue": "Continuer la pratique",
   "affirmation.manage.warnTitle": "La formation de nouvelles connexions neuronales prend du temps",
   "affirmation.manage.zone1": "Levée de la résistance",
@@ -378,5 +378,6 @@
   "wizard.warm.title": "Préparation de votre journée",
   "wizard.welcome.body1": "Harmoniseur est un ensemble d’outils pratiques pour maintenir votre harmonie intérieure et votre santé physique.",
   "wizard.welcome.body2": "Saisissez votre email et votre prénom. Cela vous permettra de vous connecter à votre profil sécurisé depuis n’importe quel appareil, d’enregistrer vos réglages personnels, votre journal d’état et de suivre vos progrès. Le prénom que vous indiquez accompagnera vos commentaires et vos échanges dans l’application.",
-  "wizard.welcome.title": "Bienvenue !"
+  "wizard.welcome.title": "Bienvenue !",
+  "affirmation.manage.phasesLegendPrefix": "Phases de maîtrise :"
 }

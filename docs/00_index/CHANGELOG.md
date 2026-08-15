@@ -1,3 +1,6 @@
+- 2026-08-15 (492): Affirmation prompts in admin (`affirmation_generate` / `affirmation_refinement`); generate uses active DB templates.
+- 2026-08-15 (491): Affirmations create step1 instruction copy refreshed (8 locales).
+- 2026-08-15 (490): Affirmations QA — catalog gap, manage chart/legend/mic, archive rename+retry, adaptive trim, finale voice sync with exhale.
 - 2026-08-15 (489): Affirmations — manage UX polish + voice edge-trim; i18n catalog keys synced.
 - 2026-08-15 (488): Book CDN complete — ES/PT/NL on zamkovoi; `BOOK_EPUB_VERSION=2` + prod redeploy.
 - 2026-08-15 (487): Book ES/PT/NL EPUBs built (`book/build`); source folder `Book`→`book`; CDN upload pending.

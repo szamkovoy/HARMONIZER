@@ -94,7 +94,13 @@ function LifeMatrixHeatmap(props: { report: LifeMatrixReport; spheresLegendPrefi
       })}
       <AppText variant="technicalCaption" tone="muted" style={styles.heatmapSpheresLegend}>
         {props.spheresLegendPrefix}{" "}
-        {colLegend.map((item) => `${item.id}. ${localizeLifeSphereLabel(item.id, item.title, props.locale)};`).join(" ")}
+        {colLegend
+          .map((item, index) => {
+            const label = localizeLifeSphereLabel(item.id, item.title, props.locale);
+            const end = index < colLegend.length - 1 ? ";" : ".";
+            return `${item.id}. ${label}${end}`;
+          })
+          .join(" ")}
       </AppText>
     </View>
   );

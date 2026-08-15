@@ -9,6 +9,8 @@ code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.
 
 ## Decision Log
 
+- **2026-08-15:** Легенда сфер под life-matrix heatmap: последний пункт заканчивается точкой (не `;`).
+
 - **2026-08-11 (book card):** После «Мои данные» — карточка «Учебное пособие» → `modules/book` (Phase A: Dev unlock / store locked). План: `docs/04_workspace/book_reader_plan.md`.
 
 - **2026-08-06 (store-review sign-out/delete UI):** Для `store_review_account` снова видны «Выйти» и «Удалить аккаунт» (чтобы сменить аккаунт / показать сторам наличие delete). Wipe по-прежнему запрещён: диалог `deleteStoreReviewBlocked` + сервер 403. Кабинет остаётся скрыт.

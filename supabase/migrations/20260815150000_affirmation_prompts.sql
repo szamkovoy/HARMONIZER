@@ -1,17 +1,32 @@
-/**
- * Affirmation generation prompts.
- * Authoring language: Russian (LLM emits in the user's response locale).
- *
- * Runtime source of truth: active rows in `prompts`
- * (`affirmation_generate`, `affirmation_refinement`). Constants below are
- * fallbacks if DB is unreachable / migration not applied.
- */
+-- Affirmation LLM prompts → admin /prompts list + runtime via getActivePrompt.
+-- Keys:
+--   affirmation_generate   — full generate template ({{language_name}}, {{user_message}}, …)
+--   affirmation_refinement — addendum when user refines after seeing options
+--
+-- Playground: fill {{user_message}} with a sample story (required for useful output).
+-- Empty user_message → model invents generic lines; prod API also rejects short input.
 
-export const AFFIRMATION_GENERATE_PROMPT_KEY = "affirmation_generate";
-export const AFFIRMATION_REFINEMENT_PROMPT_KEY = "affirmation_refinement";
-
-/** Fallback system body + wrapper (same shape as DB template). */
-export const AFFIRMATION_GENERATE_TEMPLATE = `OUTPUT LANGUAGE: {{language_name}}.
+insert into public.prompts (
+  prompt_key,
+  prompt_type,
+  use_case,
+  version,
+  is_active,
+  template,
+  variables,
+  model_hint,
+  temperature,
+  max_output_tokens,
+  response_format,
+  notes
+) values
+(
+  'affirmation_generate',
+  'system',
+  null,
+  1,
+  true,
+  $prompt$OUTPUT LANGUAGE: {{language_name}}.
 Write every affirmation entirely in {{language_name}}.
 
 Ты создаёшь персональные аффирмации на основе того, что пользователь рассказал о своей жизни, своих переживаниях и желаниях.
@@ -53,43 +68,43 @@ Write every affirmation entirely in {{language_name}}.
 User:
 {{user_message}}
 
-{{refinement_block}}`;
-
-/** @deprecated Prefer AFFIRMATION_GENERATE_TEMPLATE; kept for import compatibility. */
-export const AFFIRMATION_SYSTEM_PROMPT = AFFIRMATION_GENERATE_TEMPLATE;
-
-export const AFFIRMATION_REFINEMENT_PROMPT = `Пользователь уточняет свой запрос.
+{{refinement_block}}$prompt$,
+  jsonb_build_object(
+    'language_name', 'Russian',
+    'user_name_block', 'Имя пользователя (если уместно): Сергей.',
+    'history_block', '',
+    'user_message', 'Сейчас меня тревожит неопределённость на работе и чувство, что я мало успеваю для семьи. Хочу больше внутренней опоры и спокойной уверенности, без давления «надо всё успеть». Хочу чувствовать себя собранным и добрым к себе человеком.',
+    'refinement_block', ''
+  ),
+  'standard',
+  0.75,
+  900,
+  'text',
+  'Персональные аффирмации: первый прогон и refine. В playground обязательно заполни {{user_message}} (рассказ пользователя). {{refinement_block}} — текст из affirmation_refinement при уточнении; иначе пусто.'
+),
+(
+  'affirmation_refinement',
+  'system',
+  null,
+  1,
+  true,
+  $prompt$Пользователь уточняет свой запрос.
 Учти его новое сообщение вместе со всей предыдущей информацией о нём. Новое сообщение имеет приоритет: если пользователь уточняет, что именно ему не подошло или чего он хочет иначе, измени предыдущий подход с учётом этого уточнения.
 Создай новый набор примерно из 10 коротких персональных аффирмаций.
-Не объясняй изменения и не анализируй предыдущие варианты. Выведи только новый список аффирмаций.`;
-
-export function parseAffirmationLines(raw: string): string[] {
-  const lines = raw
-    .split(/\r?\n/)
-    .map((line) =>
-      line
-        .replace(/^\s*[-*•]\s+/, "")
-        .replace(/^\s*\d+[.)]\s+/, "")
-        .trim(),
-    )
-    .filter((line) => line.length >= 8 && line.length <= 220);
-  // Dedupe while preserving order
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const line of lines) {
-    const key = line.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(line);
-  }
-  return out.slice(0, 14);
-}
-
-export function formatAffirmationHistoryBlock(
-  history: Array<{ role: "user" | "assistant"; content: string }>,
-): string {
-  if (!history.length) return "";
-  return history
-    .map((turn) => `${turn.role === "user" ? "User" : "Assistant"}:\n${turn.content}`)
-    .join("\n\n");
-}
+Не объясняй изменения и не анализируй предыдущие варианты. Выведи только новый список аффирмаций.$prompt$,
+  '{}'::jsonb,
+  'standard',
+  0.75,
+  900,
+  'text',
+  'Добавка к affirmation_generate при refine (history не пустой). Для прогона в playground: открой affirmation_generate, вставь этот текст в {{refinement_block}} и заполни {{history_block}} + новое {{user_message}}.'
+)
+on conflict (prompt_key, version) do update set
+  template = excluded.template,
+  variables = excluded.variables,
+  model_hint = excluded.model_hint,
+  temperature = excluded.temperature,
+  max_output_tokens = excluded.max_output_tokens,
+  response_format = excluded.response_format,
+  notes = excluded.notes,
+  is_active = excluded.is_active;

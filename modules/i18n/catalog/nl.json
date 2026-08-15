@@ -8,7 +8,7 @@
   "affirmation.create.retry": "Opnieuw proberen",
   "affirmation.create.saving": "Opslaan…",
   "affirmation.create.select": "Kiezen",
-  "affirmation.create.step1.instruction": "Vertel me wat je nu bezighoudt en welke veranderingen je graag in je leven zou willen zien.\n\nSpreek vrijuit, in je eigen woorden. Om je beter te begrijpen, kun je vertellen:\n— wat je nu dwarszit of wat je mist;\n— wat je zou willen veranderen;\n— hoe je je in plaats daarvan zou willen voelen;\n— wat je voor jezelf wilt in de toekomst;\n— wat echt belangrijk voor je is.\n\nJe hoeft geen mooie woorden te kiezen of van tevoren een affirmatie te bedenken. Druk gewoon op de knop hieronder en vertel over jezelf.\nJe kunt tot 3 minuten spreken, maar meestal is 1-2 minuten voldoende.",
+  "affirmation.create.step1.instruction": "Vertel wat nu belangrijk voor u is en welke verandering u in uw leven zou willen.\n\nOm uw verhaal preciezer te maken, probeer achtereenvolgens over drie dingen na te denken:\n— wat u nu zorgen baart, niet bevalt of wat u mist;\n— wat u in uzelf, in het leven of in de wereld zou willen veranderen;\n— wat voor mens u zou willen zijn, of in welke innerlijke toestand u zich zou willen voelen.\n\nU hoeft niet op elk punt apart te antwoorden. Vertel gewoon in uw eigen woorden, zoals het voor u prettig is. U hoeft geen mooie formuleringen te zoeken of vooraf een affirmatie te bedenken — dat doen we samen.\n\nMeestal volstaan 1–2 minuten. De maximale opnameduur is 3 minuten.",
   "affirmation.create.step3.refineHint": "Vertel wat je zou willen veranderen of toevoegen. Je kunt zeggen wat je precies niet beviel, welke betekenis je wilt overbrengen of hoe je je zou willen voelen.\nSpreek in je eigen woorden – je hoeft niet zelf een nieuwe affirmatie te bedenken.",
   "affirmation.create.step3.refineTitle": "Geen enkele optie past?",
   "affirmation.create.step3.softHint": "Als geen enkele optie nog perfect lijkt, kun je de meest passende kiezen en deze in de volgende stap met je eigen woorden aanpassen.",
@@ -42,7 +42,7 @@
   "affirmation.manage.title": "Jouw affirmatie",
   "affirmation.manage.updateVoice": "Stemaffirmatie bijwerken",
   "affirmation.manage.warnBody": "Een nieuwe overtuiging wordt in minimaal 30 dagen in het onderbewustzijn verankerd. Als je de affirmatie nu wijzigt, wordt de voortgang van de huidige cyclus gereset.",
-  "affirmation.manage.warnChange": "Toch wijzigen",
+  "affirmation.manage.warnChange": "Affirmatie afronden",
   "affirmation.manage.warnContinue": "Oefening voortzetten",
   "affirmation.manage.warnTitle": "Het vormen van neurale verbindingen kost tijd",
   "affirmation.manage.zone1": "Weerstand verminderen",
@@ -378,5 +378,6 @@
   "wizard.warm.title": "Jouw dag voorbereiden",
   "wizard.welcome.body1": "De Harmonisator is een set praktische hulpmiddelen om je innerlijke harmonie en fysieke gezondheid te ondersteunen.",
   "wizard.welcome.body2": "Voer je e-mailadres en naam in. Zo kun je vanaf elk apparaat veilig inloggen op je profiel, je persoonlijke instellingen, stemmingsdagboeken en voortgang bewaren. De naam die je opgeeft, wordt weergegeven bij je reacties en interacties in de app.",
-  "wizard.welcome.title": "Welkom!"
+  "wizard.welcome.title": "Welkom!",
+  "affirmation.manage.phasesLegendPrefix": "Beheersingsfasen:"
 }

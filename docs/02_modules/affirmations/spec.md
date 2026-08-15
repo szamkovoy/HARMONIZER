@@ -2,7 +2,7 @@
 id: 02_modules/affirmations/spec
 title: Affirmations Spec
 version: 1.1
-updated: 2026-08-14
+updated: 2026-08-15
 depends_on:
   [
     01_foundation/product_model,
@@ -47,15 +47,15 @@ code_refs:
 
 - **`AffirmationWidget`** — на экране Практик **только** в группе «Дыхание»; add / «День X из 30»; без disabled/dim на время fetch.
 - **Create wizard** — STT через communicator v2; generate/refine; после обновления списка — scroll to top; Mic: фаза `arming` + защита от double-start (как Communicator); finalize + optional voice (MicRecordButton + «Обновить голосовую аффирмацию»; edge-trim тишины >1с с запасом 1с под fade). Закрытие: `FloatingCloseButton`.
-- **Manage** — текст в карточке, «Прослушать» без наложений, MicRecordButton для голоса, график 4 равных зон A–D (зелёная линия до сегодня / серая будущее), «Фаза освоения: день X из 30»; закрытие — текстовая «Закрыть» вровень с заголовком.
-- **`AffirmationBreathOverlay`** — intro/финал: hint как в конце; голос за ~1с до выдоха; fade in/out ~0.5с + optional edge-trim; панель растворяется с `dimOpacity` практики; окно финала ≈4.2 цикла / 3 play.
+- **Manage** — текст в карточке, «Прослушать» без наложений, MicRecordButton без подписи под микрофоном, график 4 равных зон A–D (буквы слева снаружи, как дни снизу), одна строка «Фазы освоения: A. …; … D. ….»; закрытие — текстовая «Закрыть».
+- **`AffirmationBreathOverlay`** — intro/финал: hint как в конце; голос и панель одновременно за ~1с до выдоха по плану (`msInhaleToExhale`); fade in/out ~1с + adaptive edge-trim; панель растворяется с `dimOpacity` практики; окно финала ≈4.2 цикла / 3 play.
 
 ### API (`_legacy_web/app/api/affirmations`)
 
 | Method | Path | Назначение |
 |---|---|---|
 | GET/POST | `/api/affirmations` | active row / create (archives previous active) |
-| POST | `/api/affirmations/generate` | `getModelByHint("standard")` → ~10 строк |
+| POST | `/api/affirmations/generate` | Active `prompts.affirmation_generate` (+ `affirmation_refinement` при refine) → `getModelByHint` → ~10 строк |
 | PATCH | `/api/affirmations/[id]` | text / audio / status / resetCycle |
 | POST | `/api/affirmations/uploads` | signed upload → bucket `affirmation-audio` |
 | POST | `/api/affirmations/practice-complete` | +1 day ≤1× localDate (idempotent) |
@@ -75,4 +75,5 @@ code_refs:
 
 - Overlay не меняет ядро дыхательного таймера — только UI/audio поверх.
 - «Последние 3 цикла» оцениваются по remaining time / avg cycleMs (практика time-based).
+- Промпты generate/refine — в админке `/admin/prompts` (`affirmation_generate`, `affirmation_refinement`); код падает на константы в `api/affirmations/prompts.ts`, если строки нет в БД.
 - LitRes page-curl книги — отдельный стек; не часть affirmations.

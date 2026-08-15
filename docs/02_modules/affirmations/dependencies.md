@@ -16,7 +16,7 @@ code_refs: [modules/affirmations/index.ts]
 | breath / Coherence | `AffirmationBreathOverlay` в `CoherenceBreathScreen`; day bump после results |
 | `communicator` | STT `transcribeCommunicatorAudio` / Whisper 16 kHz |
 | `i18n` | `affirmation.*`, `gate.body.affirmation`, `useTranslate` / `responseLocale` |
-| `infra` | Supabase table + Storage; Vercel API routes |
+| `infra` | Supabase table + Storage; Vercel API routes; `prompts` (`affirmation_generate` / `affirmation_refinement`) |
 
 ## 2. От этого модуля зависят
 

@@ -2,7 +2,8 @@ import { Audio, type AVPlaybackStatus, type AVPlaybackStatusToSet } from "expo-a
 
 import type { AudioEdgeTrim } from "@/modules/affirmations/core/recordingSpeechTracker";
 
-const FADE_MS = 500;
+/** Match the ~1s edge pad kept by RecordingSpeechTracker. */
+const FADE_MS = 1_000;
 const FADE_STEPS = 10;
 
 async function sleep(ms: number) {

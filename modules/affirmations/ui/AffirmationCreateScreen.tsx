@@ -239,7 +239,11 @@ export function AffirmationCreateScreen() {
         rec.setOnRecordingStatusUpdate((status) => {
           const metering =
             "metering" in status && typeof status.metering === "number" ? status.metering : null;
-          tracker.onMetering(metering);
+          const durationMillis =
+            "durationMillis" in status && typeof status.durationMillis === "number"
+              ? status.durationMillis
+              : null;
+          tracker.onMetering(metering, durationMillis);
           const fallbackPulse = 0.28 + 0.12 * Math.sin(Date.now() / 180);
           const normalized =
             metering == null ? fallbackPulse : Math.max(0.08, Math.min(1, (metering + 60) / 60));

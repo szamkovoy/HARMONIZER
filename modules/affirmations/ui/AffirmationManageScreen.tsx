@@ -44,7 +44,8 @@ import { useTheme } from "@/modules/ui/theme";
 
 const CHART_W = 320;
 const CHART_H = 168;
-const PAD = { l: 8, r: 8, t: 10, b: 10 };
+/** Left pad leaves room for A–D outside the plot (like day markers below). */
+const PAD = { l: 22, r: 8, t: 10, b: 10 };
 const ZONE_LETTERS = ["A", "B", "C", "D"] as const;
 
 export function AffirmationManageScreen() {
@@ -59,8 +60,10 @@ export function AffirmationManageScreen() {
   const [playing, setPlaying] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const speechTrackerRef = useRef<RecordingSpeechTracker | null>(null);
+  const lastRecordingDurationMsRef = useRef(0);
   const voiceLevel = useRef(new Animated.Value(0.2)).current;
   const playingSoundRef = useRef<Audio.Sound | null>(null);
+  const mutateInFlightRef = useRef(false);
 
   const reload = useCallback(() => {
     let cancelled = false;
@@ -94,21 +97,36 @@ export function AffirmationManageScreen() {
   };
 
   const archiveAndCreate = async () => {
-    if (!row) return;
+    if (!row || mutateInFlightRef.current) return;
+    mutateInFlightRef.current = true;
     setBusy(true);
+    setModal(null);
+    const id = row.id;
     try {
-      await patchAffirmation(row.id, { status: "archived" });
-      setModal(null);
+      await patchAffirmation(id, { status: "archived" });
       router.replace("/affirmation/create");
     } catch {
+      // First attempt may have archived successfully while response failed —
+      // if there is no active row (or a different one), treat as success.
+      try {
+        const active = await fetchActiveAffirmation();
+        if (!active || active.id !== id) {
+          router.replace("/affirmation/create");
+          return;
+        }
+      } catch {
+        /* fall through to alert */
+      }
       Alert.alert(t("affirmation.error.generic"));
     } finally {
+      mutateInFlightRef.current = false;
       setBusy(false);
     }
   };
 
   const keepAndReset = async () => {
-    if (!row) return;
+    if (!row || mutateInFlightRef.current) return;
+    mutateInFlightRef.current = true;
     setBusy(true);
     try {
       const updated = await patchAffirmation(row.id, { resetCycle: true });
@@ -117,6 +135,7 @@ export function AffirmationManageScreen() {
     } catch {
       Alert.alert(t("affirmation.error.generic"));
     } finally {
+      mutateInFlightRef.current = false;
       setBusy(false);
     }
   };
@@ -163,7 +182,8 @@ export function AffirmationManageScreen() {
         await resetPlaybackAudioMode();
         const uri = rec.getURI();
         if (!uri) return;
-        const trim: AudioEdgeTrim | null = tracker?.finalize() ?? null;
+        const trim: AudioEdgeTrim | null =
+          tracker?.finalize(lastRecordingDurationMsRef.current || null) ?? null;
         const path = await uploadAffirmationAudio(uri, mimeFromRecordingUri(uri));
         await saveAudioEdgeTrim(path, trim);
         const updated = await patchAffirmation(row.id, { audioPath: path });
@@ -187,12 +207,20 @@ export function AffirmationManageScreen() {
       const rec = await startWhisperRecording({ isMeteringEnabled: true });
       const tracker = new RecordingSpeechTracker();
       speechTrackerRef.current = tracker;
+      lastRecordingDurationMsRef.current = 0;
       recordingRef.current = rec;
       setRecording(true);
       rec.setOnRecordingStatusUpdate((status) => {
         const metering =
           "metering" in status && typeof status.metering === "number" ? status.metering : null;
-        tracker.onMetering(metering);
+        const durationMillis =
+          "durationMillis" in status && typeof status.durationMillis === "number"
+            ? status.durationMillis
+            : null;
+        if (typeof durationMillis === "number") {
+          lastRecordingDurationMsRef.current = durationMillis;
+        }
+        tracker.onMetering(metering, durationMillis);
         const fallbackPulse = 0.28 + 0.12 * Math.sin(Date.now() / 180);
         const normalized =
           metering == null ? fallbackPulse : Math.max(0.08, Math.min(1, (metering + 60) / 60));
@@ -225,7 +253,6 @@ export function AffirmationManageScreen() {
     [t],
   );
 
-  const activeZone = zones.find((z) => displayDay >= z.from && displayDay <= z.to) ?? zones[0];
   const micActive = recording || arming;
 
   return (
@@ -301,11 +328,6 @@ export function AffirmationManageScreen() {
                   <MicRecordButton active={micActive} level={voiceLevel} />
                 )}
               </Pressable>
-              <AppText variant="technicalCaption" tone="muted" style={styles.micHint}>
-                {micActive
-                  ? t("affirmation.create.micHintStop")
-                  : t("affirmation.create.micHintStart")}
-              </AppText>
             </View>
 
             <AppText variant="sectionTitle">
@@ -317,28 +339,17 @@ export function AffirmationManageScreen() {
               muted={theme.colors.textMuted}
               border={theme.colors.surfaceBorder}
               zoneFill={theme.colors.controlButtonBg}
-              labelColor={theme.colors.textPrimary}
+              labelColor={theme.colors.textMuted}
             />
-            <AppText variant="screenHint">
-              {t("affirmation.manage.currentPhase", {
-                label: activeZone.label,
-                hint: activeZone.hint,
-              })}
+            <AppText variant="technicalCaption" tone="muted" style={styles.phasesLegend}>
+              {t("affirmation.manage.phasesLegendPrefix")}{" "}
+              {zones
+                .map((z, index) => {
+                  const end = index < zones.length - 1 ? ";" : ".";
+                  return `${z.letter}. ${z.label} (${z.hint})${end}`;
+                })
+                .join(" ")}
             </AppText>
-            <View style={styles.zoneList}>
-              {zones.map((z) => (
-                <AppText
-                  key={z.key}
-                  variant="screenHint"
-                  tone={z === activeZone ? undefined : "muted"}
-                >
-                  {t("affirmation.manage.zoneLegend", {
-                    letter: z.letter,
-                    label: z.label,
-                  })}
-                </AppText>
-              ))}
-            </View>
 
             <AppButton
               label={t("affirmation.manage.changeCta")}
@@ -363,6 +374,7 @@ export function AffirmationManageScreen() {
               onPress={() => void archiveAndCreate()}
               variant="secondary"
               disabled={busy}
+              busy={busy}
             />
           </View>
         </View>
@@ -453,11 +465,11 @@ function ProgressChart({
         {ZONE_LETTERS.map((letter, i) => (
           <SvgText
             key={letter}
-            x={PAD.l + 10}
+            x={2}
             y={bandMidY(i) + 4}
             fill={labelColor}
             fontSize={12}
-            opacity={0.55}
+            opacity={0.75}
           >
             {letter}
           </SvgText>
@@ -511,14 +523,14 @@ const styles = StyleSheet.create({
   micLabel: { textAlign: "center" },
   micHit: { alignItems: "center", justifyContent: "center" },
   micHitPressed: { opacity: 0.85 },
-  micHint: { textAlign: "center" },
-  zoneList: { gap: 6 },
+  phasesLegend: { lineHeight: 16, marginTop: 2 },
   chartWrap: { alignItems: "center", gap: 2 },
   markers: {
     width: CHART_W,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 4,
+    paddingLeft: PAD.l,
+    paddingRight: PAD.r,
   },
   marker: { width: 28, textAlign: "center" },
   changeCta: { marginTop: 16 },

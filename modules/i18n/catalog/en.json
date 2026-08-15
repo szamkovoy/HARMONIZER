@@ -8,7 +8,7 @@
   "affirmation.create.retry": "Try Again",
   "affirmation.create.saving": "Saving…",
   "affirmation.create.select": "Select",
-  "affirmation.create.step1.instruction": "Tell me what's on your mind right now and what changes you'd like to see in your life.\n\nSpeak freely, in your own words. To help me understand you better, you might share:\n— what's bothering you or what you feel is missing;\n— what you'd like to change;\n— how you'd like to feel instead;\n— what you want for yourself in the future;\n— what truly matters to you.\n\nThere's no need to choose fancy words or pre-plan your affirmation. Just tap the button below and tell me about yourself.\nYou can speak for up to 3 minutes, but 1–2 minutes is usually enough.",
+  "affirmation.create.step1.instruction": "Tell us what matters to you right now and what change you would like in your life.\n\nTo make your story more precise, try reflecting on these three things in turn:\n— what currently worries you, does not feel right, or what you feel you lack;\n— what you would like to change in yourself, your life, or the world;\n— what kind of person you would like to be, or what inner state you would like to feel.\n\nYou do not have to answer each point separately. Just speak in your own words, however feels natural. There is no need to choose beautiful wording or invent an affirmation in advance — we will do that together.\n\nUsually 1–2 minutes is enough. The maximum recording length is 3 minutes.",
   "affirmation.create.step3.refineHint": "Tell me what you'd like to change or add. You can share what you didn't like, what meaning you want to convey, or how you'd like to feel.\nSpeak in your own words — no need to create a new affirmation yourself.",
   "affirmation.create.step3.refineTitle": "None of the options feel quite right?",
   "affirmation.create.step3.softHint": "If none of the options feel perfect yet, you can choose the closest one and refine it in your own words in the next step.",
@@ -42,7 +42,7 @@
   "affirmation.manage.title": "Your Affirmation",
   "affirmation.manage.updateVoice": "Update Voice Affirmation",
   "affirmation.manage.warnBody": "A new belief takes at least 30 days to integrate into your subconscious. If you change your affirmation now, the progress of your current cycle will be reset.",
-  "affirmation.manage.warnChange": "Change Anyway",
+  "affirmation.manage.warnChange": "Complete affirmation",
   "affirmation.manage.warnContinue": "Continue Practice",
   "affirmation.manage.warnTitle": "Forming Neural Pathways Takes Time",
   "affirmation.manage.zone1": "Releasing Resistance",
@@ -378,5 +378,6 @@
   "wizard.warm.title": "Preparing your day",
   "wizard.welcome.body1": "Harmonizer is a set of practical tools to support your inner harmony and physical health.",
   "wizard.welcome.body2": "Enter your email and name. This lets you sign in to your secure profile from any device, save your personal settings, state journals, and track your progress. The name you provide will accompany your comments and conversations inside the app.",
-  "wizard.welcome.title": "Welcome!"
+  "wizard.welcome.title": "Welcome!",
+  "affirmation.manage.phasesLegendPrefix": "Mastery phases:"
 }

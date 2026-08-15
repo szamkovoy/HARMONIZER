@@ -8,7 +8,7 @@
   "affirmation.create.retry": "Tentar novamente",
   "affirmation.create.saving": "Salvando…",
   "affirmation.create.select": "Selecionar",
-  "affirmation.create.step1.instruction": "Conte-me o que te preocupa agora e que mudanças você gostaria de ver em sua vida.\n\nFale livremente, com suas próprias palavras. Para que eu possa te entender melhor, você pode me dizer:\n— o que te incomoda ou o que te falta agora;\n— o que você gostaria de mudar;\n— como você gostaria de se sentir em vez disso;\n— o que você deseja para si no futuro;\n— o que é realmente importante para você.\n\nNão é preciso escolher palavras bonitas ou criar uma afirmação antecipadamente. Basta tocar no botão abaixo e falar sobre você.\nVocê pode falar por até 3 minutos, mas geralmente 1 a 2 minutos são suficientes.",
+  "affirmation.create.step1.instruction": "Conte o que é importante para você agora e que mudança gostaria na sua vida.\n\nPara tornar o relato mais preciso, tente refletir em sequência sobre três coisas:\n— o que agora o preocupa, não o satisfaz ou do que sente falta;\n— o que gostaria de mudar em si, na vida ou no mundo;\n— que tipo de pessoa gostaria de ser, ou em que estado interior gostaria de se sentir.\n\nNão é necessário responder a cada ponto separadamente. Conte simplesmente com as suas palavras, como for mais natural. Não precisa escolher palavras bonitas nem inventar de antemão uma afirmação — faremos isso juntos.\n\nNormalmente bastam 1–2 minutos. A duração máxima da gravação é de 3 minutos.",
   "affirmation.create.step3.refineHint": "Conte-me o que você gostaria de mudar ou adicionar. Você pode dizer o que não gostou, qual significado você quer transmitir ou como gostaria de se sentir.\nFale com suas próprias palavras — não é preciso criar uma nova afirmação por conta própria.",
   "affirmation.create.step3.refineTitle": "Nenhuma opção te agradou?",
   "affirmation.create.step3.softHint": "Se nenhuma opção parece ideal ainda, você pode escolher a mais próxima e ajustá-la com suas próprias palavras na próxima etapa.",
@@ -42,7 +42,7 @@
   "affirmation.manage.title": "Sua afirmação",
   "affirmation.manage.updateVoice": "Atualizar afirmação de voz",
   "affirmation.manage.warnBody": "Uma nova crença se fixa no subconsciente em no mínimo 30 dias. Se você mudar a afirmação agora, o progresso do ciclo atual será reiniciado.",
-  "affirmation.manage.warnChange": "Mudar mesmo assim",
+  "affirmation.manage.warnChange": "Concluir afirmação",
   "affirmation.manage.warnContinue": "Continuar prática",
   "affirmation.manage.warnTitle": "A formação de conexões neurais leva tempo",
   "affirmation.manage.zone1": "Remoção de resistência",
@@ -378,5 +378,6 @@
   "wizard.warm.title": "Preparando o seu dia",
   "wizard.welcome.body1": "O Harmonizador é um conjunto de ferramentas práticas para manter sua harmonia emocional e saúde física.",
   "wizard.welcome.body2": "Insira seu email e nome. Isso permitirá que você acesse seu perfil protegido de qualquer dispositivo, salve configurações pessoais, diários de estados e acompanhe seu progresso. E o nome que você indicar será exibido nos seus comentários e interações dentro do aplicativo.",
-  "wizard.welcome.title": "Bem-vindo!"
+  "wizard.welcome.title": "Bem-vindo!",
+  "affirmation.manage.phasesLegendPrefix": "Fases de domínio:"
 }

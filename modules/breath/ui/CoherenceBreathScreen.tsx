@@ -4939,6 +4939,17 @@ function CoherenceBreathScreenInner({
 
   const activePhase = currentPlan?.phases[activePhaseIndex] ?? null;
 
+  const msInhaleToExhale = (() => {
+    const plan = currentPlan;
+    if (!plan) return 0;
+    const inhale = plan.phases.find((p) => p.kind === "inhale");
+    const exhale = plan.phases.find((p) => p.kind === "exhale");
+    if (!inhale || !exhale) return 0;
+    let gap = exhale.startMsInCycle - inhale.startMsInCycle;
+    if (gap <= 0) gap += plan.cycleMs;
+    return gap;
+  })();
+
   const phaseLabel = !activePhase
     ? str.inhale
     : activePhase.kind === "inhale"
@@ -5562,6 +5573,7 @@ function CoherenceBreathScreenInner({
                     elapsedMs={elapsedMs}
                     practiceTotalMs={practiceTotalMs}
                     cycleMs={currentPlan?.cycleMs ?? 12_000}
+                    msInhaleToExhale={msInhaleToExhale}
                     active={phase === "running" && isBreathTimingActive}
                     dimOpacity={dimOpacity}
                   />

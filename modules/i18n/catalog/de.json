@@ -8,7 +8,7 @@
   "affirmation.create.retry": "Erneut versuchen",
   "affirmation.create.saving": "Wird gespeichert…",
   "affirmation.create.select": "Auswählen",
-  "affirmation.create.step1.instruction": "Erzähle mir, was dich gerade beschäftigt und welche Veränderungen du dir in deinem Leben wünschst.\n\nSprich frei, in deinen eigenen Worten. Damit ich dich besser verstehen kann, erzähle mir gerne:\n— was dich gerade beunruhigt oder was dir fehlt;\n— was du gerne ändern möchtest;\n— wie du dich stattdessen fühlen möchtest;\n— was du dir für deine Zukunft wünschst;\n— was dir wirklich wichtig ist.\n\nDu musst keine schönen Worte wählen oder dir die Affirmation im Voraus ausdenken. Drücke einfach den Button unten und erzähle mir von dir.\nDu kannst bis zu 3 Minuten sprechen, aber 1–2 Minuten sind meist ausreichend.",
+  "affirmation.create.step1.instruction": "Erzählen Sie, was Ihnen gerade wichtig ist und welche Veränderung Sie sich in Ihrem Leben wünschen.\n\nDamit Ihre Erzählung präziser wird, denken Sie der Reihe nach an drei Dinge:\n— was Sie derzeit beunruhigt, nicht zufriedenstellt oder was Ihnen fehlt;\n— was Sie an sich, am Leben oder an der Welt verändern möchten;\n— als welcher Mensch oder in welchem inneren Zustand Sie sich fühlen möchten.\n\nSie müssen nicht auf jeden Punkt einzeln antworten. Erzählen Sie einfach mit Ihren eigenen Worten, so wie es Ihnen leichtfällt. Sie müssen keine schönen Formulierungen suchen und keine Affirmation im Voraus erfinden — das machen wir gemeinsam.\n\nMeist reichen 1–2 Minuten. Die maximale Aufnahmedauer beträgt 3 Minuten.",
   "affirmation.create.step3.refineHint": "Erzähle mir, was du ändern oder hinzufügen möchtest. Du kannst sagen, was dir nicht gefallen hat, welche Bedeutung du vermitteln möchtest oder wie du dich fühlen möchtest.\nSprich in deinen eigenen Worten – du musst keine neue Affirmation selbst ausdenken.",
   "affirmation.create.step3.refineTitle": "Keine Option passt?",
   "affirmation.create.step3.softHint": "Wenn keine Option perfekt erscheint, kannst du die am besten passende wählen und sie im nächsten Schritt in deinen eigenen Worten anpassen.",
@@ -42,7 +42,7 @@
   "affirmation.manage.title": "Deine Affirmation",
   "affirmation.manage.updateVoice": "Sprach-Affirmation aktualisieren",
   "affirmation.manage.warnBody": "Eine neue Einstellung prägt sich mindestens 30 Tage lang im Unterbewusstsein ein. Wenn du die Affirmation jetzt änderst, wird der Fortschritt des aktuellen Zyklus zurückgesetzt.",
-  "affirmation.manage.warnChange": "Trotzdem ändern",
+  "affirmation.manage.warnChange": "Affirmation beenden",
   "affirmation.manage.warnContinue": "Praxis fortsetzen",
   "affirmation.manage.warnTitle": "Die Bildung neuronaler Verbindungen braucht Zeit",
   "affirmation.manage.zone1": "Widerstand lösen",
@@ -378,5 +378,6 @@
   "wizard.warm.title": "Ihr Tag wird vorbereitet",
   "wizard.welcome.body1": "Harmonisierer ist ein Set praktischer Werkzeuge, um Ihre seelische Harmonie und körperliche Gesundheit zu erhalten.",
   "wizard.welcome.body2": "Geben Sie Ihre E-Mail-Adresse und Ihren Namen ein. So können Sie von jedem Gerät aus auf Ihr geschütztes Profil zugreifen, persönliche Einstellungen, Zustandstagebücher speichern und Fortschritte verfolgen. Der von Ihnen angegebene Name wird Ihre Kommentare und die Kommunikation innerhalb der App begleiten.",
-  "wizard.welcome.title": "Willkommen!"
+  "wizard.welcome.title": "Willkommen!",
+  "affirmation.manage.phasesLegendPrefix": "Beherrschungsphasen:"
 }

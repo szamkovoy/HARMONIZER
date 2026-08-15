@@ -1,6 +1,7 @@
 import { generateGeminiText, getModelByHint } from "@legacy/app/api/_utils/gemini";
 import { reportRouteError } from "@legacy/app/api/_utils/monitoring";
 import { languageNameFor, resolveResponseLocale } from "@legacy/app/api/_utils/contentLocales";
+import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import {
   createServiceSupabase,
   errorResponse,
@@ -8,8 +9,11 @@ import {
   requireUserId,
 } from "@legacy/app/api/_utils/supabase";
 import {
+  AFFIRMATION_GENERATE_PROMPT_KEY,
+  AFFIRMATION_GENERATE_TEMPLATE,
   AFFIRMATION_REFINEMENT_PROMPT,
-  AFFIRMATION_SYSTEM_PROMPT,
+  AFFIRMATION_REFINEMENT_PROMPT_KEY,
+  formatAffirmationHistoryBlock,
   parseAffirmationLines,
 } from "../prompts";
 
@@ -27,29 +31,41 @@ type GenerateBody = {
   responseLocale?: string | null;
 };
 
-function buildPrompt(input: {
-  message: string;
-  history: HistoryTurn[];
-  userName: string | null;
-  languageName: string;
-}): string {
-  const parts: string[] = [
-    `OUTPUT LANGUAGE: ${input.languageName}.`,
-    `Write every affirmation entirely in ${input.languageName}.`,
-    "",
-    AFFIRMATION_SYSTEM_PROMPT,
-  ];
-  if (input.userName) {
-    parts.push("", `Имя пользователя (если уместно): ${input.userName}.`);
+async function loadGenerateTemplate(
+  db: ReturnType<typeof createServiceSupabase>,
+): Promise<{
+  template: string;
+  modelHint: string | null;
+  temperature: number;
+  maxOutputTokens: number;
+}> {
+  try {
+    const row = await getActivePrompt(db, AFFIRMATION_GENERATE_PROMPT_KEY);
+    return {
+      template: row.template,
+      modelHint: row.model_hint,
+      temperature: row.temperature ?? 0.75,
+      maxOutputTokens: row.max_output_tokens ?? 900,
+    };
+  } catch {
+    return {
+      template: AFFIRMATION_GENERATE_TEMPLATE,
+      modelHint: "standard",
+      temperature: 0.75,
+      maxOutputTokens: 900,
+    };
   }
-  for (const turn of input.history) {
-    parts.push("", `${turn.role === "user" ? "User" : "Assistant"}:`, turn.content);
+}
+
+async function loadRefinementText(
+  db: ReturnType<typeof createServiceSupabase>,
+): Promise<string> {
+  try {
+    const row = await getActivePrompt(db, AFFIRMATION_REFINEMENT_PROMPT_KEY);
+    return row.template.trim();
+  } catch {
+    return AFFIRMATION_REFINEMENT_PROMPT;
   }
-  parts.push("", "User:", input.message);
-  if (input.history.length > 0) {
-    parts.push("", AFFIRMATION_REFINEMENT_PROMPT);
-  }
-  return parts.join("\n");
 }
 
 export async function POST(req: Request) {
@@ -91,18 +107,25 @@ export async function POST(req: Request) {
       (typeof userRow?.display_name === "string" ? userRow.display_name.trim() : "") ||
       null;
 
-    const model = getModelByHint("standard");
-    const prompt = buildPrompt({
-      message,
-      history,
-      userName,
-      languageName,
+    const gen = await loadGenerateTemplate(db);
+    const refinementBlock =
+      history.length > 0 ? await loadRefinementText(db) : "";
+
+    const prompt = renderPrompt(gen.template, {
+      language_name: languageName,
+      user_name_block: userName
+        ? `Имя пользователя (если уместно): ${userName}.`
+        : "",
+      history_block: formatAffirmationHistoryBlock(history),
+      user_message: message,
+      refinement_block: refinementBlock,
     });
 
+    const model = getModelByHint(gen.modelHint ?? "standard");
     const { text, modelUsed } = await generateGeminiText({
       model,
-      temperature: 0.75,
-      maxOutputTokens: 900,
+      temperature: gen.temperature,
+      maxOutputTokens: gen.maxOutputTokens,
       prompt,
     });
 

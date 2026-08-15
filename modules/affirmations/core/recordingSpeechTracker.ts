@@ -1,42 +1,71 @@
 /**
  * Detect long silence at the start/end of a voice take via metering, then
  * keep ~1s pads for playback fade-in/out. If pads are already ≤1s, no trim.
+ *
+ * Uses an adaptive threshold (noise floor + peak) so constant room noise does
+ * not mark the whole take as "speech" and skip trimming.
  */
 
 export const AUDIO_EDGE_KEEP_MS = 1_000;
-/** expo-av metering is roughly dBFS; speech usually sits above this. */
-const SPEECH_METERING_THRESHOLD = -42;
 
 export type AudioEdgeTrim = {
   startMs: number;
   endMs: number;
 };
 
+type Sample = { tMs: number; db: number };
+
 export class RecordingSpeechTracker {
-  private readonly startedAt: number;
-  private firstSpeechAt: number | null = null;
-  private lastSpeechAt: number | null = null;
+  private readonly samples: Sample[] = [];
+  private maxDurationMs = 0;
 
-  constructor(startedAt = Date.now()) {
-    this.startedAt = startedAt;
-  }
-
-  onMetering(metering: number | null | undefined, now = Date.now()): void {
+  /**
+   * @param metering expo-av dBFS (typically −160…0)
+   * @param durationMillis recording position from status (preferred over wall clock)
+   */
+  onMetering(
+    metering: number | null | undefined,
+    durationMillis?: number | null,
+  ): void {
     if (typeof metering !== "number" || !Number.isFinite(metering)) return;
-    if (metering < SPEECH_METERING_THRESHOLD) return;
-    if (this.firstSpeechAt == null) this.firstSpeechAt = now;
-    this.lastSpeechAt = now;
+    const prevT = this.samples.length ? this.samples[this.samples.length - 1]!.tMs : 0;
+    const tMs =
+      typeof durationMillis === "number" && Number.isFinite(durationMillis) && durationMillis >= 0
+        ? durationMillis
+        : prevT + 90;
+    this.samples.push({ tMs, db: metering });
+    if (tMs > this.maxDurationMs) this.maxDurationMs = tMs;
   }
 
   /**
-   * @returns null when no trim is needed (speech pads already ≤ keep ms, or no speech).
+   * @param endedDurationMs total recording length when stopping (optional)
+   * @returns null when no trim is needed (pads already ≤ keep ms, or no speech).
    */
-  finalize(endedAt = Date.now()): AudioEdgeTrim | null {
-    if (this.firstSpeechAt == null || this.lastSpeechAt == null) return null;
-    const durationMs = Math.max(0, endedAt - this.startedAt);
-    if (durationMs < AUDIO_EDGE_KEEP_MS * 2) return null;
-    const firstRel = Math.max(0, this.firstSpeechAt - this.startedAt);
-    const lastRel = Math.max(firstRel, this.lastSpeechAt - this.startedAt);
+  finalize(endedDurationMs?: number | null): AudioEdgeTrim | null {
+    const durationMs = Math.max(
+      typeof endedDurationMs === "number" && Number.isFinite(endedDurationMs)
+        ? endedDurationMs
+        : 0,
+      this.maxDurationMs,
+      this.samples.at(-1)?.tMs ?? 0,
+    );
+    if (durationMs < AUDIO_EDGE_KEEP_MS * 2 || this.samples.length < 5) return null;
+
+    const sorted = this.samples.map((s) => s.db).sort((a, b) => a - b);
+    const p25 = sorted[Math.floor((sorted.length - 1) * 0.25)]!;
+    const peak = sorted[sorted.length - 1]!;
+    // Speech: clearly above noise, and within ~12 dB of the loudest peak.
+    const threshold = Math.max(Math.min(peak - 12, p25 + 8), -55);
+
+    let firstRel: number | null = null;
+    let lastRel: number | null = null;
+    for (const s of this.samples) {
+      if (s.db < threshold) continue;
+      if (firstRel == null) firstRel = s.tMs;
+      lastRel = s.tMs;
+    }
+    if (firstRel == null || lastRel == null) return null;
+
     let startMs = 0;
     if (firstRel > AUDIO_EDGE_KEEP_MS) startMs = firstRel - AUDIO_EDGE_KEEP_MS;
     let endMs = durationMs;

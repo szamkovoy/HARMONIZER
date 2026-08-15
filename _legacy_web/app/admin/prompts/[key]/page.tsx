@@ -73,8 +73,15 @@ export default function AdminPromptKeyPage() {
 
   function seedVariables(version: PromptVersion) {
     const names = extractVariables(version.template);
+    const defaults =
+      version.variables && typeof version.variables === "object" && !Array.isArray(version.variables)
+        ? version.variables
+        : {};
     const seed: Record<string, unknown> = {};
-    for (const name of names) seed[name] = "";
+    for (const name of names) {
+      const fromDefaults = defaults[name];
+      seed[name] = fromDefaults == null ? "" : fromDefaults;
+    }
     setVarsJson(JSON.stringify(seed, null, 2));
   }
 
