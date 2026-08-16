@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.15
-updated: 2026-08-04
+version: 1.16
+updated: 2026-08-16
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql]
 ---
@@ -69,7 +69,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 | Supabase CLI | `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`, секреты функций | локально `.env.local`; в облаке — Dashboard / secrets |
 | Supabase cron / Edge | `CRON_SECRET`, Vault `precompute_global_cron_secret` (+ cleanup/reconcile secrets), `verify_jwt = false`, self-heal `ensure_harmonizer_cron_jobs` | `DEPLOY.md`, `supabase/config.toml`, `20260721010000_ensure_harmonizer_cron_watchdog.sql` |
 | Auth OTP email (edge `send-auth-email`) | `AUTH_EMAIL_PROVIDER` (`resend`\|`ses`), `RESEND_ZAMKOVOI_YOGA_API_KEY` (OTP), optional `RESEND_ZAMKOVOI_RU_API_KEY` (future marketing), `MAIL_FROM_EMAIL`, `SEND_EMAIL_HOOK_SECRET`; SES tails `SES_*` | `supabase/functions/send-auth-email/`; ops `docs/04_workspace/email_providers.md` |
-| Groq Whisper (связанный pipeline) | `GROQ_API_KEY`, optional `language` (8 aliases via `LANGUAGE_ALIASES`; omitted → auto-detect + multilingual domain prompt), `temperature: 0`, `verbose_json` | `_legacy_web/app/api/_utils/whisperTranscription.ts`, `whisperPrompts.ts` |
+| Groq Whisper (связанный pipeline) | `GROQ_API_KEY`, optional `language` (8 aliases via `LANGUAGE_ALIASES`; omitted → auto-detect + multilingual domain prompt), `temperature: 0`, `verbose_json`. При 429/5xx — circuit breaker → OpenAI Whisper (`OPENAI_API_KEY`, model `whisper-1`); cooldown в памяти + таблице `stt_circuit_breaker` | `_legacy_web/app/api/_utils/whisperTranscription.ts`, `whisperCircuitBreaker.ts`, `whisperWaitTime.ts`, `whisperPrompts.ts` |
 | Gemini (Vercel API) | `GEMINI_API_KEY`, `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`, `MAX_DIALOG_LENGTH`, опционально `GEMINI_TIMEOUT_MS`, `ALLOW_LEGACY_GEMINI_MODELS` | Vercel env + `_legacy_web/app/api/_utils/gemini.ts`, `_legacy_web/app/api/_utils/dialogConfig.ts`; interactive paths use `requested tier -> fallback`, cron/precompute retries the requested tier 3x before fallback |
 | Native health | iOS HealthKit entitlement / usage descriptions; Android Health Connect `READ_STEPS`, `READ_ACTIVE_CALORIES_BURNED`, `READ_EXERCISE`, `READ_SLEEP`, minSdk 26, compile/target SDK 35 | `app.config.ts`, `plugins/with-native-health.js`, `services/nativeHealth.ts` |
 | BLE chest straps | iOS `NSBluetoothAlwaysUsageDescription`; Android `BLUETOOTH`, `BLUETOOTH_ADMIN`, `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`; Expo config plugin `@sfourdrinier/react-native-ble-plx`; dev-client/prebuild only | `app.config.ts`, `package.json`, `modules/biofeedback/wearables/*` |

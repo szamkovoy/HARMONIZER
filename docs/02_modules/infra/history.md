@@ -9,6 +9,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## Decision Log
 
+- **2026-08-16 (STT circuit):** Groq Whisper primary; on HTTP 429/5xx → OpenAI `whisper-1` with cooldown from `retry-after` / reset headers / message, else ladder 2m → 70m → 23h. State: in-memory + `stt_circuit_breaker` (service role). Requires `OPENAI_API_KEY`.
+
 - **2026-08-13 (JS splash blank after Metro -c):** После Downloading JS-оверлей показывал только TEMP имя без картинки: `splash.png` ~2.4MB с пустого Metro cache часто не успевал/не рисовался. Фикс: `assets/images/splash-js.jpg` (~80KB) в `splashSource.ts` для EarlySplashCover/AppStartup; native plugin по-прежнему `splash.png` в app.json (без native rebuild). EarlyCover ждёт onLoad и на Android.
 
 - **2026-08-07 (OTP ghost 1h + welcome onboarded):** `cleanup_unconfirmed_auth_users` TTL 24h→**1h**; `sync_email_contacts_from_users` только confirmed; welcome-цепочка enroll по `onboarded_at` (`email_automation_onboarded_users`). Миграция `20260807180000`.

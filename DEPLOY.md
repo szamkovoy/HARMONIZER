@@ -44,7 +44,8 @@ Required Vercel environment variables:
 - `AI_MODEL_FALLBACK` - shared retry model for 503/429/timeout-style overloads (`gemini.ts`).
 - `MAX_DIALOG_LENGTH=9` - hard stop for daily dialog v3 before forced final recommendation.
 - `GEMINI_TIMEOUT_MS=90000` - Gemini request timeout for production.
-- `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe`.
+- `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe` (primary STT).
+- `OPENAI_API_KEY` - OpenAI Whisper (`whisper-1`) fallback when Groq returns 429/5xx or circuit is open.
 - `SENTRY_DSN=https://fa0cbb049716d242310a11464f1684e2@o4511304250884096.ingest.de.sentry.io/4511304290533456` - Sentry project DSN for backend error monitoring.
 
 Optional environment variables:
