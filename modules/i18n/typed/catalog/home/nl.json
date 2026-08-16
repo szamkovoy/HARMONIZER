@@ -114,7 +114,9 @@
       "exactAspectLine": "Exact aspect: {time} — {aspect} {transitPlanet} (transit) en {natalPlanet} (nataal).",
       "closing": "Dit zijn sleutelmomenten specifiek voor uw locatie. Gebruik ze voor spirituele praktijken, affirmaties, intenties, meditatie enz.",
       "remindersHint": "Tik op het belletje onder de grafiek om herinneringen in of uit te schakelen."
-    }
+    },
+    "reminderExactAlarmTitle": "Precieze alarmen nodig",
+    "reminderExactAlarmMessage": "Op Android werken herinneringen voor gelegenheidsmomenten alleen op tijd als 'Alarmen en herinneringen' zijn ingeschakeld voor {appName}. Zonder deze instelling kan het systeem de melding met een uur of langer uitstellen."
   },
   "planetBanner": {
     "eyebrow": "Planeet van de dag"

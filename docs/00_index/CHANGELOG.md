@@ -1,3 +1,4 @@
+- 2026-08-16 (499): Opportunity reminders — Android exact-alarm gate + stop canceling late OS alarms (Doze/miss fix).
 - 2026-08-16 (498): STT circuit — Groq Whisper primary, OpenAI whisper-1 fallback on 429/5xx; `stt_circuit_breaker` table.
 - 2026-08-15 (497): Affirmation audio — disk cache + Sound warm; shorter fade-in (fix Listen lag / breath cue drift).
 - 2026-08-15 (496): Affirmation create select hint; phase hint casing (lowercase in parens for RU + locale rules).

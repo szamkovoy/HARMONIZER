@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.38
-updated: 2026-08-03
+version: 2.39
+updated: 2026-08-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -22,6 +22,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-16 (opportunity reminder timing):** Локальные DATE-напоминания в `OpportunityWindows` — late-delivery grace + Android exact-alarm gate (см. `notifications` history). Копирайт `reminderExactAlarm*` в `getHomeStrings`.
 
 - **2026-08-03 (Expo Dev splash hang):** Auto `refresh` effect keyed on `profileLoading`+`profileId` (not `refresh` identity) so membership realtime cannot abort→restart cold fetch forever. `beginHomeBootstrap` only after known `hasNatalProfile`. См. infra Dev splash history.
 

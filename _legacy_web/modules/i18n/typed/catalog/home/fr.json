@@ -114,7 +114,9 @@
       "exactAspectLine": "Aspect exact : {time} — {aspect} {transitPlanet} (transit) et {natalPlanet} (natal).",
       "closing": "Ce sont des moments clés spécifiquement pour votre lieu. Utilisez-les pour des pratiques spirituelles, des affirmations, des intentions, la méditation, etc.",
       "remindersHint": "Appuyez sur la cloche sous le graphique pour activer ou désactiver les rappels."
-    }
+    },
+    "reminderExactAlarmTitle": "Alarmes précises requises",
+    "reminderExactAlarmMessage": "Sur Android, pour que les rappels d'opportunité se déclenchent à l'heure, il est nécessaire d'activer les « Alarmes et rappels » pour {appName}. Sans cela, le système pourrait retarder votre notification d'une heure ou plus."
   },
   "planetBanner": {
     "eyebrow": "Planète du jour"

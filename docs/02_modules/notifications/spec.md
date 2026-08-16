@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.9
-updated: 2026-08-03
+version: 1.10
+updated: 2026-08-16
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -26,6 +26,7 @@ code_refs:
     _legacy_web/app/api/admin/notifications/segment.ts,
     _legacy_web/app/api/_utils/contentLocaleFallback.ts,
     services/localNotifications.ts,
+    services/androidExactAlarms.ts,
     scripts/android-fcm-setup.mjs,
     app.config.ts,
     supabase/migrations/20260423080000_init.sql,
@@ -76,7 +77,7 @@ code_refs:
 | reason | Когда | Поведение |
 | --- | --- | --- |
 | `home` | Фокус вкладки Главная (авторизован) | Мягкий запрос. Если `undetermined` — спросить (повтор не чаще 7 дн.). Если уже denied и `canAskAgain` — снова только после 7 дн. Если ОС больше не показывает диалог — skip. |
-| `opportunity_bell` | Сохранение напоминания колокольчиком | Явный жест: сначала закрыть модалку «Уведомить», затем системный `requestPermissionsAsync` (без cooldown). Кастомный Alert — только если ОС не выдала `granted` (отказ или `canAskAgain=false`); в Alert — «Открыть настройки». Имя приложения в тексте — `common.appName` через `{appName}`. |
+| `opportunity_bell` | Сохранение напоминания колокольчиком | Явный жест: сначала закрыть модалку «Уведомить», затем системный `requestPermissionsAsync` (без cooldown). Кастомный Alert — только если ОС не выдала `granted` (отказ или `canAskAgain=false`); в Alert — «Открыть настройки». Имя приложения в тексте — `common.appName` через `{appName}`. **Android 12+:** после notification grant — `ensureAndroidExactAlarmsForOpportunityReminders` (`services/androidExactAlarms.ts`): без `SCHEDULE_EXACT_ALARM` / «Будильники и напоминания» DATE-триггер в `expo-notifications` становится inexact → возможна задержка Doze; Alert + `REQUEST_SCHEDULE_EXACT_ALARM`, напоминание не ставится, пока exact не доступен. |
 | `webinar` | Нажал «Записаться» **или** экран вебинара при `registered=true` (в т.ч. после оплаты в кабинете) | Контекстный запрос, не чаще **1 раза в 3 дня** (чтобы не дёргать при каждом возврате к ссылке на комнату). |
 
 **Не спрашиваем:** в онбординге; из `PushRegistrationBridge` при логине/foreground (только claim токена если уже granted).
@@ -98,3 +99,5 @@ UI — `notifications.*`. **Язык remote push / delivery** = `resolveExactNot
 - **Android remote push требует FCM:** разрешение ОС + локальные напоминания (колокольчик) работают без Firebase; доставка **админских** push через Expo Push на Android — только если native build включает `google-services.json`: локально файл в корне (gitignore; в EAS-архив попадает через `.easignore`), на EAS — file-env **`GOOGLE_SERVICES_JSON`** (`app.config.ts` → `android.googleServicesFile`), плюс FCM V1 service account в EAS credentials. Чекер: `node scripts/android-fcm-setup.mjs`. Без файла в билде `getExpoPushTokenAsync` на Android падает → в `push_tokens` нет android-строк → рассылка шлёт только iOS.
 - **iOS Firebase App Check:** `GoogleService-Info.plist` (локально / EAS file-env **`GOOGLE_SERVICES_PLIST`**) → `ios.googleServicesFile`. Без файла `app.config.ts` пропускает `@react-native-firebase/*` на iOS prebuild (иначе hard-fail); App Check на iPhone в таком IPA выключен.
 - **Android channels:** `ensureAndroidNotificationChannels()` создаёт `harmonizer_opportunity_high` и `harmonizer_remote` (в Settings → категории могут быть под «Показать неиспользуемые», пока ни одно уведомление не пришло).
+- **Android exact alarms (окна возможностей):** `expo-notifications` `ExpoSchedulingDelegate` вызывает `setExactAndAllowWhileIdle` только при `AlarmManager.canScheduleExactAlarms()`; иначе inexact. Манифест уже содержит `SCHEDULE_EXACT_ALARM` (`app.json`); runtime-grant на API 31+ обязателен (см. §3.1). Нужен native build с `expo-intent-launcher` для экрана «Alarms & reminders».
+- **Late-delivery grace:** sync/`OpportunityWindows` не отменяет OS DATE-alarm сразу после `triggerAt`/`eventAt` (иначе открытие Home во время Doze-задержки убивало PendingIntent). Cancel по «время прошло» — только через **3 ч после** `eventAt`; день/время окна сменились или пользователь выключил колокольчик — cancel сразу. Красный колокольчик в UI сбрасывается по wall-clock без cancel OS.

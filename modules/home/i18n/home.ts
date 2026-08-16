@@ -95,6 +95,9 @@ export interface HomeStrings {
     reminderNotificationsUnavailableMessage: string;
     reminderNeedPermissionTitle: string;
     reminderNeedPermissionMessage: string;
+    /** Android 12+: без «Будильники и напоминания» DATE-триггер становится inexact. */
+    reminderExactAlarmTitle: string;
+    reminderExactAlarmMessage: string;
     helpButtonAccessibilityLabel: string;
     helpModalTitle: string;
     helpLoading: string;
@@ -350,6 +353,9 @@ const ru: HomeStrings = {
     reminderNeedPermissionTitle: "Нужны уведомления",
     reminderNeedPermissionMessage:
       "Разрешите уведомления, чтобы {appName} мог напомнить об окне возможностей.",
+    reminderExactAlarmTitle: "Нужны точные будильники",
+    reminderExactAlarmMessage:
+      "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
     helpButtonAccessibilityLabel: "Пояснение к графику окон возможностей",
     helpModalTitle: "Как читать это окно",
     helpLoading: "Собираю пояснение...",
@@ -567,6 +573,9 @@ const en: HomeStrings = {
     reminderNeedPermissionTitle: "Notifications needed",
     reminderNeedPermissionMessage:
       "Please allow notifications so {appName} can remind you about this window.",
+    reminderExactAlarmTitle: "Exact alarms needed",
+    reminderExactAlarmMessage:
+      "On Android, opportunity reminders fire on time only if Alarms & reminders are enabled for {appName}. Without that, the system may delay the notification by an hour or more.",
     helpButtonAccessibilityLabel: "Explain the opportunity windows chart",
     helpModalTitle: "How to read this window",
     helpLoading: "Preparing the explanation...",

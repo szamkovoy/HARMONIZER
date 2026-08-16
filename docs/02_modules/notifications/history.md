@@ -1,13 +1,15 @@
 ---
 id: 02_modules/notifications/history
 title: Notifications History
-version: 1.4
-updated: 2026-08-03
+version: 1.5
+updated: 2026-08-16
 depends_on: [02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708150000_notifications.sql]
 ---
 
 ## Decision Log
+
+- **2026-08-16 (opportunity local reminders late/missed on Android):** QA Audrone: body «за 5 мин до 10:14», shade 11:44. Root: (1) без runtime exact-alarm `expo-notifications` ставит inexact alarm → Doze batch; (2) Home sync/`now` effect cancel’ил OS alarm как только `triggerAt<=now`, убивая ещё не доставленный PendingIntent. Fix: `ensureAndroidExactAlarmsForOpportunityReminders` before schedule; UI clear без cancel; OS cancel только после event+3h / mismatch / user off. Strings `reminderExactAlarm*`. Нужен rebuild с `expo-intent-launcher` для экрана Alarms & reminders.
 
 - **2026-08-10 (admin list infinite scroll):** `/admin/notifications` — подзагрузка страницами API вместо «Назад/Вперёд».
 

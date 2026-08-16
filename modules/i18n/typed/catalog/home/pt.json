@@ -114,7 +114,9 @@
       "exactAspectLine": "Aspecto exato: {time} — {aspect} {transitPlanet} (trânsito) e {natalPlanet} (natal).",
       "closing": "Estes são momentos-chave especificamente para a sua localização. Use-os para práticas espirituais, afirmações, intenções, meditação etc.",
       "remindersHint": "Toque no sino abaixo do gráfico para ligar ou desligar os lembretes."
-    }
+    },
+    "reminderExactAlarmTitle": "Precisamos de Alarmes Precisos",
+    "reminderExactAlarmMessage": "No Android, os lembretes de janelas só disparam a tempo se os 'Alarmes e Lembretes' estiverem ativados para {appName}. Sem essa permissão, o sistema pode adiar a notificação por uma hora ou mais."
   },
   "planetBanner": {
     "eyebrow": "Planeta do dia"

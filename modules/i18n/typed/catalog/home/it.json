@@ -114,7 +114,9 @@
       "exactAspectLine": "Aspetto esatto: {time} — {aspect} {transitPlanet} (transito) e {natalPlanet} (natale).",
       "closing": "Questi sono momenti chiave specificamente per la vostra posizione. Usateli per pratiche spirituali, affermazioni, intenzioni, meditazione e simili.",
       "remindersHint": "Tocca la campana sotto il grafico per attivare o disattivare i promemoria."
-    }
+    },
+    "reminderExactAlarmTitle": "Allarmi precisi",
+    "reminderExactAlarmMessage": "Su Android, i promemoria delle finestre di opportunità si attivano puntualmente solo se per {appName} sono abilitati 'Allarmi e promemoria'. In caso contrario, il sistema potrebbe posticipare la notifica di un'ora o più."
   },
   "planetBanner": {
     "eyebrow": "Pianeta del giorno"

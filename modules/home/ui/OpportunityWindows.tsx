@@ -32,6 +32,7 @@ import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { ensureNotificationPermission, registerPushToken } from "@/modules/notifications";
+import { ensureAndroidExactAlarmsForOpportunityReminders } from "@/services/androidExactAlarms";
 import {
   buildOpportunityAlarmStyleContent,
   ensureAndroidNotificationChannels,
@@ -142,7 +143,14 @@ function getDateTriggerFireMs(trigger: unknown): number | null {
 type OpportunityReminderMeta = { triggerAtMs: number; eventAtMs: number };
 
 /**
- * Напоминание считается отработанным: время DATE-триггера или момента окна уже прошли.
+ * Сколько держать OS-alarm после времени окна, даже если triggerAt уже в прошлом.
+ * На Android без exact-alarm Doze может доставить уведомление с большой задержкой;
+ * ранняя cancel в sync убивала ещё живой PendingIntent (пропуск / «не сработало»).
+ */
+const OPPORTUNITY_REMINDER_LATE_DELIVERY_GRACE_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Напоминание считается отработанным для UI: время DATE-триггера или момента окна уже прошли.
  * Всегда сверяем с `eventIsoFallback` из текущего прогноза: если нативный триггер распарсился неверно,
  * «залипший» красный колокольчик всё равно сбросится, когда окно по данным графика уже в прошлом.
  */
@@ -160,6 +168,19 @@ function isOpportunityReminderConsumed(
     if (!Number.isNaN(ev) && ev <= nowMs) return true;
   }
   return false;
+}
+
+/** Можно ли снять OS-расписание: только после grace (или если время окна неизвестно/битое). */
+function shouldCancelStaleOpportunityOsAlarm(
+  nowMs: number,
+  meta: OpportunityReminderMeta | undefined,
+  eventIsoFallback: string | undefined,
+): boolean {
+  const eventMs =
+    meta?.eventAtMs ??
+    (eventIsoFallback ? Date.parse(eventIsoFallback) : Number.NaN);
+  if (!Number.isFinite(eventMs)) return true;
+  return nowMs > eventMs + OPPORTUNITY_REMINDER_LATE_DELIVERY_GRACE_MS;
 }
 
 type ChartLabelSlot = { key: string; x: number; halfWidthPx: number };
@@ -425,7 +446,11 @@ export function OpportunityWindows({
             eventAtMs: eventMs,
           };
           if (isOpportunityReminderConsumed(nowMs, meta, expected)) {
-            await notificationsApi.cancelScheduledNotificationAsync(req.identifier).catch(() => undefined);
+            // UI сбросим ниже (не кладём в nextEnabled). OS-alarm не трогаем,
+            // пока не вышел late-delivery grace — иначе Doze-задержка + sync = пропуск.
+            if (shouldCancelStaleOpportunityOsAlarm(nowMs, meta, expected)) {
+              await notificationsApi.cancelScheduledNotificationAsync(req.identifier).catch(() => undefined);
+            }
             continue;
           }
           nextEnabled[key] = data.reminderMode === "before5" ? "before5" : "exact";
@@ -455,44 +480,39 @@ export function OpportunityWindows({
   ]);
 
   /**
-   * Сброс красного колокольчика после наступления времени срабатывания или времени окна
-   * (в т.ч. если телефон был выключен и локальное напоминание не показалось).
+   * Сброс красного колокольчика после наступления времени срабатывания или времени окна.
+   * OS-расписание не отменяем здесь: на Android inexact/Doze может доставить позже;
+   * cancel делал sync / toggle / grace.
    */
   useEffect(() => {
     if (Platform.OS === "web") return;
-    const notificationsApi = getExpoNotificationsOrNull();
-    if (!notificationsApi) return;
     const expectedTimes: Record<WindowItem["key"], string | undefined> = {
       sunrise: windows.sunrise?.time,
       culmination: windows.culmination?.time,
       exactAspect: accessMode === "free" ? undefined : windows.exactAspect?.time,
     };
 
-    void (async () => {
-      const nowMs = Date.now();
-      const enabled = enabledRemindersRef.current;
-      const keys = Object.keys(enabled) as WindowItem["key"][];
-      if (keys.length === 0) return;
+    const nowMs = Date.now();
+    const enabled = enabledRemindersRef.current;
+    const keys = Object.keys(enabled) as WindowItem["key"][];
+    if (keys.length === 0) return;
 
-      const keysToRemove: WindowItem["key"][] = [];
-      for (const key of keys) {
-        const meta = reminderMetaRef.current[key];
-        const eventIso = expectedTimes[key];
-        if (!isOpportunityReminderConsumed(nowMs, meta, eventIso)) continue;
-        const id = notificationIdsRef.current[key];
-        if (id) await notificationsApi.cancelScheduledNotificationAsync(id).catch(() => undefined);
-        delete notificationIdsRef.current[key];
-        delete reminderMetaRef.current[key];
-        keysToRemove.push(key);
-      }
+    const keysToRemove: WindowItem["key"][] = [];
+    for (const key of keys) {
+      const meta = reminderMetaRef.current[key];
+      const eventIso = expectedTimes[key];
+      if (!isOpportunityReminderConsumed(nowMs, meta, eventIso)) continue;
+      delete notificationIdsRef.current[key];
+      delete reminderMetaRef.current[key];
+      keysToRemove.push(key);
+    }
 
-      if (keysToRemove.length === 0) return;
-      setEnabledReminders((prev) => {
-        const next = { ...prev };
-        for (const key of keysToRemove) delete next[key];
-        return next;
-      });
-    })();
+    if (keysToRemove.length === 0) return;
+    setEnabledReminders((prev) => {
+      const next = { ...prev };
+      for (const key of keysToRemove) delete next[key];
+      return next;
+    });
   }, [
     now,
     enabledReminders,
@@ -745,6 +765,14 @@ export function OpportunityWindows({
           Alert.alert(t.reminderNotificationsUnavailableTitle, t.reminderNotificationsUnavailableMessage);
           return;
         }
+        const appName = tCatalog("common.appName");
+        const exactOk = await ensureAndroidExactAlarmsForOpportunityReminders({
+          title: t.reminderExactAlarmTitle,
+          message: fillHomeTemplate(t.reminderExactAlarmMessage, { appName }),
+          openSettingsLabel: strings.openSettingsButton,
+          cancelLabel: t.reminderCancel,
+        });
+        if (!exactOk) return;
       }
 
       const previousId = notificationIdsRef.current[pendingTarget.key];

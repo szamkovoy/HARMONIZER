@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.16
-updated: 2026-07-13
+version: 2.17
+updated: 2026-08-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -49,7 +49,7 @@ code_refs:
 - **`astro` (типы и движок)**  
   - `modules/daily-engine` импортирует `NatalProfile` и эфемериды из `modules/astro-core`; активация/важность опираются на JSON планет натала.  
   - Серверные маршруты прогноза используют `loadActiveNatalProfile` / те же структуры, что и модуль `astro`.
-  - **Клиентский UI home → daily-engine:** `OpportunityWindows.tsx` — `samplePlanetAltitudeForDay`, `interpolateDiurnalAltitude`, `dayFractionFromIso`; `freeWindows.ts` и `ephemeris.ts` (`AstronomiaTransitProvider`) — `computeDiurnalWindowTimes` (общая суточная дискретизация с графиком). Суточная кривая и штрих «сейчас» — `react-native-svg` (`Svg`, `Polyline`, `Line`).
+  - **Клиентский UI home → daily-engine:** `OpportunityWindows.tsx` — `samplePlanetAltitudeForDay`, `interpolateDiurnalAltitude`, `dayFractionFromIso`; `freeWindows.ts` и `ephemeris.ts` (`AstronomiaTransitProvider`) — `computeDiurnalWindowTimes` (общая суточная дискретизация с графиком). Суточная кривая и штрих «сейчас» — `react-native-svg` (`Svg`, `Polyline`, `Line`). Локальные DATE-напоминания колокольчика — `expo-notifications` + `services/androidExactAlarms.ts` / `localNotifications.ts` (контракт в `notifications`).
 
 - **`calibration` (данные на сервере, не импорт модуля на клиенте)**  
   - `_legacy_web/app/api/astro/daily-forecast/route.ts` и Edge `daily-forecast` читают активную строку `user_calibrations` и передают `CalibrationLike | null` в движок; `effectiveNatalParams` при `null` оставляет `S_initial`/`H_initial`.  
