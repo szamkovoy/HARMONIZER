@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.51
-updated: 2026-07-31
+version: 2.52
+updated: 2026-08-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-16 (XML marker leak):** `stripInternalDialogMarkers` снимает XML-теги протокола и leftover `display_order=` / `spheres=`, чтобы стрим/cache не показывали то, что серверный sanitize мог пропустить на opening-ходах без буфера.
 
 - **2026-08-16 (STT fallback):** `/transcribe` → `transcribeWhisperAudio`: Groq primary, OpenAI on circuit (infra). Клиентский контракт без изменений.
 

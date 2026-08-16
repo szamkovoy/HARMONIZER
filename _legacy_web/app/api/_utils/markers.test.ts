@@ -8,6 +8,7 @@ import {
   userAnsweredPracticeRequest,
   userDeclinedPracticeInHistory,
   validateHistoryHasDurationAndType,
+  visibleTextHasLeakedDialogMarkup,
 } from "./markers";
 
 describe("stripDialogScaffoldMarkdown", () => {
@@ -70,6 +71,49 @@ describe("sanitizeAssistantText", () => {
     expect(markers.summarizeEvents[0]?.outcome).toBe("не состоялся");
     expect(sanitizeAssistantText(raw, "ru")).toBe("Жаль, что фильм не состоялся.\n\nПродолжим.");
     expect(sanitizeAssistantText(raw, "ru")).not.toContain("SIMULATE_EVENT");
+  });
+
+  it("parses XML-style planning markers and strips them from visible text", () => {
+    const raw = [
+      "Attention on the third chakra.",
+      `<CORRECT_RECOMMENDATION: short_text="Today is an excellent opportunity to strengthen your resolve and leadership. Embrace the power within to make clear choices and confidently move toward your goals.">`,
+      "Today is an excellent opportunity to strengthen your resolve and leadership. Embrace the power within to make clear choices and confidently move toward your goals.",
+      "</CORRECT_RECOMMENDATION>",
+      `<PLANNED_EVENT: desc="Go to the lake" recommendation="Approach this time at the lake with a sense of purpose. Focus on giving your body a determined, invigorating physical challenge, choosing activities that truly make you feel strong and capable." display_order="1" spheres="1:0.6;2:0.4"></PLANNED_EVENT>`,
+      `<PLANNED_EVENT: desc="Meet friends at a cafe" recommendation="When you meet your friends, allow yourself to be fully present and assertive in your conversations. It's a chance to clearly express your thoughts and engage with confidence." display_order="2" spheres="4:1"></PLANNED_EVENT>`,
+    ].join("\n");
+
+    const parsed = parseResponseMarkers(raw);
+    expect(parsed.recommendationCorrection?.short_text).toMatch(/strengthen your resolve/i);
+    expect(parsed.plannedEvents).toHaveLength(2);
+    expect(parsed.plannedEvents[0]?.desc).toBe("Go to the lake");
+    expect(parsed.plannedEvents[1]?.desc).toBe("Meet friends at a cafe");
+    expect(parsed.plannedEvents[1]?.cells).toEqual([{ sphere: 4, weight: 1 }]);
+
+    const visible = sanitizeAssistantText(raw, "en");
+    expect(visible).toContain("Attention on the third chakra.");
+    expect(visible).not.toMatch(/PLANNED_EVENT|CORRECT_RECOMMENDATION|display_order|spheres=/i);
+    expect(visibleTextHasLeakedDialogMarkup(visible)).toBe(false);
+  });
+
+  it("strips leftover XML attribute fragments from visible text", () => {
+    const raw = `display_order="2" spheres="4:1"></PLANNED_EVENT>\nSounds like a focused and engaging day.`;
+    expect(sanitizeAssistantText(raw, "en")).toBe("Sounds like a focused and engaging day.");
+    expect(visibleTextHasLeakedDialogMarkup(sanitizeAssistantText(raw, "en"))).toBe(false);
+  });
+
+  it("parses hybrid square-open XML-close planning markers", () => {
+    const raw = `Sounds good.\n[PLANNED_EVENT: desc="Go to the lake" recommendation="Stay present." display_order="1" spheres="1:1"></PLANNED_EVENT>`;
+    const parsed = parseResponseMarkers(raw);
+    expect(parsed.plannedEvents).toHaveLength(1);
+    expect(parsed.plannedEvents[0]?.desc).toBe("Go to the lake");
+    expect(sanitizeAssistantText(raw, "en")).toBe("Sounds good.");
+  });
+
+  it("does not treat ordinary Recommendation: copy as leaked markup", () => {
+    const raw = "1. Go to the lake\nRecommendation: Stay present by the water.";
+    expect(visibleTextHasLeakedDialogMarkup(raw)).toBe(false);
+    expect(sanitizeAssistantText(raw, "en")).toBe(raw);
   });
 });
 

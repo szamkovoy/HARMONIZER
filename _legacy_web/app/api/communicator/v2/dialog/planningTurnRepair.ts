@@ -47,3 +47,18 @@ export function buildPlanningFinalizeRepairInstruction(params: {
   }
   return lines.join("\n");
 }
+
+/** Last-resort rewrite when visible text still contains protocol markup after sanitize. */
+export function buildLeakedMarkupRepairInstruction(params: {
+  baseInstruction: string;
+}): string {
+  return [
+    params.baseInstruction,
+    "",
+    "REPAIR THIS TURN ONLY. Your previous draft leaked internal protocol markup into the user-visible text (XML/HTML tags such as <PLANNED_EVENT>, leftover attributes like display_order= / spheres=, or unstripped square-bracket markers).",
+    "Rewrite the same turn from scratch.",
+    "- Visible text must be natural language only. The user must never see tag names, XML, HTML, or protocol attributes.",
+    "- Invisible markers, if this turn needs them, MUST use square brackets exactly as specified: [PLANNED_EVENT: ...], [CORRECT_RECOMMENDATION: ...], [SUMMARIZE_EVENT: ...], [PRACTICE_PICK: ...]. Never emit XML/HTML tags.",
+    "- Keep the same language, meaning, and branch job. Do not restart gathering, do not ask extra follow-up questions, and do not drop required finalize artifacts.",
+  ].join("\n");
+}

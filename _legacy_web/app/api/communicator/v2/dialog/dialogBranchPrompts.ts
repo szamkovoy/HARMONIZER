@@ -10,7 +10,7 @@ import {
 } from "@legacy/app/api/_utils/dialogScaffold";
 import type { DialogTimeOfDay } from "@legacy/app/api/_utils/dialogTimeOfDay";
 import { dayPartRhetoricInstruction, greetingInstructionForTimeOfDay } from "@legacy/app/api/_utils/dialogTimeOfDay";
-import type { PlannedEventMarker } from "@legacy/app/api/_utils/markers";
+import { visibleTextHasLeakedDialogMarkup, type PlannedEventMarker } from "@legacy/app/api/_utils/markers";
 
 /**
  * Three short, focused prompts for the explicit dialog FSM, with an English
@@ -348,6 +348,7 @@ export function extractDayFocusFromVisibleFinalize(visibleText: string, eventCou
       && !introHasWrongActionCount(part, eventCount)
       && !/(?:ещ[её]\s+что|что-то\s+ещ[её]|anything else|nothing else|add something|something else)/i.test(part)
       && !/\[(?:PLANNED_EVENT|CORRECT_RECOMMENDATION|PRACTICE_PICK)\b/i.test(part)
+      && !visibleTextHasLeakedDialogMarkup(part)
       && !/(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
     );
   if (candidates.length === 0) return "";
@@ -376,6 +377,7 @@ function extractPlanningIntro(visibleText: string, fallbackFocus: string | null 
       && !introHasWrongActionCount(part, eventCount)
       && !/(?:ещ[её]\s+что|что-то\s+ещ[её]|anything else|nothing else|add something|something else)/i.test(part)
       && !/\[(?:PLANNED_EVENT|CORRECT_RECOMMENDATION|PRACTICE_PICK)\b/i.test(part)
+      && !visibleTextHasLeakedDialogMarkup(part)
       && !/(?:практик|медитаци|дыхан|асан|йог|practice|meditation|breath|asana|yoga)/i.test(part)
     )
     .map(stripGluedNumberedActionSuffix)
@@ -615,7 +617,7 @@ function sharedPreamble(ctx: BrainPromptContext): string {
     "LIFE SPHERES (for sphere tagging, 1..7):",
     ctx.lifeSpheresBaseline,
     "",
-    "MARKERS: emit invisible markers exactly as specified. They are parsed by the server and stripped from the visible text. Never use double quotes inside a marker value.",
+    "MARKERS: emit invisible markers exactly as specified, using square brackets only — [PLANNED_EVENT: ...], never XML/HTML tags like <PLANNED_EVENT> or </PLANNED_EVENT>. They are parsed by the server and stripped from the visible text. Never use double quotes inside a marker value. Visible text must stay natural language only: no tag names, no attributes like display_order= or spheres=.",
   ].filter(Boolean).join("\n");
 }
 
@@ -840,8 +842,8 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
         : "THIS TURN: open the planning — warmly ask what is ahead today.")
       : input.userSignaledDone
         ? (input.softPracticeClose
-          ? "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the soft practice closing with NO question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user."
-          : "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the practice question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user. (In an add-flow there is no day focus: emit only [PLANNED_EVENT].)")
+          ? "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the soft practice closing with NO question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. Emit those markers with square brackets only, never XML tags. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user."
+          : "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the practice question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. Emit those markers with square brackets only, never XML tags. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user. (In an add-flow there is no day focus: emit only [PLANNED_EVENT].)")
         : input.planningLocked
           ? "THIS TURN: the user is answering the practice-offer question from planning finalize — this is NOT planning. Do not emit planning markers."
           : input.noGreeting
@@ -898,9 +900,13 @@ export function buildPracticePrompt(ctx: BrainPromptContext, input: PracticeTurn
 
 /** Strip the FSM's private sentinels that the generic marker sanitizer does not know about. */
 export function stripBrainSentinels(text: string): string {
-  return text.replace(/\[\s*(?:BRANCH_DONE|PRACTICE_DECLINED)\s*\]/gi, "").replace(/[ \t]+\n/g, "\n").trim();
+  return text
+    .replace(/\[\s*(?:BRANCH_DONE|PRACTICE_DECLINED)\s*\]/gi, "")
+    .replace(/<\/?\s*(?:BRANCH_DONE|PRACTICE_DECLINED)\b[^>]*>/gi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
 }
 
 export function containsPracticeDeclined(text: string): boolean {
-  return /\[\s*PRACTICE_DECLINED\s*\]/i.test(text);
+  return /\[\s*PRACTICE_DECLINED\s*\]/i.test(text) || /<\s*PRACTICE_DECLINED\b/i.test(text);
 }

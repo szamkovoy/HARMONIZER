@@ -18,8 +18,10 @@ import {
   catalogKindForDurationMin,
   parseResponseMarkers,
   sanitizeAssistantText,
+  stripLeakedDialogMarkup,
   userAnsweredPracticeRequest,
   validateHistoryHasDurationAndType,
+  visibleTextHasLeakedDialogMarkup,
 } from "@legacy/app/api/_utils/markers";
 import {
   logDialogTurn,
@@ -107,6 +109,7 @@ import {
   visibleTextMentionsEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
 import {
+  buildLeakedMarkupRepairInstruction,
   buildPlanningFinalizeRepairInstruction,
   planningFinalizeArtifactsReady,
 } from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
@@ -1489,6 +1492,41 @@ export async function POST(req: Request) {
               }
             }
           }
+          if (visibleTextHasLeakedDialogMarkup(sanitizedVisibleText)) {
+            try {
+              const originalHadProtocol =
+                markers.plannedEvents.length > 0
+                || Boolean(markers.recommendationCorrection)
+                || markers.summarizeEvents.length > 0
+                || Boolean(markers.practicePick)
+                || markers.cancelEvents.length > 0;
+              const repaired = await collectBufferedRetryText(buildLeakedMarkupRepairInstruction({
+                baseInstruction: prompt.userInstruction,
+              }));
+              const repairedVisible = stripBrainSentinels(
+                sanitizeAssistantText(repaired.fullText, resolveResponseLocale(context.user.locale)),
+              );
+              if (!visibleTextHasLeakedDialogMarkup(repairedVisible)) {
+                modelUsed = repaired.modelUsed;
+                fullText = repaired.fullText;
+                sanitizedVisibleText = repairedVisible;
+                if (!originalHadProtocol) {
+                  markers = parseResponseMarkers(fullText);
+                }
+                console.warn(
+                  "[DIALOG_FSM] Repaired leaked protocol markup in visible text",
+                  JSON.stringify({ conversationId: conversation.id, branch: branchForTurn, keptOriginalMarkers: originalHadProtocol }),
+                );
+              } else {
+                console.warn(
+                  "[DIALOG_FSM] Leaked-markup retry still leaked; keeping stripped original visible text",
+                  JSON.stringify({ conversationId: conversation.id, branch: branchForTurn }),
+                );
+              }
+            } catch (repairError) {
+              console.warn("[DIALOG_FSM] Hidden retry for leaked protocol markup failed; keeping stripped original", repairError);
+            }
+          }
 
           // ----- Deterministic FSM transition + persistence per branch -----
           let nextFsm: DialogFsmState = fsmAtTurnStart;
@@ -2185,6 +2223,9 @@ export async function POST(req: Request) {
               "[DIALOG_FSM] Practice turn yielded empty text — using deterministic clarification fallback",
               JSON.stringify({ conversationId: conversation.id, conflict, kind, requestedDurationMin }),
             );
+          }
+          if (visibleTextHasLeakedDialogMarkup(cleanText)) {
+            cleanText = stripLeakedDialogMarkup(cleanText);
           }
           if (!cleanText) {
             throw new Error("Model returned empty text after sanitization");

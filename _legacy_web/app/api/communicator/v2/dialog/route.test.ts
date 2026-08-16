@@ -7,6 +7,7 @@ import {
   todayLocalDate,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import {
+  buildLeakedMarkupRepairInstruction,
   buildPlanningFinalizeRepairInstruction,
   planningFinalizeArtifactsReady,
 } from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
@@ -359,6 +360,14 @@ describe("planning repair helpers", () => {
     });
     expect(instruction).toContain("CORRECT_RECOMMENDATION");
     expect(instruction).toMatch(/no conversational ack/i);
+  });
+
+  it("builds a leaked-markup retry that keeps square-bracket markers and forbids XML", () => {
+    const instruction = buildLeakedMarkupRepairInstruction({ baseInstruction: "BASE" });
+    expect(instruction).toContain("BASE");
+    expect(instruction).toContain("square brackets");
+    expect(instruction).toMatch(/never emit XML/i);
+    expect(instruction).toContain("natural language only");
   });
 });
 

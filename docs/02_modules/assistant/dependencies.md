@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.29
-updated: 2026-07-20
+version: 1.30
+updated: 2026-08-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
 ---
@@ -53,7 +53,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 ## 3. Контрактные точки риска
 
 - **Форма SSE-событий** — `communicator-client` ждёт `chunk`, `complete`, `turn_artifacts`, `error` (и опционально legacy `orchestrator_decision`, которое FSM-маршрут больше не шлёт); UI-поля (`practicePicked`, `turnMode`, `validation`) — в `complete`, persist-артефакты (`planningPersistence`, `messageId`, `matrixCells`) — в `turn_artifacts`; смена имён или раскладки ключей ломает UI тихо.
-- **FSM server guards (`dialogTurnGuards.ts`)** — клиент не дублирует: planning→practice coercion, `filterPersistablePlanningMarkers` (practice-like + planning-done desc + closure-echo + `filterPlanningDescBlobMarkers` для superseded incremental blobs), summarizing thin-answer / clarifying / post-dialog wind-down. Изменение сигнатур guard-функций или порядка веток в `route.ts` ломает поведение без изменения клиента.
+- **FSM server guards (`dialogTurnGuards.ts`)** — клиент не дублирует: planning→practice coercion, `filterPersistablePlanningMarkers` (practice-like + planning-done desc + closure-echo + `filterPlanningDescBlobMarkers` для superseded incremental blobs), summarizing thin-answer / clarifying / post-dialog wind-down. Изменение сигнатур guard-функций или порядка веток в `route.ts` ломает поведение без изменения клиента. Скрытый leak-repair (`buildLeakedMarkupRepairInstruction` в `planningTurnRepair.ts`) срабатывает только если после sanitize видимый текст всё ещё содержит protocol markup; уже распарсенные маркеры не перетираются, `systemInstruction` не меняется.
 - **`turnHistory.branches` (communicator → assistant)** — накопительный planning-backstop читает assistant `branches`/`dialog_branches` из client `turnHistory`: `collectPlanningBranchUserHistory()` для user-only corpus, `collectPlanningBranchDialogHistory()` для assistant+user timeline (closure context в `planningDonePhrases.ts` / inference skip). Если `buildClientTurnHistory` перестанет их слать, multi-message планы без invisible markers на финале снова потеряют ранние действия, а closure-replies могут снова попасть в `planned_events`.
 - **FSM-промпты (`dialogBranchPrompts.ts`, `dialogTimeOfDay.ts`, `dialogTurnGuards.ts`)** — daily dialog больше не рендерит `dialog_system_v3` из `public.prompts`; детерминированные visible/fallback-строки читаются из `getDialogScaffoldStrings` (layer C). Изменение ключей в `_legacy_web/data/dialog_scaffold/ru.json` без `i18n-sync fill` ломает non-RU finals. Монологи и прочие маршруты по-прежнему читают свои `prompt_key` через `getActivePrompt()`.
 - **`planned_events` / `daily_matrices` / `profile_report_snapshots`** — этот trio теперь часть публичного серверного контура ассистента; рассинхрон SQL-типа и route-персистенции ломает и live planning/summarizing, и Day tab/debug export, и профильные отчёты.

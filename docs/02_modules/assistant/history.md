@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.100
-updated: 2026-07-20
+version: 2.101
+updated: 2026-08-16
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-08-16 (XML marker leak):** QA planning FINAL показывал `<CORRECT_RECOMMENDATION>` / `<PLANNED_EVENT … display_order= spheres=>` и хвосты атрибутов. Root: DeepSeek иногда эмитит XML вместо `[PLANNED_EVENT: …]`; старый парсер/sanitize снимал только square brackets. Fix: parse XML + hybrid square-open/XML-close; `stripLeakedDialogMarkup`; intro/day-focus skip leaked paragraphs; last-resort hidden retry `buildLeakedMarkupRepairInstruction` только если sanitize не очистил visible (тот же `systemInstruction`, уже распарсенные маркеры не перетираются); prompt MARKERS явно запрещает XML.
 
 - **2026-08-01 (summary empty auto-close):** QA Day «Подытожить» → вопрос → Close / тихий mic → действие исчезало (overdue `deleteAfterPersist`). Root: FSM ветка `summaryAsked≥1` без маркера писала `persistSummarizedEvent` с пустыми `outcome_cells`. Close сам по себе events не трогает; ложный user-turn (тишина Whisper) + auto-close. Fix: убрать empty auto-close — ждать marker / did-not-happen / thin+marker; клиент жёстче режет silence-галлюцинации STT.
 

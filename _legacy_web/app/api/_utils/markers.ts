@@ -75,10 +75,35 @@ const INTERNAL_MARKER_NAMES = [
   "READY_FOR_RECOMMENDATION",
 ] as const;
 
+const XML_ATTRIBUTED_MARKER_NAMES = [
+  "STATE_PROPOSAL",
+  "PRACTICE_PICK",
+  "CORRECT_RECOMMENDATION",
+  "PLANNED_EVENT",
+  "SUMMARIZE_EVENT",
+  "SIMULATE_EVENT",
+  "CANCEL_EVENT",
+  "MATRIX_CELLS",
+] as const;
+
+const XML_ALL_MARKER_NAMES = [
+  ...XML_ATTRIBUTED_MARKER_NAMES,
+  "PRACTICE_DECLINED",
+  "PLAN_TOMORROW",
+  "READY_FOR_RECOMMENDATION",
+  "BRANCH_DONE",
+] as const;
+
 const INTERNAL_BARE_MARKER_RE = new RegExp(
   `\\[\\s*(?:${INTERNAL_MARKER_NAMES.join("|")})\\s*\\]`,
   "gi",
 );
+
+const XML_MARKER_NAME_ALT = XML_ALL_MARKER_NAMES.join("|");
+const XML_OPEN_OR_CLOSE_RE = new RegExp(`<\\/?\\s*(?:${XML_MARKER_NAME_ALT})\\b`, "i");
+const LEAKED_PROTOCOL_ATTR_RE =
+  /\b(?:display_order|short_text|time_norm|outcome_cells|card_blurb|windows_correction|duration_min)\s*=/i;
+const LEAKED_SPHERES_ATTR_RE = /\bspheres\s*=\s*["']?\d/i;
 
 function closingQuoteFor(openingQuote: string): string {
   if (openingQuote === "«") return "»";
@@ -151,29 +176,242 @@ function findMarkerEnd(text: string, startIndex: number): number {
   return -1;
 }
 
-function parseMarkers(text: string): ParsedMarker[] {
+function findUnquotedChar(text: string, startIndex: number, target: string): number {
+  let closingQuote: string | null = null;
+  for (let index = startIndex; index < text.length; index += 1) {
+    const char = text[index];
+    if (closingQuote) {
+      if (char === closingQuote) closingQuote = null;
+      continue;
+    }
+    if (char === `"` || char === `'` || char === "«" || char === "“") {
+      closingQuote = closingQuoteFor(char);
+      continue;
+    }
+    if (char === target) return index;
+  }
+  return -1;
+}
+
+function canonicalMarkerName(rawName: string): ParsedMarker["name"] | null {
+  const name = rawName.toUpperCase();
+  if (name === "SIMULATE_EVENT") return "SUMMARIZE_EVENT";
+  if (
+    name === "STATE_PROPOSAL"
+    || name === "PRACTICE_PICK"
+    || name === "CORRECT_RECOMMENDATION"
+    || name === "PLANNED_EVENT"
+    || name === "SUMMARIZE_EVENT"
+    || name === "CANCEL_EVENT"
+    || name === "MATRIX_CELLS"
+  ) {
+    return name;
+  }
+  return null;
+}
+
+function escapeMarkerAttr(value: string): string {
+  return value.replace(/"/g, "'").replace(/\s+/g, " ").trim();
+}
+
+function xmlBodyFromAttrsAndInner(attrs: string, inner: string, name: ParsedMarker["name"]): string {
+  const trimmedInner = inner.replace(/\s+/g, " ").trim();
+  if (!trimmedInner) return attrs.trim();
+  const parsed = parseMarkerAttributes(attrs);
+  if (name === "CORRECT_RECOMMENDATION" && !parsed.short_text) {
+    return `${attrs} short_text="${escapeMarkerAttr(trimmedInner)}"`.trim();
+  }
+  if (name === "PLANNED_EVENT" && !parsed.desc) {
+    return `${attrs} desc="${escapeMarkerAttr(trimmedInner)}"`.trim();
+  }
+  if (name === "SUMMARIZE_EVENT" && !parsed.outcome) {
+    return `${attrs} outcome="${escapeMarkerAttr(trimmedInner)}"`.trim();
+  }
+  if (name === "PRACTICE_PICK" && !parsed.reason) {
+    return `${attrs} reason="${escapeMarkerAttr(trimmedInner)}"`.trim();
+  }
+  if (name === "CANCEL_EVENT" && !parsed.ref) {
+    return `${attrs} ref="${escapeMarkerAttr(trimmedInner)}"`.trim();
+  }
+  return attrs.trim();
+}
+
+function findClosingXmlTag(text: string, fromIndex: number, rawName: string): { start: number; end: number } | null {
+  const pattern = new RegExp(`<\\/\\s*${rawName}\\s*>`, "ig");
+  pattern.lastIndex = fromIndex;
+  const match = pattern.exec(text);
+  if (!match) return null;
+  return { start: match.index, end: match.index + match[0].length };
+}
+
+function parseXmlStyleMarkers(text: string, baseOffset = 0): ParsedMarker[] {
+  const markers: ParsedMarker[] = [];
+  const pattern = new RegExp(`<\\s*(${XML_ATTRIBUTED_MARKER_NAMES.join("|")})\\b`, "gi");
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    const rawName = match[1]?.toUpperCase();
+    if (!rawName) continue;
+    const name = canonicalMarkerName(rawName);
+    if (!name) continue;
+    const afterName = match.index + match[0].length;
+    const openEnd = findUnquotedChar(text, afterName, ">");
+    if (openEnd === -1) continue;
+    const between = text.slice(afterName, openEnd);
+    const selfClosing = /\/\s*$/.test(between);
+    const attrs = between.replace(/\/\s*$/, "").trim();
+    let end = openEnd + 1;
+    let inner = "";
+    if (!selfClosing) {
+      const close = findClosingXmlTag(text, openEnd + 1, rawName);
+      if (close) {
+        inner = text.slice(openEnd + 1, close.start);
+        end = close.end;
+        markers.push(...parseXmlStyleMarkers(inner, baseOffset + openEnd + 1));
+      }
+    }
+    markers.push({
+      name,
+      body: xmlBodyFromAttrsAndInner(attrs, inner, name),
+      start: baseOffset + match.index,
+      end: baseOffset + end,
+    });
+    pattern.lastIndex = end;
+  }
+  return markers;
+}
+
+function parseBracketMarkers(text: string): ParsedMarker[] {
   const markers: ParsedMarker[] = [];
   // SIMULATE_EVENT is a known LLM typo/alias for SUMMARIZE_EVENT — parse + strip it the same way.
   const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text))) {
     const rawName = match[1]?.toUpperCase();
-    const name = (
-      rawName === "SIMULATE_EVENT" ? "SUMMARIZE_EVENT" : rawName
-    ) as ParsedMarker["name"] | undefined;
+    const name = rawName ? canonicalMarkerName(rawName) : null;
     if (!name) continue;
     const bodyStart = match.index + match[0].length;
     const bodyEnd = findMarkerEnd(text, bodyStart);
-    if (bodyEnd === -1) continue;
+    if (bodyEnd !== -1) {
+      markers.push({
+        name,
+        body: text.slice(bodyStart, bodyEnd),
+        start: match.index,
+        end: bodyEnd + 1,
+      });
+      pattern.lastIndex = bodyEnd + 1;
+      continue;
+    }
+    // Hybrid leak: `[PLANNED_EVENT: attrs></PLANNED_EVENT>` (square open, XML close).
+    const openEnd = findUnquotedChar(text, bodyStart, ">");
+    if (openEnd === -1) continue;
+    const close = findClosingXmlTag(text, openEnd + 1, rawName ?? name);
+    const end = close ? close.end : openEnd + 1;
+    const between = text.slice(bodyStart, openEnd).replace(/\/\s*$/, "");
     markers.push({
       name,
-      body: text.slice(bodyStart, bodyEnd),
+      body: xmlBodyFromAttrsAndInner(between, close ? text.slice(openEnd + 1, close.start) : "", name),
       start: match.index,
-      end: bodyEnd + 1,
+      end,
     });
-    pattern.lastIndex = bodyEnd + 1;
+    pattern.lastIndex = end;
   }
   return markers;
+}
+
+function parseMarkers(text: string): ParsedMarker[] {
+  return [...parseBracketMarkers(text), ...parseXmlStyleMarkers(text)]
+    .sort((a, b) => a.start - b.start || (b.end - a.end) - (a.end - b.end));
+}
+
+function outermostMarkerRanges(markers: ParsedMarker[]): ParsedMarker[] {
+  const sorted = [...markers].sort((a, b) => a.start - b.start || (b.end - a.end) - (a.end - b.end));
+  const out: ParsedMarker[] = [];
+  let coverEnd = -1;
+  for (const marker of sorted) {
+    if (marker.start < coverEnd) continue;
+    out.push(marker);
+    coverEnd = marker.end;
+  }
+  return out;
+}
+
+function stripIncompleteSquareMarkers(text: string): string {
+  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):/gi;
+  const ranges: Array<{ start: number; end: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    const rawName = match[1]?.toUpperCase();
+    const bodyStart = match.index + match[0].length;
+    const bodyEnd = findMarkerEnd(text, bodyStart);
+    if (bodyEnd !== -1) {
+      pattern.lastIndex = bodyEnd + 1;
+      continue;
+    }
+    const rest = text.slice(match.index);
+    const xmlCloseMatch = rest.match(new RegExp(`<\\/\\s*(?:${rawName ?? XML_MARKER_NAME_ALT})\\s*>`, "i"));
+    const xmlClose = xmlCloseMatch?.index ?? -1;
+    const openEnd = findUnquotedChar(text, bodyStart, ">");
+    let cut = rest.length;
+    if (xmlClose >= 0 && xmlCloseMatch) {
+      cut = xmlClose + xmlCloseMatch[0].length;
+    } else if (openEnd >= 0) {
+      cut = openEnd + 1 - match.index;
+    } else {
+      const nextBreak = rest.search(/\n\n/);
+      if (nextBreak >= 0) cut = nextBreak;
+    }
+    ranges.push({ start: match.index, end: match.index + cut });
+    break;
+  }
+  if (!ranges.length) return text;
+  let out = text;
+  for (const range of ranges.sort((a, b) => b.start - a.start)) {
+    out = `${out.slice(0, range.start)}${out.slice(range.end)}`;
+  }
+  return out;
+}
+
+/** True when visible assistant text still contains protocol markup the user must never see. */
+export function visibleTextHasLeakedDialogMarkup(text: string): boolean {
+  const value = (text ?? "").trim();
+  if (!value) return false;
+  if (XML_OPEN_OR_CLOSE_RE.test(value)) return true;
+  if (/\[\s*(?:STATE_PROPOSAL|PRACTICE_PICK|PRACTICE_DECLINED|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS|PLAN_TOMORROW|READY_FOR_RECOMMENDATION|BRANCH_DONE)\b/i.test(value)) {
+    return true;
+  }
+  return LEAKED_PROTOCOL_ATTR_RE.test(value) || LEAKED_SPHERES_ATTR_RE.test(value);
+}
+
+/** Residual XML/attribute fragments after well-formed markers were stripped. */
+export function stripLeakedDialogMarkup(text: string): string {
+  let t = stripIncompleteSquareMarkers(text.replace(/\r\n/g, "\n"));
+  t = t.replace(new RegExp(`<\\/\\s*(?:${XML_MARKER_NAME_ALT})\\s*>`, "gi"), "");
+  t = t.replace(/\b(?:display_order|short_text|time_norm|outcome_cells|card_blurb|windows_correction|duration_min)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s<>]+)/gi, "");
+  t = t.replace(/\b(?:desc|recommendation|spheres|cells|ref|outcome|id|reason|chakra)\s*=\s*(?:"[^"]*"|'[^']*')/gi, "");
+  t = t.replace(/\bspheres\s*=\s*\d[\d.:;]*/gi, "");
+  const xmlOpen = new RegExp(`<\\s*(?:${XML_MARKER_NAME_ALT})\\b`, "gi");
+  let match: RegExpExecArray | null;
+  const ranges: Array<{ start: number; end: number }> = [];
+  while ((match = xmlOpen.exec(t))) {
+    const openEnd = findUnquotedChar(t, match.index + match[0].length, ">");
+    if (openEnd === -1) {
+      ranges.push({ start: match.index, end: t.length });
+      break;
+    }
+    ranges.push({ start: match.index, end: openEnd + 1 });
+    xmlOpen.lastIndex = openEnd + 1;
+  }
+  for (const range of ranges.sort((a, b) => b.start - a.start)) {
+    t = `${t.slice(0, range.start)}${t.slice(range.end)}`;
+  }
+  return t
+    .replace(/<\/?\s*>/g, "")
+    .replace(/(?:^|\n)\s*>\s*(?=\n|$)/g, "\n")
+    .replace(/^\s*>\s*/, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[^\S\n]{2,}/g, " ")
+    .trim();
 }
 
 export function parseResponseMarkers(text: string): {
@@ -275,7 +513,7 @@ export function parseResponseMarkers(text: string): {
     .filter((item) => item.name === "MATRIX_CELLS")
     .flatMap((marker) => parseCompactCells(marker.body.trim()));
 
-  const planTomorrow = /\[\s*PLAN_TOMORROW\s*\]/i.test(text);
+  const planTomorrow = /\[\s*PLAN_TOMORROW\s*\]/i.test(text) || /<\s*PLAN_TOMORROW\b/i.test(text);
 
   return { stateProposals, practicePick, recommendationCorrection, plannedEvents, summarizeEvents, cancelEvents, planTomorrow, matrixCells };
 }
@@ -390,8 +628,10 @@ export function extractRawMarkersForDebug(text: string): DebugRawMarker[] {
 }
 
 export function stripResponseMarkers(text: string): string {
-  const markers = parseMarkers(text);
-  if (!markers.length) return text.replace(INTERNAL_BARE_MARKER_RE, "").replace(/[ \t]+\n/g, "\n").trim();
+  const markers = outermostMarkerRanges(parseMarkers(text));
+  if (!markers.length) {
+    return stripLeakedDialogMarkup(text.replace(INTERNAL_BARE_MARKER_RE, ""));
+  }
 
   let out = "";
   let cursor = 0;
@@ -400,7 +640,7 @@ export function stripResponseMarkers(text: string): string {
     cursor = marker.end;
   }
   out += text.slice(cursor);
-  return out.replace(INTERNAL_BARE_MARKER_RE, "").replace(/[ \t]+\n/g, "\n").trim();
+  return stripLeakedDialogMarkup(out.replace(INTERNAL_BARE_MARKER_RE, ""));
 }
 
 export function containsReadyMarker(text: string): boolean {
@@ -1036,8 +1276,7 @@ export function stripDialogScaffoldMarkdown(text: string): string {
 
 export function sanitizeAssistantText(text: string, locale?: string | null): string {
   let cleaned = stripReadyMarker(stripResponseMarkers(text));
-  // Defense: strip any remaining internal EVENT markers (incl. model typos like SIMULATE_EVENT).
-  cleaned = cleaned.replace(/\[[A-Z_]*(?:EVENT|PROPOSAL|PICK|CELLS|RECOMMENDATION):[^\]]*\]/gi, "");
+  cleaned = stripLeakedDialogMarkup(cleaned);
 
   if ((locale ?? "").trim().toLowerCase().startsWith("ru") && /[А-Яа-яЁё]/.test(cleaned)) {
     cleaned = cleaned
@@ -1047,6 +1286,7 @@ export function sanitizeAssistantText(text: string, locale?: string | null): str
   }
 
   cleaned = stripDialogScaffoldMarkdown(cleaned);
+  cleaned = stripLeakedDialogMarkup(cleaned);
 
   return cleaned
     .replace(/\n\n,\s*/g, "\n\n")

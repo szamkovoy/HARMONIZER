@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.56
-updated: 2026-08-01
+version: 2.57
+updated: 2026-08-16
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -99,7 +99,8 @@ code_refs:
 ### Очистка видимого текста ассистента (`modules/communicator/core/dialogTextCleanup.ts`)
 
 - **`stripDialogScaffoldMarkdown(text): string`** — экспорт; зеркалит серверный одноимённый helper в `_legacy_web/app/api/_utils/markers.ts`.
-- **`stripStreamingMarkers`** в `Communicator.tsx` — локальный regex `MARKER_RE` вырезает из видимого стрима `[STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS:…]` и bare sentinels `[PLAN_TOMORROW]` / `[PRACTICE_DECLINED]` до применения `stripDialogScaffoldMarkdown`.
+- **`stripInternalDialogMarkers(text): string`** — снимает square-bracket маркеры, XML-теги протокола (`<PLANNED_EVENT>…</PLANNED_EVENT>`) и leftover-атрибуты (`display_order=`, `spheres=`).
+- **`stripStreamingMarkers`** в `Communicator.tsx` — локальный regex `MARKER_RE` плюс `stripInternalDialogMarkers` вырезает из видимого стрима `[STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS:…]`, XML-форму тех же имён и bare sentinels `[PLAN_TOMORROW]` / `[PRACTICE_DECLINED]` до применения `stripDialogScaffoldMarkdown`.
 
 ### Гидрация `complete` из session sync (`modules/communicator/core/dialogTurnHydration.ts`)
 
