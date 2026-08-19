@@ -4,11 +4,14 @@
  * waiting for a settings round-trip.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Linking } from "react-native";
+import { AppState } from "react-native";
 import * as Location from "expo-location";
 
 import { getOrRequestForegroundLocationPermission } from "@/modules/location/acquireAndPersistUserCoordinates";
-import { subscribeForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
+import {
+  notifyForegroundLocationPermissionChanged,
+  subscribeForegroundLocationPermissionChanged,
+} from "@/modules/location/foregroundLocationEvents";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 export type ForegroundLocationPermissionStatus = "checking" | "granted" | "denied";
@@ -60,13 +63,9 @@ export function useForegroundLocationPermission(options?: { onGranted?: () => vo
         setStatus("granted");
         return;
       }
-      if (current.canAskAgain === false) {
-        logRuntimeEvent("location:windows_open_settings", {});
-        await Linking.openSettings();
-        return;
-      }
-      logRuntimeEvent("location:windows_request", {});
+      logRuntimeEvent("location:windows_request", { canAskAgain: current.canAskAgain });
       const perm = await getOrRequestForegroundLocationPermission({ userInitiated: true });
+      notifyForegroundLocationPermissionChanged();
       logRuntimeEvent("location:windows_result", { status: perm.status, canAskAgain: perm.canAskAgain });
       setCanAskAgain(perm.canAskAgain !== false);
       setStatus(perm.status === "granted" ? "granted" : "denied");

@@ -893,7 +893,7 @@ export function OpportunityWindows({
         </View>
       ) : locationPermission.status === "denied" ? (
         <View style={styles.locationPrompt}>
-          <AppText variant="sectionTitle" style={styles.locationPromptText}>
+          <AppText variant="screenHint" tone="muted" style={styles.locationPromptText}>
             {tCatalog("home.opportunityWindows.needLocation")}
           </AppText>
           <AppButton

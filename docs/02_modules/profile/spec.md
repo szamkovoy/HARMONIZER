@@ -1,7 +1,7 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.36
+version: 1.37
 updated: 2026-08-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
@@ -79,7 +79,7 @@ code_refs:
 - **Корневой layout:** `app/_layout.tsx` оборачивает дерево в `AuthProvider`, затем `AccessBridge` передаёт **`profile`** в `AccessProvider` (`modules/access`) для подписочных gate; рядом монтируется `MembershipEventsBridge` (см. `account_web`). Пока `initializing` или (`session` и `profileLoading`) — blank вместо `(tabs)`, чтобы апселл «Навигатор» и скрытие вкладки «День» не показывались Мастеру до прихода строки `users`. Home `AccountUpsellPanel` дополнительно гейтится `profile && !profileLoading`.
 - **Редактирование натальных / BirthData:** **`app/(tabs)/index.tsx`** и **`app/(tabs)/profile.tsx`** — общий UI **`NatalBirthDataModal`** + `createNatalProfile` → `POST /api/astro/natal`. Сервер обновляет `users.birth_*`, при пустых `lat`/`lon`/`tz` подставляет место рождения, пересобирает `user_natal_charts`, **удаляет** `user_daily_forecasts` с текущей локальной даты и далее. Модалка **не** запрашивает текущую GPS: пересчёт дня идёт с уже сохранёнными coords или fallback; Home при фокусе показывает «Готовим ваш день» (`blockingReload`).
 - **Онбординг:** канон — `docs/02_modules/onboarding/spec.md` (шаги 2–7 + warm). Геолокация на шаге 2 опциональна; отказ не блокирует мастер. Тот же `BirthPlacePicker` — в `NatalBirthDataModal`.
-- **Геолокация для прогноза:** `acquireAndPersistUserCoordinates` быстро пишет `lat`/`lon`/`tz` при выданном доступе; отказ **не** блокирует приложение и **не** обнуляет уже записанные `country_code`/`city`. `country_code` + `city` — **только** GPS: фон через `GET /api/geo/reverse` (Nominatim). IP (`GET /api/geo/ip-country`) кабинет использует эфемерно, если `country_code` пуст, и **не** пишет его в это поле. Тот же GPS-sync — после онбординга и из `logAppOpen`. На каждом cold start, если foreground-гео не granted, вызывается системный prompt (`promptForegroundLocationOnLaunch`; после iOS «Don't Allow» / Android «Don't ask again» ОС диалог больше не показывает). Повтор Nominatim только если полей нет или сдвиг ≳ **100 км** от `geo_place_lat`/`geo_place_lon`. Координаты кэшируются в `userLocationProfileCache`.
+- **Геолокация для прогноза:** `acquireAndPersistUserCoordinates` быстро пишет `lat`/`lon`/`tz` при выданном доступе; отказ **не** блокирует приложение и **не** обнуляет уже записанные `country_code`/`city`. `country_code` + `city` — **только** GPS: фон через `GET /api/geo/reverse` (Nominatim). IP (`GET /api/geo/ip-country`) кабинет использует эфемерно, если `country_code` пуст, и **не** пишет его в это поле. Тот же GPS-sync — после онбординга и из `logAppOpen`. После входа и при возврате в foreground, если гео не granted — `promptForegroundLocationOnLaunch` (settle ~700 ms после навигации). `signOut` вызывает `resetLocationPermissionAutoPrompt`. После iOS «Don't Allow» / Настройки → «Никогда» ОС диалог не показывает. Повтор Nominatim только если полей нет или сдвиг ≳ **100 км** от `geo_place_lat`/`geo_place_lon`. Координаты кэшируются в `userLocationProfileCache`.
 
 ## 4. UI: `app/(tabs)/profile.tsx`
 

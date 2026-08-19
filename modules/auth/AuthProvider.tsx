@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
+import { resetLocationPermissionAutoPrompt } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { rememberSupabaseSession, readPersistedAuthSessionFromStorage, requireSupabase } from "@/services/supabase";
 import { recoverAuthSessionFromPersistedStorageWithRetries } from "./bootstrapRecoverSession";
@@ -420,6 +421,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const supabase = requireSupabase();
       await supabase.auth.signOut();
     } finally {
+      resetLocationPermissionAutoPrompt();
       setSigningIn(false);
     }
   }, []);

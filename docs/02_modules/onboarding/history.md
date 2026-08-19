@@ -1,7 +1,7 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.7
+version: 1.8
 updated: 2026-08-20
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
@@ -9,6 +9,12 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-08-20 (Opportunity Windows CTA v2):** Кнопка всегда «Включить геолокацию» и всегда вызывает `requestForegroundPermissionsAsync`; Settings из CTA не открываются. Авто-prompt при входе — один раз за JS-сессию (не на каждый foreground), чтобы явный тап пользователя мог показать системный диалог.
+
+- **2026-08-20 (Opportunity Windows CTA):** Кнопка «Включить геолокацию» больше не открывает Settings, пока ОС ещё может показать системный диалог. При `canAskAgain === false` (Настройки → «Никогда») подпись меняется на «Открыть настройки» — иначе iOS диалог физически не показывает.
+
+- **2026-08-20 (launch prompt after sign-out):** После «Выйти» in-process `autoPromptedThisProcess` сбрасывается; системный запрос гео ждёт settle навигации (OTP → Home), иначе iOS глотает alert. Если в Настройках стоит «Никогда», ОС диалог не показывает — CTA «Окон возможностей» ведёт в настройки приложения.
 
 - **2026-08-20 (warmup vs GPS):** Шаг 2 больше не ждёт `getCurrentPosition` перед prefetch и шагами 3–7. Натал и системный prompt гео идут параллельно; прогрев стартует сразу после успешного натала (координаты места рождения). Отказ в гео не блокирует мастер; GPS пишется фоном через `acquireAndPersistUserCoordinates`. Home подхватывает кэш даже если lat уже сменился на GPS (`peekDayContentCacheRelaxed`).
 

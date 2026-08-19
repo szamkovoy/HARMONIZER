@@ -1,7 +1,7 @@
 ---
 id: 02_modules/onboarding/spec
 title: Onboarding Wizard — spec
-version: 1.6
+version: 1.7
 updated: 2026-08-20
 depends_on: [02_modules/onboarding/dependencies, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/astro/spec]
 code_refs:
@@ -100,7 +100,7 @@ code_refs:
 
 ## 9. Геолокация на главной (не гейт)
 
-`GeoGate` снят (App Store 5.1.1): Home открывается без разрешения. На каждом cold start, если foreground-гео не granted, вызывается системный prompt (`promptForegroundLocationOnLaunch` / `acquireAndPersistUserCoordinates`). После iOS «Don't Allow» / Android «Don't ask again» ОС диалог больше не показывает (`canAskAgain === false` → CTA открывает настройки). Если доступ есть — блок «Окна возможностей» с графиком; если нет — текст `home.opportunityWindows.needLocation` и кнопка `home.opportunityWindows.enableLocationButton` (`modules/home/ui/OpportunityWindows.tsx` + `useForegroundLocationPermission`).
+`GeoGate` снят (App Store 5.1.1): Home открывается без разрешения. После входа (`onboarded_at`) один раз за JS-сессию вызывается системный prompt (`promptForegroundLocationOnLaunch`, после settle навигации ~700 ms — иначе iOS глотает alert во время перехода с OTP). «Выйти» сбрасывает in-process флаг, чтобы повторный вход снова вызвал `request`. После iOS «Don't Allow» / Настройки → «Никогда» системный диалог невозможен — пользователь меняет доступ только в Settings вручную; CTA «Окон возможностей» всё равно вызывает `requestForegroundPermissionsAsync` (без перехода в Settings). Если доступ есть — блок «Окна возможностей» с графиком; если нет — текст `home.opportunityWindows.needLocation` и кнопка `home.opportunityWindows.enableLocationButton`.
 
 ## 10. i18n
 

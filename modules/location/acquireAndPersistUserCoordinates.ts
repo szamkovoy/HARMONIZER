@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { InteractionManager } from "react-native";
 
 import { invalidateBillingGeoCache } from "@/modules/account/core/billingCurrency";
 import { notifyForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
@@ -18,11 +19,26 @@ export type LocationAcquireResult =
 /** Не держим home на сплэше дольше этого при cold GPS. */
 export const LOCATION_ACQUIRE_TIMEOUT_MS = 12_000;
 const LAST_KNOWN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** After OTP / splash, iOS swallows the permission alert if we present it mid-navigation. */
+const LAUNCH_PROMPT_SETTLE_MS = 700;
 
 let permissionRequestInFlight: Promise<Location.LocationPermissionResponse> | null = null;
 /** Auto (launch/Home) already called the OS prompt this process — don't spam it. */
 let autoPromptedThisProcess = false;
 let acquireInFlight: Promise<LocationAcquireResult> | null = null;
+
+function waitForUiSettle(): Promise<void> {
+  return new Promise((resolve) => {
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(resolve, LAUNCH_PROMPT_SETTLE_MS);
+    });
+  });
+}
+
+/** Sign-out / new session: allow the launch prompt again in this JS process. */
+export function resetLocationPermissionAutoPrompt(): void {
+  autoPromptedThisProcess = false;
+}
 
 export type LocationPermissionRequestOptions = {
   /** CTA / onboarding Next — may ask again even after the launch auto-prompt. */
@@ -42,11 +58,15 @@ export async function getOrRequestForegroundLocationPermission(
   const current = await Location.getForegroundPermissionsAsync();
   if (current.status === "granted") return current;
   if (permissionRequestInFlight) return permissionRequestInFlight;
-  if (!options?.userInitiated && autoPromptedThisProcess) return current;
+  // Auto callers: at most once per JS process. User CTA always reaches the OS API below.
+  if (!options?.userInitiated && autoPromptedThisProcess) {
+    return current;
+  }
 
   autoPromptedThisProcess = true;
   logRuntimeEvent("location:auto_perm_request", {
     prior: current.status,
+    canAskAgain: current.canAskAgain,
     userInitiated: Boolean(options?.userInitiated),
   });
   permissionRequestInFlight = Location.requestForegroundPermissionsAsync().finally(() => {
@@ -61,9 +81,19 @@ export async function getOrRequestForegroundLocationPermission(
  */
 export async function promptForegroundLocationOnLaunch(userId: string): Promise<void> {
   try {
+    await waitForUiSettle();
     const before = await Location.getForegroundPermissionsAsync();
+    if (before.status === "granted") {
+      notifyForegroundLocationPermissionChanged();
+      return;
+    }
     const perm = await getOrRequestForegroundLocationPermission();
     notifyForegroundLocationPermissionChanged();
+    logRuntimeEvent("location:launch_prompt_result", {
+      prior: before.status,
+      status: perm.status,
+      canAskAgain: perm.canAskAgain,
+    });
     if (perm.status === "granted" && before.status !== "granted") {
       void acquireAndPersistUserCoordinates(userId);
     }
