@@ -117,6 +117,35 @@ async function materializeToCache(
   return outUri;
 }
 
+/** On-disk EPUB when revision matches (skip CDN probe/download). */
+export async function peekCachedBookEpub(
+  bookLocale: BookLocale,
+  cacheRevision: string,
+): Promise<string | null> {
+  const root = documentDirectory;
+  if (!root) return null;
+
+  const dest = `${root}books/${BOOK_ID}-${bookLocale}.epub`;
+  const metaUri = `${dest}.meta.json`;
+  const existing = await getInfoAsync(dest);
+  const existingSize = existing.exists && !existing.isDirectory ? (existing.size ?? 0) : 0;
+  if (existingSize < MIN_EPUB_BYTES) return null;
+
+  try {
+    const meta = JSON.parse(await readAsStringAsync(metaUri)) as Partial<CacheMeta>;
+    if (
+      meta?.revision === cacheRevision &&
+      (!meta.locale || meta.locale === bookLocale) &&
+      meta.size === existingSize
+    ) {
+      return dest;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 /**
  * Materialize the bundled EPUB to a stable `file://…/*.epub` URI.
  * Reuses any healthy on-device copy (avoids multi-minute Metro re-download).

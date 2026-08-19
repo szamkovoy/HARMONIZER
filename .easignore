@@ -69,6 +69,10 @@ docs/.sync-failures.log
 
 supabase/backups/*.json
 
+# Book EPUB pipeline (served from CDN at runtime; ~200MB+ of local sources)
+/book/
+/Book/
+
 # Agent / IDE noise
 .cursor/
 agent-transcripts/

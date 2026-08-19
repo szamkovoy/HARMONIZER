@@ -81,13 +81,18 @@ docs/.sync-failures.log
 # Локальные JSON-бэкапы таблиц (см. supabase/backups/README.md)
 supabase/backups/*.json
 
+# Book pipeline (CDN at runtime — not bundled into the app)
+/book/
+/Book/
+
 # GetCourse CRM exports / validation dumps (PII; never commit)
 /import/
 
 # Book pipeline — keep CSS/script in git; sources & build outputs stay local
-/Book/build/
-/Book/*.docx
-/Book/*.jpg
-/Book/translations/
-/Book/.DS_Store
-/assets/books/*.epub
+/book/build/
+/book/*.docx
+/book/*.jpg
+/book/translations/
+/book/.DS_Store
+/book/~$*
+assets/books/*.epub

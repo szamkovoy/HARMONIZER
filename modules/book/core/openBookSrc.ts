@@ -1,7 +1,7 @@
 import { bookDevEpubUrl } from "./bookDevUrl";
 import type { BookLocale } from "./bookIds";
 import { fetchBookManifest } from "./bookManifestClient";
-import { BOOK_EPUB_CACHE_REVISION, resolveBookSrcFromUrl } from "./resolveBookSrc";
+import { BOOK_EPUB_CACHE_REVISION, peekCachedBookEpub, resolveBookSrcFromUrl } from "./resolveBookSrc";
 
 function isDevelopmentAppEnv(): boolean {
   return (process.env.EXPO_PUBLIC_APP_ENV ?? "").trim().toLowerCase() === "development";
@@ -39,9 +39,13 @@ async function probeUrlOk(url: string): Promise<boolean> {
 export async function openBookSrc(bookLocale: BookLocale): Promise<string> {
   try {
     const manifest = await fetchBookManifest(bookLocale);
+    const cacheRevision = `cdn-v${manifest.version}`;
+    const cached = await peekCachedBookEpub(bookLocale, cacheRevision);
+    if (cached) return cached;
+
     const ok = await probeUrlOk(manifest.epubUrl);
     if (ok) {
-      return resolveBookSrcFromUrl(manifest.epubUrl, bookLocale, `cdn-v${manifest.version}`);
+      return resolveBookSrcFromUrl(manifest.epubUrl, bookLocale, cacheRevision);
     }
     if (!isDevelopmentAppEnv()) {
       throw new Error("book_cdn_unavailable");
