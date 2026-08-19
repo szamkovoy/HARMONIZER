@@ -1,13 +1,19 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.36
-updated: 2026-08-11
+version: 1.39
+updated: 2026-08-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-08-20 (natal edit vs GPS):** Смена даты/времени/места рождения на Профиле по-прежнему не запрашивает текущую геолокацию. Пересчёт дня: `ensureLocaleDayContent` + `markHomeDayContentBlockingReload`; оверлей «Готовим ваш день» на Home, пока нет слогана+рекомендации. Отказ в GPS не мешает пересчёту.
+
+- **2026-08-20 (GPS country_code vs IP):** `users.country_code` только из Nominatim/GPS; IP больше не записывается. Кабинет при пустом поле берёт IP эфемерно. Отказ в гео не обнуляет поле. Cold start без granted — повторный системный prompt (ОС может скрыть диалог после постоянного отказа).
+
+- **2026-08-19 (location optional):** Отказ в геолокации не блокирует приложение. Пустой `users.country_code` заполняется с `GET /api/geo/ip-country` (кабинет/шлюз); GPS Nominatim по-прежнему перезаписывает, когда доступ есть.
 
 - **2026-08-15:** Легенда сфер под life-matrix heatmap: последний пункт заканчивается точкой (не `;`).
 

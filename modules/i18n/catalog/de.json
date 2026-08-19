@@ -137,6 +137,8 @@
   "gate.webinarPaid.body": "Vielen Dank für Ihre Zahlung! Sie sind nun für das nächste Webinar angemeldet. Der Teilnahmelink erscheint in den App-Ankündigungen, sobald die Übertragung beginnt.",
   "gate.webinarPaid.title": "Sie sind für das Webinar angemeldet",
   "home.geoGate.closeApp": "App schließen",
+  "home.opportunityWindows.enableLocationButton": "Standort aktivieren",
+  "home.opportunityWindows.needLocation": "Um diese Funktion zu nutzen, erlauben Sie den Zugriff auf Ihren Standort.",
   "home.geoGate.grantButton": "Standortzugriff erlauben",
   "home.geoGate.message": "Um genaue tägliche Empfehlungen sowie die Berechnung der «Gelegenheitsfenster» zu erhalten, benötigt die App Zugriff auf Ihren Standort. Erlauben Sie ihn, um fortzufahren. Wenn Sie keinen Zugriff gewähren möchten, können Sie die App schließen.",
   "home.geoGate.openSettings": "Einstellungen öffnen",

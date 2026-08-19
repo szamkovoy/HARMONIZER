@@ -137,6 +137,8 @@
   "gate.webinarPaid.body": "Obrigado pelo seu pagamento! Agora está inscrito no próximo webinário. A ligação para participar aparecerá nos anúncios da app quando a transmissão começar.",
   "gate.webinarPaid.title": "Está inscrito no webinário",
   "home.geoGate.closeApp": "Fechar app",
+  "home.opportunityWindows.enableLocationButton": "Ativar geolocalização",
+  "home.opportunityWindows.needLocation": "Para usar esta função, permita o acesso à sua geolocalização.",
   "home.geoGate.grantButton": "Permitir localização",
   "home.geoGate.message": "Para receber recomendações precisas a cada dia, bem como o cálculo das «janelas de oportunidade», o aplicativo precisa de acesso à sua localização. Permita o acesso para continuar. Se não quiser concedê-lo, pode fechar o aplicativo.",
   "home.geoGate.openSettings": "Abrir configurações",

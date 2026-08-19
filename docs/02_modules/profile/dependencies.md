@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.13
-updated: 2026-08-11
+version: 1.14
+updated: 2026-08-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -75,7 +75,7 @@ code_refs:
   Статистика на экране профиля — потребитель `practice_sessions` по `user_id`. Парная пометка добавлена в `docs/02_modules/practices/dependencies.md`.
 
 - **`admin_panel`**  
-  Колонки `users.country_code` / `city` / `last_seen_at` (запись из location + `app_open`) — сырьё geo/activity на админ-пульсе.
+  Колонки `users.country_code` / `city` / `last_seen_at` (запись из GPS/Nominatim + `app_open`; `country_code` не из IP) — сырьё geo/activity на админ-пульсе.
 
 ## 3. Контрактные точки риска
 

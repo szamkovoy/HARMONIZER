@@ -1,8 +1,8 @@
 ---
 id: 02_modules/onboarding/dependencies
 title: Onboarding Wizard — dependencies
-version: 1.0
-updated: 2026-07-18
+version: 1.2
+updated: 2026-08-20
 depends_on: [02_modules/onboarding/spec]
 ---
 
@@ -10,17 +10,17 @@ depends_on: [02_modules/onboarding/spec]
 
 ## Зависит от
 
-- **`profile`** — авторизация (email-OTP), сессия, `refreshProfile`, запись `users.{birth_date,birth_time,birth_place,lat,lon,tz,location_name,display_name,onboarded_at}`; после GPS — `scheduleGeoPlaceSyncAfterCoords` → `country_code`/`city`. `AuthProvider.doVerifyEmailCode`/`syncProfile` обновляют имя сразу после шага 1 (независимо от шага 2). Route guard в `app/_layout.tsx` решает пускать в мастер или в `(tabs)`.
+- **`profile`** — авторизация (email-OTP), сессия, `refreshProfile`, запись `users.{birth_date,birth_time,birth_place,lat,lon,tz,location_name,display_name,onboarded_at}`; GPS после granted — фон `acquireAndPersistUserCoordinates` → `scheduleGeoPlaceSyncAfterCoords` → `country_code`/`city`. `AuthProvider.doVerifyEmailCode`/`syncProfile` обновляют имя сразу после шага 1 (независимо от шага 2). Route guard в `app/_layout.tsx` решает пускать в мастер или в `(tabs)`.
 - **`astro`** — `BirthData` (`modules/astro-core/core/types.ts`), `createNatalProfile` (`services/natalProfileClient.ts`) → `POST /api/astro/natal`. `birthData.location.timezone` (IANA) — обязательный вход для исторического UTC-преобразования (`astro/spec.md` §3, `localChartDateTime`).
-- **`i18n`** — `useTranslate`/`useAppLocale`, каталоги `wizard.*`/`onboarding.birth.*`/`home.geoGate.*` (8 локалей), `i18n-sync`. Native-имя приложения и reason-строки iOS-разрешений — через `app.config.ts` `expo.locales`.
-- **`daily_forecast`** — прогрев после шага 2: `fetchDailyForecast({ forceRefresh: true, timeoutMs: 90_000 })` + `saveDayContentCache` (те же access/scope ключи, что Home). Экран `warm` — только если тексты ещё не готовы к концу шага 7.
+- **`i18n`** — `useTranslate`/`useAppLocale`, каталоги `wizard.*`/`onboarding.birth.*`/`home.opportunityWindows.needLocation` (8 локалей), `i18n-sync`. Native-имя приложения и reason-строки iOS-разрешений — через `app.config.ts` `expo.locales`.
+- **`daily_forecast`** — прогрев сразу после натала на шаге 2 (не ждёт GPS): `fetchDailyForecast({ forceRefresh: true, timeoutMs: 90_000 })` + `saveDayContentCache` (те же access/scope ключи, что Home). Экран `warm` — только если тексты ещё не готовы к концу шага 7.
 - **`access`** — `getEffectiveAccess` / `accessModeForTier` для ключей кэша дня (trial → tier `master`, mode `premium`).
 - **`infra`** — `expo-location`, `expo-av`/`expo-notifications`, `react-native-maps`, `KeyboardAvoidingView` (iOS), Android IME-height padding в `WizardShell`, `SafeAreaView`, `windowSoftInputMode="adjustResize"` + `expo-splash-screen` (белый фон и в dark).
 - **`modules/ui/theme`** — светлая палитра мастера (`buildTheme("light")` / `ThemeProvider` в `WizardShell`); поля — `WizardTextInput`.
 
 ## От него зависят
 
-- **`home`** — после `finishOnboarding` пользователь попадает в `(tabs)/index.tsx`; `GeoGate` (этот модуль) используется Home-вкладкой.
+- **`home`** — после `finishOnboarding` пользователь попадает в `(tabs)/index.tsx`; CTA геолокации живёт в `OpportunityWindows`, не отдельным гейтом.
 - **`profile`** — `NatalBirthDataModal` (`modules/home/ui/NatalBirthDataModal.tsx`) переиспользует `BirthPlacePicker`, `formatGeoPlaceLabel`, `GeoPlace` из `modules/onboarding`, общие хелперы маски/валидации даты-времени рождения из `modules/onboarding/birthDateFormat.ts` (`formatDateMask`/`formatTimeMask`/`ddmmyyyyToIso`/`isoToDdmmyyyy`), а также **`MaskedTextInput`** (`modules/onboarding/MaskedTextInput.tsx`) — сегментный ввод даты/времени (каждый сегмент DD/MM/YYYY/HH — отдельный `TextInput` с `selectTextOnFocus`, сегменты изолированы — правка одного не сдвигает другой); `BirthPlaceMapModal` используется в блоке «Мои данные» Профиля для сверки сохранённого места рождения; внизу вкладки Профиль — **`LegalFooter tone="links"`** (те же юр. документы / модалка, что на шаге 1 мастера).
 
 ## Контракты

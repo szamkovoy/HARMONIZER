@@ -37,5 +37,6 @@ export async function logAppOpen(userId: string): Promise<void> {
   }
   // Страна/город — даже при throttle события: координаты часто появляются
   // после первого app_open (онбординг), а sync внутри needsRefresh сам no-op.
+  // `country_code` только из GPS (Nominatim); IP сюда не пишем.
   void maybeSyncUserGeoPlace(userId);
 }

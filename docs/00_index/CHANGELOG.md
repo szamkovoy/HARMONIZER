@@ -1,3 +1,7 @@
+- 2026-08-20 (504): Paid cron idle window is 5 days. Onboarding warmup starts as soon as natal is saved (deny still continues to steps 3–7); Home paints from relaxed day cache if GPS coords arrived later, without a second LLM.
+- 2026-08-20 (503): Home no longer waits on the location dialog before day cache. Paid cron warms without requiring GPS (last coords or Moscow+tz); activity window stays 3 days via `last_seen_at`. Opportunity Windows graph still needs a live grant.
+- 2026-08-20 (502): Location prompt on every cold start if not granted (OS may hide the dialog after a permanent deny). `users.country_code` is GPS/Nominatim only; cabinet uses ephemeral IP when that field is empty (no IP persist / no VPN pollution).
+- 2026-08-19 (501): Location is optional (App Store 5.1.1): remove Home/onboarding geo-gate; Opportunity Windows CTA without GPS; cabinet country via IP (`GET /api/geo/ip-country`) when GPS is denied.
 - 2026-08-16 (500): Dialog — DeepSeek XML `<PLANNED_EVENT>` leak in planning FINAL: parse XML/hybrid markers, strip leftovers, last-resort hidden rewrite only if sanitize still leaks.
 - 2026-08-16 (499): Opportunity reminders — Android exact-alarm gate + stop canceling late OS alarms (Doze/miss fix).
 - 2026-08-16 (498): STT circuit — Groq Whisper primary, OpenAI whisper-1 fallback on 429/5xx; `stt_circuit_breaker` table.

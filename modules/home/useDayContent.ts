@@ -14,7 +14,11 @@ import { isBaseForecastValid, isDayContentComplete, isDayContentReadyForHome, is
 import { dayTextsMatchLocale } from "@/services/dayContentLocaleGuard";
 import { dayContentNatalScopeKey, dayContentNatalScopeKeyCandidates } from "@/services/dayContentScope";
 import { consumeLocaleDayContentWarm } from "@/services/localeDayContentBridge";
-import { acquireAndPersistUserCoordinates, type LocationAcquireFailureReason } from "@/modules/location/acquireAndPersistUserCoordinates";
+import {
+  acquireAndPersistUserCoordinates,
+  promptForegroundLocationOnLaunch,
+  type LocationAcquireFailureReason,
+} from "@/modules/location/acquireAndPersistUserCoordinates";
 import { loadCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { dayContentLocationFallback } from "@/modules/location/defaultDayContentLocation";
 import { fetchGlobalContent, type AccessMode } from "@/services/globalContentClient";
@@ -115,10 +119,6 @@ function toError(value: unknown): Error {
   return new Error("Unknown day content error");
 }
 
-function locationError(message?: string): Error {
-  return new Error(message ?? "Location is required to compute opportunity windows.");
-}
-
 function birthDataError(message?: string): Error {
   return new Error(message ?? "Birth data is required to compute the personal daily forecast.");
 }
@@ -213,6 +213,7 @@ function peekDayContentCacheForScopes<T>(
 export function useDayContent(options?: UseDayContentOptions): UseDayContentResult {
   const { profile, profileLoading, refreshProfile } = useAuth();
   const { beginHomeBootstrap, completeHomeBootstrap, setHomeBootstrapPhase, setStartupStep } = useAppStartup();
+  const refreshFnRef = useRef<(opts?: DayContentRefreshOptions) => Promise<void>>(async () => {});
   const abortRef = useRef<AbortController | null>(null);
   const secondaryContentAbortRef = useRef<AbortController | null>(null);
   const lastHydratedForecastKeyRef = useRef<string | null>(null);
@@ -373,18 +374,41 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
                 }),
               )
             : null;
+        const relaxedNatalHit =
+          !warmedOk && !cachedHit
+            ? peekDayContentCacheForScopes(contentScopeKeys, (scopeKeyCandidate) =>
+                peekDayContentCacheRelaxed({
+                  userId: profileId,
+                  accessMode: nextAccessMode,
+                  accessTier: nextAccessTier,
+                  forecastDate: provisionalForecastDate,
+                  scopeKey: scopeKeyCandidate,
+                  allowStale: true as const,
+                }),
+              )
+            : null;
         const readyFromCache =
-          loc &&
-          cachedHit?.freshness === "fresh" &&
-          isDayContentComplete(cachedHit.forecast, nextAccessMode) &&
-          forecastTextsMatchLocale(cachedHit.forecast, contentLocale)
+          (loc &&
+            cachedHit?.freshness === "fresh" &&
+            isDayContentComplete(cachedHit.forecast, nextAccessMode) &&
+            forecastTextsMatchLocale(cachedHit.forecast, contentLocale)
             ? {
                 forecast: cachedHit.forecast,
                 source: cachedHit.source,
                 modelUsed: cachedHit.modelUsed,
                 userLocation: loc,
               }
-            : null;
+            : null) ??
+          (relaxedNatalHit?.freshness === "fresh" &&
+          isDayContentComplete(relaxedNatalHit.forecast, nextAccessMode) &&
+          forecastTextsMatchLocale(relaxedNatalHit.forecast, contentLocale)
+            ? {
+                forecast: relaxedNatalHit.forecast,
+                source: relaxedNatalHit.source,
+                modelUsed: relaxedNatalHit.modelUsed,
+                userLocation: loc ?? relaxedNatalHit.location,
+              }
+            : null);
         const ready = warmedOk
           ? {
               forecast: warmedOk.forecast,
@@ -450,22 +474,22 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
                 userLocation,
               }),
             )
-          : relaxedCache?.freshness === "fresh"
-            ? relaxedCache
-            : null;
-      const hasPaintableOfflineCache = relaxedCache?.freshness === "stale";
+          : null;
       // Wait until birth-data gate is known — never raise splash then bail.
       if (needsNatalProfile && options?.hasNatalProfile == null) {
         return;
       }
 
+      const hasWarmPhoneCache =
+        instantCached?.freshness === "fresh" ||
+        relaxedCache?.freshness === "fresh" ||
+        relaxedCache?.freshness === "stale";
       const shouldBlockSplash =
         Boolean(opts?.blockingReload) ||
         (!opts?.forceRefresh &&
           !opts?.localeChange &&
           (lastResolvedRequestKeyRef.current !== requestKey || !forecast) &&
-          !(instantCached && instantCached.freshness === "fresh") &&
-          !(relaxedCache?.freshness === "stale"));
+          !hasWarmPhoneCache);
 
       if (shouldBlockSplash) {
         // После первого успешного bootstrap AppStartup сам выберет day_card;
@@ -506,89 +530,31 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
           if (relaxedCache) break;
         }
       }
-      const offlineStaleCache = relaxedCache?.freshness === "stale" ? relaxedCache : null;
       if (!locationForRequest && relaxedCache?.freshness === "fresh") {
         locationForRequest = relaxedCache.location;
       }
 
-      let acquireFailure: LocationAcquireFailureReason | null = null;
-      // Free path: never block splash on GPS. Cron-shared content only needs a
-      // timezone for the date key + windows; Moscow/tz fallback is enough for
-      // first paint. Paid still acquires GPS when coords are missing.
-      if (!locationForRequest && nextAccessMode === "free") {
+      // Never await the OS location dialog: Home must open from phone/server
+      // cache. Last GPS coords (profile/cache) win; else Moscow+tz fallback.
+      // Fresh GPS, if granted, refreshes in the background.
+      if (profileId) {
+        void promptForegroundLocationOnLaunch(profileId);
+      }
+      if (!locationForRequest) {
         locationForRequest = dayContentLocationFallback(profileTimezone);
         logRuntimeEvent(
-          "day_content:free_location_fallback",
-          { profileId, tz: profileTimezone, reason: "skip_gps" },
+          "day_content:location_fallback",
+          { profileId, tz: profileTimezone, accessMode: nextAccessMode, reason: "no_stored_coords" },
           "info",
         );
-      } else if (!locationForRequest && profileId) {
-        setHomeBootstrapPhase("initializing", "HOME/gps_acquire_persist");
-        setStatus("acquiring_location");
-        logRuntimeEvent("day_content:auto_location_attempt", { profileId }, "info");
-        const acquired = await acquireAndPersistUserCoordinates(profileId);
-        if (acquired.ok) {
-          locationForRequest = acquired.coords;
-          if (acquired.persisted) {
-            await refreshProfile();
-          }
-        } else {
-          acquireFailure = acquired.reason;
-          setLocationIssue(acquired.reason);
+        if (profileId) {
+          void acquireAndPersistUserCoordinates(profileId).then((acquired) => {
+            if (!acquired.ok) return;
+            // First GPS: recompute windows for real coords. Morning texts stay
+            // on screen — do not forceRefresh (that would re-run LLM).
+            void refreshFnRef.current({});
+          });
         }
-      }
-
-      if (!locationForRequest) {
-        if (offlineStaleCache && profileId) {
-          locationForRequest = offlineStaleCache.location;
-          latestCacheContextRef.current = {
-            userId: profileId,
-            accessMode: nextAccessMode,
-            accessTier: nextAccessTier,
-            forecastDate: provisionalForecastDate,
-            scopeKey: contentScopeKey,
-            userLocation: offlineStaleCache.location,
-          };
-          setAccessMode(nextAccessMode);
-          setForecast(offlineStaleCache.forecast);
-          setSource(offlineStaleCache.source);
-          setModelUsed(offlineStaleCache.modelUsed);
-          setResolvedUserLocation(offlineStaleCache.location);
-          setError(locationError(options?.locationErrorMessage));
-          setStatus("stale_ready");
-          lastResolvedRequestKeyRef.current = requestKey;
-          completeHomeBootstrap();
-          logRuntimeEvent(
-            "day_content:offline_stale_with_missing_location",
-            { reason: acquireFailure },
-            "warn",
-          );
-          return;
-        }
-
-        const err = locationError(options?.locationErrorMessage);
-        logRuntimeEvent(
-          "day_content:missing_location",
-          {
-            hasProfile: Boolean(profileId),
-            profileId,
-            tz: profileTimezone,
-            reason: acquireFailure,
-          },
-          "warn",
-        );
-        setForecast(null);
-        setSource(null);
-        setModelUsed(null);
-        setResolvedUserLocation(null);
-        latestCacheContextRef.current = null;
-        setStatus("need_location");
-        setError(err);
-        if (acquireFailure) {
-          setLocationIssue(acquireFailure);
-        }
-        completeHomeBootstrap();
-        return;
       }
 
       setResolvedUserLocation(locationForRequest);
@@ -631,6 +597,50 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
             !forecastTextsMatchLocale(forecastForUi, contentLocale),
         );
         setStatus("ready");
+        lastResolvedRequestKeyRef.current = [
+          profileId ?? "anon",
+          nextAccessMode,
+          nextAccessTier,
+          localDateIso(locationForRequest.timezone),
+          contentScopeKey,
+        ].join("|");
+        completeHomeBootstrap();
+        return;
+      }
+
+      // Onboarding warmup (and natal-save ensure) key the phone cache by birth
+      // coords when GPS is still empty. If GPS later overwrites users.lat,
+      // strict location match misses — still paint texts, then refresh windows.
+      if (
+        !opts?.forceRefresh &&
+        relaxedCache &&
+        (relaxedCache.freshness === "fresh" || relaxedCache.freshness === "stale")
+      ) {
+        const cacheLocaleOk = forecastTextsMatchLocale(relaxedCache.forecast, contentLocale);
+        latestCacheContextRef.current = {
+          userId: profileId!,
+          accessMode: nextAccessMode,
+          accessTier: nextAccessTier,
+          forecastDate: localDateIso(locationForRequest.timezone),
+          scopeKey: contentScopeKey,
+          userLocation: locationForRequest,
+        };
+        const forecastForUi = cacheLocaleOk
+          ? relaxedCache.forecast
+          : stripHomeLlmTexts(relaxedCache.forecast);
+        if (!cacheLocaleOk) {
+          pendingMorningMonologueForceRef.current = true;
+          lastHydratedForecastKeyRef.current = null;
+        }
+        setAccessMode(nextAccessMode);
+        setForecast(forecastForUi);
+        setSource(relaxedCache.source);
+        setModelUsed(relaxedCache.modelUsed);
+        setHomeTextsLoading(
+          !isDayContentComplete(forecastForUi, nextAccessMode) ||
+            !forecastTextsMatchLocale(forecastForUi, contentLocale),
+        );
+        setStatus(relaxedCache.freshness === "fresh" ? "ready" : "stale_ready");
         lastResolvedRequestKeyRef.current = [
           profileId ?? "anon",
           nextAccessMode,
@@ -1017,6 +1027,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       completeHomeBootstrap,
     ],
   );
+  refreshFnRef.current = refresh;
 
   useEffect(() => {
     if (profileLoading || !profileId) {

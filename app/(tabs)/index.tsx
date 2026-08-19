@@ -12,7 +12,6 @@ import { useDayContent } from "@/modules/home/useDayContent";
 import { NatalBirthDataModal } from "@/modules/home/ui/NatalBirthDataModal";
 import { ChakraFlower } from "@/modules/home/ui/ChakraFlower";
 import { DailyRecommendationCard } from "@/modules/home/ui/DailyRecommendationCard";
-import { GeoGate } from "@/modules/home/ui/GeoGate";
 import { OpportunityWindows } from "@/modules/home/ui/OpportunityWindows";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
 import { AssistantModalShell } from "@/modules/ui/AssistantModalShell";
@@ -52,7 +51,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ActivityIndicator,
   Alert,
-  BackHandler,
   Linking,
   Platform,
   Pressable,
@@ -435,7 +433,7 @@ function profileHasBirthData(profile: { birth_date?: string | null } | null | un
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const { authUser, profile, signOut, refreshProfile, profileLoading } = useAuth();
+  const { authUser, profile, refreshProfile, profileLoading } = useAuth();
   const { access, canUseFeature, setDevTierOverride } = useAccess();
   const needsPersonalForecast = canUseFeature("personal_daily_forecast");
   const { locale: appLocale } = useAppLocale();
@@ -544,18 +542,6 @@ export default function HomeScreen() {
   useEffect(() => {
     prevLocaleRef.current = appLocale;
   }, [appLocale]);
-
-  // Естественный выход из геогейта: на Android реально закрываем приложение;
-  // на iOS Apple запрещает программный выход, поэтому выходим из аккаунта —
-  // пользователь попадает на /sign-in и может закрыть приложение вручную.
-  const onCloseAppFromGeoGate = useCallback(() => {
-    logRuntimeEvent("home:geo_gate_close_app", { platform: Platform.OS });
-    if (Platform.OS === "android") {
-      BackHandler.exitApp();
-      return;
-    }
-    void signOut();
-  }, [signOut]);
 
   const onSaveNatalBridge = useCallback(
     async (birthData: BirthData, placeName: string) => {
@@ -683,7 +669,6 @@ export default function HomeScreen() {
   }, [appLocale, authUser?.id, canUseFeature]);
 
   return (
-    <GeoGate onCloseApp={onCloseAppFromGeoGate} onGranted={() => void refresh()}>
     <TabScreenLayout>
       <TabScrollView contentOptions={{ maxWidth: 460, bottomPaddingExtra: 32 }}>
         <HomeHeader forecast={forecast} strings={strings} homeTextsLoading={homeTextsLoading} />
@@ -691,7 +676,7 @@ export default function HomeScreen() {
 
         {loading && !forecast ? <HomeLoadingSkeleton text={strings.skeletonText} /> : null}
 
-        {status === "need_location" && error ? (
+        {status === "need_location" && error && locationIssue !== "permission_denied" ? (
           <HomeError
             title={strings.locationErrorTitle}
             message={resolveLocationErrorMessage(locationIssue, strings)}
@@ -725,7 +710,7 @@ export default function HomeScreen() {
         {status === "stale_ready" ? (
           <HomeStaleNotice title={strings.staleContentTitle} message={strings.staleContentMessage} />
         ) : null}
-        {locationIssue && (status === "stale_ready" || status === "ready") ? (
+        {locationIssue && locationIssue !== "permission_denied" && (status === "stale_ready" || status === "ready") ? (
           <HomeError
             title={strings.locationErrorTitle}
             message={resolveLocationErrorMessage(locationIssue, strings)}
@@ -765,6 +750,7 @@ export default function HomeScreen() {
               strings={strings}
               accessMode={accessMode}
               userLocation={userLocation}
+              onLocationGranted={() => void refresh()}
             />
             <LatestPostBanner />
           </>
@@ -880,7 +866,6 @@ export default function HomeScreen() {
       ) : null}
       <BlockingStatusToast visible={assistantOpening} />
     </TabScreenLayout>
-    </GeoGate>
   );
 }
 

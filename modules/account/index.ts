@@ -3,6 +3,7 @@ export { getAccountCabinetUrl, openAccountCabinet, type CabinetContext } from ".
 export {
   resolveBillingCurrency,
   resolveBillingGeo,
+  invalidateBillingGeoCache,
   type BillingCurrency,
   type BillingGeo,
 } from "./core/billingCurrency";

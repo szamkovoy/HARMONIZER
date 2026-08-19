@@ -3,8 +3,8 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.38
-updated: 2026-07-29
+version: 1.39
+updated: 2026-08-19
 depends_on: [00_index/CHANGELOG]
 code_refs: []
 
@@ -43,7 +43,7 @@ code_refs: []
 
 - Дизайн и фазовый план — в `docs/04_workspace/i18n_architecture.md`. **Phase 1–3 (каркас + 8-locale layer B + layer C dialog scaffold) внедрены.** Закрыто в Phase 2: запись `users.locale` при смене языка; pre-translate free-tier global content в `text_i18n`; typed sync gate. Закрыто в Phase 3: детерминированные visible-text builders слоя C для всех 8 локалей (`dialog_scaffold` + `getDialogScaffoldStrings`). Открытые вопросы: (a) **миграция контента** оставшихся хардкод-RU экранов (инкрементально); (b) `practiceCardSummary` detailed breath-slug blurbs — пока RU/EN (generic card/reason уже 8-locale inline, не scaffold JSON); (c) math markdown strings для de–nl (сейчас EN fallback).
 - **Нативная локализация бренда (2026-07-17):** локализованное имя приложения (под иконкой / в системных диалогах / в OTP-письме) и reason-строки разрешений iOS для 8 локалей настроены через `app.config.ts` `expo.locales` (`plugins/appLocalesData.js`). Переводы имени («Гармонизатор»/«Harmonisierer»/…) и reason-строк для 6 не-RU/EN локалей сделаны машиной — нужен ревью нативного носителя (и, для reason-строк, — юриста по Apple App Store Review Guideline 5.1.1) перед релизом в сторы. **Контекст:** `plugins/appLocalesData.js` + `supabase/functions/send-auth-email/templates/*.json`. **Проявление:** риск отказа/жалобы на некорректный текст разрешения в локали. **Действие:** пройти нативный ревью 6 локалей (de/fr/it/es/pt/nl) до публикации.
-- **Home geo-gate: выход из приложения на iOS (2026-07-17):** «Закрыть приложение» в `modules/home/ui/GeoGate.tsx` на Android вызывает `BackHandler.exitApp()` (реально закрывает процесс), а на iOS — `signOut()`, потому что Apple запрещает программный выход из приложения (нет публичного API). **Контекст:** `app/(tabs)/index.tsx` `onCloseAppFromGeoGate`. **Проявление:** на iOS кнопка не закрывает приложение, а выходит из аккаунта и уводит на `/sign-in` (откуда пользователь закрывает приложение вручную) — это даёт естественный выход из гейт-цикла, но не буквально «закрыть приложение». **Действие:** решить с продуктом, достаточно ли выхода из аккаунта на iOS, или нужен иной UX (например, отдельный поясняющий текст для iOS вместо кнопки).
+- **~~Home geo-gate: выход из приложения на iOS (2026-07-17)~~** — закрыто 2026-08-19: гейт снят (App Store 5.1.1). Home и онбординг работают без геолокации; CTA в «Окнах возможностей».
 
 ## `webinars`
 

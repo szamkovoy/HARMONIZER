@@ -141,6 +141,8 @@
   "home.geoGate.message": "To receive precise daily recommendations and the calculation of 'windows of opportunity,' the app needs access to your location. Please allow it to continue. If you don't want to grant access, you can close the app.",
   "home.geoGate.openSettings": "Open Settings",
   "home.geoGate.title": "Allow location access",
+  "home.opportunityWindows.enableLocationButton": "Enable location",
+  "home.opportunityWindows.needLocation": "To use this feature, please allow access to your location.",
   "notifications.emptyMessage": "Messages from the author, webinar start notifications, and triggered opportunity window reminders will appear here.",
   "notifications.emptyTitle": "Nothing yet",
   "notifications.listHint": "Latest notifications: messages from me, webinar starts, and triggered opportunity window reminders.",

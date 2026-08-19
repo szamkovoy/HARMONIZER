@@ -137,6 +137,8 @@
   "gate.webinarPaid.body": "Bedankt voor je betaling! Je bent nu aangemeld voor het eerstvolgende webinar. De deelnamelink verschijnt in de aankondigingen in de app zodra de uitzending begint.",
   "gate.webinarPaid.title": "Je bent aangemeld voor het webinar",
   "home.geoGate.closeApp": "App sluiten",
+  "home.opportunityWindows.enableLocationButton": "Locatie inschakelen",
+  "home.opportunityWindows.needLocation": "Om deze functie te gebruiken, geef toegang tot je locatie.",
   "home.geoGate.grantButton": "Locatie toestaan",
   "home.geoGate.message": "Om elke dag nauwkeurige aanbevelingen te krijgen, evenals de berekening van 'kansenvensters', heeft de app toegang tot je locatie nodig. Sta dit toe om door te gaan. Als je geen toegang wilt geven, kun je de app sluiten.",
   "home.geoGate.openSettings": "Open instellingen",

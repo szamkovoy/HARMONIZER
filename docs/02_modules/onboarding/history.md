@@ -1,14 +1,20 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.4
-updated: 2026-07-31
+version: 1.7
+updated: 2026-08-20
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
 
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-08-20 (warmup vs GPS):** Шаг 2 больше не ждёт `getCurrentPosition` перед prefetch и шагами 3–7. Натал и системный prompt гео идут параллельно; прогрев стартует сразу после успешного натала (координаты места рождения). Отказ в гео не блокирует мастер; GPS пишется фоном через `acquireAndPersistUserCoordinates`. Home подхватывает кэш даже если lat уже сменился на GPS (`peekDayContentCacheRelaxed`).
+
+- **2026-08-20 (GPS country vs IP):** Отказ на шаге 2 больше не пишет IP в `users.country_code`. Кабинет при пустом поле берёт IP только для URL.
+
+- **2026-08-19 (location optional):** Шаг 2 по-прежнему запрашивает геолокацию, но отказ больше не блокирует мастер (App Store 5.1.1). Prefetch дня — с fallback; страна кабинета — IP. CTA «Окон возможностей» на главной.
 
 - **2026-08-06 (store-review birth overwrite):** `ensureStoreReviewProfile` при каждом login затирал `birth_place`/координаты Москвой — после правки на Лондон и повторного входа снова Москва. Fix: seed рождения только если `birth_date` пуст; правки модератора сохраняются.
 

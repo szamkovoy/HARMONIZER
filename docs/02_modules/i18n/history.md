@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.19
-updated: 2026-08-11
+version: 1.20
+updated: 2026-08-19
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-19 (location optional CTA):** `home.opportunityWindows.needLocation` / `enableLocationButton` ×8 (RU source; EN + EU filled). Home geo-gate copy `home.geoGate.*` unused in UI.
 
 - **2026-08-11 (book keys):** Каталог — `book.profile.*`, `book.reader.*`, `gate.body.book` (RU → `i18n-sync fill --all`).
 

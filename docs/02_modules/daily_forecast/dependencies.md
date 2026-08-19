@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.17
-updated: 2026-08-16
+version: 2.19
+updated: 2026-08-20
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -56,14 +56,14 @@ code_refs:
   - Инвалидация кэша прогноза после extract калибровки — парная запись в `docs/02_modules/calibration/dependencies.md` §2.
 
 - **`profile`**  
-  - `useDayContent` через `useAuth()` берёт `tz`, `lat`/`lon`, birth-поля, tier/trial для `scopeKey`, режима доступа и автодозапроса геолокации (`acquireAndPersistUserCoordinates` → **`LocationAcquireResult`**, таймаут 12s, last-known; coords в сессии даже при `persisted: false`). Без coords в профиле хук читает **`userLocationProfileCache`**, затем **async `loadDayContentCacheRelaxed`** (на native sync-`peek*` не видит SecureStore); при stale offline-cache home не блокируется пустым `need_location`. Для paid-home именно `users.birth_date` решает, можно ли запускать персональный прогноз; отдельный клиентский fetch `user_natal_charts` больше не считается обязательным блокером первого рендера. **`app/(tabs)/index.tsx`** передаёт `expectedBirthFingerprint` в `fetchActiveNatalProfileCached` для UI-карты.  
+  - `useDayContent` через `useAuth()` берёт `tz`, `lat`/`lon`, birth-поля, tier/trial для `scopeKey` и режима доступа. Геолокация **не блокирует** загрузку дня: last GPS из профиля/`userLocationProfileCache`, иначе fallback; `acquireAndPersistUserCoordinates` в фоне. Без coords хук читает **async `loadDayContentCacheRelaxed`**; при GPS, который не совпал с ключом прогрева (онбординг писал место рождения) — тоже relaxed, без повторного LLM. Для paid-home именно `users.birth_date` решает, можно ли запускать персональный прогноз; отдельный клиентский fetch `user_natal_charts` больше не считается обязательным блокером первого рендера. **`app/(tabs)/index.tsx`** передаёт `expectedBirthFingerprint` в `fetchActiveNatalProfileCached` для UI-карты.  
   - **`app/(tabs)/day.tsx`** — **`useAuth().authUser.id`** + **`useAppLocale().locale`** для ключа **`dayPlanCache`**; bearer для `/api/day` — через **`getSupabaseAccessSession()`** (`services/supabase.ts`), который **`AuthProvider`** подпитывает **`rememberSupabaseSession`** при каждом `onAuthStateChange`.  
   - `recentPlanetsOfDay` читается сервером из `user_settings.preferences` (см. `loadRecentPlanets` в `daily-forecast/route.ts`).  
   - После смены натала с **`app/(tabs)/profile.tsx`** главный экран может запросить **`refresh` с `blockingReload`** через **`consumeHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`) при фокусе таба Home.
 
 - **`subscription`**  
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.
-  - `supabase/functions/precompute-daily-forecasts/index.ts` использует серверный premium/personal gate (`membership_tier`, `trial_expires_at`) и больше не прогревает personal path для неактивных пользователей спустя 3 дня.
+  - `supabase/functions/precompute-daily-forecasts/index.ts` использует серверный premium/personal gate (`membership_tier`, `trial_expires_at`) и греет personal path при активности **5 дней** (`users.last_seen_at` / `onboarded_at`). GPS не обязателен (last coords или Moscow+tz fallback).
   - Dev test «Обновить» на Home: `services/devDayContentResetClient.ts` → `POST /api/ai/dev-day-reset` с `resetScope: "both"` (одним вызовом чистит и shared `global_daily_content`, и персональные `scenario_cache`/`user_daily_forecasts` этого пользователя, затем `refresh({forceRefresh:true})` регенерирует активный тариф); legacy `POST /api/ai/global-content` `{ devReset: true }` на сервере остаётся только для `global` scope.
 
 - **`assistant` (server monologue cache)**

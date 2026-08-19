@@ -1,9 +1,17 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.13
-updated: 2026-08-14
+version: 1.15
+updated: 2026-08-20
 ---
+
+## 2026-08-20 — Cabinet country: GPS field vs ephemeral IP
+
+- `users.country_code` заполняется только Nominatim/GPS и не затирается при отказе в гео. Кабинет: если поле есть — берём его; если пусто — `GET /api/geo/ip-country` только для URL (шлюз), без записи в БД и без sticky IP в SecureStore (VPN).
+
+## 2026-08-19 — Cabinet country without GPS
+
+- `resolveBillingGeo`: после профиля и reverse-geocode — `GET /api/geo/ip-country` (Vercel header, fallback ipwho.is). VPN egress = страна VPN. Пустой `users.country_code` заполняется IP, GPS-страна не затирается.
 
 ## 2026-08-14 — Book/webinar thanks on cold start
 

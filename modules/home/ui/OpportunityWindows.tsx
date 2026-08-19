@@ -25,6 +25,8 @@ import type { AccessMode } from "@/services/globalContentClient";
 import { fillHomeTemplate, type HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
 import { useTranslate } from "@/modules/i18n";
+import { useForegroundLocationPermission } from "@/modules/location/useForegroundLocationPermission";
+import { AppButton } from "@/modules/ui/AppButton";
 import { AppText } from "@/modules/ui/AppText";
 import { SurfaceCardHeader } from "@/modules/ui/SurfaceCardHeader";
 import { SurfaceCardView } from "@/modules/ui/SurfaceCardView";
@@ -51,6 +53,8 @@ interface OpportunityWindowsProps {
   strings: HomeStrings;
   accessMode: AccessMode;
   userLocation: { lat: number; lng: number; timezone: string } | null;
+  /** After the user grants location from the in-card CTA — reload day content. */
+  onLocationGranted?: () => void;
 }
 
 type WindowItem = {
@@ -357,10 +361,15 @@ export function OpportunityWindows({
   strings,
   accessMode,
   userLocation,
+  onLocationGranted,
 }: OpportunityWindowsProps) {
   const theme = useTheme();
   const { authUser } = useAuth();
   const { t: tCatalog } = useTranslate();
+  const locationPermission = useForegroundLocationPermission({
+    onGranted: onLocationGranted,
+  });
+  const showGraph = locationPermission.status === "granted";
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [reminderTitleText, setReminderTitleText] = useState("");
@@ -857,21 +866,45 @@ export function OpportunityWindows({
       <SurfaceCardView style={styles.card}>
       <SurfaceCardHeader
         title={t.title}
-        help={{
-          accessibilityLabel: t.helpButtonAccessibilityLabel,
-          onPress: () => setHelpVisible(true),
-        }}
+        help={
+          showGraph
+            ? {
+                accessibilityLabel: t.helpButtonAccessibilityLabel,
+                onPress: () => setHelpVisible(true),
+              }
+            : undefined
+        }
       >
-        <AppText variant="screenHint" tone="muted">
-          {accessMode === "free"
-            ? t.subtitle(strings.planetLabels[planetOfTheDay])
-            : t.paidIntro(
-                strings.planetLabels[planetOfTheDay],
-                strings.planetLabels[graphPlanet],
-              )}
-        </AppText>
+        {showGraph ? (
+          <AppText variant="screenHint" tone="muted">
+            {accessMode === "free"
+              ? t.subtitle(strings.planetLabels[planetOfTheDay])
+              : t.paidIntro(
+                  strings.planetLabels[planetOfTheDay],
+                  strings.planetLabels[graphPlanet],
+                )}
+          </AppText>
+        ) : null}
       </SurfaceCardHeader>
 
+      {locationPermission.status === "checking" ? (
+        <View style={styles.locationPrompt}>
+          <ActivityIndicator color={theme.colors.accent} />
+        </View>
+      ) : locationPermission.status === "denied" ? (
+        <View style={styles.locationPrompt}>
+          <AppText variant="sectionTitle" style={styles.locationPromptText}>
+            {tCatalog("home.opportunityWindows.needLocation")}
+          </AppText>
+          <AppButton
+            label={tCatalog("home.opportunityWindows.enableLocationButton")}
+            onPress={() => void locationPermission.request()}
+            busy={locationPermission.busy}
+            disabled={locationPermission.busy}
+          />
+        </View>
+      ) : (
+        <>
       <View style={styles.chartWrap} onLayout={onChartLayout}>
         <View style={[styles.axis, { backgroundColor: gridLineMuted }]} />
         {chartPolylinePoints ? (
@@ -1056,6 +1089,8 @@ export function OpportunityWindows({
           </View>
         </View>
       </Modal>
+        </>
+      )}
       </SurfaceCardView>
       <SurfaceHelpModal
         visible={helpVisible}
@@ -1078,6 +1113,14 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 22,
     gap: 14,
+  },
+  locationPrompt: {
+    alignItems: "center",
+    gap: 16,
+    paddingVertical: 12,
+  },
+  locationPromptText: {
+    textAlign: "center",
   },
   chartWrap: {
     height: CHART_VIEW_HEIGHT,

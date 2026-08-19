@@ -1,8 +1,8 @@
 /**
  * Шаги 2-7 онбординг-мастера + финальный прогрев.
  *
- *   2. «Настройка навигатора архетипов» — дата/время/место рождения + геолокация
- *      (без доступа к геолокации дальше не пускаем).
+ *   2. «Настройка навигатора архетипов» — дата/время/место рождения + запрос геолокации
+ *      (отказ не блокирует переход — окна возможностей на главной покажут CTA).
  *   3. «От астрологии к психологии»   — intro (psycho.png)
  *   4. «От психологии к йоге»         — intro (asanas.png)
  *   5. «От тела к дыханию»            — intro (breath.png)
@@ -10,7 +10,8 @@
  *   7. «Об авторе»                    — intro (me.png)
  *   warm — только если к концу шага 7 ещё нет слогана + короткой рекомендации.
  *
- * Прогрев стартует сразу после шага 2 (`forceRefresh` + до 90s): пока пользователь
+ * Прогрев стартует сразу после сохранения натала на шаге 2 (`forceRefresh` + до 90s),
+ * не дожидаясь GPS: отказ в геолокации не блокирует шаги 3–7. Пока пользователь
  * читает интро, сервер считает эфемериды и получает тексты от LLM. Готовый день
  * кладётся в dayContentCache. Если тексты готовы раньше — сразу главная;
  * иначе «Готовим ваш день», затем всё равно выход на главную по таймауту.
@@ -21,15 +22,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  BackHandler,
-  Linking,
-  Platform,
   Pressable,
   StyleSheet,
   View,
   type ImageSourcePropType,
 } from "react-native";
-import * as Location from "expo-location";
 
 import { accessModeForTier, getEffectiveAccess } from "@/modules/access";
 import { useTranslate, getResponseLocale } from "@/modules/i18n";
@@ -45,7 +42,12 @@ import {
   WizardTitle,
   type GeoPlace,
 } from "@/modules/onboarding";
-import { scheduleGeoPlaceSyncAfterCoords } from "@/modules/location/syncUserGeoPlace";
+import { dayContentLocationFallback } from "@/modules/location/defaultDayContentLocation";
+import {
+  acquireAndPersistUserCoordinates,
+  getOrRequestForegroundLocationPermission,
+} from "@/modules/location/acquireAndPersistUserCoordinates";
+import { notifyForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
 import {
   ddmmyyyyToIso,
   formatDateMask,
@@ -128,7 +130,7 @@ function isRepairMode(profile: { onboarded_at?: string | null } | null): boolean
 export default function OnboardingScreen() {
   const theme = wizardTheme;
   const { t } = useTranslate();
-  const { authUser, profile, refreshProfile, signOut } = useAuth();
+  const { authUser, profile, refreshProfile } = useAuth();
   const { forceNextHomeBootstrapSplash } = useAppStartup();
 
   const repairMode = isRepairMode(profile);
@@ -144,12 +146,10 @@ export default function OnboardingScreen() {
   const [birthSaved, setBirthSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [geoDenied, setGeoDenied] = useState(false);
-  const [geoCanAskAgain, setGeoCanAskAgain] = useState(true);
   const [showPlaceMap, setShowPlaceMap] = useState(false);
 
   // ── Прогрев ──────────────────────────────────────────────────────────────
-  /** Promise прогрева (forceRefresh + LLM). null, пока не стартовали после гео. */
+  /** Promise прогрева (forceRefresh + LLM). null, пока натал ещё не сохранён. */
   const forecastPromiseRef = useRef<Promise<boolean> | null>(null);
   /** true, когда в ответе уже есть слоган + короткая рекомендация (и они в кэше). */
   const prefetchReadyRef = useRef(false);
@@ -296,77 +296,78 @@ export default function OnboardingScreen() {
     await refreshProfile().catch(() => undefined);
   }, [authUser, forceNextHomeBootstrapSplash, refreshProfile]);
 
-  const onCloseAppFromWizardGeo = useCallback(() => {
-    logRuntimeEvent("onboarding_geo_close_app", {});
-    if (Platform.OS === "android") {
-      BackHandler.exitApp();
-      return;
-    }
-    // iOS не даёт закрыть приложение — выходим из сессии, чтобы не крутить гейт.
-    void signOut();
-  }, [signOut]);
-
   /**
-   * Шаг 2 → 3: natal + geo параллельно (раньше шли строго друг за другом +
-   * reverseGeocode + await refreshProfile — из‑за этого «Далее» гасла надолго).
-   * Prefetch дня стартует сразу после обоих успехов; refreshProfile — в фоне.
+   * Шаг 2 → 3: natal + запрос гео параллельно. Отказ не блокирует мастер.
+   * Prefetch дня стартует сразу после натала (координаты места рождения —
+   * те же, что natal пишет в users.lat при пустом GPS), без ожидания
+   * getCurrentPosition. GPS, если granted, пишется в фоне.
    */
   const onStep2Next = useCallback(async () => {
     logRuntimeTap("wizard_step2_next", {});
     if (!authUser) return;
-    if (birthSaved) {
-      // Рождение уже сохранено (повтор после отказа в гео) — только гео.
-      setBusy(true);
-      setError(null);
+
+    const prefetchFromBirthPlace = (place: {
+      lat: number;
+      lng: number;
+      timezone: string;
+    }) => {
+      startForecastPrefetch({
+        lat: place.lat,
+        lng: place.lng,
+        timezone: place.timezone?.trim() || getDeviceTimeZone(),
+      });
+    };
+
+    const continueWizard = () => {
+      if (repairMode) {
+        void finishOnboarding();
+        return;
+      }
+      setStep(3);
+    };
+
+    const requestGeoPermission = async (source: "wizard_step2" | "wizard_step2_retry") => {
+      logRuntimeEvent("location:permission_request", { source });
       try {
-        logRuntimeEvent("location:permission_request", { source: "wizard_step2_retry" });
-        const perm = await Location.requestForegroundPermissionsAsync();
+        const perm = await getOrRequestForegroundLocationPermission({ userInitiated: true });
         logRuntimeEvent("location:permission_result", {
           status: perm.status,
           canAskAgain: perm.canAskAgain,
         });
-        if (perm.status !== "granted") {
-          setGeoDenied(true);
-          setGeoCanAskAgain(perm.canAskAgain !== false);
-          return;
+        notifyForegroundLocationPermissionChanged();
+        if (perm.status === "granted") {
+          void acquireAndPersistUserCoordinates(authUser.id);
         }
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        const tz = getDeviceTimeZone();
-        const supabase = requireSupabase();
-        const { error: updErr } = await supabase
-          .from("users")
-          .update({ tz, lat, lon })
-          .eq("id", authUser.id);
-        if (updErr) throw updErr;
-        scheduleGeoPlaceSyncAfterCoords(authUser.id);
-        setGeoDenied(false);
-        if (repairMode) {
-          void finishOnboarding();
-        } else {
-          startForecastPrefetch({ lat, lng: lon, timezone: tz });
-          setStep(3);
+        return perm.status === "granted";
+      } catch (e) {
+        logRuntimeEvent(
+          "location:permission_request_error",
+          { source, message: e instanceof Error ? e.message : String(e) },
+          "warn",
+        );
+        notifyForegroundLocationPermissionChanged();
+        return false;
+      }
+    };
+
+    if (birthSaved) {
+      setBusy(true);
+      setError(null);
+      try {
+        const scope = birthScopeRef.current;
+        if (!repairMode) {
+          prefetchFromBirthPlace(
+            scope
+              ? { lat: scope.place.lat, lng: scope.place.lon, timezone: scope.place.timezone }
+              : dayContentLocationFallback(getDeviceTimeZone()),
+          );
         }
+        await requestGeoPermission("wizard_step2_retry");
+        continueWizard();
         void refreshProfile().catch(() => undefined);
-        void Location.reverseGeocodeAsync({ latitude: lat, longitude: lon })
-          .then(async (places) => {
-            const first = places[0];
-            if (!first) return;
-            const locationName = [first.city, first.region, first.country]
-              .filter(Boolean)
-              .join(", ");
-            if (!locationName) return;
-            await requireSupabase()
-              .from("users")
-              .update({ location_name: locationName })
-              .eq("id", authUser.id);
-          })
-          .catch(() => undefined);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
+        continueWizard();
       } finally {
         setBusy(false);
       }
@@ -385,7 +386,6 @@ export default function OnboardingScreen() {
       timeMode: "precise",
       location: { lat: place.lat, lng: place.lng, timezone: place.timezone },
     };
-    // Тот же объект, что пишет POST /api/astro/natal в users.birth_place.
     birthScopeRef.current = {
       date: isoDate,
       time: normalizedTime,
@@ -397,62 +397,22 @@ export default function OnboardingScreen() {
       },
     };
 
+    const natalPromise = createNatalProfile(birthData, undefined, { placeName });
+    void natalPromise
+      .then(() => {
+        setBirthSaved(true);
+        if (!repairMode) prefetchFromBirthPlace(place);
+      })
+      .catch(() => undefined);
+    const permPromise = requestGeoPermission("wizard_step2");
+
     try {
-      logRuntimeEvent("location:permission_request", { source: "wizard_step2" });
-      const [natalResult, perm] = await Promise.all([
-        createNatalProfile(birthData, undefined, { placeName }),
-        Location.requestForegroundPermissionsAsync(),
-      ]);
-      void natalResult;
-      logRuntimeEvent("location:permission_result", {
-        status: perm.status,
-        canAskAgain: perm.canAskAgain,
-      });
-      setBirthSaved(true);
-
-      if (perm.status !== "granted") {
-        setGeoDenied(true);
-        setGeoCanAskAgain(perm.canAskAgain !== false);
-        void refreshProfile().catch(() => undefined);
-        return;
+      const [natalSettled] = await Promise.allSettled([natalPromise, permPromise]);
+      if (natalSettled.status === "rejected") {
+        throw natalSettled.reason;
       }
-
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const tz = getDeviceTimeZone();
-      const supabase = requireSupabase();
-      const { error: updErr } = await supabase
-        .from("users")
-        .update({ tz, lat, lon })
-        .eq("id", authUser.id);
-      if (updErr) throw updErr;
-      scheduleGeoPlaceSyncAfterCoords(authUser.id);
-      setGeoDenied(false);
-
-      if (repairMode) {
-        void finishOnboarding();
-      } else {
-        startForecastPrefetch({ lat, lng: lon, timezone: tz });
-        setStep(3);
-      }
+      continueWizard();
       void refreshProfile().catch(() => undefined);
-      void Location.reverseGeocodeAsync({ latitude: lat, longitude: lon })
-        .then(async (places) => {
-          const first = places[0];
-          if (!first) return;
-          const locationName = [first.city, first.region, first.country]
-            .filter(Boolean)
-            .join(", ");
-          if (!locationName) return;
-          await requireSupabase()
-            .from("users")
-            .update({ location_name: locationName })
-            .eq("id", authUser.id);
-        })
-        .catch(() => undefined);
     } catch (e) {
       logRuntimeEvent("onboarding_birth_error", {
         message: e instanceof Error ? e.message : String(e),
@@ -527,32 +487,10 @@ export default function OnboardingScreen() {
       return (
         <View style={styles.footerGap}>
           <AppButton
-            label={
-              busy
-                ? t("wizard.nextLoading")
-                : geoDenied
-                  ? t("home.geoGate.grantButton")
-                  : t("wizard.next")
-            }
+            label={busy ? t("wizard.nextLoading") : t("wizard.next")}
             onPress={() => void onStep2Next()}
             disabled={busy}
           />
-          {geoDenied ? (
-            <>
-              {geoCanAskAgain ? null : (
-                <AppButton
-                  label={t("home.geoGate.openSettings")}
-                  variant="secondary"
-                  onPress={() => void Linking.openSettings()}
-                />
-              )}
-              <AppButton
-                label={t("home.geoGate.closeApp")}
-                variant="secondary"
-                onPress={onCloseAppFromWizardGeo}
-              />
-            </>
-          ) : null}
         </View>
       );
     }
@@ -562,7 +500,7 @@ export default function OnboardingScreen() {
         <AppButton label={t("wizard.next")} onPress={goToNextIntro} />
       </View>
     );
-  }, [step, busy, geoDenied, geoCanAskAgain, onStep2Next, onCloseAppFromWizardGeo, goToNextIntro, t]);
+  }, [step, busy, onStep2Next, goToNextIntro, t]);
 
   return (
     <>
@@ -626,17 +564,6 @@ export default function OnboardingScreen() {
             ) : null}
           </View>
 
-          {geoDenied ? (
-            <View style={[styles.notice, { borderColor: theme.colors.surfaceBorder, backgroundColor: theme.colors.surface }]}>
-              <AppText variant="sectionTitle" style={styles.noticeText}>
-                {t("home.geoGate.title")}
-              </AppText>
-              <AppText variant="dialogBody" tone="muted" style={styles.noticeText}>
-                {t("home.geoGate.message")}
-              </AppText>
-            </View>
-          ) : null}
-
           {error ? (
             <AppText variant="technicalCaption" style={{ color: theme.colors.danger, textAlign: "center" }}>
               {error}
@@ -684,19 +611,6 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 8,
-  },
-  notice: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
-    gap: 8,
-  },
-  noticeText: {
-    textAlign: "center",
-  },
-  settingsLink: {
-    textAlign: "center",
-    textDecorationLine: "underline",
   },
   mapButton: {
     alignSelf: "flex-start",

@@ -15,7 +15,11 @@ import { CONTENT_LENGTHS } from "../_shared/contentLengths.ts";
 import chakraStatesBaseline from "../_shared/data/chakra_states_baseline.json" with { type: "json" };
 
 const BATCH_SIZE = 100;
-const ACTIVE_PRECOMPUTE_DAYS = 3;
+const ACTIVE_PRECOMPUTE_DAYS = 5;
+/** Keep in sync with `modules/location/defaultDayContentLocation.ts`. */
+const FALLBACK_LAT = 55.7558;
+const FALLBACK_LON = 37.6173;
+const FALLBACK_TZ = "Europe/Moscow";
 const MORNING_SCENARIO_ID = "morning_recommendation";
 const SUPPORTED_LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
 const MORNING_CACHE_OUTPUT_LOCALE_KEY = "outputLocale";
@@ -54,19 +58,28 @@ function natalProfileFromRow(row: any) {
   };
 }
 
-async function hasRecentActivity(db: any, userId: string): Promise<boolean> {
-  const cutoff = daysAgo(ACTIVE_PRECOMPUTE_DAYS);
-  const checks = await Promise.all([
-    db.from("conversations").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("started_at", cutoff),
-    db.from("practice_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("started_at", cutoff),
-    db.from("user_event_log").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("occurred_at", cutoff),
-  ]);
+function isStampWithinActiveWindow(value: unknown, cutoffIso: string): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && ms >= Date.parse(cutoffIso);
+}
 
-  for (const result of checks) {
-    if (result.error) throw result.error;
-    if ((result.count ?? 0) > 0) return true;
-  }
-  return false;
+/** Last app launch (`users.last_seen_at`) or recent onboarding — not GPS. */
+function isActiveForPrecompute(user: { last_seen_at?: string | null; onboarded_at?: string | null }): boolean {
+  const cutoff = daysAgo(ACTIVE_PRECOMPUTE_DAYS);
+  return isStampWithinActiveWindow(user.last_seen_at, cutoff) || isStampWithinActiveWindow(user.onboarded_at, cutoff);
+}
+
+function resolvePrecomputeLocation(user: { tz?: string | null; lat?: number | null; lon?: number | null }): {
+  lat: number;
+  lng: number;
+  timezone: string;
+} | null {
+  const tz = typeof user.tz === "string" && user.tz.trim() && user.tz.trim() !== "UTC" ? user.tz.trim() : FALLBACK_TZ;
+  const lat = typeof user.lat === "number" && Number.isFinite(user.lat) ? user.lat : FALLBACK_LAT;
+  const lon = typeof user.lon === "number" && Number.isFinite(user.lon) ? user.lon : FALLBACK_LON;
+  if (!tz) return null;
+  return { lat, lng: lon, timezone: tz };
 }
 
 function normalizeLocale(value: unknown): AppContentLocale {
@@ -518,17 +531,21 @@ async function precomputeMorningRecommendation(params: {
 
 async function processUser(db: any, chart: any, force: boolean, promptConfig: Awaited<ReturnType<typeof loadMorningPromptConfig>>) {
   const user = chart.users;
-  if (!user?.id || typeof user.tz !== "string" || typeof user.lat !== "number" || typeof user.lon !== "number") {
+  if (!user?.id) {
+    return { status: "skipped", reason: "missing_user" };
+  }
+  const userLocation = resolvePrecomputeLocation(user);
+  if (!userLocation) {
     return { status: "skipped", reason: "missing_location" };
   }
   if (!hasPersonalForecastAccess(user)) {
     return { status: "skipped", reason: "no_personal_forecast_access" };
   }
 
-  const localNow = DateTime.now().setZone(user.tz);
+  const localNow = DateTime.now().setZone(userLocation.timezone);
   if (!localNow.isValid) return { status: "skipped", reason: "invalid_timezone" };
   if (!force && localNow.hour !== 0) return { status: "skipped", reason: "outside_local_midnight" };
-  if (!force && !(await hasRecentActivity(db, user.id))) return { status: "skipped", reason: "inactive" };
+  if (!force && !isActiveForPrecompute(user)) return { status: "skipped", reason: "inactive" };
 
   /** `forecast_date` в БД — календарный день пользователя (IANA `users.tz`), не UTC-полночь. */
   const forecastDate = localNow.toISODate();
@@ -553,12 +570,12 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
       natalProfile,
       calibration,
       forecastDate,
-      userLocation: { lat: user.lat, lng: user.lon, timezone: user.tz },
+      userLocation,
       recentPlanetsOfDay,
     });
     const { error } = await db
       .from("user_daily_forecasts")
-      .upsert(dailyForecastToInsert(user.id, user.tz, computed), { onConflict: "user_id,forecast_date" });
+      .upsert(dailyForecastToInsert(user.id, userLocation.timezone, computed), { onConflict: "user_id,forecast_date" });
     if (error) throw error;
     forecast = computed;
     forecastStatus = "computed";
@@ -604,11 +621,8 @@ Deno.serve(async (req) => {
     const promptConfig = await loadMorningPromptConfig(db);
     let query = db
       .from("user_natal_charts")
-      .select("*, users!inner(id,tz,lat,lon,onboarded_at,locale,address_form,membership_tier,trial_expires_at,membership_expires_at)")
+      .select("*, users!inner(id,tz,lat,lon,last_seen_at,onboarded_at,locale,address_form,membership_tier,trial_expires_at,membership_expires_at)")
       .eq("is_active", true)
-      .not("users.lat", "is", null)
-      .not("users.lon", "is", null)
-      .not("users.tz", "is", null)
       .order("computed_at", { ascending: false })
       .limit(BATCH_SIZE);
 

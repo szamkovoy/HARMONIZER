@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.5
-updated: 2026-07-31
+version: 1.7
+updated: 2026-08-20
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -22,7 +22,7 @@ code_refs:
 - **`i18n`** — тексты `gate.*` и `tier.*` из JSON-каталога; язык страницы кабинета передаётся параметром `lang` (из `getResponseLocale()`), словари страницы зашиты в `web_cabinet/cabinet/index.html` (8 локалей) и НЕ входят в i18n-sync gate.
 - **`infra`** — Vercel-роуты `/api/account/*` (общие утилиты `_legacy_web/app/api/_utils/supabase.ts`); Supabase-таблицы `web_ott_tokens`, `app_config`, `payment_contracts`; publication `supabase_realtime` для `users`.
 - **`marketing_email`** — `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
-- **`location`** — `resolveBillingGeo`: приоритет `users.country_code` (Nominatim sync), иначе кэш координат + `reverseGeocodeAsync`; таймаут 800 мс без sticky EUR в SecureStore.
+- **`location`** — `resolveBillingGeo`: приоритет `users.country_code` (только GPS/Nominatim; не обнуляется при позднем отказе в гео), иначе эфемерный `GET /api/geo/ip-country` (VPN egress = страна VPN; **не** пишется в `users.country_code`). Таймаут 800 мс без sticky EUR/IP в SecureStore. Сервер: Vercel `x-vercel-ip-country`, fallback **ipwho.is**.
 - **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava или ЮKassa: вебхук успеха upsert `webinar_registrations`; `MembershipEventsBridge` детектит one_time `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground; кнопки «Отменить запись» нет.
 - **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice`, `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions`, вебхуки `/api/account/webhooks/lava`. Маппинг — `payment_offers`. Используется при `PAYMENT_LAVATOP_ENABLED` + `REGION=INT` (или country-match). См. `lava_integration.md`, `docs/04_workspace/payment_gateways.md`.
 - **ЮKassa (внешний)** — `api.yookassa.ru/v3`: create payment (redirect; подписки с `save_payment_method`, 403 → retry без save), charge saved method, GET payment, POST refund (админка); уведомления на `/api/account/webhooks/yookassa` (+ `refund.succeeded`). Цены RUB — `payment_catalog`. Выбор — `resolvePaymentGateway({ country })` (`PAYMENT_YOOKASSA_ENABLED` + `REGION`). Cron `/api/cron/yookassa-renewals`. Cancel/wipe → methods `inactive`. Fee 2.5% (`YANDEX_GATEWAY_FEE_RATE`). Ops: `docs/04_workspace/payment_gateways.md`.

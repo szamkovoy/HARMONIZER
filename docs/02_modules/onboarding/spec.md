@@ -1,8 +1,8 @@
 ---
 id: 02_modules/onboarding/spec
 title: Onboarding Wizard — spec
-version: 1.3
-updated: 2026-07-24
+version: 1.6
+updated: 2026-08-20
 depends_on: [02_modules/onboarding/dependencies, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/astro/spec]
 code_refs:
   [
@@ -20,7 +20,6 @@ code_refs:
     modules/onboarding/MaskedTextInput.tsx,
     modules/auth/AuthProvider.tsx,
     modules/auth/sign-in-email.ts,
-    modules/home/ui/GeoGate.tsx,
     services/natalProfileClient.ts,
   ]
 ---
@@ -73,10 +72,10 @@ code_refs:
   - **`MaskedTextInput`** (`modules/onboarding/MaskedTextInput.tsx`) — **сегментный ввод**: каждый сегмент маски (DD | MM | YYYY для даты, HH | MM для времени) — отдельный `TextInput` с `selectTextOnFocus` (при фокусе выделяется целиком, вводится заново; при заполнении фокус авто-переходит на следующий). Сегменты изолированы — правка одного не сдвигает цифры в другом (баг «правлю месяц → год 968Y» невозможен). Мастер пока остаётся на `format*Mask`; `NatalBirthDataModal` (Профиль) переведён на `MaskedTextInput`.
 - **Место рождения** — `BirthPlacePicker` (`modules/onboarding/ui/BirthPlacePicker.tsx`): автодополнение через `searchBirthPlaces` → прокси `GET /api/geo/search` (Vercel) → Open-Meteo Geocoding. Возвращает `GeoPlace { id, name, region, country, lat, lng, timezone }` (IANA-таймзона). Текст поля синхронизируется с `value`, когда родитель передаёт выбранное место после mount (модалка Профиля). Список подсказок — оверлей **над** полем через `WizardOverlayProvider` (`modules/onboarding/wizard/wizardOverlay.tsx`, вне `ScrollView`): rect хоста из `onLayout` корня (не `measure` пустого absolute-слоя — на Android height=0), якорь поля — `measureInWindow`; низ панели к верху поля (`bottom`). **Не** RN `Modal` для списка — на Android снимает фокус / IME. Хост в `WizardShell` и `NatalBirthDataModal`. Abort не → ошибка сети; HTTP 401 → refresh+retry.
 - **`BirthPlaceMapModal`** (`modules/onboarding/wizard/BirthPlaceMapModal.tsx`) — `react-native-maps`: интерактивная карта (зум, пан) с фиксированной меткой выбранного места (без изменения координаты), открывается кнопкой «Проверить на карте» после выбора места (а в Профиле — кнопкой «Карта» в блоке «Мои данные» для сверки сохранённого места). На Android нужен `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` → `app.config.ts` → `android.config.googleMaps.apiKey`, зашитый в **native** билд: локально из `.env.local`, на EAS из `eas env` (development/preview/production). Без ключа на этапе prebuild MapView падает с `API key not found`. iOS — Apple Maps без ключа.
-- **Геолокация:** `expo-location` `requestForegroundPermissionsAsync` + `getCurrentPositionAsync`; пишет `users.{tz,lat,lon}` на критическом пути; сразу `scheduleGeoPlaceSyncAfterCoords` → фон `country_code`/`city` через `GET /api/geo/reverse`; `location_name` — параллельно системный `reverseGeocodeAsync`.
+- **Геолокация:** системный prompt на шаге 2 (`getOrRequestForegroundLocationPermission`, `userInitiated`). Отказ **не** блокирует переход. GPS не ждём на критическом пути: `acquireAndPersistUserCoordinates` (last-known / current с таймаутом) идёт **фоном** после granted. `users.lat`/`lon` при пустом GPS natal заполняет координатами места рождения; prefetch дня использует те же координаты, чтобы ключ кэша совпал с Home.
 - `footerInContent` — «Далее» сразу под полями; страница поднимается с клавиатурой (см. §3). Пока `busy` — лейбл `wizard.nextLoading` («Идёт загрузка…»).
-- Сохранение шага 2: `createNatalProfile` и запрос гео-permission **параллельно**; затем GPS → `startForecastPrefetch` + переход на шаг 3. `refreshProfile` не блокирует переход.
-- **Ремонтный режим:** если `profile.birth_date` уже заполнен, шаг 2 стартует с предзаполненными полями; вводные шаги 3-7 и прогрев пропускаются.
+- Сохранение шага 2: `createNatalProfile` и запрос гео-permission **параллельно**. Prefetch стартует сразу после успешного натала (даже пока открыт системный диалог гео). Ошибка permission не откатывает натал. `refreshProfile` не блокирует переход.
+- **Ремонтный режим:** если `profile.onboarded_at` уже есть, шаг 2 стартует с предзаполненными полями; вводные шаги 3-7 и прогрев пропускаются.
 
 ## 6. Шаги 3-7 — вводные экраны (`INTRO_STEPS`)
 
@@ -84,7 +83,7 @@ code_refs:
 
 ## 7. Прогрев дневного контента
 
-- **Старт:** сразу после успешного шага 2 (рождение сохранено + гео выдана) — `fetchDailyForecast({ forceRefresh: true, timeoutMs: ONBOARDING_DAILY_FORECAST_TIMEOUT_MS, responseLocale })`. Обычный load без `forceRefresh` отдаёт только числовой каркас и тексты из кэша крона; у нового пользователя кэш пуст, поэтому нужен `forceRefresh` → сервер вызывает `ensureMorningRecommendation` (один ответ LLM: слоган + короткая + длинная рекомендация).
+- **Старт:** сразу после успешного сохранения натала на шаге 2 (не после GPS) — `fetchDailyForecast({ forceRefresh: true, timeoutMs: ONBOARDING_DAILY_FORECAST_TIMEOUT_MS, responseLocale })`. Обычный load без `forceRefresh` отдаёт только числовой каркас и тексты из кэша крона; у нового пользователя кэш пуст, поэтому нужен `forceRefresh` → сервер вызывает `ensureMorningRecommendation` (один ответ LLM: слоган + короткая + длинная рекомендация). Координаты запроса — место рождения (то, что natal пишет в `users.lat` при ещё пустом GPS). Если пользователь разрешил гео, lat/lon обновятся фоном; Home подхватит тексты через relaxed cache и при необходимости тихо пересчитает окна.
 - **Кэш телефона:** `saveDayContentCache` с ключами из `services/dayContentScope.ts` (`dayContentNatalScopeKey` нормализует `birth_time` к канону `HH:MM:SS` — как Postgres при чтении; мастер `12:45` → `12:45:00`, чтобы ключ совпадал с Home).
 - **Шаги 3–7:** пользователь читает интро, пока идёт прогрев.
 - **После шага 7:** если слоган + короткая рекомендация уже готовы → сразу `finishOnboarding()` (экран «Готовим ваш день» не показываем). Иначе → `step === "warm"` и ждём тот же promise.
@@ -93,19 +92,19 @@ code_refs:
 
 ## 7.1 Геолокация на шаге 2
 
-Без foreground-геолокации мастер **не переходит** на шаг 3. Системный диалог → отказ → карточка как у Home `GeoGate` (`home.geoGate.*`): «Разрешить» / «Открыть настройки» (если `canAskAgain === false`) / «Закрыть приложение» (Android `BackHandler.exitApp`, iOS `signOut`). Поля рождения остаются на экране.
+На шаге 2 по-прежнему запрашивается foreground-геолокация (системный диалог). Отказ **не** блокирует переход на шаги 3–7: мастер идёт дальше, prefetch дня уже запущен с координатами места рождения. `users.country_code` при отказе **не** заполняется с IP; кабинет возьмёт IP эфемерно, только если это поле пусто. График «Окон возможностей» на главной в этом случае заменяется CTA «Включить геолокацию»; слоган, рекомендация и остальные блоки главной считаются как обычно.
 
 ## 8. Legal (`modules/onboarding/wizard/LegalDocuments.tsx`)
 
 `LegalFooter` — кликабельные ссылки «Пользовательское соглашение» / «Политика конфиденциальности» → `LegalDocumentModal`. Проп `tone`: `"consent"` (мастер шаг 1 — префикс «Продолжая…» + genitive link labels) | `"links"` (Профиль — только две ссылки в именительном через `termsTitle`/`privacyTitle`). Модалка: backdrop — абсолютный `Pressable`-ловец за листом, лист — `View` (не `Pressable`, чтобы не ломать скролл), тело в `ScrollView` `flex:1` (скроллится), `contentContainerStyle.paddingTop: 10` над первой строкой; «Закрыть» зафиксирована внизу; закрытие не размонтирует экран под модалкой (скролл Профиля сохраняется). Тексты — `wizard.legal.*` в активной локали приложения.
 
-## 9. Geo-gate на главной (`modules/home/ui/GeoGate.tsx`)
+## 9. Геолокация на главной (не гейт)
 
-Не часть мастера, но связан с шагом 2: если foreground-location permission отсутствует/отозван, Home-вкладка (`app/(tabs)/index.tsx`) показывает `GeoGate` — карточку «Разрешите геолокацию» с кнопками «Разрешить» / «Открыть настройки» (когда `canAskAgain === false`) / «Закрыть приложение» (Android `BackHandler.exitApp()`; iOS — `signOut()` как выход, т.к. iOS не позволяет закрыть приложение программно). Ключи `home.geoGate.*` в каталоге.
+`GeoGate` снят (App Store 5.1.1): Home открывается без разрешения. На каждом cold start, если foreground-гео не granted, вызывается системный prompt (`promptForegroundLocationOnLaunch` / `acquireAndPersistUserCoordinates`). После iOS «Don't Allow» / Android «Don't ask again» ОС диалог больше не показывает (`canAskAgain === false` → CTA открывает настройки). Если доступ есть — блок «Окна возможностей» с графиком; если нет — текст `home.opportunityWindows.needLocation` и кнопка `home.opportunityWindows.enableLocationButton` (`modules/home/ui/OpportunityWindows.tsx` + `useForegroundLocationPermission`).
 
 ## 10. i18n
 
-Все строки мастера — в `modules/i18n/catalog/*.json` (`wizard.*`, `onboarding.birth.*`, `home.geoGate.*`). Синхронизация 8 локалей — `scripts/i18n-sync.mjs` (`fill --all` переводит через `AI_MODEL_PREMIUM`, `check` валидирует `en`). Native-имя приложения и reason-строки iOS-разрешений локализуются отдельно через `app.config.ts` `expo.locales` (см. `i18n/spec.md`).
+Все строки мастера — в `modules/i18n/catalog/*.json` (`wizard.*`, `onboarding.birth.*`, `home.opportunityWindows.needLocation` / `enableLocationButton`). Синхронизация 8 локалей — `scripts/i18n-sync.mjs` (`fill --all` переводит через `AI_MODEL_PREMIUM`, `check` валидирует `en`). Native-имя приложения и reason-строки iOS-разрешений локализуются отдельно через `app.config.ts` `expo.locales` (см. `i18n/spec.md`).
 
 ## 11. Известные ограничения
 

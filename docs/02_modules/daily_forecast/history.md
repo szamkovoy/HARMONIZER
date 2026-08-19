@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.39
-updated: 2026-08-16
+version: 2.43
+updated: 2026-08-20
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -22,6 +22,14 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-20 (5-day idle + warmup cache):** Крон `precompute-daily-forecasts` греет paid при активности **5 дней**. Онбординг не ждёт GPS перед prefetch; Home красит день из relaxed phone-cache, если GPS-координаты уже другие. Первый GPS → обычный `refresh()`, не `forceRefresh`.
+
+- **2026-08-20 (home cache vs GPS):** Paid Home больше не ждёт системный диалог гео перед кэшем/сервером. Крон `precompute-daily-forecasts`: активность = `last_seen_at` (тогда 3 дня), GPS не обязателен (last coords или Moscow+tz). График «Окон возможностей» по-прежнему только при granted; остальная главная открывается из pre-warm.
+
+- **2026-08-20 (launch location prompt):** На каждом cold start без granted — системный запрос гео (`promptForegroundLocationOnLaunch`), даже если в профиле уже есть lat/lon. После постоянного отказа ОС диалог не показывает. `users.country_code` не заполняется с IP.
+
+- **2026-08-19 (location optional):** Снят Home `GeoGate`. Paid без GPS открывает главную с fallback-координатами; график «Окон возможностей» только при granted, иначе CTA (8 локалей). `denied→granted` → обычный `refresh()`.
 
 - **2026-08-16 (opportunity reminder timing):** Локальные DATE-напоминания в `OpportunityWindows` — late-delivery grace + Android exact-alarm gate (см. `notifications` history). Копирайт `reminderExactAlarm*` в `getHomeStrings`.
 

@@ -1,14 +1,16 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.14
-updated: 2026-08-14
+version: 1.16
+updated: 2026-08-20
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
     modules/account/index.ts,
     modules/account/core/openAccountCabinet.ts,
     modules/account/core/billingCurrency.ts,
+    modules/account/core/cabinetCountry.ts,
+    _legacy_web/app/api/geo/ip-country/route.ts,
     modules/account/core/accountLinksConfig.ts,
     modules/account/core/accountFlagsStore.ts,
     modules/account/core/purchasesClient.ts,
@@ -68,7 +70,7 @@ code_refs:
 Экспорт `modules/account/index.ts`:
 
 - **`openAccountCabinet(ctx?: CabinetContext): Promise<void>`** — `POST /api/account/ott` (Bearer JWT приложения) → `WebBrowser.openBrowserAsync("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")` (SFSafariViewController / Chrome Custom Tabs; на Android `createTask: false`, чтобы не убивать Activity). Бросает ошибку при недоступности OTT (UI показывает `gate.cabinetError`). `ctx`: `"tier"` (default) | `"webinar:<id>"` | `"course:<id>"` — задел под вебинары/курсы. Перед открытием пишет флаг `cabinetVisit.{userId}` (см. `readFreshCabinetVisit`).
-- **`resolveBillingGeo` / `resolveBillingCurrency`** — страна/валюта кабинета: **сначала** `users.country_code` (уже от GeoGate / `maybeSyncUserGeoPlace`), иначе reverse-geocode кэша GPS → RU=RUB, US=USD, иначе EUR. В ссылку уходят `currency` + `country` (шлюз). Timeout **800 мс** даёт эфемерный EUR **без** записи в SecureStore (раньше залипал EUR→Lava); trusted geo (есть ISO country) персистится.
+- **`resolveBillingGeo` / `resolveBillingCurrency`** — страна/валюта кабинета: **сначала** `users.country_code` (только Nominatim после GPS; поле не обнуляется, если позже доступ к гео запретили), иначе **`GET /api/geo/ip-country`** (Vercel `x-vercel-ip-country`, fallback ipwho.is по публичному IP / VPN egress) → RU=RUB, US=USD, иначе EUR. IP **не** пишется в `users.country_code` и **не** персистится в SecureStore (VPN не должен засорять GPS-поле). В ссылку уходят `currency` + `country` (шлюз). Timeout **800 мс** даёт эфемерный EUR **без** записи в SecureStore; GPS-страна из профиля персистится.
 - **`getAccountCabinetUrl()`** — URL кабинета; переопределяется `EXPO_PUBLIC_ACCOUNT_CABINET_URL`.
 - **`useAccountLinksEnabled(): boolean`** / **`getAccountLinksEnabled()`** — kill-switch из `app_config` (in-memory TTL 5 мин + персист последнего явного значения; fail-safe `false`). «Нет строк»/сеть/503 schema cache НЕ пишутся как свежее `false`; при ошибке — ретраи, затем прежний кэш/персист. Персист убирает мигание кнопки на Профиле, пока идёт refetch.
 - **`MembershipEventsBridge`** — компонент без UI-поверхности (кроме модалок), монтируется один раз в `app/_layout.tsx` под `AuthProvider`.

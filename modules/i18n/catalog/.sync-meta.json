@@ -382,7 +382,9 @@
     "affirmation.manage.zoneLegend": "{letter} — {label}",
     "affirmation.manage.phasesLegendPrefix": "Фазы освоения:",
     "affirmation.create.recordingCountdown": "Осталось {seconds} с — запись остановится автоматически",
-    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально."
+    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально.",
+    "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геолокации.",
+    "home.opportunityWindows.enableLocationButton": "Включить геолокацию"
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -767,7 +769,9 @@
     "affirmation.manage.zoneLegend": "{letter} — {label}",
     "affirmation.manage.phasesLegendPrefix": "Фазы освоения:",
     "affirmation.create.recordingCountdown": "Осталось {seconds} с — запись остановится автоматически",
-    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально."
+    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально.",
+    "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геолокации.",
+    "home.opportunityWindows.enableLocationButton": "Включить геолокацию"
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -1152,7 +1156,9 @@
     "affirmation.manage.zoneLegend": "{letter} — {label}",
     "affirmation.manage.phasesLegendPrefix": "Фазы освоения:",
     "affirmation.create.recordingCountdown": "Осталось {seconds} с — запись остановится автоматически",
-    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально."
+    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально.",
+    "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геолокации.",
+    "home.opportunityWindows.enableLocationButton": "Включить геолокацию"
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -1537,7 +1543,9 @@
     "affirmation.manage.zoneLegend": "{letter} — {label}",
     "affirmation.manage.phasesLegendPrefix": "Фазы освоения:",
     "affirmation.create.recordingCountdown": "Осталось {seconds} с — запись остановится автоматически",
-    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально."
+    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально.",
+    "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геолокации.",
+    "home.opportunityWindows.enableLocationButton": "Включить геолокацию"
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -1922,7 +1930,9 @@
     "affirmation.manage.zoneLegend": "{letter} — {label}",
     "affirmation.manage.phasesLegendPrefix": "Фазы освоения:",
     "affirmation.create.recordingCountdown": "Осталось {seconds} с — запись остановится автоматически",
-    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально."
+    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально.",
+    "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геолокации.",
+    "home.opportunityWindows.enableLocationButton": "Включить геолокацию"
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -2307,7 +2317,9 @@
     "affirmation.manage.zoneLegend": "{letter} — {label}",
     "affirmation.manage.phasesLegendPrefix": "Фазы освоения:",
     "affirmation.create.recordingCountdown": "Осталось {seconds} с — запись остановится автоматически",
-    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально."
+    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально.",
+    "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геолокации.",
+    "home.opportunityWindows.enableLocationButton": "Включить геолокацию"
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -2692,6 +2704,8 @@
     "affirmation.manage.zoneLegend": "{letter} — {label}",
     "affirmation.manage.phasesLegendPrefix": "Фазы освоения:",
     "affirmation.create.recordingCountdown": "Осталось {seconds} с — запись остановится автоматически",
-    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально."
+    "affirmation.create.step3.selectHint": "Выберите аффирмацию, которая вам наиболее подходит. Далее вы сможете отредактировать её так, чтобы она подошла вам идеально.",
+    "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геолокации.",
+    "home.opportunityWindows.enableLocationButton": "Включить геолокацию"
   }
 }

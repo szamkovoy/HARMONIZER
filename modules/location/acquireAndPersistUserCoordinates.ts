@@ -1,5 +1,7 @@
 import * as Location from "expo-location";
 
+import { invalidateBillingGeoCache } from "@/modules/account/core/billingCurrency";
+import { notifyForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
 import { scheduleGeoPlaceSyncAfterCoords } from "@/modules/location/syncUserGeoPlace";
 import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { requireSupabase } from "@/services/supabase";
@@ -16,6 +18,63 @@ export type LocationAcquireResult =
 /** Не держим home на сплэше дольше этого при cold GPS. */
 export const LOCATION_ACQUIRE_TIMEOUT_MS = 12_000;
 const LAST_KNOWN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+let permissionRequestInFlight: Promise<Location.LocationPermissionResponse> | null = null;
+/** Auto (launch/Home) already called the OS prompt this process — don't spam it. */
+let autoPromptedThisProcess = false;
+let acquireInFlight: Promise<LocationAcquireResult> | null = null;
+
+export type LocationPermissionRequestOptions = {
+  /** CTA / onboarding Next — may ask again even after the launch auto-prompt. */
+  userInitiated?: boolean;
+};
+
+/**
+ * Foreground location permission. Auto callers ask at most once per process;
+ * a user tap can still invoke the OS prompt (if the OS still allows it).
+ *
+ * After iOS «Don't Allow» / Android «Don't ask again», the OS will not show
+ * the system dialog again — `request` returns denied immediately.
+ */
+export async function getOrRequestForegroundLocationPermission(
+  options?: LocationPermissionRequestOptions,
+): Promise<Location.LocationPermissionResponse> {
+  const current = await Location.getForegroundPermissionsAsync();
+  if (current.status === "granted") return current;
+  if (permissionRequestInFlight) return permissionRequestInFlight;
+  if (!options?.userInitiated && autoPromptedThisProcess) return current;
+
+  autoPromptedThisProcess = true;
+  logRuntimeEvent("location:auto_perm_request", {
+    prior: current.status,
+    userInitiated: Boolean(options?.userInitiated),
+  });
+  permissionRequestInFlight = Location.requestForegroundPermissionsAsync().finally(() => {
+    permissionRequestInFlight = null;
+  });
+  return permissionRequestInFlight;
+}
+
+/**
+ * Cold-start: if location is not granted, ask the OS (once per process).
+ * Does not persist IP into `users.country_code`.
+ */
+export async function promptForegroundLocationOnLaunch(userId: string): Promise<void> {
+  try {
+    const before = await Location.getForegroundPermissionsAsync();
+    const perm = await getOrRequestForegroundLocationPermission();
+    notifyForegroundLocationPermissionChanged();
+    if (perm.status === "granted" && before.status !== "granted") {
+      void acquireAndPersistUserCoordinates(userId);
+    }
+  } catch (error) {
+    logRuntimeEvent(
+      "location:launch_prompt_error",
+      { message: error instanceof Error ? error.message : String(error) },
+      "warn",
+    );
+  }
+}
 
 function deviceTimeZone(): string {
   try {
@@ -75,53 +134,63 @@ async function persistCoords(
   return { ok: true, coords: { lat, lng: lon, timezone: tz }, persisted: true };
 }
 
+async function acquireAndPersistUserCoordinatesImpl(userId: string): Promise<LocationAcquireResult> {
+  logRuntimeEvent("location:auto_acquire_start", { userId }, "info");
+  const perm = await getOrRequestForegroundLocationPermission();
+  if (perm.status !== "granted") {
+    logRuntimeEvent("location:auto_perm_denied", { status: perm.status }, "warn");
+    notifyForegroundLocationPermissionChanged();
+    return { ok: false, reason: "permission_denied" };
+  }
+  notifyForegroundLocationPermissionChanged();
+
+  const pos = await readPosition();
+  if (!pos) {
+    return { ok: false, reason: "timeout" };
+  }
+
+  const coords: UserLocationCoords = {
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude,
+    timezone: deviceTimeZone(),
+  };
+  await saveCachedUserCoords(userId, coords);
+
+  const result = await persistCoords(userId, coords.lat, coords.lng, coords.timezone);
+  if (result.ok) {
+    logRuntimeEvent("location:auto_acquire_ok", { accuracy: pos.coords.accuracy ?? null }, "info");
+    invalidateBillingGeoCache();
+    return result;
+  }
+
+  logRuntimeEvent(
+    "location:auto_acquire_coords_only",
+    { reason: result.reason, accuracy: pos.coords.accuracy ?? null },
+    "warn",
+  );
+  return { ok: true, coords, persisted: false };
+}
+
 /**
  * Запрашивает foreground-доступ к геолокации (если нужно), читает текущую или
  * последнюю известную точку (с таймаутом), пишет lat/lon/tz в `public.users`.
+ * `country_code` не трогает: страну пишет только Nominatim после GPS.
  */
 export async function acquireAndPersistUserCoordinates(userId: string): Promise<LocationAcquireResult> {
-  try {
-    logRuntimeEvent("location:auto_acquire_start", { userId }, "info");
-    let perm = await Location.getForegroundPermissionsAsync();
-    if (perm.status !== "granted") {
-      logRuntimeEvent("location:auto_perm_request", { prior: perm.status }, "info");
-      perm = await Location.requestForegroundPermissionsAsync();
+  if (acquireInFlight) return acquireInFlight;
+  acquireInFlight = (async () => {
+    try {
+      return await acquireAndPersistUserCoordinatesImpl(userId);
+    } catch (error) {
+      logRuntimeEvent(
+        "location:auto_acquire_error",
+        { message: error instanceof Error ? error.message : String(error) },
+        "warn",
+      );
+      return { ok: false, reason: "unavailable" as const };
     }
-    if (perm.status !== "granted") {
-      logRuntimeEvent("location:auto_perm_denied", { status: perm.status }, "warn");
-      return { ok: false, reason: "permission_denied" };
-    }
-
-    const pos = await readPosition();
-    if (!pos) {
-      return { ok: false, reason: "timeout" };
-    }
-
-    const coords: UserLocationCoords = {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      timezone: deviceTimeZone(),
-    };
-    await saveCachedUserCoords(userId, coords);
-
-    const result = await persistCoords(userId, coords.lat, coords.lng, coords.timezone);
-    if (result.ok) {
-      logRuntimeEvent("location:auto_acquire_ok", { accuracy: pos.coords.accuracy ?? null }, "info");
-      return result;
-    }
-
-    logRuntimeEvent(
-      "location:auto_acquire_coords_only",
-      { reason: result.reason, accuracy: pos.coords.accuracy ?? null },
-      "warn",
-    );
-    return { ok: true, coords, persisted: false };
-  } catch (error) {
-    logRuntimeEvent(
-      "location:auto_acquire_error",
-      { message: error instanceof Error ? error.message : String(error) },
-      "warn",
-    );
-    return { ok: false, reason: "unavailable" };
-  }
+  })().finally(() => {
+    acquireInFlight = null;
+  });
+  return acquireInFlight;
 }
