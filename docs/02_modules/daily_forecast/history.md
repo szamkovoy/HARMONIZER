@@ -1,7 +1,7 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.43
+version: 2.45
 updated: 2026-08-20
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
@@ -22,6 +22,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-20 (Ask Next Time → system sheet):** Возврат из Настроек после «Спросить в следующий раз» сразу показывает системный лист геолокации (не требует второго тапа по CTA).
+
+- **2026-08-20 (Settings grant survives kill):** График «Окон возможностей» после grant в Настройках: persist-флаг + опрос permission на cold start (iOS убивает процесс при Never→While Using).
 
 - **2026-08-20 (5-day idle + warmup cache):** Крон `precompute-daily-forecasts` греет paid при активности **5 дней**. Онбординг не ждёт GPS перед prefetch; Home красит день из relaxed phone-cache, если GPS-координаты уже другие. Первый GPS → обычный `refresh()`, не `forceRefresh`.
 

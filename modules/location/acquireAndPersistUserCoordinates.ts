@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import { InteractionManager } from "react-native";
+import { InteractionManager, Linking, Platform } from "react-native";
 
 import { invalidateBillingGeoCache } from "@/modules/account/core/billingCurrency";
 import { notifyForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
@@ -21,8 +21,45 @@ export const LOCATION_ACQUIRE_TIMEOUT_MS = 12_000;
 const LAST_KNOWN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** After OTP / splash, iOS swallows the permission alert if we present it mid-navigation. */
 const LAUNCH_PROMPT_SETTLE_MS = 700;
+/** Survives iOS process kill when Location goes Never → While Using. */
+const AWAIT_SETTINGS_GRANT_KEY = "harmonizer.location.awaitingSettingsGrant";
+
+type SecureStoreLike = typeof import("expo-secure-store");
+
+function getSecureStore(): SecureStoreLike | null {
+  if (Platform.OS === "web") return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("expo-secure-store") as SecureStoreLike;
+  } catch {
+    return null;
+  }
+}
+
+export async function markAwaitingLocationSettingsGrant(value: boolean): Promise<void> {
+  const store = getSecureStore();
+  if (!store) return;
+  try {
+    if (value) await store.setItemAsync(AWAIT_SETTINGS_GRANT_KEY, "1");
+    else await store.deleteItemAsync(AWAIT_SETTINGS_GRANT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function isAwaitingLocationSettingsGrant(): Promise<boolean> {
+  const store = getSecureStore();
+  if (!store) return false;
+  try {
+    return (await store.getItemAsync(AWAIT_SETTINGS_GRANT_KEY)) === "1";
+  } catch {
+    return false;
+  }
+}
 
 let permissionRequestInFlight: Promise<Location.LocationPermissionResponse> | null = null;
+/** After Settings: one system-sheet attempt shared by launch + Opportunity Windows. */
+let settingsReturnPromptInFlight: Promise<Location.LocationPermissionResponse> | null = null;
 /** Auto (launch/Home) already called the OS prompt this process — don't spam it. */
 let autoPromptedThisProcess = false;
 let acquireInFlight: Promise<LocationAcquireResult> | null = null;
@@ -40,34 +77,43 @@ export function resetLocationPermissionAutoPrompt(): void {
   autoPromptedThisProcess = false;
 }
 
-export type LocationPermissionRequestOptions = {
-  /** CTA / onboarding Next — may ask again even after the launch auto-prompt. */
-  userInitiated?: boolean;
-};
+function osLocationDialogUnavailable(perm: Location.LocationPermissionResponse): boolean {
+  return perm.status !== "granted" && perm.status !== "undetermined" && perm.canAskAgain === false;
+}
+
+function osCanShowLocationDialog(perm: Location.LocationPermissionResponse): boolean {
+  return !osLocationDialogUnavailable(perm);
+}
+
+export function osCanShowForegroundLocationDialog(perm: Location.LocationPermissionResponse): boolean {
+  return osCanShowLocationDialog(perm);
+}
+
+export function isForegroundLocationGranted(perm: Location.LocationPermissionResponse): boolean {
+  return perm.status === "granted" || perm.granted === true;
+}
 
 /**
- * Foreground location permission. Auto callers ask at most once per process;
- * a user tap can still invoke the OS prompt (if the OS still allows it).
- *
- * After iOS «Don't Allow» / Android «Don't ask again», the OS will not show
- * the system dialog again — `request` returns denied immediately.
+ * App settings page (`Linking.openSettings` / `UIApplication.openSettingsURLString`).
+ * iOS has no public URL for the nested Location radio page (Never / Ask Next Time /
+ * While Using) — Location is the first row on this screen.
  */
-export async function getOrRequestForegroundLocationPermission(
-  options?: LocationPermissionRequestOptions,
-): Promise<Location.LocationPermissionResponse> {
-  const current = await Location.getForegroundPermissionsAsync();
-  if (current.status === "granted") return current;
-  if (permissionRequestInFlight) return permissionRequestInFlight;
-  // Auto callers: at most once per JS process. User CTA always reaches the OS API below.
-  if (!options?.userInitiated && autoPromptedThisProcess) {
-    return current;
-  }
+export async function openAppLocationSettings(): Promise<void> {
+  logRuntimeEvent("location:open_settings", {});
+  await Linking.openSettings();
+}
 
-  autoPromptedThisProcess = true;
-  logRuntimeEvent("location:auto_perm_request", {
+/**
+ * System location dialog. Does not open Settings — callers open settings themselves
+ * when the OS already cannot show a dialog (iOS «Never»).
+ */
+export async function requestForegroundLocationPermission(): Promise<Location.LocationPermissionResponse> {
+  const current = await Location.getForegroundPermissionsAsync();
+  if (isForegroundLocationGranted(current)) return current;
+  if (permissionRequestInFlight) return permissionRequestInFlight;
+  logRuntimeEvent("location:perm_request", {
     prior: current.status,
     canAskAgain: current.canAskAgain,
-    userInitiated: Boolean(options?.userInitiated),
   });
   permissionRequestInFlight = Location.requestForegroundPermissionsAsync().finally(() => {
     permissionRequestInFlight = null;
@@ -76,25 +122,104 @@ export async function getOrRequestForegroundLocationPermission(
 }
 
 /**
- * Cold-start: if location is not granted, ask the OS (once per process).
- * Does not persist IP into `users.country_code`.
+ * After Settings we opened: «Ask Next Time» is not a grant — only the system
+ * sheet can grant. Show that sheet immediately so the user does not tap CTA twice.
+ * iOS may still report Never for a moment after the radio change — retry briefly.
+ * «While Using» is already granted. Still «Never» after retries → no-op.
+ */
+export async function promptForegroundLocationAfterSettingsReturn(
+  source: string,
+): Promise<Location.LocationPermissionResponse> {
+  if (settingsReturnPromptInFlight) return settingsReturnPromptInFlight;
+  settingsReturnPromptInFlight = (async () => {
+    const retryDelayMs = 350;
+    const retryCount = 8;
+    let last = await Location.getForegroundPermissionsAsync();
+    for (let i = 0; i < retryCount; i += 1) {
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        last = await Location.getForegroundPermissionsAsync();
+      }
+      if (isForegroundLocationGranted(last)) {
+        await markAwaitingLocationSettingsGrant(false);
+        notifyForegroundLocationPermissionChanged();
+        return last;
+      }
+      if (osCanShowLocationDialog(last)) {
+        logRuntimeEvent("location:settings_return_prompt", {
+          source,
+          attempt: i,
+          status: last.status,
+          canAskAgain: last.canAskAgain,
+        });
+        const perm = await requestForegroundLocationPermission();
+        await markAwaitingLocationSettingsGrant(false);
+        notifyForegroundLocationPermissionChanged();
+        logRuntimeEvent("location:settings_return_result", {
+          source,
+          status: perm.status,
+          canAskAgain: perm.canAskAgain,
+        });
+        return perm;
+      }
+    }
+    logRuntimeEvent("location:settings_return_still_never", {
+      source,
+      status: last.status,
+      canAskAgain: last.canAskAgain,
+    });
+    return last;
+  })().finally(() => {
+    settingsReturnPromptInFlight = null;
+  });
+  return settingsReturnPromptInFlight;
+}
+
+/**
+ * After login / Home load:
+ * - granted → acquire GPS
+ * - Ask Next Time / Allow Once / never-asked → system dialog (once per JS process)
+ * - Never → do nothing; Opportunity Windows CTA opens settings
+ * - returning from Settings with Ask Next Time → system dialog immediately
  */
 export async function promptForegroundLocationOnLaunch(userId: string): Promise<void> {
   try {
     await waitForUiSettle();
     const before = await Location.getForegroundPermissionsAsync();
-    if (before.status === "granted") {
+    if (isForegroundLocationGranted(before)) {
+      await markAwaitingLocationSettingsGrant(false);
+      notifyForegroundLocationPermissionChanged();
+      void acquireAndPersistUserCoordinates(userId);
+      return;
+    }
+    if (await isAwaitingLocationSettingsGrant()) {
+      const perm = await promptForegroundLocationAfterSettingsReturn("launch");
+      if (isForegroundLocationGranted(perm)) {
+        void acquireAndPersistUserCoordinates(userId);
+      }
+      return;
+    }
+    if (!osCanShowLocationDialog(before)) {
+      notifyForegroundLocationPermissionChanged();
+      logRuntimeEvent("location:launch_prompt_skip_never", {
+        status: before.status,
+        canAskAgain: before.canAskAgain,
+      });
+      return;
+    }
+    if (autoPromptedThisProcess) {
       notifyForegroundLocationPermissionChanged();
       return;
     }
-    const perm = await getOrRequestForegroundLocationPermission();
+    autoPromptedThisProcess = true;
+    const perm = await requestForegroundLocationPermission();
     notifyForegroundLocationPermissionChanged();
     logRuntimeEvent("location:launch_prompt_result", {
       prior: before.status,
       status: perm.status,
       canAskAgain: perm.canAskAgain,
     });
-    if (perm.status === "granted" && before.status !== "granted") {
+    if (isForegroundLocationGranted(perm)) {
       void acquireAndPersistUserCoordinates(userId);
     }
   } catch (error) {
@@ -166,8 +291,8 @@ async function persistCoords(
 
 async function acquireAndPersistUserCoordinatesImpl(userId: string): Promise<LocationAcquireResult> {
   logRuntimeEvent("location:auto_acquire_start", { userId }, "info");
-  const perm = await getOrRequestForegroundLocationPermission();
-  if (perm.status !== "granted") {
+  const perm = await Location.getForegroundPermissionsAsync();
+  if (!isForegroundLocationGranted(perm)) {
     logRuntimeEvent("location:auto_perm_denied", { status: perm.status }, "warn");
     notifyForegroundLocationPermissionChanged();
     return { ok: false, reason: "permission_denied" };
@@ -202,8 +327,8 @@ async function acquireAndPersistUserCoordinatesImpl(userId: string): Promise<Loc
 }
 
 /**
- * Запрашивает foreground-доступ к геолокации (если нужно), читает текущую или
- * последнюю известную точку (с таймаутом), пишет lat/lon/tz в `public.users`.
+ * Читает GPS и пишет lat/lon/tz в `public.users`, только если foreground-доступ
+ * уже выдан. Системный диалог не вызывает — его показывают launch / onboarding / CTA.
  * `country_code` не трогает: страну пишет только Nominatim после GPS.
  */
 export async function acquireAndPersistUserCoordinates(userId: string): Promise<LocationAcquireResult> {

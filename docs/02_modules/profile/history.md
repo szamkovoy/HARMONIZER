@@ -1,13 +1,23 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.40
+version: 1.42
 updated: 2026-08-20
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-08-20 (Ask Next Time → system sheet):** После Settings с «Спросить в следующий раз» сразу системный лист, без второго тапа по CTA.
+
+- **2026-08-20 (Settings grant survives kill):** Флаг ожидания grant после `openSettings` в SecureStore; опрос «Окон возможностей» на cold start; launch не показывает OS-диалог, пока флаг стоит.
+
+- **2026-08-20 (Never silent launch):** При «Никогда» вход без OS-диалога. CTA открывает `openSettings`. Вложенный Location-экран iOS не открывается публичным API.
+
+- **2026-08-20 (Never → Settings fallback):** Если ОС уже не показывает системный диалог («Никогда»), launch / CTA открывают настройки приложения. Сразу после «Don't Allow» Settings не открывается.
+
+- **2026-08-20 (unified OS location dialog):** Launch / onboarding / CTA — один системный `requestForegroundPermissionsAsync`. `acquireAndPersistUserCoordinates` больше не вызывает диалог (чтобы не глотать launch-prompt). `signOut` сбрасывает `autoPromptedThisProcess`.
 
 - **2026-08-20 (launch prompt after sign-out):** `signOut` сбрасывает `autoPromptedThisProcess`; повторный OTP-вход снова вызывает системный запрос гео после settle навигации. Если в Настройках iPhone для приложения стоит «Никогда», iOS диалог не показывает.
 

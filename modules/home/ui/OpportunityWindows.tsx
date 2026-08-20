@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Ionicons } from "@expo/vector-icons";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -366,10 +367,17 @@ export function OpportunityWindows({
   const theme = useTheme();
   const { authUser } = useAuth();
   const { t: tCatalog } = useTranslate();
-  const locationPermission = useForegroundLocationPermission({
-    onGranted: onLocationGranted,
-  });
-  const showGraph = locationPermission.status === "granted";
+  const { status: locationStatus, request: requestLocationPermission, recheck: recheckLocationPermission } =
+    useForegroundLocationPermission({
+      onGranted: onLocationGranted,
+      userId: authUser?.id,
+    });
+  useFocusEffect(
+    useCallback(() => {
+      recheckLocationPermission();
+    }, [recheckLocationPermission]),
+  );
+  const showGraph = locationStatus === "granted";
   const [reminderTarget, setReminderTarget] = useState<WindowItem | null>(null);
   const [reminderMode, setReminderMode] = useState<"exact" | "before5">("exact");
   const [reminderTitleText, setReminderTitleText] = useState("");
@@ -887,20 +895,18 @@ export function OpportunityWindows({
         ) : null}
       </SurfaceCardHeader>
 
-      {locationPermission.status === "checking" ? (
+      {locationStatus === "checking" ? (
         <View style={styles.locationPrompt}>
           <ActivityIndicator color={theme.colors.accent} />
         </View>
-      ) : locationPermission.status === "denied" ? (
+      ) : locationStatus === "denied" ? (
         <View style={styles.locationPrompt}>
           <AppText variant="screenHint" tone="muted" style={styles.locationPromptText}>
             {tCatalog("home.opportunityWindows.needLocation")}
           </AppText>
           <AppButton
             label={tCatalog("home.opportunityWindows.enableLocationButton")}
-            onPress={() => void locationPermission.request()}
-            busy={locationPermission.busy}
-            disabled={locationPermission.busy}
+            onPress={() => void requestLocationPermission()}
           />
         </View>
       ) : (
