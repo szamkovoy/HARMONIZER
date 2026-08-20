@@ -3,7 +3,7 @@
  *
  * Использует тот же `computePracticeHrvMetrics`: внутри — Хампель с импутацией медианой
  * (для Баевского), `calculateBaevskyStressIndexRaw`, медиана по блокам, нормировка
- * `mapBaevskyStressToPercent` (`BAEVSKY_STRESS_PERCENT_DIVISOR = 220`).
+ * `mapBaevskyStressToPercent` (`BAEVSKY_STRESS_PERCENT_K = 190`).
  *
  * EMA-сглаживание (12 s τ) — в UI-адаптере, не здесь.
  */

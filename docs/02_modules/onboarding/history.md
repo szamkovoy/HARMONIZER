@@ -1,7 +1,7 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.8
+version: 1.11
 updated: 2026-08-20
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
@@ -9,6 +9,28 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-08-20 (wizard image prefetch):** При монтировании `app/onboarding.tsx` (шаг 2) все картинки шагов 2–7 рендерятся в скрытом off-screen контейнере (`WizardImagePrefetch`) — RN декодирует jpg-и в image-cache, пока пользователь заполняет данные рождения. Раньше при переходе на шаги 3–7 новая картинка «мигала» старой ~1 с (декод в момент первого рендера). Прогрев только в мастере; зарегистрированный запуск `app/onboarding.tsx` не монтирует.
+
+- **2026-08-20 (OS-aligned location terminology):** `home.opportunityWindows.needLocation` / `enableLocationButton` переведены на название функции в Настройках ОС для каждой локали (RU «геопозиция» вместо «геолокация», DE «Ortung» вместо «Standort», FR/IT/ES/PT «localisation/localizzazione/localización/localização» вместо «géolocalisation/…», EN/NL уже совпадали). Текст приложения теперь совпадает с заголовком строки Settings → [App]. 8 локалей обновлены вручную, `.sync-meta.json` синхронизирован.
+
+- **2026-08-20 (Ask Next Time → system sheet):** «Спросить в следующий раз» / «разрешить в этот раз» в Настройках не выдаёт доступ. При возврате сразу системный лист (`promptForegroundLocationAfterSettingsReturn`), без второго тапа по CTA.
+
+- **2026-08-20 (Settings grant survives kill):** iOS убивает процесс при Never→While Using; флаг `awaitingSettingsGrant` переживает cold start, хук опрашивает до 60 с, launch не показывает OS-диалог, пока ждём Settings. «Спросить в следующий раз» остаётся CTA.
+
+- **2026-08-20 (Settings poll):** Grant в Настройках подхватывается опросом permission/GPS, не разовым AppState-check (iOS часто не шлёт `active` при возврате).
+
+- **2026-08-20 (no dialog after Settings):** Возврат из Настроек не вызывает повторный системный prompt; только перечитываем grant и рисуем окна.
+
+- **2026-08-20 (Settings return → windows):** После grant в Настройках «Окна возможностей» перечитывают permission и подгружают GPS/график (не оставляют CTA «нет доступа»).
+
+- **2026-08-20 (Never silent launch):** При «Никогда» запуск без системного диалога и без Settings. Диалог только если ОС ещё может спросить (Allow Once / Ask Next Time). CTA при «Никогда» открывает настройки приложения (`openSettings`); вложенный экран «Геопозиция» iOS не отдаёт публичным API.
+
+- **2026-08-20 (Never → Settings fallback):** Сначала всегда системный диалог. Если до запроса ОС уже не может его показать («Никогда») — страница настроек приложения (`Linking.openSettings`). Сразу после «Don't Allow» Settings не открывается.
+
+- **2026-08-20 (unified OS location dialog):** Launch, onboarding step 2 и CTA «Окон возможностей» вызывают один `requestForegroundLocationPermission` (системный диалог). Settings/Alert из CTA убраны. Acquire GPS больше не запрашивает разрешение сам (гонка глотала launch-диалог).
+
+- **2026-08-20 (Opportunity Windows CTA v3):** Авто-prompt при входе больше не вызывает OS-диалог (он «съедался» до тапа по CTA). Явный тап — `requestForegroundLocationPermissionFromUser` без dedup; при «Никогда» — Alert → «Открыть настройки». Убран `busy` на кнопке (мигалка «…»).
 
 - **2026-08-20 (Opportunity Windows CTA v2):** Кнопка всегда «Включить геолокацию» и всегда вызывает `requestForegroundPermissionsAsync`; Settings из CTA не открываются. Авто-prompt при входе — один раз за JS-сессию (не на каждый foreground), чтобы явный тап пользователя мог показать системный диалог.
 

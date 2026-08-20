@@ -1,7 +1,7 @@
 ---
 id: 02_modules/onboarding/spec
 title: Onboarding Wizard — spec
-version: 1.7
+version: 1.10
 updated: 2026-08-20
 depends_on: [02_modules/onboarding/dependencies, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/astro/spec]
 code_refs:
@@ -45,7 +45,7 @@ code_refs:
   - **A (`footerInContent`)** — welcome шаг 1 и шаг 2: CTA (+ legal) внутри скролла под полями; iOS `KeyboardAvoidingView behavior="padding"` + один `scrollToEnd` на `keyboardWillShow`; Android — `paddingBottom` = высота IME и `scrollToEnd` в `useEffect` после layout (не смешивать с iOS — ломает «прилипание»); `scrollEnabled={false}` пока клавиатура открыта.
   - **B (без `footerInContent`)** — OTP-confirm и шаги 3–7: авто-подъём выключен (`behavior={undefined}`), контент остаётся на месте, клавиатура перекрывает низ, скролл ручной. На OTP это нужно, потому что клавиатура уже открыта с welcome и авто-подъём обрезал бы картинку. `app/sign-in.tsx` передаёт `footerInContent={sub === "welcome"}` и `key={sub}` (сброс scroll offset).
 - **Поля ввода:** `WizardTextInput` сам берёт `color` / `border` / `placeholder` из светлой темы `WizardShell` (не из системного dark theme корня) — иначе на Android с тёмной схемой текст и рамка «пропадают» на белом фоне мастера.
-- **`WizardImage`** — картинка шага, `resizeMode="contain"`, высота `WIZARD_IMAGE_HEIGHT = 200`; изображения — `assets/onboarding/*_600.jpg` (600×600, кроме `astrology_600.jpg` 943×600).
+- **`WizardImage`** — картинка шага, `resizeMode="contain"`, высота `WIZARD_IMAGE_HEIGHT = 200`; изображения — `assets/onboarding/*_600.jpg` (600×600, кроме `astrology_600.jpg` 943×600). **Прогрев:** при монтировании `app/onboarding.tsx` (шаг 2) все картинки шагов 2–7 рендерятся в скрытом off-screen контейнере (`WizardImagePrefetch`, `opacity:0`, `1×1`), чтобы RN декодировал их в image-cache. Пока пользователь заполняет данные рождения, jpg-и уже в кэше — переход на шаги 3–7 показывает картинку мгновенно, без «мигания» старой. Прогрев идёт только в мастере; на зарегистрированном запуске `app/onboarding.tsx` не монтируется.
 - **`WizardTitle`** — Android `fontSize: 21` / `lineHeight: 27`; iOS `20` / `26` (глобальный `screenTitle` = 22), чтобы длинные заголовки (напр. шаг 2) оставались в одну строку на узких iPhone.
 - **`contentBumpKey` (режим A):** при смене ключа с открытой клавиатурой — дополнительный `scrollToEnd` (маркер `PLACE_FOCUS_SCROLL_EXTRA` в коде; откатываемый нюдж после появления «Проверить на карте»).
 
@@ -100,14 +100,17 @@ code_refs:
 
 ## 9. Геолокация на главной (не гейт)
 
-`GeoGate` снят (App Store 5.1.1): Home открывается без разрешения. После входа (`onboarded_at`) один раз за JS-сессию вызывается системный prompt (`promptForegroundLocationOnLaunch`, после settle навигации ~700 ms — иначе iOS глотает alert во время перехода с OTP). «Выйти» сбрасывает in-process флаг, чтобы повторный вход снова вызвал `request`. После iOS «Don't Allow» / Настройки → «Никогда» системный диалог невозможен — пользователь меняет доступ только в Settings вручную; CTA «Окон возможностей» всё равно вызывает `requestForegroundPermissionsAsync` (без перехода в Settings). Если доступ есть — блок «Окна возможностей» с графиком; если нет — текст `home.opportunityWindows.needLocation` и кнопка `home.opportunityWindows.enableLocationButton`.
+`GeoGate` снят (App Store 5.1.1): Home открывается без разрешения. После входа `promptForegroundLocationOnLaunch` (settle ~700 ms, один раз за JS-сессию): если доступ **granted** — GPS acquire; если ОС ещё может спросить (первый запуск / «Спросить в следующий раз» / «Разрешить один раз») — системный диалог; если уже **«Никогда»** — без запроса и без Settings. CTA «Включить геолокацию»: системный диалог, пока ОС его показывает; при «Никогда» — `Linking.openSettings()` и флаг `awaitingSettingsGrant`. «Спросить в следующий раз» в Настройках **не** выдаёт доступ — при возврате `promptForegroundLocationAfterSettingsReturn` сразу показывает системный лист (без второго тапа по CTA). «При использовании» → график без листа. Если снова «Никогда» — CTA. «Выйти» сбрасывает in-process флаг авто-prompt. Если доступ есть — график; если нет — `home.opportunityWindows.needLocation` + `enableLocationButton`.
 
 ## 10. i18n
 
 Все строки мастера — в `modules/i18n/catalog/*.json` (`wizard.*`, `onboarding.birth.*`, `home.opportunityWindows.needLocation` / `enableLocationButton`). Синхронизация 8 локалей — `scripts/i18n-sync.mjs` (`fill --all` переводит через `AI_MODEL_PREMIUM`, `check` валидирует `en`). Native-имя приложения и reason-строки iOS-разрешений локализуются отдельно через `app.config.ts` `expo.locales` (см. `i18n/spec.md`).
 
+**Терминология геолокации (OS-aligned):** `home.opportunityWindows.needLocation` / `enableLocationButton` используют название функции в Настройках ОС для каждой локали (RU «геопозиция», EN «location», DE «Ortung», FR «localisation», IT «localizzazione», ES «localización», PT «localização», NL «locatie») — чтобы текст приложения совпадал с заголовком строки в Settings → [App]. Раньше использовалось «геолокация» / «geolocalisation» и т.п., что не совпадает с iOS-лейблом.
+
 ## 11. Известные ограничения
 
+- **iOS Location settings deep link:** публичный API открывает только страницу настроек приложения (`openSettingsURLString`), не вложенный экран «Геопозиция» (Никогда / Спросить в следующий раз / При использовании). Приватные `prefs:` URL не используем (App Store + ломаются на новых iOS). «Спросить в следующий раз» не является grant: после возврата показываем системный лист.
 - **iOS system notification dialog** — серый комментарий под заголовком фиксирован Apple и не редактируется из приложения; pre-permission не вводили (решено использовать стандартный системный диалог).
 - `react-native-maps` требует dev-client rebuild (не Expo Go).
 - Шаг 1 живёт в `/sign-in` (до авторизации), шаги 2-7 — в `/onboarding`; визуальная непрерывность обеспечивается общим `WizardShell`.

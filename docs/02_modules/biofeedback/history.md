@@ -1,8 +1,8 @@
 ---
 id: 02_modules/biofeedback/history
 title: Biofeedback History
-version: 1.38
-updated: 2026-07-29
+version: 1.39
+updated: 2026-08-20
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/audio/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -14,6 +14,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-20 (19):** Stress index mapping switched from exponential `10 + 80·(1−e^(−I/275))` to hyperbolic `10 + 80·I/(I+190)` (`BAEVSKY_STRESS_PERCENT_K = 190`). The exponential saturated too fast: for raw I > 800 (realistic low-HRV coherent breathing — RMSSD ~5 ms, RSA ~5 bpm, high HR ~100) everything mapped into a narrow 88–90 % band and the graph looked like a flat line at the ceiling. Hyperbolic mapping keeps 50 % at I=190 (typical moderate-HRV session) and stretches the high range: I=1000 → ~77 %, I=5000 → ~87 %. Raw I and «low HRV = higher stress» direction unchanged — scale cosmetics only. Пары: `breath`.
+
+- **2026-08-20 (18):** Breath results UI: (a) Only one pulse graph shown for all sensor modes — the measured-pulse chart with title «Пульс»/«Pulse» (was two graphs «Pulse (measured)» + «Pulse (guidance)» for BLE when they diverged; camera mode already used single-graph policy). Guidance series still collected for export/interpretation, just not rendered. (b) Parameters block above graphs hidden — results now show only charts (was a text list of duration/coherence/RSA/RMSSD/stress + HybridResultsTable). Пары: `breath`.
 
 - **2026-07-29 (test gate):** `BREATH_TESTING_MODE` зеркалит `HARMONIZER_TEST_MODE` — live optical footer / activation diagnostics / Export JSON скрыты вне QA. Пары: `practices`.
 

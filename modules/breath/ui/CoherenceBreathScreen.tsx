@@ -6076,13 +6076,10 @@ function ResultsView(props: {
     () => resultsGraphs?.rrIntervalMs ?? [],
     [resultsGraphs?.rrIntervalMs],
   );
-  // Phone camera: only the measured-pulse chart (guidance is a derived pacing
-  // series and looked like a confusing second “pulse” graph). BLE/wearable can
-  // still show both when they diverge or when the debug flag is on.
-  const showSeparateGuidancePulseGraph =
-    !cameraGuidanceOnlyMode &&
-    (SHOW_BOTH_PULSE_RESULT_GRAPHS ||
-      seriesDifferMeaningfully(measuredPulseGraphPoints, guidancePulseGraphPoints));
+  // Only the measured-pulse chart is shown. The guidance series is a derived pacing
+  // signal; showing it as a second “pulse” graph was confusing (two identical-
+  // looking lines for BLE). Camera mode already used this single-graph policy.
+  const showSeparateGuidancePulseGraph = false;
   const coherenceGraphPoints = useMemo(
     () => (
       !cameraGuidanceOnlyMode
@@ -6379,72 +6376,9 @@ function ResultsView(props: {
             {!cameraGuidanceOnlyMode && analysis?.warnings?.length ? (
               <Text style={styles.warnBox}>{analysis.warnings.join("\n")}</Text>
             ) : null}
-            {!cameraGuidanceOnlyMode ? (
-              <>
-                <Text style={styles.metricLine}>
-                  {str.durationLabel}:{" "}
-                  {sessionStartWallMs != null ? (practiceTotalMs / 1000).toFixed(0) : "—"} с
-                </Text>
-                {finalStartAnalysis != null && finalEndAnalysis != null ? (
-                  <>
-                    <Text style={styles.approx}>{str.hybridEmulatedMidNote}</Text>
-                    <HybridResultsTable
-                      str={str}
-                      startAnalysis={finalStartAnalysis}
-                      endAnalysis={finalEndAnalysis}
-                      startHrv={finalStartHrv}
-                      endHrv={finalEndHrv}
-                      startAvgBpm={finalStartAvgBpm}
-                      endAvgBpm={finalEndAvgBpm}
-                      startWindowMs={finalStartWindowMs}
-                      endWindowMs={finalEndWindowMs}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.metricLine}>
-                      {str.coherenceAvgLabel}:{" "}
-                      {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceAveragePercent) : "—"}
-                    </Text>
-                    <Text style={styles.metricLine}>
-                      {str.coherenceMaxLabel}:{" "}
-                      {showCoherenceResults ? formatCoherencePercent(analysis?.coherenceMaxPercent) : "—"}
-                    </Text>
-                    <Text style={styles.metricLine}>
-                      {str.rsaLabel}:{" "}
-                      {showCoherenceResults && analysis?.rsaAmplitudeBpm != null
-                        ? `${Math.round(analysis.rsaAmplitudeBpm)} уд/мин`
-                        : "—"}
-                    </Text>
-                    <Text style={styles.metricLine}>
-                      {str.rsaNormalizedLabel}:{" "}
-                      {showCoherenceResults && analysis?.rsaNormalizedPercent != null
-                        ? `${Math.round(analysis.rsaNormalizedPercent)} %`
-                        : "—"}
-                    </Text>
-                    <Text style={styles.metricLine}>
-                      {str.entryTimeLabel}:{" "}
-                      {showCoherenceResults && analysis?.entryTimeSec != null
-                        ? `${analysis.entryTimeSec} с`
-                        : "—"}
-                    </Text>
-                    <Text style={styles.metricLine}>
-                      {str.rmssdLabel}:{" "}
-                      {showHrvResults && finalRmssdMs != null ? `${Math.round(finalRmssdMs)} мс` : "—"}
-                    </Text>
-                    <Text style={styles.metricLine}>
-                      {str.stressLabel}:{" "}
-                      {showHrvResults && finalStressPercent != null
-                        ? `${Math.round(finalStressPercent)}%`
-                        : "—"}
-                    </Text>
-                  </>
-                )}
-              </>
-            ) : null}
             {measuredPulseGraphPoints.length >= 2 ? (
               <ResultsMetricChart
-                title={showSeparateGuidancePulseGraph ? str.resultsMeasuredPulseLabel : str.calibrationPulse}
+                title={str.calibrationPulse}
                 points={measuredPulseGraphPoints}
                 color="#60a5fa"
                 unit="bpm"

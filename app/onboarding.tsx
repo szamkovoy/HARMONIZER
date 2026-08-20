@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   View,
@@ -45,7 +46,7 @@ import {
 import { dayContentLocationFallback } from "@/modules/location/defaultDayContentLocation";
 import {
   acquireAndPersistUserCoordinates,
-  getOrRequestForegroundLocationPermission,
+  requestForegroundLocationPermission,
 } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { notifyForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
 import {
@@ -329,7 +330,7 @@ export default function OnboardingScreen() {
     const requestGeoPermission = async (source: "wizard_step2" | "wizard_step2_retry") => {
       logRuntimeEvent("location:permission_request", { source });
       try {
-        const perm = await getOrRequestForegroundLocationPermission({ userInitiated: true });
+        const perm = await requestForegroundLocationPermission();
         logRuntimeEvent("location:permission_result", {
           status: perm.status,
           canAskAgain: perm.canAskAgain,
@@ -587,6 +588,7 @@ export default function OnboardingScreen() {
     {showPlaceMap && birthPlace ? (
       <BirthPlaceMapModal place={birthPlace} onClose={() => setShowPlaceMap(false)} />
     ) : null}
+    <WizardImagePrefetch />
     </>
   );
 }
@@ -602,6 +604,29 @@ function IntroStep({ step }: { step: 3 | 4 | 5 | 6 | 7 }) {
         <WizardBody key={k}>{t(k)}</WizardBody>
       ))}
     </>
+  );
+}
+
+/**
+ * Прогрев всех картинок мастера (шаги 2–7) в нативный image-cache при монтировании
+ * экрана онбординга. Пользователь заполняет данные рождения на шаге 2 (несколько
+ * секунд), а RN в это время декодирует jpg-и в кэш. К моменту перехода на шаги
+ * 3–7 картинки показываются мгновенно — без «мигания» старой картинки.
+ * Скрытый контейнер вне layout (opacity 0, pointerEvents none), не влияет на UI.
+ */
+const STEP2_IMAGE = require("@/assets/onboarding/astrology_600.jpg");
+const ALL_WIZARD_IMAGES: ImageSourcePropType[] = [
+  STEP2_IMAGE,
+  ...INTRO_STEPS.map((s) => s.image),
+];
+
+function WizardImagePrefetch() {
+  return (
+    <View pointerEvents="none" style={styles.prefetchHidden}>
+      {ALL_WIZARD_IMAGES.map((src, i) => (
+        <Image key={i} source={src} style={styles.prefetchImage} resizeMode="contain" />
+      ))}
+    </View>
   );
 }
 
@@ -630,5 +655,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
     paddingVertical: 24,
+  },
+  prefetchHidden: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: 1,
+    height: 1,
+    opacity: 0,
+    overflow: "hidden",
+  },
+  prefetchImage: {
+    width: 1,
+    height: 1,
+    resizeMode: "contain",
   },
 });
