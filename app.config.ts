@@ -232,8 +232,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         {
           android: {
             minSdkVersion: 26,
-            compileSdkVersion: 35,
-            targetSdkVersion: 35,
+            // Google Play требует target Android 16 (API 36) или выше с 31 авг. 2026.
+            compileSdkVersion: 36,
+            targetSdkVersion: 36,
             // Базовый soft-input. На Android 15 + edge-to-edge `adjustResize` часто
             // не сжимает окно — WizardShell дополнительно поднимает контент через
             // paddingBottom = высота IME (см. modules/onboarding/wizard/WizardShell.tsx).
