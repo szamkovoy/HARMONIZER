@@ -116,11 +116,7 @@
       "remindersHint": "Tocca la campana sotto il grafico per attivare o disattivare i promemoria."
     },
     "reminderExactAlarmTitle": "Allarmi precisi",
-    "reminderExactAlarmMessage": "Su Android, i promemoria delle finestre di opportunità si attivano puntualmente solo se per {appName} sono abilitati 'Allarmi e promemoria'. In caso contrario, il sistema potrebbe posticipare la notifica di un'ora o più.",
-    "reminderBatteryTitle": "Disattiva l'ottimizzazione della batteria",
-    "reminderBatteryMessage": "Per far sì che i promemoria arrivino puntuali, consenti a {appName} di funzionare senza limitazioni della batteria. Altrimenti Android potrebbe ritardare le notifiche di alcune ore.",
-    "reminderOemBackgroundTitle": "Consenti l'esecuzione in background",
-    "reminderOemBackgroundMessage": "Sul tuo dispositivo, attiva anche l'avvio automatico o l'esecuzione in background per {appName}. In caso contrario, i promemoria potrebbero arrivare in ritardo."
+    "reminderExactAlarmMessage": "Su Android, i promemoria delle finestre di opportunità si attivano puntualmente solo se per {appName} sono abilitati 'Allarmi e promemoria'. In caso contrario, il sistema potrebbe posticipare la notifica di un'ora o più."
   },
   "planetBanner": {
     "eyebrow": "Pianeta del giorno"

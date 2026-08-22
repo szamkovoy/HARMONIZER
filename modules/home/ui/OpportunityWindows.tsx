@@ -35,7 +35,7 @@ import { SurfaceHelpModal } from "@/modules/ui/SurfaceHelpModal";
 import { useTheme } from "@/modules/ui/theme";
 import { useAuth } from "@/modules/auth";
 import { ensureNotificationPermission, registerPushToken } from "@/modules/notifications";
-import { ensureAndroidOpportunityReminderPrerequisites } from "@/services/androidExactAlarms";
+import { ensureAndroidExactAlarmsForOpportunityReminders } from "@/services/androidExactAlarms";
 import {
   buildOpportunityAlarmStyleContent,
   ensureAndroidNotificationChannels,
@@ -783,27 +783,13 @@ export function OpportunityWindows({
           return;
         }
         const appName = tCatalog("common.appName");
-        const deliveryOk = await ensureAndroidOpportunityReminderPrerequisites({
-          exactAlarm: {
-            title: t.reminderExactAlarmTitle,
-            message: fillHomeTemplate(t.reminderExactAlarmMessage, { appName }),
-            openSettingsLabel: strings.openSettingsButton,
-            cancelLabel: t.reminderCancel,
-          },
-          battery: {
-            title: t.reminderBatteryTitle,
-            message: fillHomeTemplate(t.reminderBatteryMessage, { appName }),
-            openSettingsLabel: strings.openSettingsButton,
-            cancelLabel: t.reminderCancel,
-          },
-          oemBackground: {
-            title: t.reminderOemBackgroundTitle,
-            message: fillHomeTemplate(t.reminderOemBackgroundMessage, { appName }),
-            openSettingsLabel: strings.openSettingsButton,
-            cancelLabel: t.reminderCancel,
-          },
+        const exactOk = await ensureAndroidExactAlarmsForOpportunityReminders({
+          title: t.reminderExactAlarmTitle,
+          message: fillHomeTemplate(t.reminderExactAlarmMessage, { appName }),
+          openSettingsLabel: strings.openSettingsButton,
+          cancelLabel: t.reminderCancel,
         });
-        if (!deliveryOk) return;
+        if (!exactOk) return;
       }
 
       const previousId = notificationIdsRef.current[pendingTarget.key];

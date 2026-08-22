@@ -116,11 +116,7 @@
       "remindersHint": "Tippen Sie auf die Glocke unter dem Diagramm, um Erinnerungen ein- oder auszuschalten."
     },
     "reminderExactAlarmTitle": "Präzise Alarme sind wichtig",
-    "reminderExactAlarmMessage": "Auf Android werden deine Gelegenheitsfenster-Erinnerungen nur pünktlich zugestellt, wenn du für {appName} die Funktion „Alarme und Erinnerungen“ aktivierst. Andernfalls könnte das System die Benachrichtigung um eine Stunde oder länger verzögern.",
-    "reminderBatteryTitle": "Akku-Optimierung deaktivieren",
-    "reminderBatteryMessage": "Damit Erinnerungen pünktlich ankommen, erlauben Sie {appName}, ohne Akku-Einschränkungen zu arbeiten. Andernfalls kann Android die Benachrichtigung um mehrere Stunden verzögern.",
-    "reminderOemBackgroundTitle": "Hintergrundaktivität erlauben",
-    "reminderOemBackgroundMessage": "Aktivieren Sie auf Ihrem Gerät außerdem Autostart oder Hintergrundbetrieb für {appName} – andernfalls können Erinnerungen verspätet eintreffen."
+    "reminderExactAlarmMessage": "Auf Android werden deine Gelegenheitsfenster-Erinnerungen nur pünktlich zugestellt, wenn du für {appName} die Funktion „Alarme und Erinnerungen“ aktivierst. Andernfalls könnte das System die Benachrichtigung um eine Stunde oder länger verzögern."
   },
   "planetBanner": {
     "eyebrow": "Planet des Tages"

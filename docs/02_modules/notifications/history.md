@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708150000_notifications.sql]
 
 ## Decision Log
 
+- **2026-08-22 (drop battery/OEM gates):** Opportunity bell больше не просит `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` и OEM autostart/фон — для DATE-напоминаний достаточно `SCHEDULE_EXACT_ALARM` → `setExactAndAllowWhileIdle`. Убраны строки `reminderBattery*` / `reminderOemBackground*` и permission из `app.json`.
+
 - **2026-08-22 (battery + OEM background gate):** Opportunity bell: после exact-alarm — запрос whitelist battery optimization (`PowerManager.isIgnoringBatteryOptimizations` / `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`); на Xiaomi/Huawei/Oppo/Vivo/OnePlus/Meizu — дополнительный Alert + intent автозапуска/фона (проверить нельзя, после визита в Settings schedule продолжается). Strings `reminderBattery*`, `reminderOemBackground*`. Manifest `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
 
 - **2026-08-22 (exact-alarm settings loop):** QA Android: после включения «Будильники и напоминания» колокольчик снова показывал Alert «Exact alarms needed». Root: `PermissionsAndroid.check(SCHEDULE_EXACT_ALARM)` ложно возвращал false при включённом переключателе. Fix: local Expo module `harmonizer-android-exact-alarms` → `AlarmManager.canScheduleExactAlarms()`; после возврата из Settings — короткий poll recheck.
