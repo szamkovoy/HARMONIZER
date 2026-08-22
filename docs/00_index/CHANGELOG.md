@@ -1,4 +1,5 @@
 - 2026-08-22 (523): Affirmation create/manage — cosmetic copy updates across all 8 locales (step1 instruction rewritten for sankalpa/yoga-nidra framing; step3 selectHint expanded re 1st/2nd person; step4 editLabel normal-size + voiceTitle without «(optional)» + voiceHint rewritten; manage noAudio reframed; new chartHint inserted above progress chart). Screen headers lowered to standard level (paddingTop 8→20, matching Practice catalog).
+- 2026-08-22 (524): Affirmation create/manage copy — shorter intake instruction; RU spelling аффирмация; PREMIUM fill for all locales.
 - 2026-08-22 (523): Opportunity reminders — drop battery optimization / OEM autostart prompts; keep only SCHEDULE_EXACT_ALARM gate.
 - 2026-08-22 (522): Opportunity reminders — Android battery optimization whitelist + OEM autostart/background intents before schedule.
 - 2026-08-22 (521): BirthPlacePicker shows start of long place names (not tail); Android exact-alarm gate uses AlarmManager.canScheduleExactAlarms (fixes settings loop after grant).
