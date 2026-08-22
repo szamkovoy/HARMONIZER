@@ -9,6 +9,8 @@ code_refs: []
 
 ## Decision Log
 
+- **2026-08-22 (create/manage copy + header alignment):** Косметическая правка текстов процесса создания аффирмации во всех 8 локалях (источник — RU, перевод через `i18n-sync fill --all`, модель PREMIUM). `step1.instruction` переписан под санкальпу/йога-нидру + тройное повторение в финальных циклах. `step3.selectHint` расширен пояснением про 1-е/2-е лицо. `step4.editLabel` → «Отредактируйте текст…» (вариант `screenHint` вместо `technicalCaption` — обычный размер шрифта); `step4.voiceTitle` без «(по желанию)»; `step4.voiceHint` переписан. Manage: `noAudio` → мотивация записать голос; новый ключ `affirmation.manage.chartHint` вставлен между `chartTitleWithDay` и графиком. Заголовки обоих экранов (`AffirmationCreateScreen`, `AffirmationManageScreen`) опущены до стандартного уровня: `paddingTop` 8 → 20 (совпадает с `TabScreenLayout` / Practice catalog).
+
 - **2026-08-15 (audio warm):** «Прослушать» / breath voice ждали сеть на каждый `createAsync(signedUrl)` + 1 с fade-in → ощущение 3–5 с лага и сдвиг относительно выдоха. Disk-cache + `warmAffirmationPlayback`, fade-in 280 ms; breath больше не unload-ит warm Sound перед каждым cue.
 
 - **2026-08-15 (select hint + phase casing):** Create step3 — подсказка над «Выбрать» (`selectHint`). Manage legend: zone hints в скобках с строчной (RU); остальные локали — по орфографии языка (DE — существительные с заглавной).

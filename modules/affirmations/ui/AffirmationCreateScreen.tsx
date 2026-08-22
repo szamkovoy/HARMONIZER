@@ -249,7 +249,7 @@ export function AffirmationCreateScreen() {
         }
         recordingRef.current = rec;
         recordStartRef.current = Date.now();
-        const tracker = new RecordingSpeechTracker(recordStartRef.current);
+        const tracker = new RecordingSpeechTracker();
         speechTrackerRef.current = tracker;
         setRecording(true);
         setArming(false);
@@ -474,7 +474,7 @@ export function AffirmationCreateScreen() {
         {step === "finalize" ? (
           <View style={styles.block}>
             <AppText variant="sectionTitle">{t("affirmation.create.step4.title")}</AppText>
-            <AppText variant="technicalCaption" tone="muted">
+            <AppText variant="screenHint" tone="muted">
               {t("affirmation.create.step4.editLabel")}
             </AppText>
             <TextInput
@@ -585,7 +585,7 @@ function MicCluster({
 }
 
 const styles = StyleSheet.create({
-  pad: { paddingBottom: 40, gap: 16, paddingTop: 8 },
+  pad: { paddingBottom: 40, gap: 16, paddingTop: 20 },
   block: { gap: 12 },
   instruction: { lineHeight: 22 },
   busyRow: {

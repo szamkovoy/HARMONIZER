@@ -349,6 +349,9 @@ export function AffirmationManageScreen() {
             <AppText variant="sectionTitle">
               {t("affirmation.manage.chartTitleWithDay", { day: displayDay })}
             </AppText>
+            <AppText variant="screenHint" tone="muted">
+              {t("affirmation.manage.chartHint")}
+            </AppText>
             <ProgressChart
               day={displayDay}
               accent={theme.colors.accent}
@@ -508,7 +511,7 @@ function ProgressChart({
 }
 
 const styles = StyleSheet.create({
-  pad: { paddingBottom: 48, gap: 14, paddingTop: 8 },
+  pad: { paddingBottom: 48, gap: 14, paddingTop: 20 },
   block: { gap: 12 },
   loadingWrap: {
     alignItems: "center",
