@@ -71,6 +71,7 @@
     "expo-status-bar": "~3.0.9",
     "expo-video": "~3.0.15",
     "expo-web-browser": "~15.0.11",
+    "harmonizer-android-exact-alarms": "file:modules/android-exact-alarms",
     "harmonizer-biofeedback-finger-frame-processor": "file:modules/biofeedback-finger-frame-processor",
     "jsonwebtoken": "^9.0.3",
     "luxon": "^3.7.2",

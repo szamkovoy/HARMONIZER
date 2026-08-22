@@ -137,6 +137,12 @@ export function BirthPlacePicker({
   const inputWrapRef = useRef<View>(null);
   const inputRef = useRef<TextInput>(null);
 
+  const scrollInputToStart = useCallback(() => {
+    requestAnimationFrame(() => {
+      inputRef.current?.setNativeProps({ selection: { start: 0, end: 0 } });
+    });
+  }, []);
+
   const hostRect = overlayApi?.hostRect ?? null;
 
   const measureAnchor = useCallback(() => {
@@ -164,7 +170,8 @@ export function BirthPlacePicker({
   useEffect(() => {
     if (!value) return;
     setQuery(formatGeoPlaceLabel(value));
-  }, [value]);
+    scrollInputToStart();
+  }, [value, scrollInputToStart]);
 
   useEffect(() => {
     return () => {
@@ -340,7 +347,10 @@ export function BirthPlacePicker({
           ref={inputRef}
           value={query}
           onChangeText={onChangeText}
-          onFocus={measureAnchor}
+          onFocus={() => {
+            measureAnchor();
+            if (query.length > 0) scrollInputToStart();
+          }}
           placeholder={t("onboarding.birth.placePlaceholder")}
           placeholderTextColor={theme.colors.textFaint}
           autoCapitalize="words"
@@ -394,6 +404,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 14,
     paddingRight: 28,
+    textAlign: "left",
   },
   searchingBadge: {
     position: "absolute",

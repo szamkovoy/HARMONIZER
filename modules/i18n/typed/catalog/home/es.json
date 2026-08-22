@@ -116,7 +116,11 @@
       "remindersHint": "Toca la campana bajo el gráfico para activar o desactivar los recordatorios."
     },
     "reminderExactAlarmTitle": "Se necesitan alarmas exactas",
-    "reminderExactAlarmMessage": "En Android, los recordatorios de ventanas se activan a tiempo solo si las 'Alarmas y recordatorios' están habilitadas para {appName}. Sin esto, el sistema podría retrasar la notificación una hora o más."
+    "reminderExactAlarmMessage": "En Android, los recordatorios de ventanas se activan a tiempo solo si las 'Alarmas y recordatorios' están habilitadas para {appName}. Sin esto, el sistema podría retrasar la notificación una hora o más.",
+    "reminderBatteryTitle": "Desactiva la optimización de batería",
+    "reminderBatteryMessage": "Para recibir recordatorios a tiempo, permite que {appName} funcione sin restricciones de batería. Si no, Android puede retrasar las notificaciones varias horas.",
+    "reminderOemBackgroundTitle": "Permitir actividad en segundo plano",
+    "reminderOemBackgroundMessage": "En tu dispositivo, activa también el inicio automático o la actividad en segundo plano para {appName}. Sin eso, los recordatorios pueden seguir llegando tarde."
   },
   "planetBanner": {
     "eyebrow": "Planeta del día"

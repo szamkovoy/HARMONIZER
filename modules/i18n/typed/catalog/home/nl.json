@@ -116,7 +116,11 @@
       "remindersHint": "Tik op het belletje onder de grafiek om herinneringen in of uit te schakelen."
     },
     "reminderExactAlarmTitle": "Precieze alarmen nodig",
-    "reminderExactAlarmMessage": "Op Android werken herinneringen voor gelegenheidsmomenten alleen op tijd als 'Alarmen en herinneringen' zijn ingeschakeld voor {appName}. Zonder deze instelling kan het systeem de melding met een uur of langer uitstellen."
+    "reminderExactAlarmMessage": "Op Android werken herinneringen voor gelegenheidsmomenten alleen op tijd als 'Alarmen en herinneringen' zijn ingeschakeld voor {appName}. Zonder deze instelling kan het systeem de melding met een uur of langer uitstellen.",
+    "reminderBatteryTitle": "Batterijoptimalisatie uitschakelen",
+    "reminderBatteryMessage": "Voor tijdige herinneringen: laat {appName} werken zonder batterijbeperkingen. Anders kan Android meldingen uren vertragen.",
+    "reminderOemBackgroundTitle": "Achtergrondactiviteit toestaan",
+    "reminderOemBackgroundMessage": "Op jouw toestel: schakel ook automatisch starten of achtergrondactiviteit in voor {appName}. Zonder dat kunnen herinneringen alsnog te laat komen."
   },
   "planetBanner": {
     "eyebrow": "Planeet van de dag"

@@ -116,7 +116,11 @@
       "remindersHint": "Appuyez sur la cloche sous le graphique pour activer ou désactiver les rappels."
     },
     "reminderExactAlarmTitle": "Alarmes précises requises",
-    "reminderExactAlarmMessage": "Sur Android, pour que les rappels d'opportunité se déclenchent à l'heure, il est nécessaire d'activer les « Alarmes et rappels » pour {appName}. Sans cela, le système pourrait retarder votre notification d'une heure ou plus."
+    "reminderExactAlarmMessage": "Sur Android, pour que les rappels d'opportunité se déclenchent à l'heure, il est nécessaire d'activer les « Alarmes et rappels » pour {appName}. Sans cela, le système pourrait retarder votre notification d'une heure ou plus.",
+    "reminderBatteryTitle": "Désactiver l'optimisation de la batterie",
+    "reminderBatteryMessage": "Pour des rappels à l'heure, autorisez {appName} à fonctionner sans restriction de batterie. Sinon, Android peut retarder les notifications de plusieurs heures.",
+    "reminderOemBackgroundTitle": "Autoriser l'activité en arrière-plan",
+    "reminderOemBackgroundMessage": "Sur votre appareil, activez aussi le démarrage automatique ou l'activité en arrière-plan pour {appName}. Sans cela, les rappels peuvent encore arriver en retard."
   },
   "planetBanner": {
     "eyebrow": "Planète du jour"

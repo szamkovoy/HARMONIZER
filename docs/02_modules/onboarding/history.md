@@ -10,6 +10,8 @@ depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 
 ## Decision Log
 
+- **2026-08-22 (birth place field scroll):** `BirthPlacePicker`: длинное «Город, область, страна» при открытии модалки показывало конец строки (виден хвост «…я Церковь»). Fix: `textAlign: left` + `setNativeProps({ selection: { start: 0, end: 0 } })` при prefilled value и onFocus. Затрагивает онбординг и `NatalBirthDataModal` (iOS/Android).
+
 - **2026-08-20 (wizard image prefetch):** При монтировании `app/onboarding.tsx` (шаг 2) все картинки шагов 2–7 рендерятся в скрытом off-screen контейнере (`WizardImagePrefetch`) — RN декодирует jpg-и в image-cache, пока пользователь заполняет данные рождения. Раньше при переходе на шаги 3–7 новая картинка «мигала» старой ~1 с (декод в момент первого рендера). Прогрев только в мастере; зарегистрированный запуск `app/onboarding.tsx` не монтирует.
 
 - **2026-08-20 (OS-aligned location terminology):** `home.opportunityWindows.needLocation` / `enableLocationButton` переведены на название функции в Настройках ОС для каждой локали (RU «геопозиция» вместо «геолокация», DE «Ortung» вместо «Standort», FR/IT/ES/PT «localisation/localizzazione/localización/localização» вместо «géolocalisation/…», EN/NL уже совпадали). Текст приложения теперь совпадает с заголовком строки Settings → [App]. 8 локалей обновлены вручную, `.sync-meta.json` синхронизирован.

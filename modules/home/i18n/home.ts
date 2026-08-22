@@ -98,6 +98,12 @@ export interface HomeStrings {
     /** Android 12+: без «Будильники и напоминания» DATE-триггер становится inexact. */
     reminderExactAlarmTitle: string;
     reminderExactAlarmMessage: string;
+    /** Android 6+: Doze / battery optimization может отложить доставку. */
+    reminderBatteryTitle: string;
+    reminderBatteryMessage: string;
+    /** Xiaomi / Huawei / Oppo / Vivo и др.: автозапуск / фон. */
+    reminderOemBackgroundTitle: string;
+    reminderOemBackgroundMessage: string;
     helpButtonAccessibilityLabel: string;
     helpModalTitle: string;
     helpLoading: string;
@@ -356,6 +362,12 @@ const ru: HomeStrings = {
     reminderExactAlarmTitle: "Нужны точные будильники",
     reminderExactAlarmMessage:
       "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+    reminderBatteryTitle: "Отключите оптимизацию батареи",
+    reminderBatteryMessage:
+      "Чтобы напоминания приходили вовремя, разрешите {appName} работать без ограничений батареи. Иначе Android может отложить уведомление на несколько часов.",
+    reminderOemBackgroundTitle: "Разрешите работу в фоне",
+    reminderOemBackgroundMessage:
+      "На вашем устройстве также включите автозапуск или фоновую работу для {appName} — без этого напоминания могут приходить с опозданием.",
     helpButtonAccessibilityLabel: "Пояснение к графику окон возможностей",
     helpModalTitle: "Как читать это окно",
     helpLoading: "Собираю пояснение...",
@@ -576,6 +588,12 @@ const en: HomeStrings = {
     reminderExactAlarmTitle: "Exact alarms needed",
     reminderExactAlarmMessage:
       "On Android, opportunity reminders fire on time only if Alarms & reminders are enabled for {appName}. Without that, the system may delay the notification by an hour or more.",
+    reminderBatteryTitle: "Turn off battery optimization",
+    reminderBatteryMessage:
+      "For on-time reminders, allow {appName} to run without battery restrictions. Otherwise Android may delay notifications by several hours.",
+    reminderOemBackgroundTitle: "Allow background activity",
+    reminderOemBackgroundMessage:
+      "On your device, also enable autostart or background activity for {appName}. Without it, reminders may still arrive late.",
     helpButtonAccessibilityLabel: "Explain the opportunity windows chart",
     helpModalTitle: "How to read this window",
     helpLoading: "Preparing the explanation...",

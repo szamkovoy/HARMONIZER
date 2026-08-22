@@ -1,3 +1,5 @@
+- 2026-08-22 (522): Opportunity reminders — Android battery optimization whitelist + OEM autostart/background intents before schedule.
+- 2026-08-22 (521): BirthPlacePicker shows start of long place names (not tail); Android exact-alarm gate uses AlarmManager.canScheduleExactAlarms (fixes settings loop after grant).
 - 2026-08-20 (520): Breath results — stress index mapping switched exponential→hyperbolic (`10 + 80·I/(I+190)`); was `10 + 80·(1−e^(−I/275))` which saturated at 88–90 % for raw I > 800 (low-HRV sessions), making the graph a flat line at the ceiling. Now I=1000 → ~77 %, I=190 → 50 %.
 - 2026-08-20 (519): Breath results — only one pulse graph («Пульс»/«Pulse») for all sensors (was two for BLE); parameters block above graphs hidden (results show only charts).
 - 2026-08-20 (518): Wizard image prefetch — onboarding mounts a hidden off-screen container that decodes all step 2–7 jpgs into RN image-cache; intro steps no longer flash the previous image for ~1s.

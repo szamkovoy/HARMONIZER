@@ -116,7 +116,11 @@
       "remindersHint": "Toque no sino abaixo do gráfico para ligar ou desligar os lembretes."
     },
     "reminderExactAlarmTitle": "Precisamos de Alarmes Precisos",
-    "reminderExactAlarmMessage": "No Android, os lembretes de janelas só disparam a tempo se os 'Alarmes e Lembretes' estiverem ativados para {appName}. Sem essa permissão, o sistema pode adiar a notificação por uma hora ou mais."
+    "reminderExactAlarmMessage": "No Android, os lembretes de janelas só disparam a tempo se os 'Alarmes e Lembretes' estiverem ativados para {appName}. Sem essa permissão, o sistema pode adiar a notificação por uma hora ou mais.",
+    "reminderBatteryTitle": "Desative a otimização de bateria",
+    "reminderBatteryMessage": "Para lembretes pontuais, permita que {appName} funcione sem restrições de bateria. Caso contrário, o Android pode atrasar notificações por várias horas.",
+    "reminderOemBackgroundTitle": "Permitir atividade em segundo plano",
+    "reminderOemBackgroundMessage": "No seu dispositivo, ative também o início automático ou a atividade em segundo plano para {appName}. Sem isso, os lembretes podem continuar atrasados."
   },
   "planetBanner": {
     "eyebrow": "Planeta do dia"
