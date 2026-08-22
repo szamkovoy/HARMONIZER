@@ -1862,7 +1862,11 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.reminderBatteryTitle": "Отключите оптимизацию батареи",
+      "opportunityWindows.reminderBatteryMessage": "Чтобы напоминания приходили вовремя, разрешите {appName} работать без ограничений батареи. Иначе Android может отложить уведомление на несколько часов.",
+      "opportunityWindows.reminderOemBackgroundTitle": "Разрешите работу в фоне",
+      "opportunityWindows.reminderOemBackgroundMessage": "На вашем устройстве также включите автозапуск или фоновую работу для {appName} — без этого напоминания могут приходить с опозданием."
     },
     "fr": {
       "locale": "ru",
@@ -1998,7 +2002,11 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.reminderBatteryTitle": "Отключите оптимизацию батареи",
+      "opportunityWindows.reminderBatteryMessage": "Чтобы напоминания приходили вовремя, разрешите {appName} работать без ограничений батареи. Иначе Android может отложить уведомление на несколько часов.",
+      "opportunityWindows.reminderOemBackgroundTitle": "Разрешите работу в фоне",
+      "opportunityWindows.reminderOemBackgroundMessage": "На вашем устройстве также включите автозапуск или фоновую работу для {appName} — без этого напоминания могут приходить с опозданием."
     },
     "it": {
       "locale": "ru",
@@ -2134,7 +2142,11 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.reminderBatteryTitle": "Отключите оптимизацию батареи",
+      "opportunityWindows.reminderBatteryMessage": "Чтобы напоминания приходили вовремя, разрешите {appName} работать без ограничений батареи. Иначе Android может отложить уведомление на несколько часов.",
+      "opportunityWindows.reminderOemBackgroundTitle": "Разрешите работу в фоне",
+      "opportunityWindows.reminderOemBackgroundMessage": "На вашем устройстве также включите автозапуск или фоновую работу для {appName} — без этого напоминания могут приходить с опозданием."
     },
     "es": {
       "locale": "ru",
@@ -2270,7 +2282,11 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.reminderBatteryTitle": "Отключите оптимизацию батареи",
+      "opportunityWindows.reminderBatteryMessage": "Чтобы напоминания приходили вовремя, разрешите {appName} работать без ограничений батареи. Иначе Android может отложить уведомление на несколько часов.",
+      "opportunityWindows.reminderOemBackgroundTitle": "Разрешите работу в фоне",
+      "opportunityWindows.reminderOemBackgroundMessage": "На вашем устройстве также включите автозапуск или фоновую работу для {appName} — без этого напоминания могут приходить с опозданием."
     },
     "pt": {
       "locale": "ru",
@@ -2406,7 +2422,11 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.reminderBatteryTitle": "Отключите оптимизацию батареи",
+      "opportunityWindows.reminderBatteryMessage": "Чтобы напоминания приходили вовремя, разрешите {appName} работать без ограничений батареи. Иначе Android может отложить уведомление на несколько часов.",
+      "opportunityWindows.reminderOemBackgroundTitle": "Разрешите работу в фоне",
+      "opportunityWindows.reminderOemBackgroundMessage": "На вашем устройстве также включите автозапуск или фоновую работу для {appName} — без этого напоминания могут приходить с опозданием."
     },
     "nl": {
       "locale": "ru",
@@ -2542,7 +2562,11 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.reminderBatteryTitle": "Отключите оптимизацию батареи",
+      "opportunityWindows.reminderBatteryMessage": "Чтобы напоминания приходили вовремя, разрешите {appName} работать без ограничений батареи. Иначе Android может отложить уведомление на несколько часов.",
+      "opportunityWindows.reminderOemBackgroundTitle": "Разрешите работу в фоне",
+      "opportunityWindows.reminderOemBackgroundMessage": "На вашем устройстве также включите автозапуск или фоновую работу для {appName} — без этого напоминания могут приходить с опозданием."
     }
   },
   "mandala": {
