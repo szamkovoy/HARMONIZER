@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.zamkovoi.harmonizer",
-      "versionCode": 38,
+      "versionCode": 39,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
