@@ -31,6 +31,7 @@
   "summaryBridge_ruTemplate": "{prefix} Как прошёл следующий пункт{nextSuffix}?",
   "summaryToPlanningBridge": "Что важного вы хотите запланировать на текущий день?",
   "summaryEmptyDueHandoff": "Хорошо — взгляд назад на запланированное ранее закрыт. Можно оставить пережитое как есть.",
+  "emptyRecoveryPrompt": "Давайте продолжим — что для вас сейчас важнее всего?",
   "greeting_morning": "Доброе утро",
   "greeting_midday": "Добрый день",
   "greeting_evening": "Добрый вечер",

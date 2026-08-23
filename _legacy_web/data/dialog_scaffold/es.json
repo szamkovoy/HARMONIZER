@@ -47,5 +47,6 @@
   "summaryClarify_work_1": "¿Cómo se sintió el trabajo desde adentro — impulsado y concentrado, colaborativo, o más agotador que gratificante?",
   "summaryDefaultEvent": "este evento",
   "summaryEmptyDueHandoff": "Bien — cerramos la mirada a lo planeado. Puedes dejar la experiencia tal como está.",
+  "emptyRecoveryPrompt": "Continuemos — ¿qué es lo más importante para ti ahora mismo?",
   "summaryToPlanningBridge": "¿Qué sientes que es importante planificar para hoy?"
 }

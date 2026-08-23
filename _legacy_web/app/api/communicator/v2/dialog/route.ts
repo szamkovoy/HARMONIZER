@@ -109,6 +109,7 @@ import {
   visibleTextMentionsEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
 import {
+  buildEmptyContentRepairInstruction,
   buildLeakedMarkupRepairInstruction,
   buildPlanningFinalizeRepairInstruction,
   planningFinalizeArtifactsReady,
@@ -739,6 +740,37 @@ function ensureSummaryToPlanningBridge(visibleText: string, locale: AppContentLo
   return body ? `${body}\n\n${bridge}` : bridge;
 }
 
+/**
+ * Deterministic, branch-aware last-resort reply when the LLM produced no
+ * usable visible text after sanitization AND both same-model + fallback-model
+ * retries failed. Keeps the dialog seamless for the user — never empty,
+ * never throws. Uses existing localized scaffold strings only.
+ */
+function buildEmptyVisibleFallback(params: {
+  branch: string;
+  locale: AppContentLocale;
+  currentEventDescription: string | null;
+  shouldClose: boolean;
+  hadPractice: boolean;
+  userMessage: string;
+}): string {
+  const { branch, locale, currentEventDescription, shouldClose, hadPractice, userMessage } = params;
+  const s = getDialogScaffoldStrings(locale);
+  if (branch === "summarizing" && currentEventDescription) {
+    return buildSummaryClarifyingQuestion(currentEventDescription, locale);
+  }
+  if (branch === "summarizing") {
+    return s.summaryEmptyDueHandoff;
+  }
+  if (branch === "practice" && shouldClose) {
+    return buildPostDialogReply({ locale, userMessage, hadPractice });
+  }
+  if (branch === "practice") {
+    return buildPracticeClarificationFallback({ locale, kind: null, requestedDurationMin: null, range: null, altKind: null });
+  }
+  return s.emptyRecoveryPrompt;
+}
+
 function findSummaryMarkerForEvent(
   markers: ReturnType<typeof parseResponseMarkers>,
   event: PlannedEventRow,
@@ -1310,20 +1342,12 @@ export async function POST(req: Request) {
       && !isOpening
       && due.length <= 1
       && currentEvent != null;
-    const bufferSummaryUntilGuards =
-      branchForTurn === "summarizing"
-      && !isOpening
-      && currentEvent != null
-      && (summaryAskedCount(fsm, currentEvent.id) < 1 || due.length <= 1);
-    const bufferPlanningUntilGuards =
-      branchForTurn === "planning"
-      && !isOpening
-      && !fsmAtTurnStart.planningFinalized;
-    const bufferPracticeUntilGuards =
-      branchForTurn === "practice"
-      && !isOpening
-      && ((practiceValidationAtTurn ? userAnsweredPracticeRequest(practiceValidationAtTurn) : false) || userDeclinesPractice(userMessage));
-    const bufferUntilGuards = bufferSummaryUntilGuards || bufferPlanningUntilGuards || bufferPracticeUntilGuards;
+    // Always buffer the raw LLM stream until sanitization completes so no
+    // protocol markup (e.g. <PLANNED_EVENT> tags, leftover display_order=
+    // /spheres= attributes) can ever leak to the client via a live `chunk`.
+    // The client's `StreamingAssistantLines` still does paced line-by-line
+    // FadeIn after the single sanitized `chunk` is emitted below.
+    const bufferUntilGuards = true;
     const maxOutputTokens =
       summarizingFinalTurn ? 4500
       : branchForTurn === "summarizing" ? 900
@@ -1334,7 +1358,11 @@ export async function POST(req: Request) {
         let fullText = "";
         try {
           let modelUsed = model;
-          const collectBufferedRetryText = async (userInstruction: string) => {
+          const collectBufferedRetryText = async (
+            userInstruction: string,
+            options?: { modelOverride?: string },
+          ) => {
+            const retryModel = options?.modelOverride ?? model;
             let retryFullText = "";
             let retryModelUsed = modelUsed;
             for await (const chunk of streamGeminiText({
@@ -1344,7 +1372,7 @@ export async function POST(req: Request) {
                 ...currentTurnPrefix,
                 { role: "user", parts: [{ text: userInstruction }] },
               ],
-              model,
+              model: retryModel,
               temperature: 0.85,
               maxOutputTokens,
             })) {
@@ -2227,8 +2255,99 @@ export async function POST(req: Request) {
           if (visibleTextHasLeakedDialogMarkup(cleanText)) {
             cleanText = stripLeakedDialogMarkup(cleanText);
           }
-          if (!cleanText) {
-            throw new Error("Model returned empty text after sanitization");
+          if (!cleanText.trim()) {
+            // Graduated recovery: the model produced no usable visible text
+            // after sanitization (marker-only draft, all-whitespace, or fully
+            // stripped leaked markup). Never throw — give the model two more
+            // chances (same model + repair instruction, then AI_MODEL_FALLBACK
+            // + repair instruction), preserving the same systemInstruction +
+            // baseHistory + currentTurnPrefix so the context window and
+            // DeepSeek prefix-cache stay warm. If both retries still yield
+            // empty, fall back to a deterministic branch-aware reply so the
+            // dialog continues seamlessly for the user.
+            const recoveryLocale = resolveDialogScaffoldLocale(context.user.locale);
+            const markerOnly = Boolean(
+              markers.plannedEvents.length
+              || markers.summarizeEvents.length
+              || markers.practicePick
+              || markers.recommendationCorrection
+              || markers.cancelEvents.length,
+            );
+            const diagBase = {
+              conversationId: conversation.id,
+              branch: branchForTurn,
+              totalLen: fullText.length,
+              markerOnly,
+            };
+
+            let recovered = false;
+
+            // 1) Same-model retry with empty-content repair instruction.
+            try {
+              const repaired = await collectBufferedRetryText(
+                buildEmptyContentRepairInstruction({ baseInstruction: prompt.userInstruction }),
+              );
+              const repairedVisible = stripBrainSentinels(
+                sanitizeAssistantText(repaired.fullText, resolveResponseLocale(context.user.locale)),
+              ).trim();
+              if (repairedVisible && !visibleTextHasLeakedDialogMarkup(repairedVisible)) {
+                modelUsed = repaired.modelUsed;
+                fullText = repaired.fullText;
+                markers = parseResponseMarkers(fullText);
+                cleanText = repairedVisible;
+                recovered = true;
+                console.warn(
+                  "[DIALOG_FSM] Recovered empty visible text via same-model retry",
+                  JSON.stringify({ ...diagBase, stage: "same_model_retry" }),
+                );
+              }
+            } catch (repairError) {
+              console.warn("[DIALOG_FSM] Same-model empty-content retry errored", repairError);
+            }
+
+            // 2) Fallback model (AI_MODEL_FALLBACK) + repair instruction.
+            if (!recovered) {
+              try {
+                const fallbackModel = getModelByHint(DIALOG_MODEL_TIER, { fallback: true });
+                const fb = await collectBufferedRetryText(
+                  buildEmptyContentRepairInstruction({ baseInstruction: prompt.userInstruction }),
+                  { modelOverride: fallbackModel },
+                );
+                const fbVisible = stripBrainSentinels(
+                  sanitizeAssistantText(fb.fullText, resolveResponseLocale(context.user.locale)),
+                ).trim();
+                if (fbVisible && !visibleTextHasLeakedDialogMarkup(fbVisible)) {
+                  modelUsed = fb.modelUsed;
+                  fullText = fb.fullText;
+                  markers = parseResponseMarkers(fullText);
+                  cleanText = fbVisible;
+                  recovered = true;
+                  console.warn(
+                    "[DIALOG_FSM] Recovered empty visible text via fallback model",
+                    JSON.stringify({ ...diagBase, stage: "fallback_model", fallbackModel: fb.modelUsed }),
+                  );
+                }
+              } catch (fallbackError) {
+                console.warn("[DIALOG_FSM] Fallback-model empty-content retry errored", fallbackError);
+              }
+            }
+
+            // 3) Deterministic branch-aware fallback — never throw.
+            if (!recovered) {
+              cleanText = buildEmptyVisibleFallback({
+                branch: branchForTurn,
+                locale: recoveryLocale,
+                currentEventDescription: currentEvent?.description ?? null,
+                shouldClose,
+                hadPractice: Boolean(practicePicked),
+                userMessage,
+              });
+              turnMode = "inquiry";
+              console.warn(
+                "[DIALOG_FSM] Empty visible text persisted after same-model + fallback retries — using deterministic fallback",
+                JSON.stringify({ ...diagBase, stage: "deterministic" }),
+              );
+            }
           }
           // Deterministic safety net: DeepSeek occasionally drops a stray English
           // word into Russian output ("рутинный task", "пусть ответ quietly…").

@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.101
-updated: 2026-08-16
+version: 2.102
+updated: 2026-08-23
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-08-23 (empty-text graduated recovery + uniform buffering):** Sentry production error `Model returned empty text after sanitization` (`POST /api/communicator/v2/dialog`, `stage=responder_stream`): DeepSeek returned 200 with ~95 chars, but after `sanitizeAssistantText`/`stripBrainSentinels` the visible text became `""` (marker-only draft), and `route.ts` threw — user saw SSE `error`. Fix: (1) **Uniform buffering** — `bufferUntilGuards = true` always (was conditional on branch/state); raw LLM stream is never emitted as live `chunk` until sanitization completes, so `<PLANNED_EVENT>` / `display_order=` / `spheres=` leaks structurally impossible (client `StreamingAssistantLines` still does paced line-by-line FadeIn after the single sanitized `chunk`). (2) **Graduated recovery** replaces the throw: same-model retry with `buildEmptyContentRepairInstruction` (prefix-cache warm, same `systemInstruction` + `baseHistory` + `currentTurnPrefix`) → if still empty, `AI_MODEL_FALLBACK` model retry with same repair instruction (context window preserved) → if still empty, deterministic branch-aware fallback (`buildSummaryClarifyingQuestion` / `summaryEmptyDueHandoff` / `buildPracticeClarificationFallback` / `buildPostDialogReply` / new scaffold `emptyRecoveryPrompt`, all 8 locales). Never throws; logs `console.warn` with diagnostics (`branch`, `totalLen`, `markerOnly`, `stage`), not Sentry error. `collectBufferedRetryText` gained optional `{ modelOverride }`. Existing 4 hidden repair paths (planning finalize, summary close, summary mixed, leaked markup) untouched. Client not changed (already unified into `StreamingAssistantLines`).
 
 - **2026-08-16 (XML marker leak):** QA planning FINAL показывал `<CORRECT_RECOMMENDATION>` / `<PLANNED_EVENT … display_order= spheres=>` и хвосты атрибутов. Root: DeepSeek иногда эмитит XML вместо `[PLANNED_EVENT: …]`; старый парсер/sanitize снимал только square brackets. Fix: parse XML + hybrid square-open/XML-close; `stripLeakedDialogMarkup`; intro/day-focus skip leaked paragraphs; last-resort hidden retry `buildLeakedMarkupRepairInstruction` только если sanitize не очистил visible (тот же `systemInstruction`, уже распарсенные маркеры не перетираются); prompt MARKERS явно запрещает XML.
 

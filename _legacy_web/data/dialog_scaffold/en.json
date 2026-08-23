@@ -47,5 +47,6 @@
   "summaryClarify_work_1": "How did the work feel from the inside — driven and focused, collaborative, or more draining than rewarding?",
   "summaryDefaultEvent": "this event",
   "summaryEmptyDueHandoff": "Alright — the review of earlier plans is now over. You can leave the experience be.",
+  "emptyRecoveryPrompt": "Let's continue — what feels most important for you right now?",
   "summaryToPlanningBridge": "What feels important to plan for today?"
 }

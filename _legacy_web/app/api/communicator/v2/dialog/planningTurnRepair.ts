@@ -62,3 +62,24 @@ export function buildLeakedMarkupRepairInstruction(params: {
     "- Keep the same language, meaning, and branch job. Do not restart gathering, do not ask extra follow-up questions, and do not drop required finalize artifacts.",
   ].join("\n");
 }
+
+/**
+ * Repair instruction for the case where the model produced NO user-visible
+ * text after sanitization — i.e. the draft contained only protocol markers
+ * (or whitespace), so the assistant bubble would be empty. Model-agnostic
+ * wording so it works for both the primary model and `AI_MODEL_FALLBACK`.
+ */
+export function buildEmptyContentRepairInstruction(params: {
+  baseInstruction: string;
+}): string {
+  return [
+    params.baseInstruction,
+    "",
+    "REPAIR THIS TURN ONLY. Your previous draft produced NO user-visible text — it contained only protocol markers (or whitespace), so there was nothing for the user to read.",
+    "Rewrite the same turn from scratch and write a natural, human reply that continues the conversation.",
+    "- Visible text must be natural language only. The user must never see tag names, XML, HTML, or protocol attributes.",
+    "- Invisible markers, if this turn needs them, MUST use square brackets exactly as specified: [PLANNED_EVENT: ...], [CORRECT_RECOMMENDATION: ...], [SUMMARIZE_EVENT: ...], [PRACTICE_PICK: ...]. Never emit XML/HTML tags.",
+    "- Keep the same language, meaning, and branch job. Do not restart gathering, do not ask extra follow-up questions, and do not drop required finalize artifacts.",
+    "- If this turn is a final (planning finalize / summarizing final / practice pick), still emit the required invisible markers AND a complete visible reply.",
+  ].join("\n");
+}

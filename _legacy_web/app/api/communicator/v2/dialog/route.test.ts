@@ -7,6 +7,7 @@ import {
   todayLocalDate,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import {
+  buildEmptyContentRepairInstruction,
   buildLeakedMarkupRepairInstruction,
   buildPlanningFinalizeRepairInstruction,
   planningFinalizeArtifactsReady,
@@ -16,6 +17,10 @@ import {
   buildSummaryRepairInstruction,
   classifySummaryRepairMode,
 } from "@legacy/app/api/communicator/v2/dialog/summaryTurnRepair";
+import { getDialogScaffoldStrings } from "@legacy/app/api/_utils/dialogScaffold";
+import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
+
+const ALL_LOCALES: AppContentLocale[] = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"];
 
 function createMockSupabase(messages: unknown[]) {
   const calls: Array<{ ascending: boolean; limit: number }> = [];
@@ -369,5 +374,24 @@ describe("planning repair helpers", () => {
     expect(instruction).toMatch(/never emit XML/i);
     expect(instruction).toContain("natural language only");
   });
+
+  it("builds an empty-content repair instruction that asks for natural visible reply", () => {
+    const instruction = buildEmptyContentRepairInstruction({ baseInstruction: "BASE" });
+    expect(instruction).toContain("BASE");
+    expect(instruction).toMatch(/NO user-visible text/i);
+    expect(instruction).toContain("natural language only");
+    expect(instruction).toContain("square brackets");
+    expect(instruction).toMatch(/never emit XML/i);
+    expect(instruction).toMatch(/required invisible markers AND a complete visible reply/i);
+  });
+});
+
+describe("emptyRecoveryPrompt scaffold string (deterministic fallback contract)", () => {
+  for (const locale of ALL_LOCALES) {
+    it(`provides a non-empty emptyRecoveryPrompt for ${locale}`, () => {
+      const s = getDialogScaffoldStrings(locale);
+      expect(s.emptyRecoveryPrompt.trim().length).toBeGreaterThan(0);
+    });
+  }
 });
 
