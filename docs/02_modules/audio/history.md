@@ -1,13 +1,15 @@
 ---
 id: 02_modules/audio/history
 title: Audio History
-version: 1.2
-updated: 2026-08-23
-depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
+version: 1.3
+updated: 2026-08-24
+depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
 ---
 
 ## Decision Log
+
+- **2026-08-24 (lock-screen card → profile locale):** `artist` media-notification / lock-screen карточки практики «Спокойствие» был захардкожен `"Harmonizer"` (латиница) — не совпадал с языком профиля (на RU-профиле рядом с локализованным `title` «Спокойствие» стоял латинский бренд, тогда как ОС-имя приложения = «Гармонизатор»). Фикс: `MandalaSoundProvider` берёт `useAppLocale().locale` и ставит `artist: getAppDisplayName(locale)` из нового `modules/i18n/appDisplayName.ts` (runtime-зеркало build-time `APP_NAMES` из `plugins/appLocalesData.js`: RU «Гармонизатор», EN «Harmonizer», DE «Harmonisierer», FR «Harmoniseur», IT «Armonizzatore», ES «Armonizador», PT «Harmonizador», NL «Harmoniseerder»). `locale` добавлен в dep-массив audio-lifecycle effect-а — карточка перебиндится при смене языка профиля. `title` уже следовал за profile-локалью через `catalogStrings.meditationCalmTitle`. Новая cross-module зависимость: `audio` → `i18n` (см. `dependencies.md`). Публичный API `lockScreen` не изменился.
 
 - **2026-08-23 (root cause of awake dropout — lockScreen re-render churn):** После нативного патча (sustained focus) звук nature-bed всё равно пропадал через ~15-30 с на бодрствующем телефоне и не возвращался на рестарте. Причина не в фокусе: `CalmPracticeScreen` передавал `lockScreen={{ title, artwork }}` инлайн-объектом, а elapsed-таймер (`setInterval` 500 мс → `setElapsedMs`) ре-рендерил экран каждые 500 мс → `lockScreen` был новой ссылкой каждый рендер → audio-lifecycle effect `MandalaSoundProvider` (deps включают `lockScreen`) перезапускался каждые 500 мс → teardown+start движков каждые 500 мс («по циклу»), пока foreground service / audio focus не коллапсировали → «звук пропал и больше не появился». Фикс: `lockScreen` теперь `useMemo` в `CalmPracticeScreen` (стабильная ссылка, меняется только при смене title/artwork). Нативный патч оставлен — он нужен для sustained focus в Doze и resume после LOSS. Урок: объекты-пропсы, идущие в dep-массив effect-а, должны быть мемоизированы (как `catalogStrings`).
 

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.17
-updated: 2026-07-24
+version: 1.18
+updated: 2026-08-24
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -11,6 +11,7 @@ code_refs:
     modules/i18n/t.ts,
     modules/i18n/useAppLocale.ts,
     modules/i18n/useTranslate.ts,
+    modules/i18n/appDisplayName.ts,
     modules/i18n/index.ts,
     modules/i18n/catalog/ru.json,
     modules/i18n/catalog/en.json,
@@ -278,6 +279,13 @@ Two resolvers — do not conflate layer B and layer C:
   system dialogs, OTP email) but lives in native config; the runtime `modules/i18n`
   store is independent (in-app language can differ from the device language, and the
   home-screen name follows the device language, not the in-app choice — OS limitation).
+- **Runtime mirror (2026-08-24):** `modules/i18n/appDisplayName.ts` exports the same
+  `APP_DISPLAY_NAMES` map + `getAppDisplayName(locale)`, re-exported from
+  `@/modules/i18n`. Used by `MandalaSoundProvider` as the `artist` of the
+  media-notification / lock-screen card so the card's app name follows the
+  **profile** locale (the OS home-screen name follows the *device* locale — these
+  two can legitimately differ). Keep `appDisplayName.ts` and `plugins/appLocalesData.js`
+  `APP_NAMES` in sync; the §6 add-language step updates both.
 
 ### 4.2 Gate — `scripts/i18n-sync.mjs`
 - `check` — diffs RU source vs each locale: **missing / stale / orphan** keys for

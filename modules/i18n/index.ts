@@ -17,6 +17,10 @@ export {
   resolveDeviceAppLocale,
 } from "@/modules/i18n/resolveDeviceAppLocale";
 export { useAppLocale, type UseAppLocaleResult } from "@/modules/i18n/useAppLocale";
+export {
+  APP_DISPLAY_NAMES,
+  getAppDisplayName,
+} from "@/modules/i18n/appDisplayName";
 export { t, tCount, pluralCategory } from "@/modules/i18n/t";
 export {
   ALL_CONTENT_LOCALES,

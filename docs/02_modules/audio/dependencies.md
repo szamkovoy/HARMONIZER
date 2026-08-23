@@ -1,9 +1,9 @@
 ---
 id: 02_modules/audio/dependencies
 title: Audio Dependencies
-version: 1.5
-updated: 2026-08-23
-depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
+version: 1.6
+updated: 2026-08-24
+depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
 ---
 
@@ -24,6 +24,9 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 - **`bindu` (контракт мандалы в `modules/mandala/core`)**  
   `modules/mandala-sound/core/sync.ts` импортирует **`buildAudioContract()`** из `modules/mandala/core/bio.ts` и **`AudioBandTrigger`** из `modules/mandala/core/types.ts`; через них считаются `textureBrightness`, гейны дорожек, **`flickerHz`** (равен `targetHz` из таймлайна), **`flickerIntensity`** и `gongTrigger`. Пакет **`mandala-sound` не импортирует** React-канвасы bindu — мандала получает уже готовый `MandalaSoundVisualSync` снаружи (см. §2).
+
+- **`i18n` (локализованное имя приложения для lock-screen карточки)**  
+  `modules/mandala-sound/ui/MandalaSoundProvider.tsx` импортирует `useAppLocale` и `getAppDisplayName` из `@/modules/i18n`. `getAppDisplayName(locale)` отдаёт локализованное имя приложения (RU «Гармонизатор», EN «Harmonizer» …) — это `artist` media-notification / lock-screen карточки. Runtime-зеркало build-time `APP_NAMES` из `plugins/appLocalesData.js`; при добавлении языка обновляются оба файла (см. `docs/02_modules/i18n/spec.md` §6). `useAppLocale().locale` — единственный источник активной локали; `locale` входит в dep-массив audio-lifecycle effect-а, поэтому карточка перебиндится при смене языка профиля.
 
 ## 2. От него зависят
 

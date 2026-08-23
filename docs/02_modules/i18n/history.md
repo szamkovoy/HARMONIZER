@@ -1,19 +1,22 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.20
-updated: 2026-08-19
+version: 1.21
+updated: 2026-08-24
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
     modules/i18n/localeStore.ts,
     modules/i18n/t.ts,
+    modules/i18n/appDisplayName.ts,
     _legacy_web/app/api/_utils/dialogLocale.ts,
     scripts/i18n-sync.mjs,
   ]
 ---
 
 ## Decision Log
+
+- **2026-08-24 (runtime app-display-name mirror):** Добавлен `modules/i18n/appDisplayName.ts` — runtime-зеркало build-time `APP_NAMES` из `plugins/appLocalesData.js` (`APP_DISPLAY_NAMES` + `getAppDisplayName(locale)`, реэкспорт из `@/modules/i18n`). Причина: media-notification / lock-screen карточка практики (модуль `audio`, `MandalaSoundProvider`) показывает `artist` = имя приложения; раньше был захардкожен `"Harmonizer"` (латиница) и не следовал за profile-локалью. Теперь `artist` = `getAppDisplayName(useAppLocale().locale)` — RU «Гармонизатор», EN «Harmonizer» … — совпадает с языком профиля (а не устройства, как home-screen имя). OS home-screen имя по-прежнему следует за device-локалью (platform limitation) — это намеренное расхождение. При добавлении языка обновлять ОБА файла (см. spec §6).
 
 - **2026-08-19 (location optional CTA):** `home.opportunityWindows.needLocation` / `enableLocationButton` ×8 (RU source; EN + EU filled). Home geo-gate copy `home.geoGate.*` unused in UI.
 

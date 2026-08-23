@@ -8,6 +8,12 @@
  * В reason-строках используется локализованное имя приложения
  * (RU «Гармонизатор», DE «Harmonisierer» …), чтобы заголовок системного окна
  * (CFBundleDisplayName) и тело причины были на одном языке и с одним именем.
+ *
+ * `APP_NAMES` ниже — build-time источник. Runtime-зеркало живёт в
+ * `modules/i18n/appDisplayName.ts` (`getAppDisplayName`): его использует
+ * media-карточка lock-screen (MandalaSoundProvider), чтобы «artist» карточки
+ * совпадал с языком профиля. При добавлении языка обновляйте ОБА файла
+ * (см. docs/02_modules/i18n/spec.md §6).
  */
 const APP_NAMES = {
   ru: "Гармонизатор",

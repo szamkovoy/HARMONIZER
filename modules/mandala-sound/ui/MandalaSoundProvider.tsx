@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 
+import { useAppLocale, getAppDisplayName } from "@/modules/i18n";
 import { useBiofeedbackSubscribe } from "@/modules/biofeedback/bus/react";
 import type { BeatEvent } from "@/modules/biofeedback/sensors/types";
 import { AmbientLoopEngine } from "@/modules/mandala-sound/core/ambientEngine";
@@ -95,6 +96,7 @@ export function MandalaSoundProvider({
   const artworkUriRef = useRef<string | undefined>(undefined);
   const [frame, setFrame] = useState<MandalaSoundSyncFrame>(DEFAULT_FRAME);
   const [interrupted, setInterrupted] = useState(false);
+  const { locale } = useAppLocale();
 
   const registerBeat = useCallback((beat: BeatEvent) => {
     const rrMs = beatRrMs(lastBeatRef.current, beat);
@@ -219,7 +221,7 @@ export function MandalaSoundProvider({
       const lockScreenMetadata = staysActiveInBackground && lockScreen
         ? {
             title: lockScreen.title,
-            artist: "Harmonizer",
+            artist: getAppDisplayName(locale),
             artworkUrl: artworkUriRef.current,
           }
         : undefined;
@@ -264,7 +266,7 @@ export function MandalaSoundProvider({
       cancelled = true;
       void teardown(FADE_OUT_MS);
     };
-  }, [chakra, durationMs, isActive, practiceKind, soundBed, staysActiveInBackground, lockScreen]);
+  }, [chakra, durationMs, isActive, practiceKind, soundBed, staysActiveInBackground, lockScreen, locale]);
 
   const visualSync = useMemo<MandalaSoundVisualSync>(
     () => ({
