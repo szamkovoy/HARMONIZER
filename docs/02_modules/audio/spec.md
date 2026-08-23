@@ -1,15 +1,15 @@
 ---
 id: 02_modules/audio/spec
 title: Audio Spec
-version: 1.3
-updated: 2026-05-07
+version: 1.4
+updated: 2026-08-23
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/ambientEngine.ts, modules/mandala-sound/core/soundBed.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx, scripts/build-ambient-loops.mjs]
 ---
 
 ## 1. Назначение
 
-`audio` добавляет к активной практике тихий адаптивный звуковой слой и держит его в одном ритме с визуальным Bindu-контуром. Модуль не является отдельным экраном: он монтируется внутри дыхательной и медитативной сессии, собирает sync-кадр из таймлайна, дыхания и beat-событий, затем обновляет `expo-av` loops и отдаёт visual sync наружу. Выбор фона взаимоисключающий: **Neuro-sync** (текущий binaural/drone-стек) или один из **8 nature ambient beds**.
+`audio` добавляет к активной практике тихий адаптивный звуковой слой и держит его в одном ритме с визуальным Bindu-контуром. Модуль не является отдельным экраном: он монтируется внутри дыхательной и медитативной сессии, собирает sync-кадр из таймлайна, дыхания и beat-событий, затем обновляет `expo-audio` loops и отдаёт visual sync наружу. Выбор фона взаимоисключающий: **Neuro-sync** (текущий binaural/drone-стек) или один из **8 nature ambient beds**.
 
 ## 2. Публичный контракт
 
@@ -37,19 +37,22 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 - `MandalaSoundProvider(props: PropsWithChildren<MandalaSoundSessionInput & { biofeedbackEnabled?: boolean }>)` — опциональный `soundBed` (default `neuro-sync`).
 - `useMandalaSoundFrame(): MandalaSoundSyncFrame`
 - `useMandalaSoundSync(): MandalaSoundVisualSync`
-- Экспортируемые типы: `MandalaSoundAssetPreset`, `MandalaSoundBinauralLoop`, `MandalaSoundBand`, `MandalaSoundBreathSync`, `MandalaSoundEngineControls`, `MandalaSoundPracticeKind`, `MandalaSoundPulseSync`, `MandalaSoundSessionInput`, `MandalaSoundSyncFrame`, `MandalaSoundVisualSync`, `SoundBedId`, `NatureSoundBedId`.
+- `useMandalaSoundInterruption(): boolean` — `true`, пока ОС приостановила наш аудио (звонок, другое приложение захватило audio focus). Потребители (например `CalmPracticeScreen`) палят по этому флагу учёт elapsed-времени, чтобы практика завершалась ровно через заданную длительность, а не «съедала» время паузы.
+- Экспортируемые типы: `MandalaSoundAssetPreset`, `MandalaSoundBinauralLoop`, `MandalaSoundBand`, `MandalaSoundBreathSync`, `MandalaSoundEngineControls`, `MandalaSoundLockScreen`, `MandalaSoundPracticeKind`, `MandalaSoundPulseSync`, `MandalaSoundSessionInput`, `MandalaSoundSyncFrame`, `MandalaSoundVisualSync`, `SoundBedId`, `NatureSoundBedId`.
 
 ## 3. Внутренняя архитектура
 
 - `MandalaSoundProvider` — **мастер тактового контура** сессии: при `isActive` держит `startedAtMs`, `previousTargetHz`, локальный beat/RR state и раз в **`CONTROL_TICK_MS` (250 ms)** вызывает `buildMandalaSoundFrame` → обновляет контекст и (только для `neuro-sync`) `ExpoMandalaSoundEngine.update(frame)`; отсюда же берутся `flickerHz` / `flickerIntensity` для мандалы. При nature bed визуальный sync остаётся, binaural-стек не стартует — играет `AmbientLoopEngine`. Fade-in ~0.6 s при старте, fade-out ~0.8 s при `isActive=false` / unmount / смене bed.
 - `core/timeline.ts` переводит прогресс практики в целевой brainwave диапазон по сигмоидальной модели: старт в альфа (12 Гц), финиш `f_end(T)` от альфа (короткие) до дельта (длинные); band определяется порогами `beta/alpha/theta/delta`.
 - `core/sync.ts` собирает sync-кадр: дыхание берётся из `PlannedCycle` (тип и план из сценария **дыхательной практики**, код — `modules/breath/core/breath-phase-planner.ts` внутри **practices**), пульс из `BeatEvent` с fallback на LFO, затем через `buildAudioContract()` из Bindu-контракта вычисляются `textureBrightness`, `droneGain`, `textureGain`, `binauralGain`, `flickerHz`, `flickerIntensity` и `gongTrigger`.
-- `ExpoMandalaSoundEngine` не синтезирует звук на лету. Он заранее загружает loops через `expo-av`, держит громкости почти на нуле и на каждом тике обновляет `drone`, две `texture`-дорожки и binaural-кроссфейд по `targetHz` (чистая функция `binauralCrossfadeGains` из `core/binaural.ts`); `gongs` играются как best-effort one-shot по `gongTrigger`. Случайные «события» (Punctual Events) удалены — остались только два намеренных переходных гонга.
+- `ExpoMandalaSoundEngine` не синтезирует звук на лету. Он заранее загружает loops через `expo-audio` (`createAudioPlayer`), держит громкости почти на нуле и на каждом тике обновляет `drone`, две `texture`-дорожки и binaural-кроссфейд по `targetHz` (чистая функция `binauralCrossfadeGains` из `core/binaural.ts`); `gongs` играются как best-effort one-shot по `gongTrigger`. Случайные «события» (Punctual Events) удалены — остались только два намеренных переходных гонга.
+- **Фоновое воспроизведение (Android 14+).** `expo-audio` с config-плагином `enableBackgroundPlayback: true` добавляет в `AndroidManifest` foreground service `AudioControlsService` (тип `mediaPlayback`) + permissions `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. Для длительного фонового звука (часы) на Android **обязателен** вызов `player.setActiveForLockScreen(true, metadata)` — без него ОС останавливает аудио примерно через 3 минуты в Doze (platform limitation, см. docs expo-audio). `MandalaSoundProvider` при `staysActiveInBackground + lockScreen` резолвит обложку в локальный `file://` URI (`resolveLocalArtworkUri` через `expo-asset`) и передаёт в движок; движок bindит lock-screen на lead-плеере (drone для neuro-sync, активный буфер для ambient с ре-биндингом на handoff). `interruptionMode: "doNotMix"` — обязательно для `setActiveForLockScreen` и означает, что медитация становится единственным аудио (чужое приложение ставится на паузу). Для не-фоновых практик (breath/Flash) используется `"duckOthers"` — bed слышно, но чужое аудио не останавливается полностью.
+- **Interruption handling.** Движки пробрасывают `onPlaybackStateChange(playing)` из `playbackStatusUpdate` lead-плеера: пока мы сами никогда не pause-им bed, `playing=false` = внешнее прерывание (звонок / чужое приложение), `playing=true` = фокус вернулся и система resume-нула. `MandalaSoundProvider` кладёт это в контекст как `interrupted`; `CalmPracticeScreen` по флагу исключает окно прерывания из elapsed-таймера (сдвиг `sessionStartedAtRef` вперёд на длительность паузы) — практика завершается ровно через заданную длительность, а не «съедает» время звонка.
 - Визуальный слой получает только `MandalaSoundVisualSync` через `useMandalaSoundSync()`. Так дыхательная мандала и `BinduSuccessionFlowCanvas` мерцают в том же диапазоне, что и звук.
 
 ## 4. Конфигурация и параметры
 
-- Внешние входы провайдера: `practiceKind: "breath" | "meditation"`, `durationMs`, `chakra`, `isActive`, `plannedCycle`, `cycleStartMs`, `biofeedbackEnabled`, **`soundBed`** (`neuro-sync` | `creek` | `waves` | `rain` | `forest_birds` | `wind` | `fireplace` | `water_splash` | `cat_purr`).
+- Внешние входы провайдера: `practiceKind: "breath" | "meditation"`, `durationMs`, `chakra`, `isActive`, `plannedCycle`, `cycleStartMs`, `biofeedbackEnabled`, **`soundBed`** (`neuro-sync` | `creek` | `waves` | `rain` | `forest_birds` | `wind` | `fireplace` | `water_splash` | `cat_purr`), **`staysActiveInBackground`** (фоновое воспроизведение для «Спокойствие»), **`lockScreen`** (`{ title, artwork }` — карта media-notification / lock-screen: локализованное название практики + `require()`'d обложка; bindится только вместе с `staysActiveInBackground`).
 - Nature beds — бесшовные AAC в `assets/audio/ambient/<id>.m4a` (4 s baked acrossfade через `scripts/build-ambient-loops.mjs` + `sources.json`); сырые исходники в `assets/audio/ambient/raw/` не бандлятся (gitignored).
 - Выбор чакры влияет на `drone` и пару `texture`-лупов (только Neuro-sync). Сейчас доступны `7` drone-ассетов по чакрам и `3` texture-лупа с циклическим выбором пары.
 - Таймлайн (единый для звука и мерцания мандалы) — **сигмоидальная адаптивная модель** `f(t) = f_end + (f_start − f_end) / (1 + exp(k·(t − t_mid)))` с `f_start = 12 Гц`, `t_mid = 0.45·T`, `k = 7/T`:
@@ -62,7 +65,8 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 
 ## 5. Известные ограничения
 
-- Движок основан на `expo-av` volume control, а не на AudioWorklet/JSI DSP. Binaural-слой теперь **мультиполосный кроссфейд** из 12 loop'ов (шаг ~1 Гц, несущая 150 Гц) — бит следует за `targetHz` почти непрерывно. Полностью непрерывный per-ear осциллятор с медленной модуляцией несущей 140–180 Гц не реализован: для него нужен нативный синтез (`react-native-audio-api`), а он на Expo SDK 54 конфликтует с `react-native-worklets` 0.5.1 (Issue #739) — блокирует до обновления SDK.
+- Движок основан на `expo-audio` (`AudioPlayer` volume control, `createAudioPlayer`), а не на AudioWorklet/JSI DSP. Binaural-слой теперь **мультиполосный кроссфейд** из 12 loop'ов (шаг ~1 Гц, несущая 150 Гц) — бит следует за `targetHz` почти непрерывно. Полностью непрерывный per-ear осциллятор с медленной модуляцией несущей 140–180 Гц не реализован: для него нужен нативный синтез (`react-native-audio-api`), а он на Expo SDK 54 конфликтует с `react-native-worklets` 0.5.1 (Issue #739) — блокирует до обновления SDK.
+- `expo-av` остаётся в проекте только для записи микрофона (Communicator / whisper / affirmations); движки `mandala-sound` полностью перешли на `expo-audio`.
 - Историческое ТЗ про `70` текстур, `20` событий и live-фильтры не соответствует текущему коду: сейчас в рантайме `7` drones, `3` textures, `12` binaural loops и `3` gongs. Случайные Punctual Events удалены (2026-07-05) — остались только два намеренных переходных гонга (Шуман 7.83 Гц + 4 Гц).
 - Эффект binaural beats практически требует наушников; через динамик телефона каналы смешиваются.
 - Провайдер жёстко связан с контрактами **`modules/mandala/core`** (`buildAudioContract`, `AudioBandTrigger`) и с типом **`PlannedCycle`** из **`modules/breath/core/breath-phase-planner.ts`** (внутренняя реализация **дыхательной практики** в составе **practices**). Любые изменения этих типов меняют поведение `audio`.

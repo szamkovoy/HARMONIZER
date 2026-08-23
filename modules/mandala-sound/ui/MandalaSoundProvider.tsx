@@ -12,7 +12,7 @@ import {
 import { useBiofeedbackSubscribe } from "@/modules/biofeedback/bus/react";
 import type { BeatEvent } from "@/modules/biofeedback/sensors/types";
 import { AmbientLoopEngine } from "@/modules/mandala-sound/core/ambientEngine";
-import { ExpoMandalaSoundEngine } from "@/modules/mandala-sound/core/engine";
+import { ExpoMandalaSoundEngine, resolveLocalArtworkUri } from "@/modules/mandala-sound/core/engine";
 import {
   isNatureSoundBedId,
   SOUND_BED_NEURO_SYNC,
@@ -41,6 +41,8 @@ type MandalaSoundContextValue = {
   frame: MandalaSoundSyncFrame;
   visualSync: MandalaSoundVisualSync;
   registerBeat: (beat: BeatEvent) => void;
+  /** True while the OS has paused our audio (call, another app). Consumers can pause their timers. */
+  interrupted: boolean;
 };
 
 const MandalaSoundContext = createContext<MandalaSoundContextValue>({
@@ -52,6 +54,7 @@ const MandalaSoundContext = createContext<MandalaSoundContextValue>({
     pulsePhase: DEFAULT_FRAME.pulse.phase,
   },
   registerBeat: () => {},
+  interrupted: false,
 });
 
 function beatRrMs(previous: BeatEvent | null, next: BeatEvent): number | null {
@@ -80,6 +83,7 @@ export function MandalaSoundProvider({
   biofeedbackEnabled = false,
   soundBed = SOUND_BED_NEURO_SYNC,
   staysActiveInBackground = false,
+  lockScreen,
 }: PropsWithChildren<MandalaSoundSessionInput & { biofeedbackEnabled?: boolean }>) {
   const neuroEngineRef = useRef<ExpoMandalaSoundEngine | null>(null);
   const ambientEngineRef = useRef<AmbientLoopEngine | null>(null);
@@ -87,7 +91,9 @@ export function MandalaSoundProvider({
   const previousTargetHzRef = useRef<number | null>(null);
   const lastBeatRef = useRef<BeatEvent | null>(null);
   const lastRrMsRef = useRef<number | null>(null);
+  const artworkUriRef = useRef<string | undefined>(undefined);
   const [frame, setFrame] = useState<MandalaSoundSyncFrame>(DEFAULT_FRAME);
+  const [interrupted, setInterrupted] = useState(false);
 
   const registerBeat = useCallback((beat: BeatEvent) => {
     const rrMs = beatRrMs(lastBeatRef.current, beat);
@@ -96,6 +102,22 @@ export function MandalaSoundProvider({
       lastRrMsRef.current = rrMs;
     }
   }, []);
+
+  // Resolve the lock-screen cover art to a local URI once per artwork asset.
+  useEffect(() => {
+    if (!lockScreen?.artwork) {
+      artworkUriRef.current = undefined;
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const uri = await resolveLocalArtworkUri(lockScreen.artwork);
+      if (!cancelled) artworkUriRef.current = uri;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lockScreen?.artwork]);
 
   // Visual sync tick — always runs while active (even for nature beds).
   useEffect(() => {
@@ -157,6 +179,7 @@ export function MandalaSoundProvider({
     if (!isActive) {
       logRuntimeEvent("mandala_sound_provider:inactive", { practiceKind, soundBed: bed }, "debug");
       void teardown(FADE_OUT_MS);
+      setInterrupted(false);
       return () => {
         cancelled = true;
       };
@@ -168,17 +191,38 @@ export function MandalaSoundProvider({
       chakra,
       soundBed: bed,
       controlTickMs: CONTROL_TICK_MS,
+      lockScreen: Boolean(lockScreen),
     });
 
     void (async () => {
       await teardown(0);
       if (cancelled) return;
 
+      const lockScreenMetadata = staysActiveInBackground && lockScreen
+        ? {
+            title: lockScreen.title,
+            artist: "Harmonizer",
+            artworkUrl: artworkUriRef.current,
+          }
+        : undefined;
+
+      const onPlaybackStateChange = (playing: boolean) => {
+        // While we never pause the bed ourselves, `playing=false` means the OS
+        // interrupted us (call / another app took audio focus); `playing=true`
+        // means focus returned and the system resumed us.
+        setInterrupted(!playing);
+      };
+
       if (isNatureSoundBedId(bed)) {
         const engine = new AmbientLoopEngine();
         ambientEngineRef.current = engine;
         try {
-          await engine.start(bed, { fadeInMs: FADE_IN_MS, staysActiveInBackground });
+          await engine.start(bed, {
+            fadeInMs: FADE_IN_MS,
+            staysActiveInBackground,
+            lockScreenMetadata,
+            onPlaybackStateChange,
+          });
         } catch {
           /* visual sync continues */
         }
@@ -188,7 +232,11 @@ export function MandalaSoundProvider({
       const engine = new ExpoMandalaSoundEngine();
       neuroEngineRef.current = engine;
       try {
-        await engine.start(chakra, { staysActiveInBackground });
+        await engine.start(chakra, {
+          staysActiveInBackground,
+          lockScreenMetadata,
+          onPlaybackStateChange,
+        });
       } catch {
         /* visual sync continues */
       }
@@ -198,7 +246,7 @@ export function MandalaSoundProvider({
       cancelled = true;
       void teardown(FADE_OUT_MS);
     };
-  }, [chakra, durationMs, isActive, practiceKind, soundBed, staysActiveInBackground]);
+  }, [chakra, durationMs, isActive, practiceKind, soundBed, staysActiveInBackground, lockScreen]);
 
   const visualSync = useMemo<MandalaSoundVisualSync>(
     () => ({
@@ -211,8 +259,8 @@ export function MandalaSoundProvider({
   );
 
   const contextValue = useMemo(
-    () => ({ frame, visualSync, registerBeat }),
-    [frame, registerBeat, visualSync],
+    () => ({ frame, visualSync, registerBeat, interrupted }),
+    [frame, registerBeat, visualSync, interrupted],
   );
 
   return (
@@ -229,4 +277,9 @@ export function useMandalaSoundFrame(): MandalaSoundSyncFrame {
 
 export function useMandalaSoundSync(): MandalaSoundVisualSync {
   return useContext(MandalaSoundContext).visualSync;
+}
+
+/** True while the OS has paused our audio (call, another app). Pause elapsed-time accounting accordingly. */
+export function useMandalaSoundInterruption(): boolean {
+  return useContext(MandalaSoundContext).interrupted;
 }

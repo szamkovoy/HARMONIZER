@@ -1,7 +1,7 @@
 /**
  * Public barrel for practice screens that mount sound.
  * Tab UI (PracticeCard) must import IDs from `core/soundBed` only —
- * this barrel pulls expo-av engines + ~24MB ambient/mandala audio assets.
+ * this barrel pulls the expo-audio engines + ~24MB ambient/mandala audio assets.
  */
 export {
   isNatureSoundBedId,
@@ -42,5 +42,6 @@ export type {
 export {
   MandalaSoundProvider,
   useMandalaSoundFrame,
+  useMandalaSoundInterruption,
   useMandalaSoundSync,
 } from "@/modules/mandala-sound/ui/MandalaSoundProvider";

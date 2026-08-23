@@ -1,4 +1,4 @@
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer, type AudioMetadata } from "expo-audio";
 
 import { MANDALA_SOUND_ASSETS } from "@/modules/mandala-sound/core/assets";
 import { binauralCrossfadeGains } from "@/modules/mandala-sound/core/binaural";
@@ -9,35 +9,41 @@ import type {
   MandalaSoundSyncFrame,
 } from "@/modules/mandala-sound/core/types";
 
-type SoundHandle = InstanceType<typeof Audio.Sound>;
-
-type BinauralHandle = { sound: SoundHandle; beatHz: number };
+type BinauralHandle = { player: AudioPlayer; beatHz: number };
 
 const MIN_VOLUME_DELTA = 0.008;
+const FADE_SLEEP_STEP = 16;
 
 function chakraIndex(chakra: number): number {
   return Math.max(0, Math.min(6, Math.round(chakra) - 1));
 }
 
-async function unload(sound: SoundHandle | null): Promise<void> {
-  if (!sound) return;
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Resolve a `require()`'d image asset to a local `file://` URI for lock-screen
+ * artwork. expo-audio's `AudioMetadata.artworkUrl` expects a URL string; a
+ * bundled asset is turned into a downloadable local URI via expo-asset.
+ */
+export async function resolveLocalArtworkUri(imageRequire: number): Promise<string | undefined> {
   try {
-    await sound.stopAsync();
+    // Lazy import — expo-asset is a transitive Expo dependency.
+    const { Asset } = await import("expo-asset");
+    const asset = Asset.fromModule(imageRequire);
+    await asset.downloadAsync();
+    return asset.localUri ?? undefined;
   } catch {
-    // Best effort: the sound can already be stopped/unloaded by native teardown.
-  }
-  try {
-    await sound.unloadAsync();
-  } catch {
-    // Best effort cleanup.
+    return undefined;
   }
 }
 
 export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
   private readonly diagnosticId = Math.random().toString(36).slice(2, 8);
-  private drone: SoundHandle | null = null;
-  private textureA: SoundHandle | null = null;
-  private textureB: SoundHandle | null = null;
+  private drone: AudioPlayer | null = null;
+  private textureA: AudioPlayer | null = null;
+  private textureB: AudioPlayer | null = null;
   private binaural: BinauralHandle[] = [];
   private lastDroneVolume = 0;
   private lastTextureAVolume = 0;
@@ -47,10 +53,18 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
   private updateCount = 0;
   private updateInFlight = false;
   private skippedUpdates = 0;
+  private lockScreenBound = false;
 
   constructor(private readonly assets: MandalaSoundAssetPreset = MANDALA_SOUND_ASSETS) {}
 
-  async start(chakra: number, options?: { staysActiveInBackground?: boolean }): Promise<void> {
+  async start(
+    chakra: number,
+    options?: {
+      staysActiveInBackground?: boolean;
+      lockScreenMetadata?: AudioMetadata;
+      onPlaybackStateChange?: (playing: boolean) => void;
+    },
+  ): Promise<void> {
     if (this.started) return;
     this.started = true;
     const startedAt = Date.now();
@@ -58,20 +72,14 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     logRuntimeEvent("mandala_sound:start", { id: this.diagnosticId, chakra, staysActiveInBackground }, "debug");
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        // false: Android system BLE "connection request" banners (and similar) briefly
-        // duck audio when true — heard as a short scratch/glitch during breath sound.
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-        staysActiveInBackground,
-        interruptionModeIOS: staysActiveInBackground
-          ? InterruptionModeIOS.DoNotMix
-          : InterruptionModeIOS.MixWithOthers,
-        interruptionModeAndroid: staysActiveInBackground
-          ? InterruptionModeAndroid.DoNotMix
-          : InterruptionModeAndroid.DuckOthers,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: staysActiveInBackground,
+        // doNotMix (exclusive) for background practices — required for
+        // setActiveForLockScreen and so a meditation is the only audio. For
+        // foreground practices (breath/Flash, screen kept on) use duckOthers so
+        // the practice bed stays audible without fully stopping other audio.
+        interruptionMode: staysActiveInBackground ? "doNotMix" : "duckOthers",
       });
 
       const selectedDrone = this.assets.drones[chakraIndex(chakra)] ?? this.assets.drones[0];
@@ -80,43 +88,69 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
       const textureB = this.assets.textures[(textureOffset + 1) % Math.max(1, this.assets.textures.length)];
 
       if (selectedDrone) {
-        const { sound } = await Audio.Sound.createAsync(selectedDrone, {
-          isLooping: true,
-          volume: 0,
-          shouldPlay: true,
-        });
-        this.drone = sound;
+        this.drone = createAudioPlayer(selectedDrone, { updateInterval: 500 });
+        this.drone.loop = true;
+        this.drone.volume = 0;
+        this.drone.play();
       }
 
       if (textureA) {
-        const { sound } = await Audio.Sound.createAsync(textureA, {
-          isLooping: true,
-          volume: 0,
-          shouldPlay: true,
-        });
-        this.textureA = sound;
+        this.textureA = createAudioPlayer(textureA, { updateInterval: 500 });
+        this.textureA.loop = true;
+        this.textureA.volume = 0;
+        this.textureA.play();
       }
 
       if (textureB && textureB !== textureA) {
-        const { sound } = await Audio.Sound.createAsync(textureB, {
-          isLooping: true,
-          volume: 0,
-          shouldPlay: true,
-        });
-        this.textureB = sound;
+        this.textureB = createAudioPlayer(textureB, { updateInterval: 500 });
+        this.textureB.loop = true;
+        this.textureB.volume = 0;
+        this.textureB.play();
       }
 
       await Promise.all(
         this.assets.binaural.map(async (loop) => {
-          const { sound } = await Audio.Sound.createAsync(loop.asset, {
-            isLooping: true,
-            volume: 0,
-            shouldPlay: true,
-          });
-          this.binaural.push({ sound, beatHz: loop.beatHz });
+          const player = createAudioPlayer(loop.asset, { updateInterval: 500 });
+          player.loop = true;
+          player.volume = 0;
+          player.play();
+          this.binaural.push({ player, beatHz: loop.beatHz });
         }),
       );
       this.lastBinauralVolumes = new Array(this.binaural.length).fill(0);
+
+      // Bind lock-screen controls to the drone (the continuous lead layer).
+      if (staysActiveInBackground && options?.lockScreenMetadata && this.drone) {
+        try {
+          this.drone.setActiveForLockScreen(true, options.lockScreenMetadata, {
+            showSeekBackward: false,
+            showSeekForward: false,
+          });
+          this.lockScreenBound = true;
+        } catch (error) {
+          logRuntimeEvent(
+            "mandala_sound:lock_screen_bind_failed",
+            { id: this.diagnosticId, message: error instanceof Error ? error.message : String(error) },
+            "warn",
+          );
+        }
+      }
+
+      // Forward lead-player play/pause changes (system interruption / resume).
+      // We never pause the drone ourselves while `started`, so a `playing=false`
+      // status while started signals an external interruption (call, another app).
+      if (options?.onPlaybackStateChange && this.drone) {
+        let wasPlaying = true;
+        this.drone.addListener("playbackStatusUpdate", (status) => {
+          if (!this.started || !status.isLoaded) return;
+          const playing = status.playing;
+          if (playing !== wasPlaying) {
+            wasPlaying = playing;
+            options.onPlaybackStateChange!(playing);
+          }
+        });
+      }
+
       logRuntimeEvent("mandala_sound:start_ready", {
         id: this.diagnosticId,
         durationMs: Date.now() - startedAt,
@@ -124,6 +158,7 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
         hasDrone: Boolean(this.drone),
         hasTextureA: Boolean(this.textureA),
         hasTextureB: Boolean(this.textureB),
+        lockScreenBound: this.lockScreenBound,
       });
     } catch (error) {
       logRuntimeEvent(
@@ -168,14 +203,12 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
         this.binaural.map((entry) => entry.beatHz),
       );
 
-      await Promise.all([
-        this.setLoopVolume("drone", frame.droneGain),
-        this.setLoopVolume("textureA", frame.textureGain * frame.textureBrightness),
-        this.setLoopVolume("textureB", frame.textureGain * (1 - frame.textureBrightness) * 0.74),
-        ...this.binaural.map((entry, index) =>
-          this.setBinauralVolume(index, binauralGains[index]! * frame.binauralGain),
-        ),
-      ]);
+      this.setLoopVolume("drone", frame.droneGain);
+      this.setLoopVolume("textureA", frame.textureGain * frame.textureBrightness);
+      this.setLoopVolume("textureB", frame.textureGain * (1 - frame.textureBrightness) * 0.74);
+      this.binaural.forEach((entry, index) =>
+        this.setBinauralVolume(index, (binauralGains[index] ?? 0) * frame.binauralGain),
+      );
 
       if (frame.gongTrigger) {
         void this.playOneShot(this.assets.gongs[frame.gongTrigger], 0.11);
@@ -193,12 +226,20 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     if (fadeOutMs > 0 && wasStarted) {
       await this.fadeAllToZero(fadeOutMs);
     }
-    await Promise.all([
-      unload(this.drone),
-      unload(this.textureA),
-      unload(this.textureB),
-      ...this.binaural.map((entry) => unload(entry.sound)),
-    ]);
+    if (this.lockScreenBound && this.drone) {
+      try {
+        this.drone.clearLockScreenControls();
+      } catch {
+        /* best effort */
+      }
+      this.lockScreenBound = false;
+    }
+    for (const entry of this.binaural) {
+      this.releasePlayer(entry.player);
+    }
+    this.releasePlayer(this.drone);
+    this.releasePlayer(this.textureA);
+    this.releasePlayer(this.textureB);
     this.drone = null;
     this.textureA = null;
     this.textureB = null;
@@ -218,34 +259,43 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     }, "debug");
   }
 
+  private releasePlayer(player: AudioPlayer | null): void {
+    if (!player) return;
+    try {
+      player.pause();
+    } catch {
+      /* best effort */
+    }
+    try {
+      player.remove();
+    } catch {
+      /* best effort: native teardown may have already released it */
+    }
+  }
+
   private async fadeAllToZero(durationMs: number): Promise<void> {
     const steps = 12;
-    const stepMs = Math.max(16, durationMs / steps);
+    const stepMs = Math.max(FADE_SLEEP_STEP, durationMs / steps);
     const drone0 = this.lastDroneVolume;
     const textureA0 = this.lastTextureAVolume;
     const textureB0 = this.lastTextureBVolume;
     const binaural0 = this.binaural.map((_, index) => this.lastBinauralVolumes[index] ?? 0);
     for (let i = 1; i <= steps; i += 1) {
       const gain = 1 - i / steps;
-      await Promise.all([
-        this.setLoopVolume("drone", drone0 * gain),
-        this.setLoopVolume("textureA", textureA0 * gain),
-        this.setLoopVolume("textureB", textureB0 * gain),
-        ...this.binaural.map((_, index) => this.setBinauralVolume(index, (binaural0[index] ?? 0) * gain)),
-      ]);
+      this.setLoopVolume("drone", drone0 * gain);
+      this.setLoopVolume("textureA", textureA0 * gain);
+      this.setLoopVolume("textureB", textureB0 * gain);
+      this.binaural.forEach((_, index) => this.setBinauralVolume(index, (binaural0[index] ?? 0) * gain));
       if (i < steps) {
-        await new Promise<void>((resolve) => setTimeout(resolve, stepMs));
+        await sleep(stepMs);
       }
     }
   }
 
-  private async setLoopVolume(
-    layer: "drone" | "textureA" | "textureB",
-    volume: number,
-  ): Promise<void> {
+  private setLoopVolume(layer: "drone" | "textureA" | "textureB", volume: number): void {
     const safeVolume = Math.max(0, Math.min(0.22, volume));
-    const sound = layer === "drone" ? this.drone : layer === "textureA" ? this.textureA : this.textureB;
-    if (!sound) return;
+    const player = layer === "drone" ? this.drone : layer === "textureA" ? this.textureA : this.textureB;
+    if (!player) return;
 
     const previous =
       layer === "drone"
@@ -260,13 +310,13 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     else this.lastTextureBVolume = safeVolume;
 
     try {
-      await sound.setVolumeAsync(safeVolume);
+      player.volume = safeVolume;
     } catch {
       // Keep the practice running even if native audio drops a transient command.
     }
   }
 
-  private async setBinauralVolume(index: number, volume: number): Promise<void> {
+  private setBinauralVolume(index: number, volume: number): void {
     const entry = this.binaural[index];
     if (!entry) return;
     const safeVolume = Math.max(0, Math.min(0.075, volume));
@@ -275,24 +325,24 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     this.lastBinauralVolumes[index] = safeVolume;
 
     try {
-      await entry.sound.setVolumeAsync(safeVolume);
+      entry.player.volume = safeVolume;
     } catch {
       // A missed binaural volume update is non-fatal; the next tick will correct it.
     }
   }
 
-  private async playOneShot(asset: number, volume: number): Promise<void> {
+  private playOneShot(asset: number, volume: number): void {
     try {
-      const { sound } = await Audio.Sound.createAsync(asset, {
-        isLooping: false,
-        volume,
-        shouldPlay: true,
-      });
-      sound.setOnPlaybackStatusUpdate((status) => {
+      const player = createAudioPlayer(asset, { updateInterval: 500 });
+      player.loop = false;
+      player.volume = volume;
+      const subscription = player.addListener("playbackStatusUpdate", (status) => {
         if (status.isLoaded && status.didJustFinish) {
-          void unload(sound);
+          subscription.remove();
+          this.releasePlayer(player);
         }
       });
+      player.play();
     } catch {
       // One-shot failures should never interrupt breathing or meditation.
     }

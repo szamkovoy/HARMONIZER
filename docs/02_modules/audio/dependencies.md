@@ -1,8 +1,8 @@
 ---
 id: 02_modules/audio/dependencies
 title: Audio Dependencies
-version: 1.4
-updated: 2026-05-07
+version: 1.5
+updated: 2026-08-23
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
 ---
@@ -10,10 +10,10 @@ code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts
 ## 1. Зависит от
 
 - `infra`  
-  `modules/mandala-sound/core/engine.ts` использует `expo-av` (`Audio.setAudioModeAsync`, `Audio.Sound.createAsync`) как единственный runtime backend для loops и one-shot playback.  
+  `modules/mandala-sound/core/engine.ts` и `modules/mandala-sound/core/ambientEngine.ts` используют `expo-audio` (`createAudioPlayer`, `setAudioModeAsync`, `AudioPlayer.setActiveForLockScreen`) как runtime backend для loops и one-shot playback. Config-плагин `expo-audio` (`enableBackgroundPlayback: true` в `app.config.ts`) добавляет Android foreground service `AudioControlsService` (тип `mediaPlayback`) + permissions `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_MEDIA_PLAYBACK` и iOS `UIBackgroundMode: audio` — это обязательный платформенный контракт для длительного фонового аудио на Android 14+ (без `setActiveForLockScreen` ОС останавливает аудио через ~3 минуты в Doze). `expo-av` остаётся в проекте только для записи микрофона (Communicator / whisper / affirmations) и НЕ используется в `mandala-sound`.  
   `modules/mandala-sound/core/engine.ts` и `modules/mandala-sound/ui/MandalaSoundProvider.tsx` логируют lifecycle через `services/runtimeDiagnostics.ts`.  
   `modules/mandala-sound/core/assets.ts` опирается на локальный asset pipeline `assets/audio/mandala-sound/*`; изменение путей или схемы упаковки ломает инициализацию движка без изменения публичного API.  
-  `modules/mandala-sound/core/ambientAssets.ts` / `AmbientLoopEngine` — тот же `expo-av` для `assets/audio/ambient/*.m4a`.
+  `modules/mandala-sound/core/ambientAssets.ts` / `AmbientLoopEngine` — тот же `expo-audio` для `assets/audio/ambient/*.m4a`. Обложка lock-screen резолвится в локальный `file://` URI через `expo-asset` (`resolveLocalArtworkUri`).
 
 - `biofeedback`  
   `modules/mandala-sound/ui/MandalaSoundProvider.tsx` подписывается на канал `"beat"` через `useBiofeedbackSubscribe()` из `modules/biofeedback/bus/react.tsx`, чтобы обновлять RR-интервал без лишнего re-render экрана.  

@@ -1,13 +1,15 @@
 ---
 id: 02_modules/audio/history
 title: Audio History
-version: 1.1
-updated: 2026-05-06
+version: 1.2
+updated: 2026-08-23
 depends_on: [01_foundation/architecture, 02_modules/practices/spec, 02_modules/biofeedback/spec, 02_modules/bindu/spec, 02_modules/infra/spec]
 code_refs: [modules/mandala-sound/index.ts, modules/mandala-sound/core/engine.ts, modules/mandala-sound/core/sync.ts, modules/mandala-sound/core/timeline.ts, modules/mandala-sound/ui/MandalaSoundProvider.tsx]
 ---
 
 ## Decision Log
+
+- **2026-08-23 (expo-av → expo-audio + sustained Android background audio):** `ExpoMandalaSoundEngine` и `AmbientLoopEngine` переписаны с `expo-av` на `expo-audio` (`createAudioPlayer`, sync `volume` setter, `AudioPlayer.setActiveForLockScreen`). Почему: `expo-av`'s `staysActiveInBackground` не запускает настоящий foreground service на Android — ОС душит аудио через ~3 минуты в Doze (симптом на Pixel 8a: «ещё несколько минут звучит, потом тише, потом замолкает»). `expo-audio` с config-плагином `enableBackgroundPlayback: true` добавляет foreground service `AudioControlsService` (тип `mediaPlayback`) + lock-screen controls — платформенный контракт для часового фонового аудио на Android 14+, как у YouTube/Spotify. Что изменилось: `MandalaSoundProvider` принимает `lockScreen?: { title, artwork }` — локализованное название практики + `require()`'d обложка (та же, что на экране практики) → media-notification / lock-screen карточка; обложка резолвится в `file://` URI через `expo-asset`. `interruptionMode: "doNotMix"` для фоновых практик (обязательно для `setActiveForLockScreen`, медитация = единственное аудио), `"duckOthers"` для не-фоновых (breath/Flash — bed слышно, чужое аудио не стопается полностью). Добавлена обработка interruption events: движки пробрасывают `onPlaybackStateChange(playing)` из `playbackStatusUpdate` lead-плеера; `useMandalaSoundInterruption()` отдаёт флаг в контекст, `CalmPracticeScreen` исключает окно прерывания из elapsed-таймера (сдвиг `sessionStartedAtRef`) — практика завершается ровно через заданную длительность даже после звонка. `expo-av` остаётся только для записи микрофона (Communicator/whisper/affirmations). Требует rebuild dev-client (нативный плагин).
 
 - **2026-08-14 (Dev Downloading):** `PracticeCard` (вкладки День/Практики) больше не импортирует barrel `@/modules/mandala-sound` — только `core/soundBed`. Barrel тянул engines + ~24MB ambient/mandala `require()` в стартовый Dev Client download. EPUB уже вне бандла (`Book/` в blockList, CDN).
 

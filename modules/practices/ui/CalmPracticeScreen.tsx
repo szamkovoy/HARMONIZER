@@ -11,6 +11,7 @@ import { router } from "expo-router";
 import { useAppLocale } from "@/modules/i18n";
 import {
   MandalaSoundProvider,
+  useMandalaSoundInterruption,
   type SoundBedId,
 } from "@/modules/mandala-sound";
 import { SOUND_BED_NEURO_SYNC } from "@/modules/mandala-sound/core/soundBed";
@@ -53,9 +54,11 @@ export function CalmPracticeScreen({
   const stopConfirmStrings = useMemo(() => getCoherenceBreathStrings(appLocale), [appLocale]);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const sessionStartedAtRef = useRef(Date.now());
+  const interruptionPauseStartedAtRef = useRef<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const interrupted = useMandalaSoundInterruption();
   const {
     overlayVisible,
     clearOverlayTimer,
@@ -82,6 +85,24 @@ export function CalmPracticeScreen({
     };
   }, [clearOverlayTimer, durationMs, showOverlay, soundBed]);
 
+  // Exclude OS-interruption windows (phone call, another app taking audio
+  // focus) from the elapsed timer: shift the wall-clock start forward by the
+  // paused duration so the practice still ends exactly at its configured length.
+  useEffect(() => {
+    if (interrupted) {
+      if (interruptionPauseStartedAtRef.current == null) {
+        interruptionPauseStartedAtRef.current = Date.now();
+      }
+      return;
+    }
+    const pauseStartedAt = interruptionPauseStartedAtRef.current;
+    if (pauseStartedAt != null) {
+      const pausedMs = Date.now() - pauseStartedAt;
+      sessionStartedAtRef.current += pausedMs;
+      interruptionPauseStartedAtRef.current = null;
+    }
+  }, [interrupted]);
+
   const finishPractice = useCallback(() => {
     setFinishing(true);
     hideOverlay();
@@ -91,6 +112,7 @@ export function CalmPracticeScreen({
   useEffect(() => {
     if (showStopConfirm || finishing) return;
     const id = setInterval(() => {
+      if (interrupted) return; // pause elapsed accounting while OS holds audio focus
       const elapsed = Date.now() - sessionStartedAtRef.current;
       setElapsedMs(Math.min(durationMs, elapsed));
       if (elapsed >= durationMs) {
@@ -98,7 +120,7 @@ export function CalmPracticeScreen({
       }
     }, 500);
     return () => clearInterval(id);
-  }, [durationMs, finishPractice, finishing, showStopConfirm]);
+  }, [durationMs, finishPractice, finishing, interrupted, showStopConfirm]);
 
   const handleScreenTap = useCallback(() => {
     if (showStopConfirm || finishing) return;
@@ -133,6 +155,7 @@ export function CalmPracticeScreen({
             soundBed={soundBed}
             isActive={audioActive}
             staysActiveInBackground
+            lockScreen={{ title: catalogStrings.meditationCalmTitle, artwork: imageSource }}
           >
             <View style={styles.imageStage} pointerEvents="none">
               <View

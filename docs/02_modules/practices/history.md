@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.68
-updated: 2026-07-31
+version: 1.69
+updated: 2026-08-23
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -16,6 +16,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-23 (Calm sustained background audio + lock-screen card):** `CalmPracticeScreen` теперь передаёт `lockScreen: { title: catalogStrings.meditationCalmTitle, artwork: imageSource }` в `MandalaSoundProvider` (вместе с `staysActiveInBackground`) — на lock-screen / в media-notification показывается локализованная карточка «Спокойствие» с той же обложкой, что на экране практики. Это не косметика: на Android именно `setActiveForLockScreen` (через `expo-audio` foreground service) держит аудио живым часами в Doze — без него звук затихает и замолкает через ~3 минуты (симптом на Pixel 8a). Добавлена обработка interruption events через `useMandalaSoundInterruption()`: во время системной паузы (звонок / чужое приложение) elapsed-таймер не тикает и `finishPractice` не срабатывает, а при resume `sessionStartedAtRef` сдвигается вперёд на длительность паузы — практика завершается ровно через заданную длительность. Бэкенд звука переведён с `expo-av` на `expo-audio` (см. `audio/history.md`).
 
 - **2026-08-14 (affirmations entry):** `AffirmationWidget` в `PracticeCatalogScreen` listHeader — только при `selectedKind === "breath"` (Master gate).
 

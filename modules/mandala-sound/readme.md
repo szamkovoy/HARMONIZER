@@ -6,7 +6,7 @@
 
 - `core/timeline.ts` переводит длительность практики в плавный brainwave target: beta → alpha → theta → delta. Короткие практики не загоняются в delta.
 - `core/sync.ts` собирает `MandalaSoundSyncFrame`: дыхание, пульс, целевая частота мерцания, громкости слоёв и gong trigger.
-- `ui/MandalaSoundProvider.tsx` запускает `expo-av` loops только во время активной практики и обновляет параметры с частотой 10 Hz.
+- `ui/MandalaSoundProvider.tsx` запускает `expo-audio` loops только во время активной практики и обновляет параметры с частотой 10 Hz.
 - `core/assets.ts` подключает настоящий stereo binaural layer: левый и правый каналы имеют разницу `beta=16 Hz`, `alpha=10 Hz`, `theta=6 Hz`, `delta=2.5 Hz`.
 - `useMandalaSoundSync()` отдаёт тот же sync в визуальный слой, чтобы облако/мандала мерцали в одном ритме со звуком.
 

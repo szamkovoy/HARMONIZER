@@ -219,6 +219,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       ...(base.plugins ?? []),
+      // Background media playback for long practices («Спокойствие» etc.).
+      // Adds Android foreground service `AudioControlsService` (mediaPlayback) +
+      // lock-screen controls; iOS `audio` UIBackgroundMode. Recording stays on
+      // expo-av (mic/whisper), so we don't enable recording via expo-audio.
+      [
+        "expo-audio",
+        {
+          enableBackgroundPlayback: true,
+          recordAudioAndroid: false,
+        },
+      ],
       "expo-localization",
       ...(INCLUDE_FIREBASE_PLUGINS
         ? (["@react-native-firebase/app", "@react-native-firebase/app-check"] as const)
