@@ -101,6 +101,31 @@ Keep **two** sets when both channels use Amazon (today OTP only):
 
 OTP code **ignores** `SES_CONFIGURATION_SET`. Marketing flip does **not** change OTP secrets.
 
+### SES edge transport — raw HTTP + SigV4 (no AWS SDK)
+
+`supabase/functions/send-auth-email/mail/providers/ses.ts` sends via a lightweight raw HTTP
+`POST /v2/email/outbound-emails` to `https://email.<SES_REGION>.amazonaws.com`, signed
+with **AWS Signature Version 4** (service `ses`, IAM `SES_ACCESS_KEY_ID` +
+`SES_SECRET_ACCESS_KEY` used directly — no SMTP-password derivation). The previous
+`@aws-sdk/client-sesv2` v3 import was removed: its multi-MB module tree exceeded
+the Supabase edge-runtime cold-start budget and hung the GoTrue send-email hook
+(and thus `signInWithOtp`). `mail/send.ts` lazy-imports `providers/ses.ts` only
+on the `AMAZON_*` path, so the Resend cold start stays lightweight. Both SES and
+Resend sends have a 12s `AbortController` so a stalled connection can never hang
+the hook.
+
+### Webhook verify — inlined (no `esm.sh`)
+
+`send-auth-email/index.ts` verifies the GoTrue webhook signature with an **inline**
+Standard Webhooks implementation (Web Crypto HMAC-SHA256, base64-decoded secret
+key, comma-split `v1,<sig>` signatures) instead of
+`await import("https://esm.sh/standardwebhooks@1.0.0")`. The remote `esm.sh`
+dynamic import could hang on a cold edge isolate (the one GoTrue hits), which
+made `signInWithOtp` hang indefinitely for **new** users (existing users hit
+warm isolates and were unaffected). Inlining removes the only external fetch
+from the cold-start path. The secret (`SEND_EMAIL_HOOK_SECRET`, stored as
+`v1,whsec_<base64>`) is decoded exactly like the official JS library.
+
 ### Marketing → Amazon ru (when ready)
 
 Prerequisites:

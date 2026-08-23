@@ -162,6 +162,80 @@ function hookError(message: string, status = 500) {
   });
 }
 
+// --- Standard Webhooks verify (inline, no external import) ---
+// Replaces `https://esm.sh/standardwebhooks@1.0.0`: that remote dynamic
+// import could hang on a cold edge isolate (the one GoTrue hits), which
+// hung signInWithOtp indefinitely. Inlining keeps the cold start local-only.
+// Mirrors the official JS library exactly: base64-decoded secret key,
+// HMAC-SHA256 over `${id}.${timestamp}.${body}`, comma-split signatures.
+// Protocol: https://github.com/standard-webhooks/standard-webhooks
+const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
+
+function base64ToBytes(b64: string): Uint8Array {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+async function hmacSha256(key: Uint8Array, data: string): Promise<Uint8Array> {
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    key,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(data));
+  return new Uint8Array(sig);
+}
+
+function timingEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+/** Verify a Standard Webhook request. Returns the parsed JSON payload or throws. */
+async function verifyWebhook(
+  rawBody: string,
+  headers: Headers,
+  secretRaw: string,
+): Promise<unknown> {
+  // SEND_EMAIL_HOOK_SECRET is stored as `v1,whsec_<base64>`; the webhook
+  // key is the base64-decoded bytes of `<base64>` (after stripping both prefixes).
+  const secretB64 = secretRaw.replace(/^v1,whsec_/, "").replace(/^whsec_/, "");
+  const key = base64ToBytes(secretB64);
+
+  const id = headers.get("webhook-id") || "";
+  const tsStr = headers.get("webhook-timestamp") || "";
+  const sigHeader = headers.get("webhook-signature") || "";
+  if (!id || !tsStr || !sigHeader) throw new Error("missing webhook headers");
+
+  const ts = parseInt(tsStr, 10);
+  if (!Number.isFinite(ts)) throw new Error("invalid webhook-timestamp");
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (nowSec - ts > WEBHOOK_TOLERANCE_SECONDS) throw new Error("timestamp too old");
+  if (ts > nowSec + WEBHOOK_TOLERANCE_SECONDS) throw new Error("timestamp too new");
+
+  const toSign = `${id}.${ts}.${rawBody}`;
+  const expected = bytesToBase64(await hmacSha256(key, toSign));
+
+  const encoder = new TextEncoder();
+  for (const versionedSignature of sigHeader.split(" ")) {
+    const [version, signature] = versionedSignature.split(",");
+    if (version !== "v1") continue;
+    if (timingEqual(encoder.encode(signature), encoder.encode(expected))) {
+      return rawBody === "" ? undefined : JSON.parse(rawBody);
+    }
+  }
+  throw new Error("invalid webhook signature");
+}
+
 Deno.serve(async (req) => {
   const hookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET")?.trim();
   if (!hookSecret) {
@@ -171,13 +245,7 @@ Deno.serve(async (req) => {
   const payloadText = await req.text();
   let payload: any;
   try {
-    const { Webhook } = await import("https://esm.sh/standardwebhooks@1.0.0");
-    const wh = new Webhook(hookSecret.replace("v1,whsec_", ""));
-    payload = wh.verify(payloadText, {
-      "webhook-id": req.headers.get("webhook-id") || "",
-      "webhook-timestamp": req.headers.get("webhook-timestamp") || "",
-      "webhook-signature": req.headers.get("webhook-signature") || "",
-    });
+    payload = await verifyWebhook(payloadText, req.headers, hookSecret);
   } catch (_e) {
     return hookError("Invalid webhook signature", 401);
   }
