@@ -38,22 +38,17 @@ vi.mock("@/modules/breath/i18n/coherence", () => ({
 }));
 
 import type { PracticeSummary } from "./types";
-import { formatPracticeCatalogError, loadPracticeCatalog, resolveYogaPracticeTitle } from "./catalog";
+import {
+  formatPracticeCatalogError,
+  getPracticeCatalog,
+  getYogaCatalogSnapshot,
+  loadPracticeCatalog,
+  resolveYogaPracticeTitle,
+} from "./catalog";
 
 vi.mock("@/services/runtimeDiagnostics", () => ({
   logRuntimeEvent: vi.fn(),
 }));
-
-vi.mock("@/services/supabase", () => ({
-  getSupabase: vi.fn(() => null),
-}));
-
-/** Дождаться фонового `void (async () => { await withTimeout(...) })()` после `loadPracticeCatalog`. */
-function yieldToDeferredCatalogWork(): Promise<void> {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
-}
 
 const YOGA_PRACTICE: PracticeSummary = {
   id: "yoga:test-1",
@@ -70,105 +65,52 @@ const YOGA_PRACTICE: PracticeSummary = {
   },
 };
 
-describe("loadPracticeCatalog", () => {
-  it("returns meditation and breath immediately when yoga is deferred", async () => {
-    let resolveYoga!: (value: PracticeSummary[]) => void;
-    const yogaPromise = new Promise<PracticeSummary[]>((resolve) => {
-      resolveYoga = resolve;
-    });
-    const onLateYogaPractices = vi.fn();
-
-    const catalog = await loadPracticeCatalog(
-      { onLateYogaPractices },
-      { loadYogaPractices: () => yogaPromise },
-    );
-
-    expect(catalog.meditation).toHaveLength(1);
+describe("getPracticeCatalog", () => {
+  it("returns static meditations + breath + snapshot yoga synchronously", () => {
+    const catalog = getPracticeCatalog("ru");
+    // 2 static meditations (Flash + Calm), 7 breath practices, snapshot yoga (187 in prod).
+    expect(catalog.meditation).toHaveLength(2);
     expect(catalog.breath).toHaveLength(7);
-    expect(catalog.yoga).toEqual([]);
-    expect(onLateYogaPractices).not.toHaveBeenCalled();
-
-    resolveYoga([YOGA_PRACTICE]);
-    await yieldToDeferredCatalogWork();
-
-    expect(onLateYogaPractices).toHaveBeenCalledWith({ practices: [YOGA_PRACTICE], state: "ready" });
+    expect(catalog.yoga.length).toBeGreaterThan(0);
+    expect(catalog.yoga.every((p) => p.kind === "yoga")).toBe(true);
   });
 
-  it("returns cached yoga immediately while the fresh list is still loading", async () => {
-    let resolveYoga!: (value: PracticeSummary[]) => void;
-    const yogaPromise = new Promise<PracticeSummary[]>((resolve) => {
-      resolveYoga = resolve;
-    });
-    const onLateYogaPractices = vi.fn();
+  it("memoizes the yoga snapshot per locale", () => {
+    const a = getYogaCatalogSnapshot("ru");
+    const b = getYogaCatalogSnapshot("ru");
+    expect(b).toBe(a);
+  });
+});
 
-    const catalog = await loadPracticeCatalog(
-      { initialYoga: [YOGA_PRACTICE], onLateYogaPractices },
-      { loadYogaPractices: () => yogaPromise },
-    );
-
-    expect(catalog.yoga).toEqual([YOGA_PRACTICE]);
-    expect(onLateYogaPractices).not.toHaveBeenCalled();
-
-    resolveYoga([YOGA_PRACTICE]);
-    await yieldToDeferredCatalogWork();
-
-    expect(onLateYogaPractices).toHaveBeenCalledWith({ practices: [YOGA_PRACTICE], state: "ready" });
+describe("loadPracticeCatalog (backward-compat wrapper)", () => {
+  it("returns the snapshot catalog when no deps are provided", async () => {
+    const catalog = await loadPracticeCatalog({ locale: "ru" });
+    expect(catalog.meditation).toHaveLength(2);
+    expect(catalog.breath).toHaveLength(7);
+    expect(catalog.yoga.length).toBeGreaterThan(0);
   });
 
-  it("reports a late yoga error when the loader rejects", async () => {
-    const onLateYogaPractices = vi.fn();
-    await loadPracticeCatalog(
-      { onLateYogaPractices },
-      {
-        loadYogaPractices: async () => {
-          throw new Error("network");
-        },
-      },
-    );
-    await yieldToDeferredCatalogWork();
-    expect(onLateYogaPractices).toHaveBeenCalledWith({
-      practices: [],
-      state: "error",
-      errorMessage: "network",
-    });
-  });
-
-  it("reports timeout first and then updates when yoga resolves", async () => {
-    vi.useFakeTimers();
-    try {
-      let resolveYoga!: (value: PracticeSummary[]) => void;
-      const yogaPromise = new Promise<PracticeSummary[]>((resolve) => {
-        resolveYoga = resolve;
-      });
-      const onLateYogaPractices = vi.fn();
-
-      await loadPracticeCatalog({ onLateYogaPractices }, { loadYogaPractices: () => yogaPromise });
-
-      expect(onLateYogaPractices).not.toHaveBeenCalled();
-
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(onLateYogaPractices).toHaveBeenCalledWith({ practices: [], state: "timeout" });
-
-      resolveYoga([YOGA_PRACTICE]);
-      vi.useRealTimers();
-      await yieldToDeferredCatalogWork();
-
-      expect(onLateYogaPractices).toHaveBeenLastCalledWith({ practices: [YOGA_PRACTICE], state: "ready" });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("waits for yoga when no late callback is provided", async () => {
+  it("uses an injected loader when deps are provided", async () => {
     const catalog = await loadPracticeCatalog(undefined, {
       loadYogaPractices: async () => [YOGA_PRACTICE],
     });
-
-    expect(catalog.meditation).toHaveLength(1);
+    expect(catalog.meditation).toHaveLength(2);
     expect(catalog.breath).toHaveLength(7);
     expect(catalog.yoga).toEqual([YOGA_PRACTICE]);
   });
 
+  it("ignores the legacy onLateYogaPractices / initialYoga options (yoga is instant)", async () => {
+    const onLateYogaPractices = vi.fn();
+    const catalog = await loadPracticeCatalog(
+      { initialYoga: [YOGA_PRACTICE], onLateYogaPractices },
+      { loadYogaPractices: async () => [YOGA_PRACTICE] },
+    );
+    expect(catalog.yoga).toEqual([YOGA_PRACTICE]);
+    expect(onLateYogaPractices).not.toHaveBeenCalled();
+  });
+});
+
+describe("formatPracticeCatalogError", () => {
   it("formats object-shaped catalog errors for the UI", () => {
     expect(
       formatPracticeCatalogError({
@@ -178,7 +120,9 @@ describe("loadPracticeCatalog", () => {
       }),
     ).toBe("Failed to fetch | connection pool timeout | 57014");
   });
+});
 
+describe("resolveYogaPracticeTitle", () => {
   it("normalizes imported yoga titles to the locale-specific practice prefix", () => {
     expect(resolveYogaPracticeTitle({ ru: "Пробуждение: 3_0819_и3" } as never, "fallback", "ru")).toBe(
       "Практика: 3_0819",

@@ -1,4 +1,10 @@
-export { filterPractices, loadPracticeCatalog, sortPracticesForCatalog } from "@/modules/practices/core/catalog";
+export {
+  filterPractices,
+  getPracticeCatalog,
+  getYogaCatalogSnapshot,
+  loadPracticeCatalog,
+  sortPracticesForCatalog,
+} from "@/modules/practices/core/catalog";
 export {
   vimeoAudiotrackForLocale,
   vimeoEmbedHtml,

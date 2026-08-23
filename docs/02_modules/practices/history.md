@@ -1,7 +1,7 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.69
+version: 1.70
 updated: 2026-08-23
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
@@ -16,6 +16,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-23 (каталог практик — build-time snapshot, sync-каталог):** Каталог асан (187 строк `practices` с `kind='yoga'`, `is_active=true`) больше не фетчится из Supabase рантаймом. Новый **build-time snapshot** `modules/practices/data/yoga-catalog.snapshot.json` (сырые DB-строки с jsonb `title` для всех 8 локалей + embedded `practice_chakras`) коммитится в репо и зашивается в бинарь через Metro JSON-import. Генератор `scripts/generate-practice-catalog-snapshot.mjs` (`npm run update-practice-catalog-snapshot`, read-only REST fetch по anon-ключу — RLS уже разрешает anon читать активные практики) prepend-нут во все build-скрипты; не фатален — при отсутствии сети остаётся закоммиченный snapshot. `catalog.ts` получил **синхронные** `getPracticeCatalog(locale)` и `getYogaCatalogSnapshot(locale)` (memo per locale) как новый канонический источник; `loadPracticeCatalog`/`loadYogaPractices` сохранены как async-обёртки для обратной совместимости и тестов (deps-инъекция `loadYogaPractices`), опции `onLateYogaPractices`/`initialYoga` игнорируются. `PracticeCatalogScreen` собирает каталог синхронно на mount — спиннер «Собираем каталог...» и состояние `loading` убраны, late-yoga race-safe логика (`lateYogaSlotRef`/`catalogMeditationBreathRef`/`pendingLateYogaRef`/`yogaLateLoading`) удалена; при смене локали каталог пересобирается. `app/(tabs)/day.tsx` перешёл на sync `getPracticeCatalog` (убрана блокировка Day-таба на холодный фетч йоги). `services/practiceCatalogCache.ts` удалён (dead code — snapshot единственный источник). Продуктовое решение: приложение не переспрашивает Supabase в фоне; при изменении количества практик выпускается новый билд (snapshot обновится build-скриптом). Бандл: ~250–350 KB JSON, Metro бандлит эффективно. `spec.md`/`dependencies.md`/`CHANGELOG.md` обновлены.
 
 - **2026-08-23 (Calm sustained background audio + lock-screen card):** `CalmPracticeScreen` теперь передаёт `lockScreen: { title: catalogStrings.meditationCalmTitle, artwork: imageSource }` в `MandalaSoundProvider` (вместе с `staysActiveInBackground`) — на lock-screen / в media-notification показывается локализованная карточка «Спокойствие» с той же обложкой, что на экране практики. Это не косметика: на Android именно `setActiveForLockScreen` (через `expo-audio` foreground service) держит аудио живым часами в Doze — без него звук затихает и замолкает через ~3 минуты (симптом на Pixel 8a). Добавлена обработка interruption events через `useMandalaSoundInterruption()`: во время системной паузы (звонок / чужое приложение) elapsed-таймер не тикает и `finishPractice` не срабатывает, а при resume `sessionStartedAtRef` сдвигается вперёд на длительность паузы — практика завершается ровно через заданную длительность. Бэкенд звука переведён с `expo-av` на `expo-audio` (см. `audio/history.md`).
 

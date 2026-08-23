@@ -1,0 +1,5687 @@
+{
+  "generatedAt": "2026-08-23T18:59:46.527Z",
+  "count": 187,
+  "rows": [
+    {
+      "id": "c30b1488-7d95-40f2-b7ed-ce0c50c15cde",
+      "slug": "asana-vimeo-1129077356",
+      "title": {
+        "en": "Пробуждение: 4_1021_и4",
+        "ru": "Пробуждение: 4_1021_и4"
+      },
+      "default_duration_sec": 1503,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1129077356",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2072354693-b95511795f61eb414ecc2f1596f9f6ab2426c9010238fa10c230b0fa8953c4b9-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-10-21",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "4aeb1d36-12cd-4082-89de-965c9542bfcc",
+      "slug": "asana-vimeo-1149782417",
+      "title": {
+        "en": "Пробуждение: 13_1228_и1_и3",
+        "ru": "Пробуждение: 13_1228_и1_и3"
+      },
+      "default_duration_sec": 1823,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1149782417",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2100519727-abca19e7ce22c8d7089c2b956b4f586c630bebe875f7ac2d298b3befe53ddcd2-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        3
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-28",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 3,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "01cd7681-feb1-4a8b-bfdc-6296a987eacd",
+      "slug": "asana-vimeo-1150277253",
+      "title": {
+        "en": "Пробуждение: 27_1230_и2_и7",
+        "ru": "Пробуждение: 27_1230_и2_и7"
+      },
+      "default_duration_sec": 2866,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1150277253",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2101153495-3c26cb794c0d31e3f7c99e46a9c8a98d6730ed87b691bd8683c2da6d7ebb671b-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2,
+        7
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-12-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "e4344245-0cf2-439e-bfb6-91a042402524",
+      "slug": "asana-vimeo-1150574644",
+      "title": {
+        "en": "Пробуждение: 14_1231_и1_и4",
+        "ru": "Пробуждение: 14_1231_и1_и4"
+      },
+      "default_duration_sec": 2329,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1150574644",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2101483022-f5b3292e3f01ee05c50512452ef466b9f5f597127ad78754fd9f4e53f848735e-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        4
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-31",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 4,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "7ce83088-9b9e-4fc5-a375-49350fe2b1ac",
+      "slug": "asana-vimeo-1151495252",
+      "title": {
+        "en": "Пробуждение: 7_0105_и7",
+        "ru": "Пробуждение: 7_0105_и7"
+      },
+      "default_duration_sec": 2979,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1151495252",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2102712693-1545ff2707fbe409a839a178163be279906861a78538af39a3b884e485defddc-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-05",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "b1e429fe-03f6-41d1-8ecb-d731af321ff4",
+      "slug": "asana-vimeo-1130601826",
+      "title": {
+        "en": "Пробуждение: 5_1026_и5",
+        "ru": "Пробуждение: 5_1026_и5"
+      },
+      "default_duration_sec": 1885,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1130601826",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2074344553-fa78a3dc317d098ec739ebb0db608f51c379f21948b426b5693595bd53c1fe0c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-10-26",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "8f969a9f-5178-41d0-9f14-bc559d95015d",
+      "slug": "asana-vimeo-1131570255",
+      "title": {
+        "en": "Пробуждение: 6_1029_и6",
+        "ru": "Пробуждение: 6_1029_и6"
+      },
+      "default_duration_sec": 1730,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1131570255",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2075544235-045d0188f2ae37e7ffb8b5e6092ba6e0be133222a43074efc8e8b93f73edefd6-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-10-29",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "ac13de37-93c5-4914-94cb-66e94f83421a",
+      "slug": "asana-vimeo-1152447793",
+      "title": {
+        "en": "Пробуждение: 17_0108_и1_и7",
+        "ru": "Пробуждение: 17_0108_и1_и7"
+      },
+      "default_duration_sec": 2800,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1152447793",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2104118072-f1d3ab61515d8ee7a76f41c8fe54aeee862e0db6f47ab617148a867b1a34f398-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        7
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-08",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "4287ca7d-0667-4d28-8a8a-bc1e9f427a65",
+      "slug": "asana-vimeo-1149587160",
+      "title": {
+        "en": "Пробуждение: 15_1227_и1_и5",
+        "ru": "Пробуждение: 15_1227_и1_и5"
+      },
+      "default_duration_sec": 2186,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1149587160",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2100286577-740c8823823532bbf246f51e39e186ac614ff9210baef34236d132f95adab355-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        5
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-27",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 5,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "9c31bd3e-527f-4bd3-8ac8-4db4b61b006f",
+      "slug": "asana-vimeo-1149995542",
+      "title": {
+        "en": "Пробуждение: 16_1229_и1",
+        "ru": "Пробуждение: 16_1229_и1"
+      },
+      "default_duration_sec": 3457,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1149995542",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2100849487-4ce4159fb5442eae130d48b3ac6da5a2bd20eb5cf41c85e8391ec4996ec7ec70-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-29",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "09aa9cfa-90ff-408c-991c-7d3b55062a1d",
+      "slug": "asana-vimeo-1151800420",
+      "title": {
+        "en": "Пробуждение: 7_0106_и7",
+        "ru": "Пробуждение: 7_0106_и7"
+      },
+      "default_duration_sec": 2980,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1151800420",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2103125716-50ddabcc787c1b82a6a98d45600ad9c4bf406b7a264e405e19314bf42ff239b5-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-06",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "36ff7cd6-44bf-4fbf-b79e-34631c3e6bc4",
+      "slug": "asana-vimeo-1153102220",
+      "title": {
+        "en": "Пробуждение: 47_0110_и7",
+        "ru": "Пробуждение: 47_0110_и7"
+      },
+      "default_duration_sec": 3565,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1153102220",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2105187882-00ce72affa945f0448dc95386121bf87ed14bc3f8ccac3cd0fd090ed54806f00-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "a801993b-fcbd-4284-9397-23212ab5ef7b",
+      "slug": "asana-vimeo-1153577879",
+      "title": {
+        "en": "Пробуждение: 3_1210_и3",
+        "ru": "Пробуждение: 3_1210_и3"
+      },
+      "default_duration_sec": 1726,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1153577879",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2105589692-6344a6f1b20a49297ac2c4c3f7d2ab2e82d9234c8f65125f89d278b4151f18b3-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-12-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "62659112-b195-4c4a-bcda-a462320966c3",
+      "slug": "asana-vimeo-1156376980",
+      "title": {
+        "en": "Пробуждение: 7_0120_и7",
+        "ru": "Пробуждение: 7_0120_и7"
+      },
+      "default_duration_sec": 3614,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1156376980",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2109536413-734388031ef1281b649ef30202a03675e4268de4d89ff50e37a841b5ce42965b-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-20",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "ee440169-bf2a-4e7c-a3ee-4f8778fcbbda",
+      "slug": "asana-vimeo-1147911332",
+      "title": {
+        "en": "Пробуждение: 2_1219_и2",
+        "ru": "Пробуждение: 2_1219_и2"
+      },
+      "default_duration_sec": 1786,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1147911332",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2097925434-23c65a07c71b811e5ecf8fd5f12ddc3911dd6780e62fdee13b71bb6cb7910145-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-12-19",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "655f7a17-b9df-4ba2-943f-0971797706b2",
+      "slug": "asana-vimeo-1148551779",
+      "title": {
+        "en": "Пробуждение: 4_1222_и4",
+        "ru": "Пробуждение: 4_1222_и4"
+      },
+      "default_duration_sec": 1791,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1148551779",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2098801030-92b3b82752490a91c7249bb4f4802eed1676cbaa6b62c4db11aca3fe773f6e33-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-12-22",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "6dadc6e0-33f3-4951-9bbd-405a6d257e81",
+      "slug": "asana-vimeo-1149397526",
+      "title": {
+        "en": "Пробуждение: 46_1226_и4",
+        "ru": "Пробуждение: 46_1226_и4"
+      },
+      "default_duration_sec": 2284,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1149397526",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2100059013-fcadefcbd3264c326416b673584a737a02a2aa359cdcc2db1df1b5d99f7ddae1-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-12-26",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "02d44f35-c154-492f-b0b1-8d1a4aefd67b",
+      "slug": "asana-vimeo-1111204587",
+      "title": {
+        "en": "Пробуждение: 3_0819_и3",
+        "ru": "Пробуждение: 3_0819_и3"
+      },
+      "default_duration_sec": 1538,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1111204587",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2049135682-1a2b592ec4f7b40816e8ea64b2c38d48db3287b7a71a194bd794b7a71baaf636-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-08-19",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "da40fa29-f4b9-4778-90ba-5ed7067d808f",
+      "slug": "asana-vimeo-1132863767",
+      "title": {
+        "en": "Пробуждение: 5_1102_и5",
+        "ru": "Пробуждение: 5_1102_и5"
+      },
+      "default_duration_sec": 2539,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1132863767",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077264191-6bf749b6ee0d1badca982b57d15de85667da568bd28553a22cce1bbe45e8fa4c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-11-02",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e9f9ce89-8e8e-4427-99d0-72377de5c69b",
+      "slug": "asana-vimeo-1114149375",
+      "title": {
+        "en": "Пробуждение: 4_0829_и4",
+        "ru": "Пробуждение: 4_0829_и4"
+      },
+      "default_duration_sec": 1342,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1114149375",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2052826149-0f478b8a3c517757d4489b13af5080d5137855ba686cdb97eb78b2c1f62ba6fb-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-08-29",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "8438d7c9-8efa-4413-8f4e-732069540a74",
+      "slug": "asana-vimeo-1150930259",
+      "title": {
+        "en": "Пробуждение: 57_0102_и5_и7",
+        "ru": "Пробуждение: 57_0102_и5_и7"
+      },
+      "default_duration_sec": 2063,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1150930259",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2101943298-167f1d75c172a58e2d94eb26ba08707ce987de46eff3663c2738e906262ae921-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5,
+        7
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2026-01-02",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "f03ee2ff-3197-4eeb-9271-bc62257f122a",
+      "slug": "asana-vimeo-1134102955",
+      "title": {
+        "en": "Пробуждение: 45_1106_и4_и5",
+        "ru": "Пробуждение: 45_1106_и4_и5"
+      },
+      "default_duration_sec": 1635,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1134102955",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078956583-78bf6dc0d5449f2772e0c8c71ae532e0c313b75df53ada4e5ba5e6aafcc570a3-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4,
+        5
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-11-06",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 5,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "1eb05910-efeb-4945-834d-3ae9064c1960",
+      "slug": "asana-vimeo-1138990712",
+      "title": {
+        "en": "Пробуждение: 6_1120_новолуние_и6",
+        "ru": "Пробуждение: 6_1120_новолуние_и6"
+      },
+      "default_duration_sec": 3251,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1138990712",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2085576422-cc10d831ebbe59dd55ad557d17f7110b207ba97ac58379d27c0703cb274d36d1-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-11-20",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "8441ef65-840d-439e-93f9-81d6e34e9957",
+      "slug": "asana-vimeo-1151298926",
+      "title": {
+        "en": "Пробуждение: 12_0104_и1_и2",
+        "ru": "Пробуждение: 12_0104_и1_и2"
+      },
+      "default_duration_sec": 3489,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1151298926",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2102450617-4357b78fc894c453947cdbde4b1e691932be9322b704bc1ee2c91193845c9692-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        2
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-04",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 2,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "edebf910-b392-4795-8d01-aae409a69cb7",
+      "slug": "asana-vimeo-1121571478",
+      "title": {
+        "en": "Пробуждение: 3_0924_и3",
+        "ru": "Пробуждение: 3_0924_и3"
+      },
+      "default_duration_sec": 2507,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1121571478",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2062671336-8d1bf117d433640b3a8b282dbe8367006016fe3e4a423a9e10f549f3a815df80-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-09-24",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "2f1c80c9-39f0-4a7b-8cea-043efe2f9b6d",
+      "slug": "asana-vimeo-1149279297",
+      "title": {
+        "en": "Пробуждение: 3_1225_и3",
+        "ru": "Пробуждение: 3_1225_и3"
+      },
+      "default_duration_sec": 1996,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1149279297",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2105543025-a53fd9cb39d0387fee98da463868c198d4b07f375d01d2352f5ad402ac7cd85a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-12-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "63fb583d-ecc2-4dbc-92bf-03c1f0c09850",
+      "slug": "asana-vimeo-1135986521",
+      "title": {
+        "en": "Пробуждение: 7_1112_7_и7",
+        "ru": "Пробуждение: 7_1112_7_и7"
+      },
+      "default_duration_sec": 2893,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1135986521",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2081515333-b6594451366c90e53156af72433c4d204bbedeb94a64cce57c7e15be0baad3a7-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-11-12",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "9a64c480-e023-4629-9527-43d8d49e11fa",
+      "slug": "asana-vimeo-1153479545",
+      "title": {
+        "en": "Пробуждение: 16_0112_и6",
+        "ru": "Пробуждение: 16_0112_и6"
+      },
+      "default_duration_sec": 3398,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1153479545",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2105474190-0097ef868dc65163c3ae03b313199f278425f2b41b406a1b103c049310f9e79d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2026-01-12",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "06c3615b-b21b-4927-8df1-2ad2b3262592",
+      "slug": "asana-vimeo-1137568317",
+      "title": {
+        "en": "Пробуждение: 4_1117_и4",
+        "ru": "Пробуждение: 4_1117_и4"
+      },
+      "default_duration_sec": 2617,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1137568317",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2083656579-37569b08595657d4c86f81a7faf0b8cf4f9f40208d579f05f45d2ea20c5722dd-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-11-17",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "08f83094-585c-4b72-89a5-62cb0d19893b",
+      "slug": "asana-vimeo-1124397637",
+      "title": {
+        "en": "Пробуждение: 3_1004_и3",
+        "ru": "Пробуждение: 3_1004_и3"
+      },
+      "default_duration_sec": 2176,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1124397637",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2066253838-336ef19a8110f4dc5b130ad92aaeae4140e169147f5bfe4ddd6072a0182a41bc-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-10-04",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "cf3c9776-32c8-4c4b-a408-8a0f28843d59",
+      "slug": "asana-vimeo-1133027002",
+      "title": {
+        "en": "Пробуждение: 1_1103_и1",
+        "ru": "Пробуждение: 1_1103_и1"
+      },
+      "default_duration_sec": 2327,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1133027002",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077483509-6917343994e3a2a179ce8378e4172581174e6dbbf9e512cc77e4d7eb22574570-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-11-03",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "04fd8d3d-e048-44ad-961e-b70ce6bd7032",
+      "slug": "asana-vimeo-1159541354",
+      "title": {
+        "en": "Пробуждение: 17_0129_экадаши_и1",
+        "ru": "Пробуждение: 17_0129_экадаши_и1"
+      },
+      "default_duration_sec": 4406,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1159541354",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2114192907-4939d3db002c618e22de3a073d0310599e9a4284f012cf2608cef3069490b11a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-29",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "9d7e272b-a803-4999-a7d2-76e1622ad2d7",
+      "slug": "asana-vimeo-1140656950",
+      "title": {
+        "en": "Пробуждение: 3_1126_и3",
+        "ru": "Пробуждение: 3_1126_и3"
+      },
+      "default_duration_sec": 1438,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1140656950",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2087758632-e4ba24468fb23c286cd22f2330fb51e623d7af693c756cc574286ba6335df530-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-11-26",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "d3ebe66d-7259-4f50-8988-b03750bc3b8e",
+      "slug": "asana-vimeo-1158054855",
+      "title": {
+        "en": "Пробуждение: 47_0125_и7",
+        "ru": "Пробуждение: 47_0125_и7"
+      },
+      "default_duration_sec": 3432,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1158054855",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2111963354-41be351505542a9e1e4280c631dbbf595969a575d7fc77f47212ea89a6721ab3-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "1f70938a-7c45-4371-a165-5616ae00a680",
+      "slug": "asana-vimeo-1121764346",
+      "title": {
+        "en": "Пробуждение: 2_0925_и2",
+        "ru": "Пробуждение: 2_0925_и2"
+      },
+      "default_duration_sec": 2225,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1121764346",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2062919173-2821f5e2e91a7ee5921c154c8d5e428b90e946e476c85d0854319f8cad6f9b5f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-09-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "413a2b98-27f9-427b-a1ee-40d47dc06cab",
+      "slug": "asana-vimeo-1152119144",
+      "title": {
+        "en": "Пробуждение: 67_0107_и6_и7",
+        "ru": "Пробуждение: 67_0107_и6_и7"
+      },
+      "default_duration_sec": 2312,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1152119144",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2103575476-1d6f58d5be1fb3a7c9c959e9faf10b27f15219c042596e0c7d2c5e73029c4d3c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6,
+        7
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2026-01-07",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "c0d32eb4-9b53-4620-8d92-de930e416b95",
+      "slug": "asana-vimeo-1141951353",
+      "title": {
+        "en": "Пробуждение: 3_1201_и3",
+        "ru": "Пробуждение: 3_1201_и3"
+      },
+      "default_duration_sec": 2263,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1141951353",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2089540681-02977fb812b128ff190244aec54d0739e51bda77353b8c83f2b17a2a8901a68f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-12-01",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "a770dc35-e353-429a-9d8c-3c676a8d16c2",
+      "slug": "asana-vimeo-1123090371",
+      "title": {
+        "en": "Пробуждение: 2_0930_и2",
+        "ru": "Пробуждение: 2_0930_и2"
+      },
+      "default_duration_sec": 2002,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1123090371",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2064675215-5c4fe0b020723730ce31d469a6164ad51efc29f602f440f4b1818311e4fe34a3-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-09-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "bca6ad09-ea32-400e-b5f0-973fac533932",
+      "slug": "asana-vimeo-1117344766",
+      "title": {
+        "en": "Пробуждение: 3_0910_и3",
+        "ru": "Пробуждение: 3_0910_и3"
+      },
+      "default_duration_sec": 1519,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1117344766",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2057245090-d5a2257209a9fa4f2a5a5a75927cc0524d01cef0621f30f907a510c45efeff45-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-09-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "be4c9b46-67eb-49f2-9d47-a431d2175748",
+      "slug": "asana-vimeo-1144070672",
+      "title": {
+        "en": "Пробуждение: 5_1206_и5",
+        "ru": "Пробуждение: 5_1206_и5"
+      },
+      "default_duration_sec": 3348,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1144070672",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2092492921-f754a0b10e0ad16a7e46915a1c7fa2e1458d97708b70acd9200075f1807526a7-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-12-06",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "70d48e64-66c0-4eae-b077-107cefba0dcb",
+      "slug": "asana-vimeo-1151148075",
+      "title": {
+        "en": "Пробуждение: 17_0103_полнолуние_и1_и7",
+        "ru": "Пробуждение: 17_0103_полнолуние_и1_и7"
+      },
+      "default_duration_sec": 3103,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1151148075",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2102350807-a122d00afc91804bc7edecc29a41275267c266a92b26b6325a7615fcba2b687d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        7
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-03",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "943e3a29-680e-463d-b891-35a425ec123d",
+      "slug": "asana-vimeo-1124111794",
+      "title": {
+        "en": "Пробуждение: 6_1003_и6",
+        "ru": "Пробуждение: 6_1003_и6"
+      },
+      "default_duration_sec": 1936,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1124111794",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2065882514-66918d48f0646825c8005f0747c24b7c4aa5a1c2dcb9d1c86c6e903ce9b70ef3-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-10-03",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "5ccba120-8564-4c6b-963d-5c57cd8a0f8f",
+      "slug": "asana-vimeo-1139549752",
+      "title": {
+        "en": "Пробуждение: 5_1122_слух_и5",
+        "ru": "Пробуждение: 5_1122_слух_и5"
+      },
+      "default_duration_sec": 2302,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1139549752",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2086242877-f4589895b324644c9b35699e34b53b5f64a9f82f3e09705272f00a5f0ed1bd54-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-11-22",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "af796ada-a9a8-4b77-904d-ac0f6cab2661",
+      "slug": "asana-vimeo-1145500614",
+      "title": {
+        "en": "Пробуждение: 2_1211_и2",
+        "ru": "Пробуждение: 2_1211_и2"
+      },
+      "default_duration_sec": 1761,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1145500614",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2094529044-eb48e64c4fd41291e7193947e2046894c171b88cc55476584ea287399e9d0702-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-12-11",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c3f1acc2-6929-408f-a73c-f13f80084716",
+      "slug": "asana-vimeo-1141367686",
+      "title": {
+        "en": "Пробуждение: 7_1128_и7",
+        "ru": "Пробуждение: 7_1128_и7"
+      },
+      "default_duration_sec": 2420,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1141367686",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2088727887-87d4c4d6f3530d4448794fe2f36fc8937587edc32265b84b8cfbf0b3efa5171a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-11-28",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "6d210512-ddea-4d4e-8dd1-81617fd39634",
+      "slug": "asana-vimeo-1142937186",
+      "title": {
+        "en": "Пробуждение: 6_1203_и6",
+        "ru": "Пробуждение: 6_1203_и6"
+      },
+      "default_duration_sec": 2151,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1142937186",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2090927505-643faa2917362f0bd0d8da646edc237eda15524d119cbb60c18d5de3f9778653-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-12-03",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "8b1320fe-6026-4f5c-91b6-39ddcba4c46a",
+      "slug": "asana-vimeo-1144217251",
+      "title": {
+        "en": "Пробуждение: 4_1207_и4",
+        "ru": "Пробуждение: 4_1207_и4"
+      },
+      "default_duration_sec": 3857,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1144217251",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2092712255-3cc27930d4b0549c98684a8fccd6ae3aec8ad7cc644ece9c0747eae6b5b18662-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-12-07",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "3ff9bbf1-692c-4647-aafd-f726fab2ac10",
+      "slug": "asana-vimeo-1146135755",
+      "title": {
+        "en": "Пробуждение: 1_1213_и1",
+        "ru": "Пробуждение: 1_1213_и1"
+      },
+      "default_duration_sec": 1688,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1146135755",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2095581965-dd3661ef29f84ce2e2f02d26584413dad9abbd7de15050e4ef18466e0256c18e-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-13",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "ebbc079c-eee6-48a1-89c4-b295b37e653b",
+      "slug": "asana-vimeo-1147571774",
+      "title": {
+        "en": "Пробуждение: 6_1218_и6",
+        "ru": "Пробуждение: 6_1218_и6"
+      },
+      "default_duration_sec": 2511,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1147571774",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2097452324-c246337fea3ed66fe128f2284cd1042c7df397d18dac7b0e229e2e8f2fcbcc62-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-12-18",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "a78e69bc-1dae-4e0a-b765-3e81ccad3df3",
+      "slug": "asana-vimeo-1148411660",
+      "title": {
+        "en": "Пробуждение: солнцестояние_1221_и1_и7",
+        "ru": "Пробуждение: солнцестояние_1221_и1_и7"
+      },
+      "default_duration_sec": 3819,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1148411660",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2098601561-b87d41eb60a3f4b2a23f5d68af372ccf4babac7daf3cc7664f7456bd999dc414-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        7
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-21",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "8ae9a190-83f0-4244-9f9c-a3e70f4911da",
+      "slug": "asana-vimeo-1149155424",
+      "title": {
+        "en": "Пробуждение: 6_1224_и6",
+        "ru": "Пробуждение: 6_1224_и6"
+      },
+      "default_duration_sec": 3666,
+      "rating": 5,
+      "video_provider": "vimeo",
+      "video_external_id": "1149155424",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2099645355-4defa265e42fe6f9e6329c5e071c451946b43cbf46c824bb63845b33abee4d10-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-12-24",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "71e05807-655b-44d8-8ffe-2c7859914e82",
+      "slug": "asana-vimeo-1133438941",
+      "title": {
+        "en": "Пробуждение: 6_0705_и6",
+        "ru": "Пробуждение: 6_0705_и6"
+      },
+      "default_duration_sec": 1364,
+      "rating": 4,
+      "video_provider": "vimeo",
+      "video_external_id": "1133438941",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078409952-462aef6b046f0c1691d0feca442485d4fe0ccad7f5c4d7636ff6c13b54beddb1-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-07-05",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "73b9dfef-2f19-416b-b747-6004f82a61af",
+      "slug": "asana-vimeo-1146307319",
+      "title": {
+        "en": "Пробуждение: 2_1214_и2",
+        "ru": "Пробуждение: 2_1214_и2"
+      },
+      "default_duration_sec": 1608,
+      "rating": 4,
+      "video_provider": "vimeo",
+      "video_external_id": "1146307319",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2095691997-df7dfde6fcb81b17f610fd6218b8611a897a3074fd52cdd888292436862b6006-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-12-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "3ec9eb06-4af9-4142-8aac-6e932fbefd77",
+      "slug": "asana-vimeo-1113808968",
+      "title": {
+        "en": "Пробуждение: 2_0828_и2",
+        "ru": "Пробуждение: 2_0828_и2"
+      },
+      "default_duration_sec": 1790,
+      "rating": 4,
+      "video_provider": "vimeo",
+      "video_external_id": "1113808968",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2052402108-039e5f7a873638cc6709de608ac4ef77c74edb594793034fa4aeb07d276924c2-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-08-28",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "2122a927-69bb-40b1-afd9-dad16dc60e30",
+      "slug": "asana-vimeo-1152831012",
+      "title": {
+        "en": "Пробуждение: 37_0109_и3_и7",
+        "ru": "Пробуждение: 37_0109_и3_и7"
+      },
+      "default_duration_sec": 3360,
+      "rating": 4,
+      "video_provider": "vimeo",
+      "video_external_id": "1152831012",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2104579618-735e6873f9a79d43a4387aae11ec37ec023c0f8d31e8ddbd51df212c5ed20d8d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3,
+        7
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2026-01-09",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "632766fa-1b26-4288-b181-a94ed20f3aef",
+      "slug": "asana-vimeo-1112632184",
+      "title": {
+        "en": "Пробуждение: 4_0824_и4",
+        "ru": "Пробуждение: 4_0824_и4"
+      },
+      "default_duration_sec": 1812,
+      "rating": 4,
+      "video_provider": "vimeo",
+      "video_external_id": "1112632184",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2050934874-3ee9edef9588a90795d5c53ddc2e5efdaf5cdbbcdcf0bf89139f5b1afef6ac76-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-08-24",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "eb862dce-5475-4ac3-8fbd-df60f1a701f1",
+      "slug": "asana-vimeo-1124725399",
+      "title": {
+        "en": "Пробуждение: 5_1006_и5",
+        "ru": "Пробуждение: 5_1006_и5"
+      },
+      "default_duration_sec": 1876,
+      "rating": 4,
+      "video_provider": "vimeo",
+      "video_external_id": "1124725399",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2066687201-b4306a933c749848da3ad0b36e9b543a979d0b8ce0fb97d56e31b47ffa4a0b97-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-10-06",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "d74f00d7-5cb3-4ecc-aa66-9ee66a4795de",
+      "slug": "asana-vimeo-1135225818",
+      "title": {
+        "en": "Пробуждение: 45_1110_и4",
+        "ru": "Пробуждение: 45_1110_и4"
+      },
+      "default_duration_sec": 1666,
+      "rating": 3,
+      "video_provider": "vimeo",
+      "video_external_id": "1135225818",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2080499998-4b13bc4597a7491022a101b7185865258abfd583cd7d574fdc51b47a7e5e41a9-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-11-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "4c69019d-2686-4a40-94dd-7ac7c86c6017",
+      "slug": "asana-vimeo-1158291041",
+      "title": {
+        "en": "Пробуждение: 67_0126_и6_и7",
+        "ru": "Пробуждение: 67_0126_и6_и7"
+      },
+      "default_duration_sec": 3790,
+      "rating": 3,
+      "video_provider": "vimeo",
+      "video_external_id": "1158291041",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2112297885-bfd0af33c7b9bab459269739288834824ef6815c885967dae61acf27c8d3b82c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6,
+        7
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2026-01-26",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "3a11a7be-7f32-44d6-a817-9d8f46c99313",
+      "slug": "asana-vimeo-1136780244",
+      "title": {
+        "en": "Пробуждение: 7_1114_и7",
+        "ru": "Пробуждение: 7_1114_и7"
+      },
+      "default_duration_sec": 2277,
+      "rating": 2,
+      "video_provider": "vimeo",
+      "video_external_id": "1136780244",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2082576018-50d492b1e4434f65df891cdaff8243078950719a6c0079f3155e09f0f5560473-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-11-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "94ee31c1-048a-42c0-bc85-539a097d081a",
+      "slug": "asana-vimeo-1156739899",
+      "title": {
+        "en": "Пробуждение: 17_0121_и7",
+        "ru": "Пробуждение: 17_0121_и7"
+      },
+      "default_duration_sec": 2555,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1156739899",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2110075828-542da6934a1e1d0025f304a4e3718cba01e4208ee81415262abc460a3af468b5-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-21",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e6cd1e7e-9a5e-4731-8b5b-f7967552cea0",
+      "slug": "asana-vimeo-1157819264",
+      "title": {
+        "en": "Пробуждение: 16_0124_и1_и6",
+        "ru": "Пробуждение: 16_0124_и1_и6"
+      },
+      "default_duration_sec": 3618,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1157819264",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2111658694-c7435828892eef41c9db14ce41f545ce5e139fda7f15e200a2e42b70b0004a1a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        6
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-24",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "08742bac-5e56-4fc5-bd40-c4cbdb5eea3c",
+      "slug": "asana-vimeo-1132583545",
+      "title": {
+        "en": "Пробуждение: 5_0610_и5",
+        "ru": "Пробуждение: 5_0610_и5"
+      },
+      "default_duration_sec": 1412,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132583545",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077932457-f12a9aa94dc4d73e7f2281a74162b954f5971033b876033b1fac03087969ff0f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-06-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "4e779652-68e3-435f-9d7c-6256a0f504c2",
+      "slug": "asana-vimeo-1132588652",
+      "title": {
+        "en": "Пробуждение: все_0613",
+        "ru": "Пробуждение: все_0613"
+      },
+      "default_duration_sec": 2065,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132588652",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077933092-d0460398f4e94509b69176d12b806cd34e38606e21ee081be264b0f0671fc9b1-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-06-13",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 2,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 3,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 4,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 5,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "2efa22d7-7b90-4670-b115-43f77d6077fe",
+      "slug": "asana-vimeo-1133364533",
+      "title": {
+        "en": "Пробуждение: 6_0618_и6",
+        "ru": "Пробуждение: 6_0618_и6"
+      },
+      "default_duration_sec": 1779,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133364533",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078145973-46732eba08bf023c646ef65e695c26fdd22f2f8b9fe42b502efd8070f7be952b-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-06-18",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "2466a155-de31-4882-8d85-64225cb0043f",
+      "slug": "asana-vimeo-1126389105",
+      "title": {
+        "en": "Пробуждение: 7_1011_и7",
+        "ru": "Пробуждение: 7_1011_и7"
+      },
+      "default_duration_sec": 2829,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1126389105",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2068829023-9d7eba6c8c8dfe0182dbd1f29389fd0de10814675213f445c26b5aa83f411c03-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-10-11",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "f0f7905b-859a-4d22-a8c2-b677a1b1d41c",
+      "slug": "asana-vimeo-1126540801",
+      "title": {
+        "en": "Пробуждение: 25_1012_и5",
+        "ru": "Пробуждение: 25_1012_и5"
+      },
+      "default_duration_sec": 2399,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1126540801",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2069032779-9e51400ead23e75271b1f3c5699d3fd0d8705fd020db12db4672f8291722f805-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-10-12",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "cd64684e-b400-4ef9-822b-e03526f32a9c",
+      "slug": "asana-vimeo-1126715199",
+      "title": {
+        "en": "Пробуждение: 3_1013_и3",
+        "ru": "Пробуждение: 3_1013_и3"
+      },
+      "default_duration_sec": 1064,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1126715199",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2069256655-16257798932ca36313ab4a70c0f5e914231d36a802921df921a3073c84c52809-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-10-13",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "5edb05dd-a4a5-433c-b5fb-3769f25ae324",
+      "slug": "asana-vimeo-1127406249",
+      "title": {
+        "en": "Пробуждение: 36_1015_и3_и6",
+        "ru": "Пробуждение: 36_1015_и3_и6"
+      },
+      "default_duration_sec": 1423,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1127406249",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2070124952-2fd04bdb7e2a98feadbbb6854bf7c7699d2c1367759b895557364e8471909666-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3,
+        6
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-10-15",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "3aac8831-7a2d-45af-9733-e404d0404b62",
+      "slug": "asana-vimeo-1127763788",
+      "title": {
+        "en": "Пробуждение: 1_1016_и1",
+        "ru": "Пробуждение: 1_1016_и1"
+      },
+      "default_duration_sec": 2736,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1127763788",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2070588363-a3f45b6ae735888d763ed08b04b11cb72130647f258341504c5a69d279f7e6ae-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-10-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "4726883c-a71b-42ac-b132-ea0f9fb1301c",
+      "slug": "asana-vimeo-1128416559",
+      "title": {
+        "en": "Пробуждение: 4_1018_и4",
+        "ru": "Пробуждение: 4_1018_и4"
+      },
+      "default_duration_sec": 2265,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1128416559",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2071470305-486223076637d2ef9d40862c2d0b68bdc208c01608ff6339031a72a18da45cfc-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-10-18",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "5940b97c-a738-40f1-9cf3-5a1db97b1267",
+      "slug": "asana-vimeo-1128746886",
+      "title": {
+        "en": "Пробуждение: 1_1020_и1",
+        "ru": "Пробуждение: 1_1020_и1"
+      },
+      "default_duration_sec": 1513,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1128746886",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2071912748-e5e7f03c2cc931cb376b39fc2188ec549139e35226ffce45145b389f1a2fadee-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-10-20",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "4b0670e0-0f14-4448-800c-209316e62b11",
+      "slug": "asana-vimeo-1129760004",
+      "title": {
+        "en": "Пробуждение: 36_1023_и3_и6",
+        "ru": "Пробуждение: 36_1023_и3_и6"
+      },
+      "default_duration_sec": 1478,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1129760004",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2073242431-bb013932fc5de60aeb0e9b35a606b4679d55cbec8fe33bedee79c1d577368a63-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3,
+        6
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-10-23",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "6bff6f01-7d1d-4729-a235-4b9b44148551",
+      "slug": "asana-vimeo-1131966705",
+      "title": {
+        "en": "Пробуждение: 2_1030_и2",
+        "ru": "Пробуждение: 2_1030_и2"
+      },
+      "default_duration_sec": 2228,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1131966705",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2076060572-b77e85002f01bd22c61431ba858e8a2afe312e208ca3daa61ef676b7af56377b-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-10-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c22b8d3d-dad7-4a03-a2da-98194162ad02",
+      "slug": "asana-vimeo-1132727437",
+      "title": {
+        "en": "Пробуждение: 1_1101_и1",
+        "ru": "Пробуждение: 1_1101_и1"
+      },
+      "default_duration_sec": 2912,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132727437",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077063130-c2ef2f915ce29b903c1eeb183f1a8c8bc674a7d609576438c1e2879a799ccd70-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-11-01",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e71bdebc-26e2-4fa6-a635-8fae96de2278",
+      "slug": "asana-vimeo-1133718432",
+      "title": {
+        "en": "Пробуждение: полнолуние_1105_и1_и7",
+        "ru": "Пробуждение: полнолуние_1105_и1_и7"
+      },
+      "default_duration_sec": 2695,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133718432",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078422284-3dd15aebb8a618462daf3b8a4ff451723918e1cf778dbfe66c94ef80fe491594-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        7
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-11-05",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "50f521e6-8897-421e-8925-06a2de39df47",
+      "slug": "asana-vimeo-1134500182",
+      "title": {
+        "en": "Пробуждение: 6_1107_и6",
+        "ru": "Пробуждение: 6_1107_и6"
+      },
+      "default_duration_sec": 1987,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1134500182",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2079935180-6ea485b91e131a4a3533d24ba6091edfd1d81e184ff0a5cb2eb7217322a9ae5a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-11-07",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "b06f8c24-5cb5-4f43-8124-0a8870e4db4c",
+      "slug": "asana-vimeo-1134820277",
+      "title": {
+        "en": "Пробуждение: 2_1108_и2",
+        "ru": "Пробуждение: 2_1108_и2"
+      },
+      "default_duration_sec": 2074,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1134820277",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2079941702-11c63eccff4e668037499e38e2758c6a6b63bfa8d588366998b67a23557b9f81-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-11-08",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "d632ca7f-f519-42ac-8fe6-f43d6c55c16c",
+      "slug": "asana-vimeo-1135819045",
+      "title": {
+        "en": "Пробуждение: 3_1111_и3",
+        "ru": "Пробуждение: 3_1111_и3"
+      },
+      "default_duration_sec": 1656,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1135819045",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2081284213-1a924b9e6d18f4b60936b7bd4aefcd6241e0c2b75befde7237ca2c5bd1451e3e-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-11-11",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "75722b3c-06f1-44b7-8429-13da734bcb7b",
+      "slug": "asana-vimeo-1137358518",
+      "title": {
+        "en": "Пробуждение: 3_1116_и3",
+        "ru": "Пробуждение: 3_1116_и3"
+      },
+      "default_duration_sec": 2184,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1137358518",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2083379334-622ea6da6f5a215473b38de35d5ca16b71eb248791c2245876dcbf0969d5c01c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-11-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c0afa7d6-e4f0-4bdf-91fe-015eb3b695ec",
+      "slug": "asana-vimeo-1139216354",
+      "title": {
+        "en": "Пробуждение: 3_1121_и3",
+        "ru": "Пробуждение: 3_1121_и3"
+      },
+      "default_duration_sec": 2225,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1139216354",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2085797638-90bf99a52199e31466624aa40146788b75daf4a718029552e88f0f165c631955-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-11-21",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "0a717126-6c35-44de-aa9e-4413c89490c5",
+      "slug": "asana-vimeo-1139929275",
+      "title": {
+        "en": "Пробуждение: 26_1124_и2_и6",
+        "ru": "Пробуждение: 26_1124_и2_и6"
+      },
+      "default_duration_sec": 1896,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1139929275",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2086877225-03672c21beda5dfb8fbecf77417b20ec45d4ddb83e911ffbc93eacfd55090e5c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2,
+        6
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-11-24",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "bb458f35-4ad6-4669-8681-6096993bf386",
+      "slug": "asana-vimeo-1141025937",
+      "title": {
+        "en": "Пробуждение: 2_1127_и2",
+        "ru": "Пробуждение: 2_1127_и2"
+      },
+      "default_duration_sec": 2623,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1141025937",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2088269668-6e66454f775671bd12509917b59f7b6251bd64f781f15e3a6e74311c93f6f90e-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-11-27",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "0fd65f73-12b0-4dc5-99c6-d1429ccaf099",
+      "slug": "asana-vimeo-1141585598",
+      "title": {
+        "en": "Пробуждение: 5_1129_и5",
+        "ru": "Пробуждение: 5_1129_и5"
+      },
+      "default_duration_sec": 1712,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1141585598",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2089063506-6b640118960410e2601c20b9c9a1e27c62810dad7f232ed86620ab3c6df60ee8-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-11-29",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "ed3264a4-ae31-4f1f-bc74-36ab0f3db399",
+      "slug": "asana-vimeo-1141808936",
+      "title": {
+        "en": "Пробуждение: 2_1130_и2",
+        "ru": "Пробуждение: 2_1130_и2"
+      },
+      "default_duration_sec": 3213,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1141808936",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2089362297-ae37160c34e636e2bfb4b4e21bcf1edf06a63f02d02464bc32074042faaf0896-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-11-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "f2557e8e-7d37-4323-a61d-5a1350dc649a",
+      "slug": "asana-vimeo-1143370142",
+      "title": {
+        "en": "Пробуждение: 2_1204_и2",
+        "ru": "Пробуждение: 2_1204_и2"
+      },
+      "default_duration_sec": 2585,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1143370142",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2092005738-3152f93e4ce468e6aa5ca3140eb63ebc0e16a4444a6b71643dd69afea2c74f87-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-12-04",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c3ce9443-f4aa-4a7b-beba-efebfe04e6d6",
+      "slug": "asana-vimeo-1143719064",
+      "title": {
+        "en": "Пробуждение: 1_1205_полнолуние_и1",
+        "ru": "Пробуждение: 1_1205_полнолуние_и1"
+      },
+      "default_duration_sec": 2291,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1143719064",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2092006040-5fd028bbf834eb8134922bd5a358a1a5ce63d0c261e6e5c59d2b1017870e759f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-05",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "291b1cd0-6d41-4c77-8f56-6633e9ea13b7",
+      "slug": "asana-vimeo-1144405376",
+      "title": {
+        "en": "Пробуждение: 2_1208_и2",
+        "ru": "Пробуждение: 2_1208_и2"
+      },
+      "default_duration_sec": 2548,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1144405376",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2092983087-ce4b4a0c8add78891490346858bb05c7e68163aecaf8c19b31ea949337c965db-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-12-08",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "669d9e1d-2693-4659-baae-5a3fa6d8ab0e",
+      "slug": "asana-vimeo-1144822975",
+      "title": {
+        "en": "Пробуждение: 1_1209_и1",
+        "ru": "Пробуждение: 1_1209_и1"
+      },
+      "default_duration_sec": 2382,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1144822975",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2093985331-18e8091305001c2b299d5d7efa92637903ffb14056011ea9570e5d1e4c6ecb05-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-09",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c491c6a3-13c2-4793-94ef-5f5350b0a7cd",
+      "slug": "asana-vimeo-1147224560",
+      "title": {
+        "en": "Пробуждение: 45_1217_и4_и5",
+        "ru": "Пробуждение: 45_1217_и4_и5"
+      },
+      "default_duration_sec": 2028,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1147224560",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2096936094-18419190bf5bd83f35c00d4ae8c2e731b69e22aa228564cedb468bcabcb6fa32-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4,
+        5
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-12-17",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 5,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "a2c08484-f292-49f2-963f-9a3fa18c3230",
+      "slug": "asana-vimeo-1148857906",
+      "title": {
+        "en": "Пробуждение: 1_1223_и1",
+        "ru": "Пробуждение: 1_1223_и1"
+      },
+      "default_duration_sec": 2084,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1148857906",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2099229325-493561d8b128441be5dc206c685017139539efa2f2352661755513ebc08c5483-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-23",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "a6bd424a-2921-4e5f-82ea-28f2728fc6d7",
+      "slug": "asana-vimeo-1107653291",
+      "title": {
+        "en": "Пробуждение: 2_0806_и2",
+        "ru": "Пробуждение: 2_0806_и2"
+      },
+      "default_duration_sec": 2078,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1107653291",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2044712058-23984637a5799f848dbf4e33aa27ebb40e4f23cd8ef1c74869bf9085d30f5009-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-08-06",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "47371481-a637-4bb0-a4e4-93bedc074c3e",
+      "slug": "asana-vimeo-1108785226",
+      "title": {
+        "en": "Пробуждение: 5_0810_и5",
+        "ru": "Пробуждение: 5_0810_и5"
+      },
+      "default_duration_sec": 1890,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1108785226",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2046138844-6e2b3e858acd3da4587220002ff000dd17e6dadb35ede1f0f1ff5dde94fc413a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-08-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "42aa85d3-6ec0-4dfa-8db5-86257ae713c3",
+      "slug": "asana-vimeo-1109898999",
+      "title": {
+        "en": "Пробуждение: 7_0814_и7",
+        "ru": "Пробуждение: 7_0814_и7"
+      },
+      "default_duration_sec": 1913,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1109898999",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2047528784-33aa79fbca6fb385755ce74e41f91276d90301d0d4993844eb5e4bccf0249d02-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-08-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "b7c5adcb-470a-49f3-8063-e084d3688cca",
+      "slug": "asana-vimeo-1108965071",
+      "title": {
+        "en": "Пробуждение: 24_0811_и4",
+        "ru": "Пробуждение: 24_0811_и4"
+      },
+      "default_duration_sec": 2078,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1108965071",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2046368667-b3e36231c30976a0878411d42675750a0b9ab899eeabd88999750873dffedbfe-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-08-11",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "974b6115-f8cc-41e0-a23c-6cdfeb2ceaa3",
+      "slug": "asana-vimeo-1110210946",
+      "title": {
+        "en": "Пробуждение: 24_0815_и4",
+        "ru": "Пробуждение: 24_0815_и4"
+      },
+      "default_duration_sec": 1666,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1110210946",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2047913077-6ecb198f330dc50fca72359246cd51eb5ffea91bc747d963c8ec13beaf2382b9-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-08-15",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "209f173a-08b6-4bae-b6f7-74b771da4446",
+      "slug": "asana-vimeo-1113127443",
+      "title": {
+        "en": "Пробуждение: 3_0826_и3",
+        "ru": "Пробуждение: 3_0826_и3"
+      },
+      "default_duration_sec": 1372,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1113127443",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2051557629-bb50523e86a4b7be96ee530e61e34f4083cd608b7bc57f2cb11e396cb540b3e1-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-08-26",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "5dc8da75-af9c-49ce-825f-0503da1af8b1",
+      "slug": "asana-vimeo-1114592896",
+      "title": {
+        "en": "Пробуждение: 2_0831_и2",
+        "ru": "Пробуждение: 2_0831_и2"
+      },
+      "default_duration_sec": 1958,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1114592896",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2053406725-acbdfe7e9a7c0fa6b601962cc75de3d0a6be1b0e58663c32377969118a4a0329-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-08-31",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "875c65f6-2cce-40bd-981f-dab8c4221171",
+      "slug": "asana-vimeo-1115391032",
+      "title": {
+        "en": "Пробуждение: 34_0903_и4_и3",
+        "ru": "Пробуждение: 34_0903_и4_и3"
+      },
+      "default_duration_sec": 1921,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1115391032",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2054728951-c77554e22e36132b450e40d3bb2076311bfdc57052db2ff18c71127ed52e5d58-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4,
+        3
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-09-03",
+      "practice_chakras": [
+        {
+          "weight": 0.7,
+          "chakra_id": 3,
+          "is_primary": false
+        },
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "9e24a3c6-095e-4a6c-bde7-c658109df958",
+      "slug": "asana-vimeo-1115723469",
+      "title": {
+        "en": "Пробуждение: 5_0904_и5",
+        "ru": "Пробуждение: 5_0904_и5"
+      },
+      "default_duration_sec": 2248,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1115723469",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2055160462-2ff06f8383f9ff1e295589cbafc9c87cd9e36459559166f8aa35dae93d9866e1-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-09-04",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "776f223f-49ea-4a19-a1f6-69776ff4f636",
+      "slug": "asana-vimeo-1118306115",
+      "title": {
+        "en": "Пробуждение: 5_0913_и5",
+        "ru": "Пробуждение: 5_0913_и5"
+      },
+      "default_duration_sec": 1801,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1118306115",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2058464070-b87bf5d61f05971272115e731fb99aa8d0de152e5b4f890038bb0a6a7fdf6762-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-09-13",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "95584671-fff3-4cd5-b7f6-f4499efc769c",
+      "slug": "asana-vimeo-1118459496",
+      "title": {
+        "en": "Пробуждение: 6_0914_и6",
+        "ru": "Пробуждение: 6_0914_и6"
+      },
+      "default_duration_sec": 2436,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1118459496",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2058676169-5c928e14ff13376ec92244b9bb956872f79bc77dd531272e26cab4474865880f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-09-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "323647a2-781d-47c1-9cb1-40017a2c7bc2",
+      "slug": "asana-vimeo-1126087673",
+      "title": {
+        "en": "Пробуждение: 5_1010_и5",
+        "ru": "Пробуждение: 5_1010_и5"
+      },
+      "default_duration_sec": 2031,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1126087673",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2068424376-0fb5c8b87b4e6c4846be5576f79f99cac450ae517f909ff575b545b904aa5a21-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-10-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "88fa1ecb-4709-47c5-80b2-b196ff25c5c6",
+      "slug": "asana-vimeo-1127056090",
+      "title": {
+        "en": "Пробуждение: 2_1014_и2",
+        "ru": "Пробуждение: 2_1014_и2"
+      },
+      "default_duration_sec": 1833,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1127056090",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2070123613-edd239dd6acaca9b1fb65f24328b47d2a37331917fd50d013f578ed904e17c2f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-10-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "bfa50e18-3906-4994-8c7c-d4aea389a260",
+      "slug": "asana-vimeo-1128566486",
+      "title": {
+        "en": "Пробуждение: 2_1019_и2",
+        "ru": "Пробуждение: 2_1019_и2"
+      },
+      "default_duration_sec": 1719,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1128566486",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2071677408-71a6f2dfd73e8538979514a96edc4577b95c34ebcc31c4a6aa37ae18d19ec97f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-10-19",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "aa9841f6-6d55-4b5a-95db-d2d85670b305",
+      "slug": "asana-vimeo-1130421599",
+      "title": {
+        "en": "Пробуждение: 2_1025_и2",
+        "ru": "Пробуждение: 2_1025_и2"
+      },
+      "default_duration_sec": 1061,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1130421599",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2074107392-e8ca80ef41199fdcecd17b722bec484dc62c1a50116a8b4e2d2c3c8841ec6498-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-10-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "10eee9f9-93cd-4ecd-b4f2-c4ca2e96cf07",
+      "slug": "asana-vimeo-1132397580",
+      "title": {
+        "en": "Пробуждение: 3_1031_и3",
+        "ru": "Пробуждение: 3_1031_и3"
+      },
+      "default_duration_sec": 2489,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132397580",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2076615384-6e8c8c4d7c8f309a87a89ae3ea31bcb70a21834dfe2d5fa75e255e4639927f18-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-10-31",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "37445719-04f9-4e71-8720-0a8eda71a41f",
+      "slug": "asana-vimeo-1132590595",
+      "title": {
+        "en": "Пробуждение: 5_0614_и5",
+        "ru": "Пробуждение: 5_0614_и5"
+      },
+      "default_duration_sec": 1717,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132590595",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077933382-e8dfb2bd828cb7d1c4844bbe744401e66a4ef4a9047bef624cbac4ffd1f6be36-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-06-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "6daa3336-cd3a-47b4-aa32-88f1bf208ed5",
+      "slug": "asana-vimeo-1133366961",
+      "title": {
+        "en": "Пробуждение: 6_0620_и6",
+        "ru": "Пробуждение: 6_0620_и6"
+      },
+      "default_duration_sec": 1307,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133366961",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078275291-0f5538f1a5b020e30e8b5674037f79ff95d0fc448ae74bbd6a9395975810479d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-06-20",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "99e05b49-574f-438b-ac13-d489a33a23db",
+      "slug": "asana-vimeo-1133369904",
+      "title": {
+        "en": "Пробуждение: 3_0623_и3",
+        "ru": "Пробуждение: 3_0623_и3"
+      },
+      "default_duration_sec": 1377,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133369904",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078406439-f564b294b0a9ca6444046a9214754ea3431d8d75443a9a7346b259ed82cabd67-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-06-23",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "904f1e42-1c5f-46ea-b1c3-2f57d4e4204c",
+      "slug": "asana-vimeo-1133372233",
+      "title": {
+        "en": "Пробуждение: новолуние_0625",
+        "ru": "Пробуждение: новолуние_0625"
+      },
+      "default_duration_sec": 2089,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133372233",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078406978-5675f9af3d3a4e3943f1732fa40a164959b281afce73d3d7a318d2ed482e3c22-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-06-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 2,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 3,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 4,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 5,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "922b8a14-fa87-4f67-a14b-41ec710645bd",
+      "slug": "asana-vimeo-1133373850",
+      "title": {
+        "en": "Пробуждение: 2_0626_и2",
+        "ru": "Пробуждение: 2_0626_и2"
+      },
+      "default_duration_sec": 1392,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133373850",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078407200-ffbfe9ba074a465a8202b7227b081a7b12ed92b93015c4cbb5ed7829a7ac990c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-06-26",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c017756b-ecc5-4303-81c4-08d5a50bf791",
+      "slug": "asana-vimeo-1133447824",
+      "title": {
+        "en": "Пробуждение: полнолуние_0710_и1",
+        "ru": "Пробуждение: полнолуние_0710_и1"
+      },
+      "default_duration_sec": 1404,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133447824",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078411861-250762fcb604bc14c35d131f7d8ce3f0c87b6547c1cb1e99228ba6122636cc95-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-07-10",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "bfb38cfb-136f-4bb3-a2d6-2e8bb95e14ac",
+      "slug": "asana-vimeo-1133455053",
+      "title": {
+        "en": "Пробуждение: 3_0715_и3",
+        "ru": "Пробуждение: 3_0715_и3"
+      },
+      "default_duration_sec": 1229,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133455053",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078414625-6d0363dc69c565265b38aae599e426a66a908dc57dc164556ee0acccbb437dbf-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-07-15",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "a564bbe8-b45c-450a-9769-d3296341545e",
+      "slug": "asana-vimeo-1133464038",
+      "title": {
+        "en": "Пробуждение: 5_0722_и5",
+        "ru": "Пробуждение: 5_0722_и5"
+      },
+      "default_duration_sec": 1837,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133464038",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078418880-a90854e6d049b3f2f484e6fa000d1cf77c0e85fdfc58a6345be7f1ca67c5f3ef-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-07-22",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c55da32d-b81d-4eaa-b007-2f2fb22f3422",
+      "slug": "asana-vimeo-1133511813",
+      "title": {
+        "en": "Пробуждение: 4_0727_и4",
+        "ru": "Пробуждение: 4_0727_и4"
+      },
+      "default_duration_sec": 1934,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133511813",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078420526-f451bd4d48663d1346a3b52c62020cdb1319562331184f206b904bb3e408ca1c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-07-27",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "bcd62783-14de-414c-b3b3-0ea85ef0318c",
+      "slug": "asana-vimeo-1135001867",
+      "title": {
+        "en": "Пробуждение: 1_1109_и1",
+        "ru": "Пробуждение: 1_1109_и1"
+      },
+      "default_duration_sec": 1655,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1135001867",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2080184242-f709b5f49578bcb77d1141b7cf36a0c3b448e50e75a702d2423b01007364963a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-11-09",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "9726a254-ed83-43bb-9d9e-5573929b83e9",
+      "slug": "asana-vimeo-1136366820",
+      "title": {
+        "en": "Пробуждение: 1_1113_и1",
+        "ru": "Пробуждение: 1_1113_и1"
+      },
+      "default_duration_sec": 3134,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1136366820",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2082036850-1e5eecaa47011024cfcb66f5432be87d0b5eb367a9ec71fb70be057447a920ee-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-11-13",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "81ab0442-acf4-4501-be15-1aafa738cd4d",
+      "slug": "asana-vimeo-1138380424",
+      "title": {
+        "en": "Пробуждение: 2_1119_и2",
+        "ru": "Пробуждение: 2_1119_и2"
+      },
+      "default_duration_sec": 2329,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1138380424",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2084766331-10368acdf22679de9a62c6046730ff6cc57c12c4a9d35a955820b1fda7214224-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-11-19",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "455da9b1-783f-4dd8-891f-f52283056718",
+      "slug": "asana-vimeo-1140546622",
+      "title": {
+        "en": "Пробуждение: 45_1125_и4",
+        "ru": "Пробуждение: 45_1125_и4"
+      },
+      "default_duration_sec": 2256,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1140546622",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2087608543-787c67b571d2538f50785f8ce64e7a34b24d3b5ef782a791746825e22ceaac80-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-11-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "86367729-f8e8-438a-8fa1-d4029fb0476e",
+      "slug": "asana-vimeo-1145844653",
+      "title": {
+        "en": "Пробуждение: 456_1212_и4",
+        "ru": "Пробуждение: 456_1212_и4"
+      },
+      "default_duration_sec": 2176,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1145844653",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2094996151-e7e95b278f3809b9d05799338edcc2bc1a62e4ef57893f3f2b951a6925e87385-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-12-12",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "42efc8f8-de50-4047-bab5-b3d200af03ae",
+      "slug": "asana-vimeo-1146530344",
+      "title": {
+        "en": "Пробуждение: 3_1215_и3",
+        "ru": "Пробуждение: 3_1215_и3"
+      },
+      "default_duration_sec": 1837,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1146530344",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2095994094-20696994587a7c9707c4c74968855790f6d3422ca4bf645f873ab8a855cdc353-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-12-15",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "358d44a3-a2ed-405c-9c9f-4d0ce0fc3a0a",
+      "slug": "asana-vimeo-1153853898",
+      "title": {
+        "en": "Пробуждение: 23_0113_и2_и3",
+        "ru": "Пробуждение: 23_0113_и2_и3"
+      },
+      "default_duration_sec": 3123,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1153853898",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2105960883-53cd203b637853cbf16bdeff826c73be725c749901da9819b6701fc277456145-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2,
+        3
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2026-01-13",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 3,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "3a7c8071-1763-4142-952f-9a62b01f88da",
+      "slug": "asana-vimeo-1155673978",
+      "title": {
+        "en": "Пробуждение: 17_0118_новолуние_и7",
+        "ru": "Пробуждение: 17_0118_новолуние_и7"
+      },
+      "default_duration_sec": 4403,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1155673978",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2108468915-af8cdb102a129a4bb356eabffb7b19bdfde4fbb4f169857bf637e7ca2cac9676-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-18",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "81a54d2a-9d49-4f40-a019-0af03a7766f3",
+      "slug": "asana-vimeo-1157307093",
+      "title": {
+        "en": "Пробуждение: 56_0830_и5_и6",
+        "ru": "Пробуждение: 56_0830_и5_и6"
+      },
+      "default_duration_sec": 2260,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1157307093",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2110935451-4e3488a555efb4f2885957e238ec9acdd57642ea206e50a168a8e1f89f55a88d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5,
+        6
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-08-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "828fccd7-e3fd-42ac-b176-e330700e3db8",
+      "slug": "asana-vimeo-1157334967",
+      "title": {
+        "en": "Пробуждение: 6_0801_и6",
+        "ru": "Пробуждение: 6_0801_и6"
+      },
+      "default_duration_sec": 1636,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1157334967",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2110969801-5ac1d6b7ff6161413213068bf2b95150970a3ce22a1456d16b3b5cf3ce0f466f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-08-01",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "92574746-98eb-4e10-bf9b-9e69bd30f429",
+      "slug": "asana-vimeo-1133367763",
+      "title": {
+        "en": "Пробуждение: 3_0621",
+        "ru": "Пробуждение: 3_0621"
+      },
+      "default_duration_sec": 1094,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133367763",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078275756-23bee0e9eb20189e52bd32d1f0189a0feeb4fc80acd547c05492da94cc521f42-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-06-21",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "82928ceb-f089-43ea-a643-30e78d7d013a",
+      "slug": "asana-vimeo-1159079385",
+      "title": {
+        "en": "Пробуждение: 13_0128_и1",
+        "ru": "Пробуждение: 13_0128_и1"
+      },
+      "default_duration_sec": 2255,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1159079385",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2113329234-d53ddeb0080b80cfa87fc8159ed7ed4788cd7a686e91f4ee9aeec765aa77e369-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-28",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "f4694f91-7956-4184-aa12-3d97def8bbc8",
+      "slug": "asana-vimeo-1133374931",
+      "title": {
+        "en": "Пробуждение: 6_0627_и6",
+        "ru": "Пробуждение: 6_0627_и6"
+      },
+      "default_duration_sec": 1651,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133374931",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078407501-05bf8b0140407114027a63dea3ab0baa8c3fdc563c315d1214532f6715f620df-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-06-27",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "64bff68b-6921-4dbf-a600-4b803bdd842f",
+      "slug": "asana-vimeo-1108332467",
+      "title": {
+        "en": "Пробуждение: 6_0808_и6",
+        "ru": "Пробуждение: 6_0808_и6"
+      },
+      "default_duration_sec": 2168,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1108332467",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2045559808-506a5cdcff84cb99973c7fa776f7bedf5d6ba80f1a5970be91e9332d476017e9-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-08-08",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "905ba68a-18ed-4e0b-9ac5-57e1108ee570",
+      "slug": "asana-vimeo-1152694364",
+      "title": {
+        "en": "Пробуждение: 7_0804_и7",
+        "ru": "Пробуждение: 7_0804_и7"
+      },
+      "default_duration_sec": 1993,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1152694364",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2104371395-ae1f8500e6e50bc374d73e42d1ea35854df55021bbde4ca89eabf452bb865eeb-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-08-04",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "fad821cb-b013-4ce9-8ae5-7e26a96458ad",
+      "slug": "asana-vimeo-1110476221",
+      "title": {
+        "en": "Пробуждение: 5_0816_и5",
+        "ru": "Пробуждение: 5_0816_и5"
+      },
+      "default_duration_sec": 2014,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1110476221",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2048241274-211afc4e0b4f581e6a2308703ee33f1d814bd5c0df096eb121ce73660a022cfd-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-08-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "081ef1f4-a334-49f2-bc37-2d21a94eb080",
+      "slug": "asana-vimeo-1111560203",
+      "title": {
+        "en": "Пробуждение: 2_0820_и2",
+        "ru": "Пробуждение: 2_0820_и2"
+      },
+      "default_duration_sec": 1838,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1111560203",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2049567388-e9cf5b4b15fc74490ad083559a38c3117d784c57c4130ba7035ae01c37758924-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-08-20",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "3ac509bf-2440-44f4-a46b-ed0e11ccbfff",
+      "slug": "asana-vimeo-1154211772",
+      "title": {
+        "en": "Пробуждение: 57_0114_и5_и7",
+        "ru": "Пробуждение: 57_0114_и5_и7"
+      },
+      "default_duration_sec": 3523,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1154211772",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2106552683-35956ec4fefc300782b0e50673fe07f5fcd011f66efef7a53d6792ae695a1d26-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5,
+        7
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2026-01-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "04f0ff71-ec41-473c-bedf-73f67ed5841b",
+      "slug": "asana-vimeo-1133370945",
+      "title": {
+        "en": "Пробуждение: все_0624",
+        "ru": "Пробуждение: все_0624"
+      },
+      "default_duration_sec": 1524,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133370945",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078406723-807e21ed2d01a31c48485aefa97cffa980eceb5009e4ce26b95253b6713769c0-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-06-24",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 2,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 3,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 4,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 5,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 6,
+          "is_primary": false
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 7,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "a217bd5e-4264-4ef5-8694-6356a56b84c1",
+      "slug": "asana-vimeo-1153278114",
+      "title": {
+        "en": "Пробуждение: 1_0111",
+        "ru": "Пробуждение: 1_0111"
+      },
+      "default_duration_sec": 3215,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1153278114",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2105192356-bb5b346c5b0a076da6f74f9f92b1c0f6857255c8559b08bc47a144cb57b842ac-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-11",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "78d22358-912c-4cca-b988-aca2e64347ef",
+      "slug": "asana-vimeo-1132461512",
+      "title": {
+        "en": "Пробуждение: экадаши_0605_и7",
+        "ru": "Пробуждение: экадаши_0605_и7"
+      },
+      "default_duration_sec": 1528,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132461512",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077929665-ed5d86d8fd4502048809224fce13529e5e42c4a590bee2b744ffc5bc6b7916ac-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-06-05",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "06c515a3-df27-49bd-b1a4-10a81a57a328",
+      "slug": "asana-vimeo-1146835692",
+      "title": {
+        "en": "Пробуждение: 1_1216_и1",
+        "ru": "Пробуждение: 1_1216_и1"
+      },
+      "default_duration_sec": 2343,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1146835692",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2096407457-2d2e7cac3f56722953954b80c88f1093746402acb4d6b137f3e59d1d6315482c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-12-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "ab0dfe6b-222f-422e-9160-b25984910915",
+      "slug": "asana-vimeo-1107312542",
+      "title": {
+        "en": "Пробуждение: 3_5_0805_и3",
+        "ru": "Пробуждение: 3_5_0805_и3"
+      },
+      "default_duration_sec": 1419,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1107312542",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2044293310-d2f1f5b8fff1e1a597fb438478ea12c2421c34b19f80f4aa27274ba3f53e6bd1-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-08-05",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "eac5d0a3-83b2-4348-aec8-e677bf89a3a1",
+      "slug": "asana-vimeo-1133368787",
+      "title": {
+        "en": "Пробуждение: 26_0622_и2",
+        "ru": "Пробуждение: 26_0622_и2"
+      },
+      "default_duration_sec": 1625,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133368787",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078405758-4dc46cc27b18aeba0c790adef711825e855340656fdc6ad701c266a8da90fc33-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-06-22",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "8da2423e-2df9-430f-8d09-ec8868acfaff",
+      "slug": "asana-vimeo-1133380413",
+      "title": {
+        "en": "Пробуждение: 34_0630_и4",
+        "ru": "Пробуждение: 34_0630_и4"
+      },
+      "default_duration_sec": 1374,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133380413",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078408097-ddfbb753c713bbb9e7b24d9e0dae2b4c56576741187ba718c2c7e02875bda990-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-06-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e093cd6a-37fd-4fa3-b51c-a2d94e1589a7",
+      "slug": "asana-vimeo-1133381433",
+      "title": {
+        "en": "Пробуждение: 2_0701_и2",
+        "ru": "Пробуждение: 2_0701_и2"
+      },
+      "default_duration_sec": 1175,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133381433",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078408713-bc7ead599343c16235ea0bf4676b6c91f131e14fb87418ddc0f2fd97229a35ac-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-07-01",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "d25db396-f933-4499-916e-7d1d29793c26",
+      "slug": "asana-vimeo-1133444539",
+      "title": {
+        "en": "Пробуждение: 3_0708_и3",
+        "ru": "Пробуждение: 3_0708_и3"
+      },
+      "default_duration_sec": 1670,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133444539",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078411058-db73300eb7d7ca56bf0ab1bbf76bfecd77fc024426247be7228697cdfee8ccb2-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-07-08",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "49dc8f9e-1fab-4764-80fe-f713cab6286c",
+      "slug": "asana-vimeo-1133446326",
+      "title": {
+        "en": "Пробуждение: 5_0709_и5",
+        "ru": "Пробуждение: 5_0709_и5"
+      },
+      "default_duration_sec": 2209,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133446326",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078411506-af39fe1c674925e12dfe12e8c1b1218ad56850886656b11bd0af3396b5fceb3b-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-07-09",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "0c6f788d-0364-40f0-a1e7-be4be46adcbf",
+      "slug": "asana-vimeo-1133449218",
+      "title": {
+        "en": "Пробуждение: 5_0711_и5",
+        "ru": "Пробуждение: 5_0711_и5"
+      },
+      "default_duration_sec": 1373,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133449218",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078412508-dd0f36a3d4929c21ee1c8a3e5166b371deb146c10f16b637b6c410e3ba8cae59-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-07-11",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "f78ac6ad-af59-4cdc-a293-d923f450491b",
+      "slug": "asana-vimeo-1133450832",
+      "title": {
+        "en": "Пробуждение: 2_0712_и2",
+        "ru": "Пробуждение: 2_0712_и2"
+      },
+      "default_duration_sec": 1504,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133450832",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078413475-98a687cfc2ca001b0512cfa563c928a07046d2596f1d2a095338dcac1e65f12d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-07-12",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "fa538fc1-28d5-472c-baaf-4b530dc91636",
+      "slug": "asana-vimeo-1133453859",
+      "title": {
+        "en": "Пробуждение: 4_0714_и4",
+        "ru": "Пробуждение: 4_0714_и4"
+      },
+      "default_duration_sec": 1157,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133453859",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078414167-62c4d16dd88738dbb388b5d2c67f481ac40f0ffcebff5930d938586975f94722-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-07-14",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "29d50caa-2037-4340-aaa2-b1ee368e3da2",
+      "slug": "asana-vimeo-1133456715",
+      "title": {
+        "en": "Пробуждение: 5_0716_и5",
+        "ru": "Пробуждение: 5_0716_и5"
+      },
+      "default_duration_sec": 1740,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133456715",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078415479-94111714fddb35b2d9ddf1f8f4b74258204d69cc2b178b118e4b17bcef5cb66a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-07-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "4d23cc9c-aba9-4abe-98de-3ae035479a55",
+      "slug": "asana-vimeo-1133459364",
+      "title": {
+        "en": "Пробуждение: 7_0718_и7",
+        "ru": "Пробуждение: 7_0718_и7"
+      },
+      "default_duration_sec": 1485,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133459364",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078417349-af159ebea012f890648f9e1f997aef9ed8596d0c8d8c6215764d99f58afc9d1c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2025-07-18",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "89446509-19a2-4f7e-a8ff-ba60a6f73e33",
+      "slug": "asana-vimeo-1133462115",
+      "title": {
+        "en": "Пробуждение: 26_0721_и6",
+        "ru": "Пробуждение: 26_0721_и6"
+      },
+      "default_duration_sec": 1509,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133462115",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078418295-fbfed4e5aed3a053204c0c86c8a68703a37fb75f631f95e01231c5a0b5553fc9-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-07-21",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "aff2543c-ee14-4308-a289-b1be939926d8",
+      "slug": "asana-vimeo-1133466133",
+      "title": {
+        "en": "Пробуждение: 4_0723_и4",
+        "ru": "Пробуждение: 4_0723_и4"
+      },
+      "default_duration_sec": 2377,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133466133",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078419136-a0d027d00dbddac3aefb57f9f4eb4876fce416a888ab45fded6cdfe2bb3b916b-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-07-23",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "1c5eb6d7-0cff-4115-884b-2c592da35a30",
+      "slug": "asana-vimeo-1133507448",
+      "title": {
+        "en": "Пробуждение: 6_0725_и6",
+        "ru": "Пробуждение: 6_0725_и6"
+      },
+      "default_duration_sec": 1557,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133507448",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078419823-4aad6dd96cae937f047d161134c94217fc4603505ef28d22a915145595fb2654-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-07-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "2239e2a9-a444-480c-bbc6-e21ac3382d96",
+      "slug": "asana-vimeo-1133509635",
+      "title": {
+        "en": "Пробуждение: 2_0726_и2",
+        "ru": "Пробуждение: 2_0726_и2"
+      },
+      "default_duration_sec": 1844,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133509635",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078420299-bf5723d0fc19a16dbce347f11c619e69b8c4d8cf626213d11d15343d4d2da1aa-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-07-26",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "8627395e-5dd4-484b-856b-090618b1241d",
+      "slug": "asana-vimeo-1133513692",
+      "title": {
+        "en": "Пробуждение: 3_0728_и3",
+        "ru": "Пробуждение: 3_0728_и3"
+      },
+      "default_duration_sec": 1260,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133513692",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078420706-0f803272044acb389e7455628684291505afc117faf8128d471fc9e467aee3c8-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-07-28",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "8de19fa6-dc7e-4c75-be12-795e7b9dea4d",
+      "slug": "asana-vimeo-1133515678",
+      "title": {
+        "en": "Пробуждение: 5_0729_и5",
+        "ru": "Пробуждение: 5_0729_и5"
+      },
+      "default_duration_sec": 1918,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133515678",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078420916-5d3b6c8ed854f8c50836b7d93e96b668da06b8d0963c637b7129061c9238a805-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-07-29",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "418ec452-7860-47d6-938a-e6b07cb9d959",
+      "slug": "asana-vimeo-1133517542",
+      "title": {
+        "en": "Пробуждение: 46_0730_и4",
+        "ru": "Пробуждение: 46_0730_и4"
+      },
+      "default_duration_sec": 1224,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133517542",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078421611-d8bcb217747ba67a6ede35935f49834dab687ebb1debaa6b9e1a2a25f32c4198-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-07-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "b5f017d0-a827-48be-86fa-ba97f126dd64",
+      "slug": "asana-vimeo-1157305230",
+      "title": {
+        "en": "Пробуждение: 35_0803_и5",
+        "ru": "Пробуждение: 35_0803_и5"
+      },
+      "default_duration_sec": 1544,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1157305230",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2110935060-45972a14b92197e10ac9585c95aecb6203acb5151373c530eea55bebde8c8444-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-08-03",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "261981c4-a261-4aae-9825-7f28e1bf326a",
+      "slug": "asana-vimeo-1158675273",
+      "title": {
+        "en": "Пробуждение: 14_0127_и1",
+        "ru": "Пробуждение: 14_0127_и1"
+      },
+      "default_duration_sec": 3289,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1158675273",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2112800644-7c291ff44380febf1f8fc994b021732455edd822c9664bec6507e7ef482650ea-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-27",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e022c429-1613-4da8-ba35-fa831d6622a0",
+      "slug": "asana-vimeo-1109572116",
+      "title": {
+        "en": "Пробуждение: 24_0813_и4",
+        "ru": "Пробуждение: 24_0813_и4"
+      },
+      "default_duration_sec": 2163,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1109572116",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2047124140-0a23964577c0529276cee7c379bfecf7f7bd41d50aa41f8fcf0d69bbb31ec5b5-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-08-13",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "b5378ba4-da00-4255-b23e-ab9ec2824a4a",
+      "slug": "asana-vimeo-1124547375",
+      "title": {
+        "en": "Пробуждение: 2_1005_и2",
+        "ru": "Пробуждение: 2_1005_и2"
+      },
+      "default_duration_sec": 1700,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1124547375",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2066685655-250b5ed1af71bd1ebc9cfb3fc7fad28e92b59735b636698da35172cdec5eea2e-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-10-05",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "17f64c88-5197-4751-bf3d-c4e93379ed3a",
+      "slug": "asana-vimeo-1125068829",
+      "title": {
+        "en": "Пробуждение: полнолуние_1007_и1",
+        "ru": "Пробуждение: полнолуние_1007_и1"
+      },
+      "default_duration_sec": 2906,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1125068829",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2067142513-30ab33078526651ef97dead08cd6a2e2d35bb3633829994cb910831a3e6c7a83-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2025-10-07",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "64956d91-b3ff-46af-9a67-e592d5138681",
+      "slug": "asana-vimeo-1125418065",
+      "title": {
+        "en": "Пробуждение: 6_1008_и6",
+        "ru": "Пробуждение: 6_1008_и6"
+      },
+      "default_duration_sec": 1623,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1125418065",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2067988443-172c5fde5505dfd3a4ccaa08f1ca6d552e656675c9442ba2f686b64b3798c9b0-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-10-08",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "cd1af070-3069-40db-8c50-e28bcc87183f",
+      "slug": "asana-vimeo-1125755231",
+      "title": {
+        "en": "Пробуждение: 34_1009_и4",
+        "ru": "Пробуждение: 34_1009_и4"
+      },
+      "default_duration_sec": 1636,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1125755231",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2067996026-da1e25ed39157dfa6dee7485406baccd5aab174ea30b5f714927b3a29c51e567-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-10-09",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "84a1a69d-33b4-4dbe-99bf-c79bbdd52ef3",
+      "slug": "asana-vimeo-1111906980",
+      "title": {
+        "en": "Пробуждение: 6_0821_и6",
+        "ru": "Пробуждение: 6_0821_и6"
+      },
+      "default_duration_sec": 1932,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1111906980",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2050003921-6dbcd8dbe832b03ecd5b36d887743a60d8eabf3cfa3fdebf37dec79ba154367f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-08-21",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "69be44e2-7bd3-469d-b2bc-4425db80e846",
+      "slug": "asana-vimeo-1112806534",
+      "title": {
+        "en": "Пробуждение: 5_0825_и5",
+        "ru": "Пробуждение: 5_0825_и5"
+      },
+      "default_duration_sec": 2149,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1112806534",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2051166798-88a7918f78cf68d00b6f346409385d90e643315bd929b1356cddcde237c5dd4e-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-08-25",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "cd2cb797-a627-4dc2-8ad0-7c9169c8d6b1",
+      "slug": "asana-vimeo-1113479698",
+      "title": {
+        "en": "Пробуждение: 4_0827_и4",
+        "ru": "Пробуждение: 4_0827_и4"
+      },
+      "default_duration_sec": 2314,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1113479698",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2051990575-39d520b4f66db043cbac7a73b9e581285197cc13778640694ab730332ac571f0-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-08-27",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "705e8475-bc12-48b9-b941-374abfe64ded",
+      "slug": "asana-vimeo-1154558138",
+      "title": {
+        "en": "Пробуждение: 1_0115",
+        "ru": "Пробуждение: 1_0115"
+      },
+      "default_duration_sec": 3015,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1154558138",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2107004389-f91af69881a8190cc3d41b29e38288647d194ceddb35d13fcb85b1d9123790fc-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-15",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "ba9c1b88-9f5d-4142-825f-c6b33a4bdc86",
+      "slug": "asana-vimeo-1114786790",
+      "title": {
+        "en": "Пробуждение: 3_0901_и3",
+        "ru": "Пробуждение: 3_0901_и3"
+      },
+      "default_duration_sec": 1481,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1114786790",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2053658528-254505c1b02a13d56b7962db3a305fcd27fdf0d9102c114e063e5167ea9ef69d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-09-01",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e75de07c-9e0e-411f-bb85-6029fc1d699f",
+      "slug": "asana-vimeo-1115061926",
+      "title": {
+        "en": "Пробуждение: 6_0902_и6",
+        "ru": "Пробуждение: 6_0902_и6"
+      },
+      "default_duration_sec": 1404,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1115061926",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2054278428-784f1ed2a4c172f9c080ca18fb4ae3a6d29b9570b9e6d7f1ac3507f9261e5f53-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-09-02",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "1b0d4481-a4be-446c-be8f-c5746050dc34",
+      "slug": "asana-vimeo-1157093170",
+      "title": {
+        "en": "Пробуждение: 14_0122",
+        "ru": "Пробуждение: 14_0122"
+      },
+      "default_duration_sec": 2703,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1157093170",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2110611366-c4379aaf4ab0a01c34483bc15598cb0ad0f896060b19c7d6ea9ea9cf90c5bddf-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        4
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-22",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 4,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "379989e9-4b74-4f07-b02b-007b7efdc3b6",
+      "slug": "asana-vimeo-1157461492",
+      "title": {
+        "en": "Пробуждение: 15_0123",
+        "ru": "Пробуждение: 15_0123"
+      },
+      "default_duration_sec": 2981,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1157461492",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2111283985-2b7cb3eadfa2379df945a7b337bf11c9d31956617f7fd101ff36845ec7f69d7d-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1,
+        5
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-23",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        },
+        {
+          "weight": 0.7,
+          "chakra_id": 5,
+          "is_primary": false
+        }
+      ]
+    },
+    {
+      "id": "8516f0fc-bea5-49d9-84d1-ada31be9d28e",
+      "slug": "asana-vimeo-1116512724",
+      "title": {
+        "en": "Пробуждение: 6_0907_и6",
+        "ru": "Пробуждение: 6_0907_и6"
+      },
+      "default_duration_sec": 1853,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1116512724",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2056176141-bb7e2cd3c3ddba62c458d1585d984e263f664242bcbf9efe5a3aaf4560d113ef-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-09-07",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "c8fe9af5-85ef-4a58-b392-937fb35c67c5",
+      "slug": "asana-vimeo-1118222209",
+      "title": {
+        "en": "Пробуждение: 46_0912_и4",
+        "ru": "Пробуждение: 46_0912_и4"
+      },
+      "default_duration_sec": 1479,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1118222209",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2058363108-dc9b6948df26a3be857e1090c0c96695a5e071c4605242d770316b6dcaee87d2-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-09-12",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "ec0b2c08-1f21-4625-827f-1c03ea521702",
+      "slug": "asana-vimeo-1155457669",
+      "title": {
+        "en": "Пробуждение: 7_0117_и7",
+        "ru": "Пробуждение: 7_0117_и7"
+      },
+      "default_duration_sec": 4004,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1155457669",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2108166997-c7fd6da64b2e4ce8c540364d4a9107b90e9e380258cf5cb0ceb33f07559c7e39-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-17",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "647f15d3-f3a8-4c58-9b8d-6008c0c07375",
+      "slug": "asana-vimeo-1118637345",
+      "title": {
+        "en": "Пробуждение: 5_0915_и5",
+        "ru": "Пробуждение: 5_0915_и5"
+      },
+      "default_duration_sec": 1836,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1118637345",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2058899643-f5a8d654515df2fcbf327da5016414e3fe542a9a576c4dbbf0fc8a9896d0a55c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2025-09-15",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "7af67a43-921b-43e7-bd37-a97b2f80940b",
+      "slug": "asana-vimeo-1118992097",
+      "title": {
+        "en": "Пробуждение: 4_0916_и4",
+        "ru": "Пробуждение: 4_0916_и4"
+      },
+      "default_duration_sec": 2198,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1118992097",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2059343943-4f1dfd6a8c98fa62bb9b8510d9e2854866b8b4ef74e5e4058b21862002e3ac75-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-09-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "7f6591b3-774b-4250-a022-6d0365128b30",
+      "slug": "asana-vimeo-1121057805",
+      "title": {
+        "en": "Пробуждение: 4_0923_и4",
+        "ru": "Пробуждение: 4_0923_и4"
+      },
+      "default_duration_sec": 2108,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1121057805",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2062015845-fac39010494748c4299b4ddb06043a0e0c29308ace7825d00d8724e06dcad045-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-09-23",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "7f07962e-26f7-4410-a87c-4cd8b51afcbd",
+      "slug": "asana-vimeo-1160082644",
+      "title": {
+        "en": "Пробуждение: 1_0130_и1",
+        "ru": "Пробуждение: 1_0130_и1"
+      },
+      "default_duration_sec": 3425,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1160082644",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2114852922-3612644fa29110560914d7223b259ab47dfd5cf2a95705d7c4c1cd4e5439e97c-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        1
+      ],
+      "primary_chakra_id": 1,
+      "recorded_at": "2026-01-30",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 1,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "0980082d-bf27-4acf-a150-e6c88668b9e4",
+      "slug": "asana-vimeo-1132592522",
+      "title": {
+        "en": "Пробуждение: 2_0615_и2",
+        "ru": "Пробуждение: 2_0615_и2"
+      },
+      "default_duration_sec": 1591,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132592522",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077933642-3fad8edc3ecbff0c3b69abdae11f0d91cb8404e9b2def16b1e3874bc61196b3f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-06-15",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "890a3467-76f5-4eb1-a5b2-1c977cdc8b03",
+      "slug": "asana-vimeo-1132594141",
+      "title": {
+        "en": "Пробуждение: 3_0616_и3",
+        "ru": "Пробуждение: 3_0616_и3"
+      },
+      "default_duration_sec": 1156,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132594141",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077933849-015ae4df82d9f65b16978b01cc259cbdd6f82719367891c6e20b9d3599bd310a-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-06-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "2f66cc74-985b-43fd-8557-2dc14732a9bf",
+      "slug": "asana-vimeo-1132595281",
+      "title": {
+        "en": "Пробуждение: 2_0617",
+        "ru": "Пробуждение: 2_0617"
+      },
+      "default_duration_sec": 971,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1132595281",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2077934032-823c5ebdbdb81a3fea4eb91475d747b5ec9ddac67620afc9838349656099c037-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        2
+      ],
+      "primary_chakra_id": 2,
+      "recorded_at": "2025-06-17",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 2,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e35b66ab-c22e-46e9-b1a1-4a1bc28039d1",
+      "slug": "asana-vimeo-1122679071",
+      "title": {
+        "en": "Пробуждение: 6_0928_и6",
+        "ru": "Пробуждение: 6_0928_и6"
+      },
+      "default_duration_sec": 1449,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1122679071",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2064110327-aa81a7f62e0be4e41a269b528b0baf9bb6356d2a8a134cd933e068bf5a695afd-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        6
+      ],
+      "primary_chakra_id": 6,
+      "recorded_at": "2025-09-28",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 6,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "75ece86c-19c5-4326-968b-11ab79bb83eb",
+      "slug": "asana-vimeo-1123449073",
+      "title": {
+        "en": "Пробуждение: 4_1001_и4",
+        "ru": "Пробуждение: 4_1001_и4"
+      },
+      "default_duration_sec": 1924,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1123449073",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2065079673-ce20cae7c177f91415ecbf552785bb63955b559678eff4a2dbdc62b458aac263-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-10-01",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "9e821083-ea98-4225-b38d-20566a62b14e",
+      "slug": "asana-vimeo-1123785841",
+      "title": {
+        "en": "Пробуждение: 3_1002_и3",
+        "ru": "Пробуждение: 3_1002_и3"
+      },
+      "default_duration_sec": 1561,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1123785841",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2065486148-0cdbdea42100d8ae46d16b01ce6d69369dc3fcd869db264354781b7451c2ab78-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        3
+      ],
+      "primary_chakra_id": 3,
+      "recorded_at": "2025-10-02",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 3,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "d3cf1ce0-147d-45e0-9628-f3e5bcf0718b",
+      "slug": "asana-vimeo-1133365755",
+      "title": {
+        "en": "Пробуждение: 4_0619",
+        "ru": "Пробуждение: 4_0619"
+      },
+      "default_duration_sec": 1901,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1133365755",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2078274847-257535d4534d05899f5372effe3e3aae9fc7786f2bdf952365f775d8253f86ac-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        4
+      ],
+      "primary_chakra_id": 4,
+      "recorded_at": "2025-06-19",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 4,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "e81204a0-53f6-489e-bcb1-206b33ecaea9",
+      "slug": "asana-vimeo-1155004731",
+      "title": {
+        "en": "Пробуждение_15_0116_и5",
+        "ru": "Пробуждение_15_0116_и5"
+      },
+      "default_duration_sec": 3642,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1155004731",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2107761547-0c9db9cfb3a0043b77d78271203b4c1869b41e6203218ece33f8b11b521633b0-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        5
+      ],
+      "primary_chakra_id": 5,
+      "recorded_at": "2026-01-16",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 5,
+          "is_primary": true
+        }
+      ]
+    },
+    {
+      "id": "711649df-1913-410a-a4f8-acdb6a8d57a6",
+      "slug": "asana-vimeo-1155850861",
+      "title": {
+        "en": "Пробуждение: 7_0119_и7",
+        "ru": "Пробуждение: 7_0119_и7"
+      },
+      "default_duration_sec": 2547,
+      "rating": null,
+      "video_provider": "vimeo",
+      "video_external_id": "1155850861",
+      "video_thumbnail": {
+        "url": "https://i.vimeocdn.com/video/2108768220-f53fe40a3c7af6c1c67c27e6831126ce1faf6178c5ae099382e11fda098e0c3f-d_295x166?&r=pad&region=us",
+        "width": 295,
+        "height": 166
+      },
+      "chakra_ids": [
+        7
+      ],
+      "primary_chakra_id": 7,
+      "recorded_at": "2026-01-19",
+      "practice_chakras": [
+        {
+          "weight": 1,
+          "chakra_id": 7,
+          "is_primary": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.18
-updated: 2026-08-14
+version: 1.19
+updated: 2026-08-23
 depends_on:
   [
     01_foundation/product_model,
@@ -48,7 +48,7 @@ code_refs:
   `BreathBinduMandala`, `BinduSuccessionFlowCanvas` и визуальные ветки практик. Парная запись: `docs/02_modules/bindu/dependencies.md` §2.
 
 - **`infra`**  
-  Expo Router, Supabase-клиент для каталога асан и для **`services/practiceSessions.ts`** (`practice_sessions`, `user_daily_stats`).
+  Expo Router. Supabase-клиент — только для **`services/practiceSessions.ts`** (`practice_sessions`, `user_daily_stats`); каталог асан больше не идёт в Supabase рантаймом — асаны зашиты в бинарь через build-time snapshot `modules/practices/data/yoga-catalog.snapshot.json` (генерируется `scripts/generate-practice-catalog-snapshot.mjs`).
 
 - **`remote-play`**
   Карточка асаны (`PracticeCard`, и в каталоге, и в коммуникаторе) несёт кнопку **«Открыть на ТВ»**, чья логика инкапсулирована в хуке **`useAsanaRemotePlayLauncher(strings, launchSource)`** (`modules/practices/ui/useAsanaRemotePlayLauncher.ts`): `vimeoId` валидируется до навигации; `useRemotePlay().connected` false → `router.push({ pathname: "/connect-tv", params: practiceParams })` (после подключения `ConnectTVScreen` предлагает «Начать практику» → `playVimeo` + `/tv-remote`); подключён → `playVimeo(vimeoId, vimeoAudiotrackForLocale(locale))` + `router.push("/tv-remote", { …practiceParams })`. `practiceParams` = `{ vimeoId, title, durationSec, audiotrack, practiceId, slug, chakraIds (через запятую), launchSource }` — пробрасываются через весь ТВ-путь (включая `ConnectTVScreen.startPractice` и `TVRemoteScreen.disconnect`), чтобы `TVRemoteScreen.confirmFinish` мог записать `practice_sessions` с `playback_mode: "tv"` **только при досмотре** (`elapsedSec >= durationSec * 0.95`). Каталог передаёт `launchSource: "catalog"`, коммуникатор — `"assistant"` (второй аргумент хука). `app/asana-practice.tsx` больше не использует `useRemotePlay()` — экран стал телефонным плеером, выбор «телефон/ТВ» перенесён на уровень карточки. Контракт `tv_sessions` (статусы `waiting/playing/paused/stopped/closed`, `pairing_code`, `audiotrack`, `expires_at`, Realtime) описан в `docs/remote-play/README.md`; колонка `locale` удалена миграцией `20260705203000_remote_play_drop_locale.sql`. Провайдер получил `disconnect()` (best-effort stop + локальный сброс сессии) для кнопки «Отключить ТВ» на `/tv-remote` (роут — обычный push `headerShown: false`, шелл `StackScreenLayout` + `StackScrollView` + `SurfaceCardView`; `ModalScreenLayout` на устройстве не рендерил `<Text>`). Парная запись: `docs/02_modules/remote-play/dependencies.md` §2 (после добавления модуля в MAP).

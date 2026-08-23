@@ -26,7 +26,7 @@ import { Communicator } from "@/modules/communicator/ui/Communicator";
 import { getDayStrings, mapDateLabelKind, type DayStrings } from "@/modules/day/i18n/day";
 import { useAppLocale, type AppLocale } from "@/modules/i18n";
 import { localizeLifeSphereLabel } from "@/modules/life-spheres/labels";
-import { loadPracticeCatalog } from "@/modules/practices";
+import { getPracticeCatalog } from "@/modules/practices";
 import type { PracticeCatalog, PracticeSummary } from "@/modules/practices/core/types";
 import { PracticeCard } from "@/modules/practices/ui/PracticeCard";
 import { launchPractice } from "@/modules/practices/ui/launchPractice";
@@ -665,9 +665,11 @@ export default function DayTabRoute() {
 
   useEffect(() => {
     if (practiceMenuLevel === "closed" || catalog) return;
-    void loadPracticeCatalog({ locale: reportLocale }).then(setCatalog).catch((loadError) => {
+    try {
+      setCatalog(getPracticeCatalog(reportLocale));
+    } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : dayStrings.loadPracticesError);
-    });
+    }
   }, [catalog, practiceMenuLevel, dayStrings.loadPracticesError, reportLocale]);
 
   const todaySection = currentDaySection(plan);
