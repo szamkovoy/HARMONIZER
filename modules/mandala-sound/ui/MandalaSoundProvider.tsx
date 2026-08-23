@@ -8,6 +8,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 
 import { useBiofeedbackSubscribe } from "@/modules/biofeedback/bus/react";
 import type { BeatEvent } from "@/modules/biofeedback/sensors/types";
@@ -102,6 +103,23 @@ export function MandalaSoundProvider({
       lastRrMsRef.current = rrMs;
     }
   }, []);
+
+  // Re-acquire audio focus + resume the bed when the user returns to the app
+  // after an OS interruption (call / another app / wake from Doze). expo-audio's
+  // native foreground-resume hook only fires for `!staysActiveInBackground`, so
+  // background practices must re-request focus from JS. Calling `resume()` is
+  // safe when not interrupted — `play()` on an already-playing player is a no-op.
+  useEffect(() => {
+    if (!isActive || !staysActiveInBackground) return;
+    const onChange = (state: AppStateStatus) => {
+      if (state !== "active") return;
+      neuroEngineRef.current?.resume();
+      ambientEngineRef.current?.resume();
+    };
+    const sub = AppState.addEventListener("change", onChange);
+    return () => sub.remove();
+  }, [isActive, staysActiveInBackground]);
+
 
   // Resolve the lock-screen cover art to a local URI once per artwork asset.
   useEffect(() => {

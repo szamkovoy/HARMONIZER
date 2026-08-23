@@ -97,5 +97,7 @@ export interface MandalaSoundEngineControls {
     },
   ): Promise<void>;
   update(frame: MandalaSoundSyncFrame): Promise<void>;
+  /** Re-acquire focus + resume all players after an OS interruption (call / another app / wake from Doze). */
+  resume(): void;
   stop(options?: { fadeOutMs?: number }): Promise<void>;
 }

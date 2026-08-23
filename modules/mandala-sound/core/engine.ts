@@ -171,6 +171,27 @@ export class ExpoMandalaSoundEngine implements MandalaSoundEngineControls {
     }
   }
 
+  /**
+   * Re-acquire audio focus and resume all players after an OS interruption
+   * (call / another app that took focus, or wake from Doze after a full
+   * AUDIOFOCUS_LOSS). The native foreground-resume hook in expo-audio only
+   * fires for `!staysActiveInBackground`, so background practices must
+   * re-request focus from JS when the app returns to the foreground.
+   * Safe to call when not interrupted — `play()` on an already-playing
+   * ExoPlayer is a no-op.
+   */
+  resume(): void {
+    if (!this.started) return;
+    try {
+      this.drone?.play();
+      this.textureA?.play();
+      this.textureB?.play();
+      this.binaural.forEach((entry) => entry.player.play());
+    } catch {
+      /* best effort — next update tick will keep volumes in sync */
+    }
+  }
+
   async update(frame: MandalaSoundSyncFrame): Promise<void> {
     if (!this.started) return;
     if (this.updateInFlight) {

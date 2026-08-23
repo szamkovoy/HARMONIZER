@@ -220,13 +220,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       ...(base.plugins ?? []),
       // Background media playback for long practices («Спокойствие» etc.).
-      // Adds Android foreground service `AudioControlsService` (mediaPlayback) +
-      // lock-screen controls; iOS `audio` UIBackgroundMode. Recording stays on
-      // expo-av (mic/whisper), so we don't enable recording via expo-audio.
+      // The Android foreground service `AudioControlsService` (mediaPlayback)
+      // + lock-screen controls arrive via the expo-audio library's own
+      // AndroidManifest.xml (merged by Gradle) — `FOREGROUND_SERVICE` and
+      // `FOREGROUND_SERVICE_MEDIA_PLAYBACK` are normal permissions (no runtime
+      // prompt). Recording stays on expo-av (mic/whisper), so we disable
+      // expo-audio's recording path to avoid a duplicate RECORD_AUDIO prompt.
       [
         "expo-audio",
         {
-          enableBackgroundPlayback: true,
           recordAudioAndroid: false,
         },
       ],

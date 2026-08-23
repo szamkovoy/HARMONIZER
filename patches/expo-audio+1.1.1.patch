@@ -1,0 +1,45 @@
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
+index 49a53af..c6e6504 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
+@@ -65,6 +65,12 @@ class AudioModule : Module() {
+         AudioManager.AUDIOFOCUS_LOSS -> {
+           focusAcquired = false
+           players.values.forEach { player ->
++            // HARMONIZER patch: mark paused players so a later AUDIOFOCUS_GAIN
++            // (user returns to the practice) resumes them. Without this, full
++            // LOSS left players paused forever (no sound after wake / restart).
++            if (player.ref.isPlaying) {
++              player.isPaused = true
++            }
+             player.ref.pause()
+           }
+         }
+@@ -123,11 +129,15 @@ class AudioModule : Module() {
+     val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+       val requestType = interruptionMode?.let {
+         if (it == InterruptionMode.DO_NOT_MIX) {
+-          AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
++          // HARMONIZER patch: sustained focus for long background practices
++          // (Calm meditation, hours-long). GAIN_TRANSIENT was reclaimed by the
++          // system after ~15s, causing dropouts. GAIN is the correct type for
++          // sustained media playback.
++          AudioManager.AUDIOFOCUS_GAIN
+         } else {
+           AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+         }
+-      } ?: AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
++      } ?: AudioManager.AUDIOFOCUS_GAIN
+       audioFocusRequest = AudioFocusRequest.Builder(requestType).run {
+         setAudioAttributes(
+           AudioAttributes.Builder()
+@@ -144,7 +154,8 @@ class AudioModule : Module() {
+     } else {
+       @Suppress("DEPRECATION")
+       val requestType = if (interruptionMode == InterruptionMode.DO_NOT_MIX) {
+-        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
++        // HARMONIZER patch: sustained focus (see above).
++        AudioManager.AUDIOFOCUS_GAIN
+       } else {
+         AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+       }
