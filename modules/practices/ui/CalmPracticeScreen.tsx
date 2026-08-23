@@ -74,6 +74,18 @@ export function CalmPracticeScreen({
   const imageWidth = screenWidth * (1 - IMAGE_SIDE_INSET_RATIO * 2);
   const imageHeight = Math.min(imageWidth * (795 / 600), screenHeight * (1 - IMAGE_SIDE_INSET_RATIO * 2));
 
+  // Stable lock-screen card reference. The elapsed timer re-renders this
+  // screen every 500ms; an inline object here would be a new reference each
+  // render and re-trigger MandalaSoundProvider's audio-lifecycle effect
+  // (deps include `lockScreen`) every tick → teardown+start the engines
+  // every 500ms → audio "cycles" then dies once the foreground service /
+  // audio focus collapse under the churn. Memoize so the reference only
+  // changes when the title or artwork actually changes.
+  const lockScreen = useMemo(
+    () => ({ title: catalogStrings.meditationCalmTitle, artwork: imageSource }),
+    [catalogStrings.meditationCalmTitle, imageSource],
+  );
+
   useEffect(() => {
     logRuntimeEvent("calm_practice:mount", { durationMs, soundBed }, "debug");
     const hintTimer = setTimeout(() => {
@@ -155,7 +167,7 @@ export function CalmPracticeScreen({
             soundBed={soundBed}
             isActive={audioActive}
             staysActiveInBackground
-            lockScreen={{ title: catalogStrings.meditationCalmTitle, artwork: imageSource }}
+            lockScreen={lockScreen}
           >
             <View style={styles.imageStage} pointerEvents="none">
               <View
