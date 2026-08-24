@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.52
-updated: 2026-08-16
+version: 2.53
+updated: 2026-08-24
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-24 (breath interpretation prompt):** Рабочий текст интерпретации дыхания — ключ `breath_practice_interpretation` в `public.prompts`; роут читает active через `getActivePrompt` (fallback = прежний hardcoded). Админка `/admin/prompts` редактирует и прогоняет playground на сиде `{{outcome}}`.
 
 - **2026-08-16 (XML marker leak):** `stripInternalDialogMarkers` снимает XML-теги протокола и leftover `display_order=` / `spheres=`, чтобы стрим/cache не показывали то, что серверный sanitize мог пропустить на opening-ходах без буфера.
 

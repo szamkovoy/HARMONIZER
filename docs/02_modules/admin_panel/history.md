@@ -1,13 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.3
-updated: 2026-07-31
+version: 1.4
+updated: 2026-08-24
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-08-24 (breath interpretation prompt):** В `/admin/prompts` — `breath_practice_interpretation` (миграции `20260824102708` / `20260824103708`); текст = прежний рабочий; роут читает active из БД. Playground seed: `{{language_name}}` + `{{outcome}}`.
 
 - **2026-08-15 (prompt playground model):** Playground показывает `resolved_model` (`getModelByHint` → `AI_MODEL_*`) рядом с «Прогнать» и гоняет без env-fallback (раньше при сбое DeepSeek в ответе был `gemini-2.5-flash` из `AI_MODEL_FALLBACK`).
 

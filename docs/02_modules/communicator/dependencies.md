@@ -56,7 +56,7 @@ code_refs:
 - **Приложение (home)**  
 `app/(tabs)/index.tsx` — `CommunicatorOverlay` оборачивает `Communicator` в полноэкранный `Modal` с раздельным mount (`communicatorMounted`) и видимостью (`communicatorVisible`, `dismissAnimation`, `onDismiss`), передаёт прогноз дня в `triggerMeta` (`chakraLabel`, `harmoniousnessValue`, `harmoniousnessLabel` и др.) и начальное сообщение ассистента в `history`; `onPracticePicked` закрывает overlay без slide-анимации, дожидаясь mount-signal практики. Dev-сброс дня вызывает `clearHomeDailyDialogCache` из `services/dialogSessionCache.ts` (пара `useCase: daily_dialog`, `entrySource: home`).
 - `**modules/breath`** (inline interpretation route)  
-`modules/breath/ui/CoherenceBreathScreen.tsx` больше не использует dead-end очередь `pending-greeting` для кнопки результатов. Вместо этого breath results вызывают `services/breathPracticeInterpretation.ts` → `POST /api/communicator/v2/practice-interpretation`, передавая `outcomeToCommunicatorPayload(...)`, subjective mood и `responseLocale`; communicator-модуль отвечает коротким STANDARD-model summary без открытия chat overlay.
+`modules/breath/ui/CoherenceBreathScreen.tsx` больше не использует dead-end очередь `pending-greeting` для кнопки результатов. Вместо этого breath results вызывают `services/breathPracticeInterpretation.ts` → `POST /api/communicator/v2/practice-interpretation`, передавая `outcomeToCommunicatorPayload(...)` (+ `seriesInsights`) и `responseLocale`; сервер рендерит active `breath_practice_interpretation` из `public.prompts` и отвечает коротким текстом без chat overlay.
 
 ## 3. Контрактные точки риска
 

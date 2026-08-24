@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.57
-updated: 2026-08-16
+version: 2.58
+updated: 2026-08-24
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -72,7 +72,7 @@ code_refs:
 ### Inline practice interpretation (`POST /api/communicator/v2/practice-interpretation`)
 
 - Маршрут принимает Bearer-authenticated JSON `{ outcome, subjectiveMood?, responseLocale? }`, где `outcome` совместим с `outcomeToCommunicatorPayload(...)` из `modules/breath/core/practice-io.ts`; для breath results клиент может дополнительно вложить `seriesInsights` (сжатые start/mid/end + min/max summaries по pulse / coherence / RMSSD / stress / RSA), не меняя persist-контракт `practice_sessions.metrics`.
-- Сервер выбирает язык через `resolveResponseLocale(user.locale, body.responseLocale)`, вызывает `STANDARD`-модель (`getModelByHint("standard")` + `generateGeminiText`) и возвращает короткий текст `{ text, modelUsed, responseLocale }`.
+- Сервер выбирает язык через `resolveResponseLocale(user.locale, body.responseLocale)`, рендерит активный шаблон `breath_practice_interpretation` из `public.prompts` (`getActivePrompt` + `{{language_name}}` / `{{outcome}}`; при отсутствии строки — hardcoded fallback того же текста), вызывает модель по `model_hint` (обычно `standard`) и возвращает короткий текст `{ text, modelUsed, responseLocale }`. Редактирование/playground — `/admin/prompts/breath_practice_interpretation`.
 - Клиентский helper: `services/breathPracticeInterpretation.ts`. Он не открывает `Communicator`, а используется локально внутри results-modal дыхательной практики. Таймаут клиента (**120s**) и сбои сети нормализуются в **`AppUserError`** (`timeout` / `network` / `auth`) — UI показывает только локализованный `resultsInterpretationError`, без сырого RU/EN `Error.message`. После client timeout — **один** тихий повтор запроса. `CoherenceBreathScreen` показывает кнопку `Интерпретация` только когда сессия действительно дала биометрические метрики; camera guidance-only results и BLE-сессии без пригодной биометрии вместо этого остаются в локальном results UI без LLM-запроса.
 
 ### Локализация (`modules/communicator/i18n/communicator.ts`)
