@@ -2,7 +2,7 @@
 id: 02_modules/book/spec
 title: Book Spec
 version: 2.0
-updated: 2026-08-15
+updated: 2026-08-24
 depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/subscription/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -52,7 +52,7 @@ Barrel `modules/book/index.ts`:
 | GET | `/api/book/manifest?locale=` | `{ epubUrl, version, title, coverUrl, bookId }` (403 если не owned) |
 | GET/PUT | `/api/book/progress` | синк locator; LWW по `updated_at` |
 
-EPUB URL: `{BOOK_CDN_BASE_URL}/{locale}/book.epub` (на сервере папка `book/ru/…`).  
+EPUB URL: `{BOOK_CDN_BASE_URL}/{locale}/book.epub` (на сервере папка `ebook/ru/…`; `BOOK_CDN_BASE_URL=https://zamkovoi.yoga/ebook`).  
 Клиент: CDN → disk cache (`cdn-v{BOOK_EPUB_VERSION}`); в development при отсутствии файла на CDN → Metro `/hz-book/{locale}.epub`.  
 Прогресс: local FileSystem + remote `book_reading_progress` (merge по `updatedAt`).
 
@@ -70,6 +70,6 @@ EPUB URL: `{BOOK_CDN_BASE_URL}/{locale}/book.epub` (на сервере папк
 
 ## 5. Ограничения
 
-- Все 8 локалей на CDN: `https://zamkovoi.yoga/book/{locale}/book.epub` (cache key = `BOOK_EPUB_VERSION`). Исходники пайплайна: папка **`book/`** (lowercase).
+- Все 8 локалей на CDN: `https://zamkovoi.yoga/ebook/{locale}/book.epub` (cache key = `BOOK_EPUB_VERSION`). Исходники пайплайна: папка **`book/`** (lowercase).
 - Закладки / LitRes 3D curl — не в scope.
 - Store-билд без покупки всегда locked (нет `__DEV__`-автоunlock).

@@ -2,12 +2,14 @@
 id: 02_modules/book/history
 title: Book History
 version: 1.0
-updated: 2026-08-15
+updated: 2026-08-24
 depends_on: [02_modules/book/spec]
 code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 ---
 
 ## Decision Log
+
+- **2026-08-24 (CDN folder rename):** На zamkovoi папка EPUB переименована `book/` → `ebook/` (чтобы не конфликтовать с WP-страницей `/book`). Vercel `BOOK_CDN_BASE_URL=https://zamkovoi.yoga/ebook` (prod/preview/dev). Страница продукта и кабинетный `BOOK_URL` остаются `https://zamkovoi.yoga/book`.
 
 - **2026-08-15 (CDN complete):** ES/PT/NL залиты на zamkovoi (`/book/{es,pt,nl}/book.epub`). Vercel `BOOK_EPUB_VERSION=2` (prod/preview/dev) + prod redeploy — клиентский cache bust.
 

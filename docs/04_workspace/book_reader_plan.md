@@ -94,7 +94,7 @@ create table public.book_reading_progress (
 
 ### 2.5 Хостинг EPUB (Phase B)
 
-- Путь на сервере: `https://zamkovoi.yoga/book/{locale}/book.epub` (+ optional `cover.jpg`). Cache bust: bump `BOOK_EPUB_VERSION` на Vercel.
+- Путь на сервере: `https://zamkovoi.yoga/ebook/{locale}/book.epub` (+ optional `cover.jpg`). Cache bust: bump `BOOK_EPUB_VERSION` на Vercel.
 - Версия в manifest → клиент инвалидирует кэш при обновлении вёрстки.
 - ISPManager upload вручную или rsync; не через Vercel body limits.
 
@@ -205,7 +205,7 @@ create table public.book_reading_progress (
 **Сделано:**
 
 - Phase A/B: ридер, ownership, CDN manifest, progress sync (см. историю выше / `book/history.md`).
-- Все 8 локалей: перевод (где нужно) → DOCX/EPUB → CDN `https://zamkovoi.yoga/book/{locale}/book.epub`.
+- Все 8 локалей: перевод (где нужно) → DOCX/EPUB → CDN `https://zamkovoi.yoga/ebook/{locale}/book.epub`.
 - 2026-08-15: ES/PT/NL на CDN; `BOOK_EPUB_VERSION=2` + prod redeploy.
 - Исходники: папка `book/` (lowercase). Checklist: `book_cdn_upload.md`.
 

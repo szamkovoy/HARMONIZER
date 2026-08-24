@@ -20,7 +20,7 @@ const BOOK_TITLES: Record<string, string> = {
  * GET /api/book/manifest?locale=ru
  *   -> { bookId, locale, epubUrl, version, title, coverUrl }
  *
- * Env: BOOK_CDN_BASE_URL (e.g. https://zamkovoi.yoga/books/yoga_wizards_path),
+ * Env: BOOK_CDN_BASE_URL (e.g. https://zamkovoi.yoga/ebook),
  *      BOOK_EPUB_VERSION (e.g. 1).
  */
 export const runtime = "nodejs";
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
 
     const base = cdnBase();
     const version = epubVersion();
-    // Layout on zamkovoi: /book/{locale}/book.epub (+ optional cover.jpg).
+    // Layout on zamkovoi: /ebook/{locale}/book.epub (+ optional cover.jpg).
     // Cache busting uses BOOK_EPUB_VERSION in the client, not a /vN/ path segment.
     const epubUrl = `${base}/${locale}/book.epub`;
     const coverUrl = `${base}/${locale}/cover.jpg`;

@@ -9,19 +9,20 @@
 На сервере:
 
 ```text
-/book/ru/book.epub
-/book/en/book.epub
-/book/de/book.epub
-/book/fr/book.epub
-/book/it/book.epub
-/book/es/book.epub
-/book/pt/book.epub
-/book/nl/book.epub
+/ebook/ru/book.epub
+/ebook/en/book.epub
+/ebook/de/book.epub
+/ebook/fr/book.epub
+/ebook/it/book.epub
+/ebook/es/book.epub
+/ebook/pt/book.epub
+/ebook/nl/book.epub
 ```
 
 Источник на Mac: **только** `book/build/{locale}/book.epub`  
 (папка исходников — `book/`, lowercase; не `yoga-wizards-path-*.epub`).  
-Публичные URL: `https://zamkovoi.yoga/book/{locale}/book.epub`
+Публичные URL: `https://zamkovoi.yoga/ebook/{locale}/book.epub`  
+(папка CDN — `ebook/`, чтобы не конфликтовать с WP-страницей `/book`).
 
 Опционально в той же папке локали: `cover.jpg`.
 
@@ -34,7 +35,7 @@
 ## Обновление контента
 
 1. Пересобрать `node scripts/book-build-epub.mjs {locale}`.
-2. Заменить `book.epub` в `/book/{locale}/` на сервере.
+2. Заменить `book.epub` в `/ebook/{locale}/` на сервере.
 3. На Vercel bump `BOOK_EPUB_VERSION` (1→2…) во всех env → redeploy — клиентский кэш сбросится (`cdn-v{version}`).
 
 ## Dev без CDN
