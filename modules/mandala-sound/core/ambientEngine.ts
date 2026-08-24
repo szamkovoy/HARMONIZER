@@ -11,6 +11,7 @@ import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 const DEFAULT_TARGET_VOLUME = 0.55;
 const FADE_STEPS = 16;
+const STATUS_POLL_MS = 200;
 const FADE_SLEEP_STEP = 16;
 
 function sleep(ms: number): Promise<void> {
@@ -43,12 +44,30 @@ function releasePlayer(player: AudioPlayer | null): void {
 }
 
 /**
- * Single-buffer ambient bed with native looping. The asset is pre-baked with
- * seamless loop points (see build-ambient-loops.mjs), so `player.loop = true`
- * gives continuous playback without a runtime A/B handoff. The previous
- * dual-buffer handoff read `duration` before the player loaded (stayed 0),
- * so the handoff never fired and the buffer stopped after one loop → dropout
- * after ~15s. Native looping removes that failure mode entirely.
+ * Single-buffer ambient bed with native `player.loop = true`.
+ *
+ * Design history (why single buffer, not dual-buffer A/B handoff):
+ * The native ExoPlayer `REPEAT_MODE_ONE` loop can have a micro-pause at the
+ * seam. An earlier dual-buffer A/B-handoff with crossfade was added to mask
+ * that seam. But on Android `expo-audio` binds the OS `MediaSession` to a
+ * specific `AudioPlayer`, so every A/B swap required rebinding the lock-screen
+ * to the new buffer mid-playback. That rebind is fundamentally disruptive on
+ * Android: it momentarily drops the foreground-service notification, the
+ * system reads it as an audio-focus loss / ducks the outgoing buffer, and the
+ * incoming buffer's `MediaSession` can end up idle (empty lock-screen widget,
+ * no progress bar / controls). With the phone asleep, `AppState "active"`
+ * never fires, so recovery never happens. Two iterations of the handoff
+ * (rebind-after, then rebind-before) both produced regressions ("звук смолк
+ * и стал очень тихим", then "резко стих, хотя продолжился" + пустой виджет).
+ *
+ * The single-buffer design trades a possible minor seam dip (the asset is
+ * pre-baked gapless — see `build-ambient-loops.mjs`) for rock-solid background
+ * playback: the `MediaSession` is bound ONCE at start and never rebound, so
+ * the foreground service, audio focus, and lock-screen widget stay stable
+ * for the full practice duration (hours). Sustained background audio is the
+ * product priority #1; a cosmetic seam dip / short progress bar is acceptable
+ * (the bar-on-full-practice-duration needs a native `ForwardingPlayer` patch,
+ * deferred — see audio spec).
  *
  * On Android the buffer is bound to lock-screen controls so a media
  * notification keeps the foreground service alive for sustained background
@@ -65,6 +84,7 @@ export class AmbientLoopEngine {
   private lockScreenBound = false;
   private lockScreenMetadata: AudioMetadata | undefined;
   private statusSubscription: { remove: () => void } | null = null;
+  private interruptionSubscription: { remove: () => void } | null = null;
   private onPlaybackStateChange: ((playing: boolean) => void) | undefined;
   private wasPlayingReported = true;
 
@@ -88,19 +108,21 @@ export class AmbientLoopEngine {
     this.asset = AMBIENT_SOUND_ASSETS[bedId];
     logRuntimeEvent(
       "ambient_sound:start",
-      { id: this.diagnosticId, bedId, fadeInMs, staysActiveInBackground },
+      { id: this.diagnosticId, bedId, fadeInMs, staysActiveInBackground, mode: "single-buffer-native-loop" },
       "debug",
     );
 
     try {
       await applyBackgroundAudioMode(staysActiveInBackground);
 
-      this.active = this.createBuffer(this.asset);
+      this.active = await this.createBuffer(this.asset);
+      // Native loop — no JS-side handoff, no MediaSession rebind.
+      this.active.loop = true;
 
       this.volume = 0;
       this.active.volume = 0;
       this.active.play();
-      this.attachStatusListener(this.active);
+      this.attachStatusWatcher(this.active);
 
       if (staysActiveInBackground && this.lockScreenMetadata) {
         this.bindLockScreen(this.active);
@@ -109,7 +131,7 @@ export class AmbientLoopEngine {
       await this.fadeActiveTo(this.targetVolume, fadeInMs);
     } catch (error) {
       this.started = false;
-      await this.teardownBuffer();
+      await this.teardownBuffers();
       logRuntimeEvent(
         "ambient_sound:start_failed",
         {
@@ -146,6 +168,10 @@ export class AmbientLoopEngine {
       this.statusSubscription.remove();
       this.statusSubscription = null;
     }
+    if (this.interruptionSubscription) {
+      this.interruptionSubscription.remove();
+      this.interruptionSubscription = null;
+    }
     if (this.lockScreenBound && this.active) {
       try {
         this.active.clearLockScreenControls();
@@ -159,7 +185,7 @@ export class AmbientLoopEngine {
         await this.fadeActiveTo(0, fadeOutMs);
       }
     } finally {
-      await this.teardownBuffer();
+      await this.teardownBuffers();
       this.volume = 0;
       logRuntimeEvent(
         "ambient_sound:stop",
@@ -169,29 +195,28 @@ export class AmbientLoopEngine {
     }
   }
 
-  private createBuffer(asset: number): AudioPlayer {
-    const player = createAudioPlayer(asset, { updateInterval: 500 });
-    // Native looping: the pre-baked seamless asset loops forever. No runtime
-    // A/B handoff (the previous handoff dropped audio when duration read 0).
-    player.loop = true;
-    // Keep silent until fade-in.
+  private async createBuffer(asset: number): Promise<AudioPlayer> {
+    const player = createAudioPlayer(asset, { updateInterval: STATUS_POLL_MS });
+    // Default player volume is 1.0; keep silent until faded in.
     player.volume = 0;
     return player;
   }
 
-  private attachStatusListener(player: AudioPlayer): void {
+  private attachStatusWatcher(player: AudioPlayer): void {
     if (this.statusSubscription) {
       this.statusSubscription.remove();
     }
-    this.statusSubscription = player.addListener("playbackStatusUpdate", (status) => {
-      if (!this.started || !status.isLoaded) return;
-      // Forward interruption (playing=false while started) / resume (true).
-      const playing = status.playing;
-      if (playing !== this.wasPlayingReported) {
-        this.wasPlayingReported = playing;
-        this.onPlaybackStateChange?.(playing);
-      }
-    });
+    if (this.onPlaybackStateChange) {
+      this.wasPlayingReported = true;
+      this.interruptionSubscription = player.addListener("playbackStatusUpdate", (status) => {
+        if (!this.started || !status.isLoaded) return;
+        const playing = status.playing;
+        if (playing !== this.wasPlayingReported) {
+          this.wasPlayingReported = playing;
+          this.onPlaybackStateChange!(playing);
+        }
+      });
+    }
   }
 
   private bindLockScreen(player: AudioPlayer): void {
@@ -210,7 +235,7 @@ export class AmbientLoopEngine {
     }
   }
 
-  private async teardownBuffer(): Promise<void> {
+  private async teardownBuffers(): Promise<void> {
     const a = this.active;
     this.active = null;
     releasePlayer(a);

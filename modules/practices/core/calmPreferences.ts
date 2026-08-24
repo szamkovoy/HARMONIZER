@@ -7,8 +7,8 @@ import {
   type CalmDurationMinutes,
 } from "@/modules/practices/core/calmPractice";
 import {
-  parseSoundBedId,
-  SOUND_BED_NEURO_SYNC,
+  CALM_DEFAULT_SOUND_BED,
+  parseCalmSoundBedId,
   type SoundBedId,
 } from "@/modules/mandala-sound/core/soundBed";
 
@@ -21,7 +21,10 @@ type CalmPreferences = {
 
 const DEFAULT_PREFERENCES: CalmPreferences = {
   durationMin: 30,
-  soundBed: SOUND_BED_NEURO_SYNC,
+  // Binaural (neuro-sync) bed is no longer offered for Calm — default to a
+  // nature bed. A previously-stored `neuro-sync` choice is migrated to this
+  // default by `parseCalmSoundBedId` (which rejects neuro-sync).
+  soundBed: CALM_DEFAULT_SOUND_BED,
 };
 
 let current: CalmPreferences = DEFAULT_PREFERENCES;
@@ -39,7 +42,7 @@ function parse(raw: string | null): CalmPreferences {
     const durationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : DEFAULT_PREFERENCES.durationMin;
     return {
       durationMin: isCalmDurationMinutes(durationMin) ? durationMin : DEFAULT_PREFERENCES.durationMin,
-      soundBed: parseSoundBedId(parsed.soundBed),
+      soundBed: parseCalmSoundBedId(parsed.soundBed),
     };
   } catch {
     return DEFAULT_PREFERENCES;
@@ -70,7 +73,7 @@ export async function updateCalmPreferences(patch: Partial<CalmPreferences>): Pr
       typeof patch.durationMin === "number" && isCalmDurationMinutes(patch.durationMin)
         ? patch.durationMin
         : current.durationMin,
-    soundBed: patch.soundBed != null ? parseSoundBedId(patch.soundBed) : current.soundBed,
+    soundBed: patch.soundBed != null ? parseCalmSoundBedId(patch.soundBed) : current.soundBed,
   };
   current = next;
   emit();

@@ -4,9 +4,11 @@
  * this barrel pulls the expo-audio engines + ~24MB ambient/mandala audio assets.
  */
 export {
+  CALM_DEFAULT_SOUND_BED,
   isNatureSoundBedId,
   isSoundBedId,
   NATURE_SOUND_BED_IDS,
+  parseCalmSoundBedId,
   parseSoundBedId,
   SOUND_BED_IDS,
   SOUND_BED_NEURO_SYNC,

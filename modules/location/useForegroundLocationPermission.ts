@@ -7,7 +7,7 @@
  * have to tap the CTA a second time.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, Platform, type AppStateStatus } from "react-native";
 import * as Location from "expo-location";
 
 import {
@@ -275,7 +275,15 @@ export function useForegroundLocationPermission(options?: {
         return;
       }
       const permanentlyDenied = current.status !== "undetermined" && current.canAskAgain === false;
-      if (permanentlyDenied) {
+      // On Android, `canAskAgain` is unreliable after the user changes the
+      // system permission setting (e.g. "Don't ask again" → "Ask every time"):
+      // it stays `false` from the last request until the app calls
+      // `requestPermissions()` again, which makes us loop back to Settings
+      // even though the OS would now show the dialog. On Android, always
+      // try `requestPermissions()` first — the OS shows the dialog when it
+      // can ("Ask every time"), or returns denied silently when the user
+      // truly selected "Don't ask again" (then we open Settings below).
+      if (permanentlyDenied && Platform.OS === "ios") {
         logRuntimeEvent("location:windows_open_settings", { status: current.status });
         openedSettingsAtRef.current = Date.now();
         awaitingSettingsReturnRef.current = true;
@@ -291,6 +299,18 @@ export function useForegroundLocationPermission(options?: {
       });
       const perm = await requestForegroundLocationPermission();
       logRuntimeEvent("location:windows_result", { status: perm.status, canAskAgain: perm.canAskAgain });
+      if (!isForegroundLocationGranted(perm) && perm.status !== "undetermined" && perm.canAskAgain === false) {
+        // The OS truly won't show a dialog (post-request confirmation).
+        // Only way forward is the system Settings page.
+        logRuntimeEvent("location:windows_open_settings", { status: perm.status, afterRequest: true });
+        openedSettingsAtRef.current = Date.now();
+        awaitingSettingsReturnRef.current = true;
+        settingsReturnPromptedRef.current = false;
+        await markAwaitingLocationSettingsGrant(true);
+        startPermissionPoll(true);
+        await openAppLocationSettings();
+        return;
+      }
       await applyFromPerm(perm);
     } catch (error) {
       logRuntimeEvent(

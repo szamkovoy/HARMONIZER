@@ -14,7 +14,7 @@ import {
   useMandalaSoundInterruption,
   type SoundBedId,
 } from "@/modules/mandala-sound";
-import { SOUND_BED_NEURO_SYNC } from "@/modules/mandala-sound/core/soundBed";
+import { CALM_DEFAULT_SOUND_BED } from "@/modules/mandala-sound/core/soundBed";
 import { CALM_BED_IMAGES } from "@/modules/practices/core/calmBedImages";
 import { getPracticeCatalogStrings } from "@/modules/practices/i18n/practices";
 import { getCoherenceBreathStrings } from "@/modules/breath/i18n/coherence";
@@ -44,7 +44,7 @@ function exitCalmPractice() {
 
 export function CalmPracticeScreen({
   durationMs = DEFAULT_DURATION_MS,
-  soundBed = SOUND_BED_NEURO_SYNC,
+  soundBed = CALM_DEFAULT_SOUND_BED,
 }: {
   durationMs?: number;
   soundBed?: SoundBedId;
@@ -70,7 +70,7 @@ export function CalmPracticeScreen({
 
   // Keep audio through screen-off / app background; stop only when leaving the practice.
   const audioActive = !finishing;
-  const imageSource = CALM_BED_IMAGES[soundBed] ?? CALM_BED_IMAGES["neuro-sync"];
+  const imageSource = CALM_BED_IMAGES[soundBed] ?? CALM_BED_IMAGES[CALM_DEFAULT_SOUND_BED];
   const imageWidth = screenWidth * (1 - IMAGE_SIDE_INSET_RATIO * 2);
   const imageHeight = Math.min(imageWidth * (795 / 600), screenHeight * (1 - IMAGE_SIDE_INSET_RATIO * 2));
 

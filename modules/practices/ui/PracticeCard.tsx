@@ -48,6 +48,10 @@ import { shouldDemoteUnavailableBleToNone } from "./breathSensorDefault";
 
 const CHAKRA_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 const SOUND_BED_OPTIONS: readonly SoundBedId[] = [SOUND_BED_NEURO_SYNC, ...NATURE_SOUND_BED_IDS];
+// Calm meditation no longer offers the binaural (neuro-sync) bed — only nature
+// beds (which loop seamlessly at each file's own natural duration). Breath
+// practices still offer neuro-sync.
+const CALM_SOUND_BED_OPTIONS: readonly SoundBedId[] = [...NATURE_SOUND_BED_IDS];
 type SelectField = "duration" | "chakra" | "pulse" | "sound" | "tempo" | null;
 
 const BREATH_PRACTICE_IDS = new Set<string>([
@@ -731,7 +735,7 @@ export const PracticeCard = memo(function PracticeCard({
                   label: strings.soundLabel,
                   value: selectedSoundBed,
                   displayValue: strings.soundBeds[selectedSoundBed],
-                  options: SOUND_BED_OPTIONS.map((bedId) => ({
+                  options: (isCalm ? CALM_SOUND_BED_OPTIONS : SOUND_BED_OPTIONS).map((bedId) => ({
                     value: bedId,
                     label: strings.soundBeds[bedId],
                   })),

@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
 
-import { parseSoundBedId } from "@/modules/mandala-sound/core/soundBed";
+import { parseCalmSoundBedId } from "@/modules/mandala-sound/core/soundBed";
 import { CalmPracticeScreen } from "@/modules/practices/ui/CalmPracticeScreen";
 
 function positiveIntParam(value: string | undefined): number | undefined {
@@ -21,7 +21,7 @@ export default function CalmPracticeRoute() {
     () => positiveIntParam(typeof params.durationMs === "string" ? params.durationMs : undefined),
     [params.durationMs],
   );
-  const soundBed = parseSoundBedId(typeof params.soundBed === "string" ? params.soundBed : undefined);
+  const soundBed = parseCalmSoundBedId(typeof params.soundBed === "string" ? params.soundBed : undefined);
 
   return (
     <>

@@ -78,6 +78,16 @@ export function resetLocationPermissionAutoPrompt(): void {
 }
 
 function osLocationDialogUnavailable(perm: Location.LocationPermissionResponse): boolean {
+  // On Android, `canAskAgain` (derived from `shouldShowRequestPermissionRationale`)
+  // is unreliable after the user changes the system permission setting (e.g.
+  // "Don't ask again" → "Ask every time"): it stays `false` from the last
+  // request until the app calls `requestPermissions()` again. Pre-judging as
+  // unavailable here skips the launch auto-prompt and loops back to Settings.
+  // Let the OS decide — `requestPermissions()` shows the dialog when it can,
+  // or returns denied silently when the user truly selected "Don't ask again".
+  if (Platform.OS === "android") {
+    return false;
+  }
   return perm.status !== "granted" && perm.status !== "undetermined" && perm.canAskAgain === false;
 }
 
