@@ -73,7 +73,7 @@ Three different numbers — do not mix them up:
 
 | What | Where | Who bumps it |
 | --- | --- | --- |
-| **Marketing** `MAJOR.MINOR.PATCH` | `expo.version` in `app.json` (+ mirrored in `package.json`) | **Manual** when shipping a meaningful release (e.g. 1.2.2 → 1.2.3). Current: **1.2.2**. |
+| **Marketing** `MAJOR.MINOR.PATCH` | `expo.version` in `app.json` (+ mirrored in `package.json`) | **Manual** when shipping a meaningful release (e.g. 1.2.3 → 1.2.4). Current: **1.2.3**. |
 | **Android `versionCode`** | `expo.android.versionCode` | **EAS autoIncrement** on every `production` / `preview` build |
 | **iOS `buildNumber`** | `expo.ios.buildNumber` | **EAS autoIncrement** on every `production` / `preview` build |
 
