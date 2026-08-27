@@ -1,13 +1,15 @@
 ---
 id: 02_modules/affirmations/history
 title: Affirmations History
-version: 1.0
-updated: 2026-08-14
+version: 1.1
+updated: 2026-08-24
 depends_on: [02_modules/affirmations/spec]
 code_refs: []
 ---
 
 ## Decision Log
+
+- **2026-08-24 (breath finale timing fix):** Оверлей аффирмации переписан: (1) голос/панель появляются **ровно с началом выдоха** (убрано упреждение `VOICE_LEAD_MS = 1с` и setTimeout на inhale-onset — теперь срабатываем прямо на exhale-onset); (2) момент финала считается в **выдохах**, а не в циклах планировщика. `CoherenceBreathScreen` передаёт новый проп `msExhaleInterval = cycleMs / exhalesPerCycle` (для nadi-shodhana — `cycleMs/2`, для остальных — `cycleMs`). Финал = ровно 3 последних выдоха: `exhalesRemaining = floor((remaining-1)/exhaleInterval)+1`, аффирмация срабатывает на exhale-onset при `exhalesRemaining <= 3`. Баг: ранее окно `avgCycle * 4.2` было калибровано под 1 выдох/цикл, поэтому для nadi-shodhana (2 выдоха/цикл) финал стартовал в ~2× раньше → после 3 аффирмаций оставалось 4–5 «лишних» дыхательных циклов; для triangle-up оставался 1 лишний цикл. Теперь третья аффирмация приходится на последний выдох, практика заканчивается до следующего вдоха. Pre-warm аудио перенесён на `exhalesRemaining <= 4` (за 1 выдох до финала). `msInhaleToExhale` остался в Props для совместимости, но больше не используется.
 
 - **2026-08-22 (affirmation copy polish):** `step1.instruction` сокращён (без «тройного» повторения / 1–2 мин; «расскажите» + три пункта + «до 3 минут»). Исправлены опечатки RU `афирмац*` → `аффирмац*` в `step3.selectHint`, `step4.editLabel`, `step4.voiceHint`, `manage.noAudio`. Перевод EN+de/fr/it/es/pt/nl через `i18n-sync fill --all` с `AI_MODEL_PREMIUM`.
 

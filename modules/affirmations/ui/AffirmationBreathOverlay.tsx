@@ -48,6 +48,13 @@ type Props = {
    * Includes any hold between them (triangle-down / square). 0 → fallback.
    */
   msInhaleToExhale?: number;
+  /**
+   * Average interval between consecutive exhale onsets in the plan.
+   * For practices with one exhale per cycle (coherent, square, triangles,
+   * surya, chandra) equals `cycleMs`. For nadi-shodhana (two exhales per
+   * planner cycle) equals `cycleMs / 2`. 0 → fallback to `cycleMs`.
+   */
+  msExhaleInterval?: number;
   /** Practice is in running phase. */
   active: boolean;
   /**
@@ -57,8 +64,9 @@ type Props = {
   dimOpacity?: number;
 };
 
-const VOICE_LEAD_MS = 1_000;
 const DIM_BEFORE_END_MS = 5_000;
+/** Сколько выдохов с аффирмацией в финале практики. */
+const FINALE_EXHALE_COUNT = 3;
 
 /**
  * Additive top panel + optional own-voice near exhale.
@@ -71,7 +79,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
       elapsedMs,
       practiceTotalMs,
       cycleMs,
-      msInhaleToExhale = 0,
+      msExhaleInterval = 0,
       active,
       dimOpacity = 0,
     },
@@ -222,7 +230,7 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
           onFinished: () => {
             playingRef.current = false;
             soundRef.current = null;
-            if (finaleExhaleCountRef.current >= 3) {
+            if (finaleExhaleCountRef.current >= FINALE_EXHALE_COUNT) {
               resolveFinaleWaiter();
             }
           },
@@ -245,8 +253,27 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
       prevKindRef.current = phaseKind;
 
       const avgCycle = Math.max(6_000, cycleMs || 12_000);
+      // Интервал между началами выдохов: для nadi-shodhana это cycleMs/2,
+      // для остальных — cycleMs. От него зависит оценка числа оставшихся
+      // выдохов и момент старта финала.
+      const exhaleInterval = msExhaleInterval > 0 ? msExhaleInterval : avgCycle;
       const remaining = Math.max(0, practiceTotalMs - elapsedMs);
-      const inFinale = remaining <= avgCycle * 4.2;
+      // Сколько начал выдохов (включая текущий, если мы на выдохе) уложится
+      // до конца практики. Считаем в выдохах, а не в циклах планировщика —
+      // иначе у nadi-shodhana (2 выдоха/цикл) финал стартовал в 2× раньше.
+      const exhalesRemaining =
+        Math.floor((remaining - 1) / exhaleInterval) + 1;
+      const inFinale = exhalesRemaining <= FINALE_EXHALE_COUNT;
+
+      // Pre-warm audio as soon as we approach the finale (4 выдоха до конца),
+      // чтобы к первому срабатыванию Sound уже был готов.
+      if (exhalesRemaining <= FINALE_EXHALE_COUNT + 1 && !finaleArmedRef.current) {
+        finaleArmedRef.current = true;
+        finaleExhaleCountRef.current = 0;
+        if (row.audioPath && row.audioSignedUrl) {
+          void warmAffirmationPlayback(row.audioPath, row.audioSignedUrl);
+        }
+      }
 
       // Intro: first exhale → show; next exhale → hide
       if (phaseKind === "exhale" && prev !== "exhale") {
@@ -264,45 +291,30 @@ export const AffirmationBreathOverlay = forwardRef<AffirmationBreathGate, Props>
 
       if (!inFinale) return;
 
-      if (!finaleArmedRef.current) {
-        finaleArmedRef.current = true;
-        finaleExhaleCountRef.current = 0;
-        if (row.audioPath && row.audioSignedUrl) {
-          void warmAffirmationPlayback(row.audioPath, row.audioSignedUrl);
+      // Аффирмация стартует ровно с началом выдоха (не за секунду до).
+      // Срабатываем на exhale-onset, когда текущий выдох — один из
+      // FINALE_EXHALE_COUNT последних выдохов практики. Так третья
+      // аффирмация приходится на последний выдох, и практика заканчивается
+      // до следующего вдоха — как требует продукт.
+      if (phaseKind === "exhale" && prev !== "exhale") {
+        if (finaleExhaleCountRef.current >= FINALE_EXHALE_COUNT) return;
+        finaleExhaleCountRef.current += 1;
+        // Panel and voice start together at exhale onset.
+        if (modeRef.current !== "finale") {
+          showPanel("finale");
         }
-      }
-
-      // Start voice + panel ~1s before exhale: schedule on inhale onset using
-      // real plan gap (inhale→…→exhale), not cycle/2.
-      if (phaseKind === "inhale" && prev !== "inhale") {
-        if (finaleExhaleCountRef.current >= 3) return;
-        clearVoiceTimer();
-        const gapMs =
-          msInhaleToExhale > 0
-            ? msInhaleToExhale
-            : Math.max(2_000, avgCycle / 2);
-        const delay = Math.max(0, gapMs - VOICE_LEAD_MS);
-        voiceTimerRef.current = setTimeout(() => {
-          voiceTimerRef.current = null;
-          if (finaleExhaleCountRef.current >= 3) return;
-          finaleExhaleCountRef.current += 1;
-          // Panel and voice start together.
-          if (modeRef.current !== "finale") {
-            showPanel("finale");
-          }
-          if (row.audioSignedUrl) {
-            void playVoice();
-          } else if (finaleExhaleCountRef.current >= 3) {
-            resolveFinaleWaiter();
-          }
-        }, delay);
+        if (row.audioSignedUrl) {
+          void playVoice();
+        } else if (finaleExhaleCountRef.current >= FINALE_EXHALE_COUNT) {
+          resolveFinaleWaiter();
+        }
       }
     }, [
       active,
       cycleMs,
       elapsedMs,
       hidePanel,
-      msInhaleToExhale,
+      msExhaleInterval,
       phaseKind,
       playVoice,
       practiceTotalMs,
