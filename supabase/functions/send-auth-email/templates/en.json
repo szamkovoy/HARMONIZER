@@ -1,9 +1,10 @@
 {
-  "subject": "{code} — your Harmonizer sign-in code",
+  "closing": "All the best!",
+  "expiry": "The code is valid for 60 minutes and can be used only once.",
   "greeting": "Hello!",
   "greetingName": "Hello, {name}!",
-  "intro": "Your code to sign in to the Harmonizer app:",
-  "expiry": "The code is valid for 60 minutes and can be used only once.",
   "ignore": "If you didn't request this code, just ignore this email.",
-  "closing": "All the best!"
+  "intro": "Your code to sign in to the Harmonizer app:",
+  "postVerifyGuide": "A minute after confirming the code, check your email again — I'll send you a detailed guide to the Harmonizer. It will help you get oriented in the app.",
+  "subject": "{code} — your Harmonizer sign-in code"
 }

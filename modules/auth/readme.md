@@ -1,6 +1,6 @@
 # modules/auth
 
-Авторизация через Apple Sign-In и Google Sign-In с хранением сессии в Supabase.
+Email-OTP авторизация (Supabase) с хранением сессии в SecureStore. На Android — Restore Credentials (Zero-Tap Sign-In при смене устройства).
 
 ## Public API
 
@@ -17,10 +17,22 @@ import { AuthProvider, useAuth } from "@/modules/auth";
 | `profile` | строка из `public.users` (tz, lat, lon, onboarded_at…) или null пока не загружена |
 | `initializing` | true пока не прочитали сохранённую сессию из SecureStore |
 | `signingIn` | true во время вызова sign-in/out |
-| `signInWithApple()` | нативный Apple flow (только iOS 13.3+) |
-| `signInWithGoogle()` | нативный Google flow |
-| `signOut()` | выход с очисткой Google-кэша |
+| `requestEmailCode(email, name?)` | запрос OTP на email |
+| `verifyEmailCode(email, code, name?)` | проверка OTP → сессия |
+| `signOut()` | выход (+ revoke Restore Credential на Android) |
 | `refreshProfile()` | перечитать `public.users` (после онбординга) |
+
+## Android Restore Credentials (Zero-Tap)
+
+- Native: `harmonizer-android-restore-credentials` (Credential Manager API).
+- Client: `modules/auth/restoreCredentials.ts` — provision после входа, silent restore на cold start, revoke при выходе.
+- Server: `POST /api/auth/restore-credential/*` на Vercel + таблицы `user_restore_credentials`, `restore_credential_challenges` (миграция `20260826120000_restore_credentials.sql`).
+- **Требует новый Android dev/prod client** (не работает в старом dev-client без native-модуля).
+- Vercel (опционально, строже origin): `WEBAUTHN_ANDROID_ORIGINS` — JSON `{ "com.zamkovoi.harmonizer": "android:apk-key-hash:…" }` per package variant.
+
+## Android R8 (release builds)
+
+В `app.config.ts` → `expo-build-properties`: `enableMinifyInReleaseBuilds`, ProGuard rules в `plugins/android-proguard-rules.pro`. Влияет только на store release AAB, не на dev-client Metro.
 
 ## Как подключено
 
@@ -54,21 +66,7 @@ token (отзыв на сервере) очищается локально бе�
 ```
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
-
-# Google
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=        # OAuth 2.0 Client ID типа "Web"
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=        # OAuth 2.0 Client ID типа "iOS"
-EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=       # обратный iOS Client ID (подставится
-                                         # в iOS URL Schemes при prebuild)
+EXPO_PUBLIC_COMMUNICATOR_API_URL=   # Vercel origin для OTP-gate и Restore Credentials API
 ```
 
-## Настройка со стороны облачных сервисов
-
-1. **Supabase → Authentication → Providers**: включить Apple и Google,
-   указать Web Client ID (Google) и Services ID + приватный ключ `.p8` (Apple).
-2. **Google Cloud Console**: создать три OAuth Client ID — iOS, Android, Web.
-   Обратный iOS Client ID (формата `com.googleusercontent.apps.xxxx`) кладём
-   в `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME`.
-3. **Apple Developer**: в `Identifiers` у App ID включить capability
-   "Sign in with Apple". `expo-apple-authentication` добавляет нужный
-   entitlement при prebuild.
+Сервер (Vercel): опционально `WEBAUTHN_ANDROID_ORIGINS` — см. § Android Restore Credentials выше.

@@ -12,6 +12,7 @@
     "@aws-sdk/client-sesv2": "^3.787.0",
     "@google/generative-ai": "^0.21.0",
     "@sentry/nextjs": "^10.51.0",
+    "@simplewebauthn/server": "^13.3.3",
     "@supabase/supabase-js": "^2.101.0",
     "@types/luxon": "^3.7.1",
     "astronomia": "^4.2.0",

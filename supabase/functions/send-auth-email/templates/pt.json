@@ -1,9 +1,10 @@
 {
-  "subject": "{code} — o seu código de acesso ao Harmonizador",
+  "closing": "Tudo de bom!",
+  "expiry": "O código é válido por 60 minutos e só pode ser usado uma vez.",
   "greeting": "Olá!",
   "greetingName": "Olá, {name}!",
-  "intro": "Seu código de acesso ao app «Harmonizador»:",
-  "expiry": "O código é válido por 60 minutos e só pode ser usado uma vez.",
   "ignore": "Se não pediu este código, ignore este e-mail.",
-  "closing": "Tudo de bom!"
+  "intro": "Seu código de acesso ao app «Harmonizador»:",
+  "postVerifyGuide": "Um minuto após confirmar o código, verifique novamente seu e-mail — vou enviar para você instruções detalhadas sobre o Harmonizador. Elas vão ajudar você a se orientar no aplicativo.",
+  "subject": "{code} — o seu código de acesso ao Harmonizador"
 }

@@ -213,7 +213,7 @@ Two resolvers — do not conflate layer B and layer C:
 
 ### 4.1c Auth-email templates (edge function, 2026-07-14, updated 2026-08-04)
 - Source of truth: `supabase/functions/send-auth-email/templates/ru.json`
-  (subject/greeting/greetingName/intro/expiry/ignore/closing for OTP sign-in emails).
+  (subject/greeting/greetingName/intro/expiry/ignore/postVerifyGuide/closing for OTP sign-in emails).
   Body is **short transactional** — guide/newsletter block removed (2026-08-04) so
   inboxes are less likely to treat OTP as a mailing list. `greetingName` with `{name}`
   remains. Send adds `Auto-Submitted: auto-generated`; never `List-Unsubscribe`.

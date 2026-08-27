@@ -307,7 +307,8 @@
       "wearableAndroidSystemConnectHint": "Если сверху запрос Android — подтвердите соединение.",
       "wearablePickerConnectedLabel": "Подключен",
       "wearablePickerDisconnectButton": "Отключить",
-      "resultsRrIntervalsLabel": "R-R интервалы"
+      "resultsRrIntervalsLabel": "R-R интервалы",
+      "resultsPpIntervalsLabel": "P-P интервалы"
     },
     "fr": {
       "inhale": "ВДОХ",
@@ -446,7 +447,8 @@
       "wearableAndroidSystemConnectHint": "Если сверху запрос Android — подтвердите соединение.",
       "wearablePickerConnectedLabel": "Подключен",
       "wearablePickerDisconnectButton": "Отключить",
-      "resultsRrIntervalsLabel": "R-R интервалы"
+      "resultsRrIntervalsLabel": "R-R интервалы",
+      "resultsPpIntervalsLabel": "P-P интервалы"
     },
     "it": {
       "inhale": "ВДОХ",
@@ -585,7 +587,8 @@
       "wearableAndroidSystemConnectHint": "Если сверху запрос Android — подтвердите соединение.",
       "wearablePickerConnectedLabel": "Подключен",
       "wearablePickerDisconnectButton": "Отключить",
-      "resultsRrIntervalsLabel": "R-R интервалы"
+      "resultsRrIntervalsLabel": "R-R интервалы",
+      "resultsPpIntervalsLabel": "P-P интервалы"
     },
     "es": {
       "inhale": "ВДОХ",
@@ -724,7 +727,8 @@
       "wearableAndroidSystemConnectHint": "Если сверху запрос Android — подтвердите соединение.",
       "wearablePickerConnectedLabel": "Подключен",
       "wearablePickerDisconnectButton": "Отключить",
-      "resultsRrIntervalsLabel": "R-R интервалы"
+      "resultsRrIntervalsLabel": "R-R интервалы",
+      "resultsPpIntervalsLabel": "P-P интервалы"
     },
     "pt": {
       "inhale": "ВДОХ",
@@ -863,7 +867,8 @@
       "wearableAndroidSystemConnectHint": "Если сверху запрос Android — подтвердите соединение.",
       "wearablePickerConnectedLabel": "Подключен",
       "wearablePickerDisconnectButton": "Отключить",
-      "resultsRrIntervalsLabel": "R-R интервалы"
+      "resultsRrIntervalsLabel": "R-R интервалы",
+      "resultsPpIntervalsLabel": "P-P интервалы"
     },
     "nl": {
       "inhale": "ВДОХ",
@@ -1002,7 +1007,8 @@
       "wearableAndroidSystemConnectHint": "Если сверху запрос Android — подтвердите соединение.",
       "wearablePickerConnectedLabel": "Подключен",
       "wearablePickerDisconnectButton": "Отключить",
-      "resultsRrIntervalsLabel": "R-R интервалы"
+      "resultsRrIntervalsLabel": "R-R интервалы",
+      "resultsPpIntervalsLabel": "P-P интервалы"
     }
   },
   "chakra": {

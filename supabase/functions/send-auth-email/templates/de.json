@@ -1,9 +1,10 @@
 {
-  "subject": "{code} — Ihr Anmeldecode für Harmonisierer",
+  "closing": "Alles Gute!",
+  "expiry": "Der Code ist 60 Minuten gültig und kann nur einmal verwendet werden.",
   "greeting": "Guten Tag!",
   "greetingName": "Hallo, {name}!",
-  "intro": "Ihr Anmeldecode für die App „Harmonisierer“:",
-  "expiry": "Der Code ist 60 Minuten gültig und kann nur einmal verwendet werden.",
   "ignore": "Falls Sie diesen Code nicht angefordert haben, ignorieren Sie diese E-Mail einfach.",
-  "closing": "Alles Gute!"
+  "intro": "Ihr Anmeldecode für die App „Harmonisierer“:",
+  "postVerifyGuide": "Eine Minute nach der Code-Bestätigung prüfen Sie bitte erneut Ihr E-Mail-Postfach – ich schicke Ihnen dann eine ausführliche Anleitung zum Harmonisierer. Sie hilft Ihnen, sich in der App zurechtzufinden.",
+  "subject": "{code} — Ihr Anmeldecode für Harmonisierer"
 }

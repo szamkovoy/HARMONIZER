@@ -3,7 +3,6 @@ import { AppState, Platform } from "react-native";
 import { router, type Href } from "expo-router";
 
 import { useAuth } from "@/modules/auth";
-import { promptForegroundLocationOnLaunch } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { logAppOpen } from "@/modules/metrics/core/appOpen";
 import { setPendingPushMessage } from "@/modules/notifications/core/pendingPushMessage";
 import { recordInboxNotification } from "@/modules/notifications/core/recordInboxNotification";
@@ -80,9 +79,8 @@ async function maybeRecordOpportunityFromContent(content: {
  * message reader on notification tap.
  */
 export function PushRegistrationBridge() {
-  const { authUser, profile } = useAuth();
+  const { authUser } = useAuth();
   const userId = authUser?.id ?? null;
-  const onboarded = Boolean(profile?.onboarded_at);
   const registeredForRef = useRef<string | null>(null);
   const handledResponseIdRef = useRef<string | null>(null);
   const recordedOpportunityRef = useRef<Set<string>>(new Set());
@@ -95,11 +93,8 @@ export function PushRegistrationBridge() {
     void logAppOpen(userId);
   }, [userId]);
 
-  useEffect(() => {
-    if (!userId || !onboarded) return;
-    void promptForegroundLocationOnLaunch(userId);
-  }, [userId, onboarded]);
-
+  // Location OS prompt lives only in Home (`useDayContent` → promptForegroundLocationOnLaunch).
+  // Firing it here raced Zero-Tap restore under splash and orphaned the permission sheet.
   useEffect(() => {
     if (!userId) return;
     const subscription = AppState.addEventListener("change", (state) => {

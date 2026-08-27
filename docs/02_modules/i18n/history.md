@@ -16,6 +16,8 @@ code_refs:
 
 ## Decision Log
 
+- **2026-08-26 (OTP post-verify guide hint):** В auth-email шаблоны добавлен ключ `postVerifyGuide` — после строки «Если вы не запрашивали код…» напоминание проверить почту через минуту после подтверждения OTP (придёт инструкция к приложению). RU source + 7 локалей через `i18n-sync fill --all` (`AI_MODEL_PREMIUM`); `templates.ts` перегенерирован; `send-auth-email/index.ts` — отдельный абзац в text/HTML между `ignore` и `closing`. Edge redeploy required; app rebuild not required.
+
 - **2026-08-24 (runtime app-display-name mirror):** Добавлен `modules/i18n/appDisplayName.ts` — runtime-зеркало build-time `APP_NAMES` из `plugins/appLocalesData.js` (`APP_DISPLAY_NAMES` + `getAppDisplayName(locale)`, реэкспорт из `@/modules/i18n`). Причина: media-notification / lock-screen карточка практики (модуль `audio`, `MandalaSoundProvider`) показывает `artist` = имя приложения; раньше был захардкожен `"Harmonizer"` (латиница) и не следовал за profile-локалью. Теперь `artist` = `getAppDisplayName(useAppLocale().locale)` — RU «Гармонизатор», EN «Harmonizer» … — совпадает с языком профиля (а не устройства, как home-screen имя). OS home-screen имя по-прежнему следует за device-локалью (platform limitation) — это намеренное расхождение. При добавлении языка обновлять ОБА файла (см. spec §6).
 
 - **2026-08-19 (location optional CTA):** `home.opportunityWindows.needLocation` / `enableLocationButton` ×8 (RU source; EN + EU filled). Home geo-gate copy `home.geoGate.*` unused in UI.

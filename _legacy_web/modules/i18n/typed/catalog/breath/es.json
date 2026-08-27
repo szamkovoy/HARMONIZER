@@ -85,6 +85,7 @@
   "resultsMoodQuestion": "¿Cómo cambió tu estado?",
   "resultsMoodSame": "Igual",
   "resultsMoodWorse": "Peor",
+  "resultsPpIntervalsLabel": "Intervalos P-P",
   "resultsRrIntervalsLabel": "Intervalos R-R",
   "resultsWindowEndLabel": "Al final",
   "resultsWindowStartLabel": "Al inicio",

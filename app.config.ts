@@ -77,6 +77,12 @@ const GOOGLE_MAPS_API_KEY = (
   process.env.GOOGLE_MAPS_API_KEY ||
   ""
 ).trim();
+
+/** R8 / ProGuard rules for Android release (Google Play DEX optimization requirement). */
+const ANDROID_PROGUARD_RULES = fs.readFileSync(
+  path.join(__dirname, "plugins", "android-proguard-rules.pro"),
+  "utf8",
+);
 if (!GOOGLE_MAPS_API_KEY) {
   // Native Android builds without this crash MapView with "API key not found".
   // Local: `.env.local`. EAS: `eas env` → EXPO_PUBLIC_GOOGLE_MAPS_API_KEY (all envs).
@@ -248,6 +254,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             // Google Play требует target Android 16 (API 36) или выше с 31 авг. 2026.
             compileSdkVersion: 36,
             targetSdkVersion: 36,
+            // R8: Google Play DEX optimization (≥25% shrink/obfuscate/optimize) с фев 2027.
+            // Влияет только release-сборки; dev-client / Metro не затрагивает.
+            enableMinifyInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+            extraProguardRules: ANDROID_PROGUARD_RULES,
             // Базовый soft-input. На Android 15 + edge-to-edge `adjustResize` часто
             // не сжимает окно — WizardShell дополнительно поднимает контент через
             // paddingBottom = высота IME (см. modules/onboarding/wizard/WizardShell.tsx).
@@ -274,6 +285,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ],
       // After BLE plugin: collapse location permissions for Google Play merge rules.
       "./plugins/with-android-location-permission-merge.js",
+      // R8 minify needs >2g heap on this app (default Expo gradle.properties OOMs).
+      "./plugins/with-android-gradle-jvm-heap.js",
       "react-native-health-connect",
       "./plugins/with-native-health.js",
       // After expo-splash-screen: no Android 12 mini-icon; full-bleed windowBackground

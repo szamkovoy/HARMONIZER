@@ -222,6 +222,16 @@ export function useForegroundLocationPermission(options?: {
       const persistedAwait = await isAwaitingLocationSettingsGrant();
       if (cancelled || prevStatusRef.current === "granted") return;
       if (persistedAwait) {
+        // D2D/backup can restore this SecureStore flag while OS permission is still
+        // undetermined on a new install — only meaningful after we opened Settings.
+        const fresh = await readForegroundPermission();
+        if (cancelled || prevStatusRef.current === "granted") return;
+        if (!fresh || fresh.status === "undetermined") {
+          await markAwaitingLocationSettingsGrant(false);
+          awaitingSettingsReturnRef.current = false;
+          startPermissionPoll(false);
+          return;
+        }
         awaitingSettingsReturnRef.current = true;
         await new Promise((resolve) => setTimeout(resolve, SETTINGS_RETURN_PROMPT_DELAY_MS));
         if (cancelled || prevStatusRef.current === "granted") return;
@@ -297,7 +307,7 @@ export function useForegroundLocationPermission(options?: {
         status: current.status,
         canAskAgain: current.canAskAgain,
       });
-      const perm = await requestForegroundLocationPermission();
+      const perm = await requestForegroundLocationPermission({ preferFresh: true });
       logRuntimeEvent("location:windows_result", { status: perm.status, canAskAgain: perm.canAskAgain });
       if (!isForegroundLocationGranted(perm) && perm.status !== "undetermined" && perm.canAskAgain === false) {
         // The OS truly won't show a dialog (post-request confirmation).

@@ -74,8 +74,10 @@ export interface CoherenceBreathStrings {
   resultsMeasuredPulseLabel: string;
   /** График пульса, по которому практика фактически вела дыхание. */
   resultsGuidancePulseLabel: string;
-  /** Тахограмма R–R (мс) под графиком пульса — только отображение. */
+  /** Тахограмма R–R (мс) под графиком пульса — BLE-пульсометр. */
   resultsRrIntervalsLabel: string;
+  /** Тахограмма P–P (мс) под графиком пульса — камера телефона (ППГ). */
+  resultsPpIntervalsLabel: string;
   /** Заголовок колонки «в начале практики» в таблице результатов. */
   resultsWindowStartLabel: string;
   /** Заголовок колонки «в конце практики» в таблице результатов. */
@@ -279,6 +281,7 @@ const ru: CoherenceBreathStrings = {
   resultsMeasuredPulseLabel: "Пульс (измерение)",
   resultsGuidancePulseLabel: "Пульс (ведение практики)",
   resultsRrIntervalsLabel: "R-R интервалы",
+  resultsPpIntervalsLabel: "P-P интервалы",
   resultsWindowStartLabel: "В начале",
   resultsWindowEndLabel: "В конце",
   resultsWindowDurationLabel: (m, s) =>
@@ -464,6 +467,7 @@ const en: CoherenceBreathStrings = {
   resultsMeasuredPulseLabel: "Pulse (measured)",
   resultsGuidancePulseLabel: "Pulse (guidance)",
   resultsRrIntervalsLabel: "R-R intervals",
+  resultsPpIntervalsLabel: "P-P intervals",
   resultsWindowStartLabel: "Start",
   resultsWindowEndLabel: "End",
   resultsWindowDurationLabel: (m, s) =>

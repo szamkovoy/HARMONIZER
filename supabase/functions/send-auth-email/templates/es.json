@@ -1,9 +1,10 @@
 {
-  "subject": "{code} — tu código de acceso a Armonizador",
+  "closing": "¡Todo lo mejor!",
+  "expiry": "El código es válido durante 60 minutos y solo puede usarse una vez.",
   "greeting": "¡Hola!",
   "greetingName": "¡Hola, {name}!",
-  "intro": "Tu código para iniciar sesión en «Armonizador»:",
-  "expiry": "El código es válido durante 60 minutos y solo puede usarse una vez.",
   "ignore": "Si no solicitaste este código, simplemente ignora este correo.",
-  "closing": "¡Todo lo mejor!"
+  "intro": "Tu código para iniciar sesión en «Armonizador»:",
+  "postVerifyGuide": "Un minuto después de confirmar el código, revisa de nuevo tu correo: te enviaré una guía detallada del Armonizador. Te ayudará a orientarte en la aplicación.",
+  "subject": "{code} — tu código de acceso a Armonizador"
 }

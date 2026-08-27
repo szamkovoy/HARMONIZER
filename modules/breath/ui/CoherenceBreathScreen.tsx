@@ -4950,6 +4950,22 @@ function CoherenceBreathScreenInner({
     return gap;
   })();
 
+  /**
+   * Средний интервал между началами выдохов в плане цикла.
+   * Для практик с одним выдохом на цикл (coherent, square, triangle, surya,
+   * chandra) равен cycleMs. Для nadi-shodhana (2 выдоха на цикл) равен cycleMs/2.
+   * Используется оверлеем аффирмации, чтобы финальное окно и момент старта
+   * считались в «выдохах», а не в циклах планировщика — иначе у попеременного
+   * дыхания окно получалось в 2× больше нужного.
+   */
+  const msExhaleInterval = (() => {
+    const plan = currentPlan;
+    if (!plan || plan.cycleMs <= 0) return 0;
+    const exhales = plan.phases.filter((p) => p.kind === "exhale");
+    if (exhales.length === 0) return 0;
+    return plan.cycleMs / exhales.length;
+  })();
+
   const phaseLabel = !activePhase
     ? str.inhale
     : activePhase.kind === "inhale"
@@ -5574,6 +5590,7 @@ function CoherenceBreathScreenInner({
                     practiceTotalMs={practiceTotalMs}
                     cycleMs={currentPlan?.cycleMs ?? 12_000}
                     msInhaleToExhale={msInhaleToExhale}
+                    msExhaleInterval={msExhaleInterval}
                     active={phase === "running" && isBreathTimingActive}
                     dimOpacity={dimOpacity}
                   />
@@ -5702,6 +5719,7 @@ function CoherenceBreathScreenInner({
           }
           finalSignalTrust={finalSignalTrust}
           cameraGuidanceOnlyMode={cameraGuidanceOnlyMode}
+          resultsUsedWearableSensor={isWearableMode}
           finalHrvRecoveredFromTail={finalHrvRecoveredFromTail}
           finalCoherenceRecoveredFromTail={finalCoherenceRecoveredFromTail}
           finalCoherenceTailWindowMs={finalCoherenceTailWindowMs}
@@ -5988,6 +6006,7 @@ function ResultsView(props: {
   sessionWithoutSensor: boolean;
   finalSignalTrust: BiofeedbackSignalTrustSummary | null;
   cameraGuidanceOnlyMode: boolean;
+  resultsUsedWearableSensor: boolean;
   finalHrvRecoveredFromTail: boolean;
   finalCoherenceRecoveredFromTail: boolean;
   finalCoherenceTailWindowMs: number | null;
@@ -6020,6 +6039,7 @@ function ResultsView(props: {
     sessionWithoutSensor,
     finalSignalTrust,
     cameraGuidanceOnlyMode,
+    resultsUsedWearableSensor,
     finalHrvRecoveredFromTail,
     finalCoherenceRecoveredFromTail,
     finalCoherenceTailWindowMs,
@@ -6401,7 +6421,11 @@ function ResultsView(props: {
             ) : null}
             {rrIntervalGraphPoints.length >= 2 ? (
               <ResultsMetricChart
-                title={str.resultsRrIntervalsLabel}
+                title={
+                  resultsUsedWearableSensor
+                    ? str.resultsRrIntervalsLabel
+                    : str.resultsPpIntervalsLabel
+                }
                 points={rrIntervalGraphPoints}
                 color="#38bdf8"
                 unit="ms"

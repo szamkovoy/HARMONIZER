@@ -103,6 +103,7 @@ function renderEmail(
     intro: string;
     expiry: string;
     ignore: string;
+    postVerifyGuide: string;
     closing: string;
   },
   code: string,
@@ -130,6 +131,8 @@ function renderEmail(
     fillCode(tpl.expiry),
     fillCode(tpl.ignore),
     "",
+    fillCode(tpl.postVerifyGuide),
+    "",
     fillCode(tpl.closing),
     signName,
   ].join("\n");
@@ -148,6 +151,7 @@ function renderEmail(
     `<p style="margin:0 0 12px 0">${escapeHtml(fillCode(tpl.intro))}</p>`,
     `<p style="margin:0 0 24px 0;font-size:30px;font-weight:600;letter-spacing:0.25em;color:${PRIMARY}">${escapeHtml(code)}</p>`,
     `<p style="margin:0 0 24px 0">${escapeHtml(fillCode(tpl.expiry))}<br>${escapeHtml(fillCode(tpl.ignore))}</p>`,
+    `<p style="margin:0 0 24px 0">${escapeHtml(fillCode(tpl.postVerifyGuide))}</p>`,
     `<p style="margin:0">${escapeHtml(fillCode(tpl.closing))}<br>${escapeHtml(signName)}</p>`,
     `</div>`,
     `</body></html>`,

@@ -1,9 +1,10 @@
 {
-  "subject": "{code} — je inlogcode voor Harmoniseerder",
+  "closing": "Al het goede!",
+  "expiry": "De code is 60 minuten geldig en kan maar één keer worden gebruikt.",
   "greeting": "Hallo!",
   "greetingName": "Hallo, {name}!",
-  "intro": "Je inlogcode voor de app «Harmoniseerder»:",
-  "expiry": "De code is 60 minuten geldig en kan maar één keer worden gebruikt.",
   "ignore": "Heb je deze code niet aangevraagd? Negeer deze e-mail dan gewoon.",
-  "closing": "Al het goede!"
+  "intro": "Je inlogcode voor de app «Harmoniseerder»:",
+  "postVerifyGuide": "Een minuut nadat je de code hebt bevestigd, check je e-mail opnieuw — ik stuur je een uitgebreide handleiding voor de Harmoniseerder. Die helpt je wegwijs te worden in de app.",
+  "subject": "{code} — je inlogcode voor Harmoniseerder"
 }

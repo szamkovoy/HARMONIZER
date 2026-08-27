@@ -1,9 +1,10 @@
 {
-  "subject": "{code} — votre code de connexion Harmoniseur",
+  "closing": "Bien à vous !",
+  "expiry": "Le code est valable 60 minutes et ne peut être utilisé qu'une seule fois.",
   "greeting": "Bonjour !",
   "greetingName": "Bonjour {name} !",
-  "intro": "Votre code de connexion à l'application «Harmoniseur»:",
-  "expiry": "Le code est valable 60 minutes et ne peut être utilisé qu'une seule fois.",
   "ignore": "Si vous n'avez pas demandé ce code, ignorez simplement cet e-mail.",
-  "closing": "Bien à vous !"
+  "intro": "Votre code de connexion à l'application «Harmoniseur»:",
+  "postVerifyGuide": "Une minute après avoir confirmé le code, consultez à nouveau votre messagerie : je vous enverrai un guide détaillé de l'Harmoniseur. Il vous aidera à prendre en main l'application.",
+  "subject": "{code} — votre code de connexion Harmoniseur"
 }

@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import { InteractionManager, Linking, Platform } from "react-native";
+import { AppState, InteractionManager, Linking, Platform } from "react-native";
 
 import { invalidateBillingGeoCache } from "@/modules/account/core/billingCurrency";
 import { notifyForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
@@ -19,10 +19,19 @@ export type LocationAcquireResult =
 /** Не держим home на сплэше дольше этого при cold GPS. */
 export const LOCATION_ACQUIRE_TIMEOUT_MS = 12_000;
 const LAST_KNOWN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-/** After OTP / splash, iOS swallows the permission alert if we present it mid-navigation. */
-const LAUNCH_PROMPT_SETTLE_MS = 700;
+/**
+ * After OTP / splash / Zero-Tap restore, the OS swallows the permission sheet if we
+ * present it mid-navigation or while the splash still covers the Activity.
+ * Zero-Tap lands on Home faster than OTP, so settle is longer than the old 700 ms.
+ */
+const LAUNCH_PROMPT_SETTLE_MS = 1_200;
 /** Survives iOS process kill when Location goes Never → While Using. */
 const AWAIT_SETTINGS_GRANT_KEY = "harmonizer.location.awaitingSettingsGrant";
+/**
+ * If a launch auto-prompt started `requestPermissions` but the sheet was obscured
+ * (splash / restore bootstrap), CTA taps must not wait forever on that same promise.
+ */
+const PERMISSION_REQUEST_STALE_MS = 8_000;
 
 type SecureStoreLike = typeof import("expo-secure-store");
 
@@ -58,11 +67,23 @@ export async function isAwaitingLocationSettingsGrant(): Promise<boolean> {
 }
 
 let permissionRequestInFlight: Promise<Location.LocationPermissionResponse> | null = null;
+let permissionRequestStartedAtMs = 0;
 /** After Settings: one system-sheet attempt shared by launch + Opportunity Windows. */
 let settingsReturnPromptInFlight: Promise<Location.LocationPermissionResponse> | null = null;
 /** Auto (launch/Home) already called the OS prompt this process — don't spam it. */
 let autoPromptedThisProcess = false;
 let acquireInFlight: Promise<LocationAcquireResult> | null = null;
+
+function waitForAppActive(): Promise<void> {
+  if (AppState.currentState === "active") return Promise.resolve();
+  return new Promise((resolve) => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      sub.remove();
+      resolve();
+    });
+  });
+}
 
 function waitForUiSettle(): Promise<void> {
   return new Promise((resolve) => {
@@ -117,16 +138,33 @@ export async function openAppLocationSettings(): Promise<void> {
  * System location dialog. Does not open Settings — callers open settings themselves
  * when the OS already cannot show a dialog (iOS «Never»).
  */
-export async function requestForegroundLocationPermission(): Promise<Location.LocationPermissionResponse> {
+export async function requestForegroundLocationPermission(options?: {
+  /** CTA: do not join a stale launch request that may be stuck behind splash. */
+  preferFresh?: boolean;
+}): Promise<Location.LocationPermissionResponse> {
   const current = await Location.getForegroundPermissionsAsync();
   if (isForegroundLocationGranted(current)) return current;
-  if (permissionRequestInFlight) return permissionRequestInFlight;
+  const inFlightAgeMs = permissionRequestStartedAtMs
+    ? Date.now() - permissionRequestStartedAtMs
+    : 0;
+  const joinInFlight =
+    permissionRequestInFlight != null &&
+    !(options?.preferFresh && inFlightAgeMs >= PERMISSION_REQUEST_STALE_MS);
+  if (joinInFlight && permissionRequestInFlight) {
+    return permissionRequestInFlight;
+  }
   logRuntimeEvent("location:perm_request", {
     prior: current.status,
     canAskAgain: current.canAskAgain,
+    preferFresh: Boolean(options?.preferFresh),
+    abandonedStaleInFlight: Boolean(
+      options?.preferFresh && permissionRequestInFlight && inFlightAgeMs >= PERMISSION_REQUEST_STALE_MS,
+    ),
   });
+  permissionRequestStartedAtMs = Date.now();
   permissionRequestInFlight = Location.requestForegroundPermissionsAsync().finally(() => {
     permissionRequestInFlight = null;
+    permissionRequestStartedAtMs = 0;
   });
   return permissionRequestInFlight;
 }
@@ -194,6 +232,9 @@ export async function promptForegroundLocationAfterSettingsReturn(
  */
 export async function promptForegroundLocationOnLaunch(userId: string): Promise<void> {
   try {
+    // Wait until the Activity is interactive — Zero-Tap restore finishes auth under
+    // splash; prompting then swallows / orphans the Android permission sheet.
+    await waitForAppActive();
     await waitForUiSettle();
     const before = await Location.getForegroundPermissionsAsync();
     if (isForegroundLocationGranted(before)) {
@@ -202,12 +243,19 @@ export async function promptForegroundLocationOnLaunch(userId: string): Promise<
       void acquireAndPersistUserCoordinates(userId);
       return;
     }
+    // Backup/D2D may restore SecureStore `awaitingSettingsGrant` while OS permission
+    // is still undetermined on the new install — that flag is only for Settings return.
     if (await isAwaitingLocationSettingsGrant()) {
-      const perm = await promptForegroundLocationAfterSettingsReturn("launch");
-      if (isForegroundLocationGranted(perm)) {
-        void acquireAndPersistUserCoordinates(userId);
+      if (before.status === "undetermined") {
+        await markAwaitingLocationSettingsGrant(false);
+        logRuntimeEvent("location:awaiting_settings_cleared_undetermined", {}, "info");
+      } else {
+        const perm = await promptForegroundLocationAfterSettingsReturn("launch");
+        if (isForegroundLocationGranted(perm)) {
+          void acquireAndPersistUserCoordinates(userId);
+        }
+        return;
       }
-      return;
     }
     if (!osCanShowLocationDialog(before)) {
       notifyForegroundLocationPermissionChanged();

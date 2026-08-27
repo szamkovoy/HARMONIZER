@@ -26,6 +26,11 @@ import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCach
 import { rememberSupabaseSession, readPersistedAuthSessionFromStorage, requireSupabase } from "@/services/supabase";
 import { recoverAuthSessionFromPersistedStorageWithRetries } from "./bootstrapRecoverSession";
 import { rewriteAuthNetworkError } from "./authNetworkErrors";
+import {
+  provisionRestoreCredential,
+  revokeRestoreCredentialOnSignOut,
+  tryRestoreCredentialSignIn,
+} from "./restoreCredentials";
 import { requestEmailOtpCode, verifyEmailOtpCode } from "./sign-in-email";
 import type { AuthContextValue, AuthUserRow } from "./types";
 
@@ -263,6 +268,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
       });
       if (next) {
+        void provisionRestoreCredential().catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[auth] provisionRestoreCredential",
+            error instanceof Error ? error.message : String(error),
+          );
+        });
         safeStartAutoRefresh();
       } else {
         safeStopAutoRefresh();
@@ -279,14 +291,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
         let resolved: Session | null = sdkSession;
         if (!resolved) {
           const diskBeforeRecover = await readPersistedAuthSessionFromStorage();
-          if (!diskBeforeRecover) {
-            if (cancelled || initialSessionReady) return;
-            completeBootstrap(null);
-            return;
+          if (diskBeforeRecover) {
+            resolved = await recoverAuthSessionFromPersistedStorageWithRetries();
           }
-          resolved = await recoverAuthSessionFromPersistedStorageWithRetries();
+        }
+        if (!resolved) {
+          const restored = await tryRestoreCredentialSignIn();
+          if (cancelled || initialSessionReady) return;
+          if (restored) {
+            resolved = await recoverAuthSessionFromPersistedStorageWithRetries();
+          }
         }
         if (cancelled || initialSessionReady) return;
+        if (!resolved) {
+          completeBootstrap(null);
+          return;
+        }
         completeBootstrap(resolved);
       })();
     };
@@ -360,6 +380,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
       });
 
+      if (next && event === "SIGNED_IN") {
+        void provisionRestoreCredential().catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[auth] provisionRestoreCredential",
+            error instanceof Error ? error.message : String(error),
+          );
+        });
+      }
+
       if (next) {
         safeStartAutoRefresh();
       } else {
@@ -418,6 +448,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const doSignOut = useCallback(async () => {
     setSigningIn(true);
     try {
+      await revokeRestoreCredentialOnSignOut();
       const supabase = requireSupabase();
       await supabase.auth.signOut();
     } finally {

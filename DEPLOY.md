@@ -52,6 +52,7 @@ Optional environment variables:
 
 - `SENTRY_TRACES_SAMPLE_RATE` - Sentry traces sample rate, defaults to `0.05`.
 - `ALLOW_LEGACY_GEMINI_MODELS=true` - rewrites legacy `gemini-1.5-*` ids to `2.5` during migration.
+- `WEBAUTHN_ANDROID_ORIGINS` - JSON map of Android package → `android:apk-key-hash:…` for Restore Credentials origin verification (e.g. `{"com.zamkovoi.harmonizer":"android:apk-key-hash:…"}`). Without it, any `android:apk-key-hash:` origin is accepted (sufficient for internal testing).
 
 ## Mobile Client
 
