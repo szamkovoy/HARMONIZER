@@ -1,9 +1,15 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.15
-updated: 2026-08-20
+version: 1.16
+updated: 2026-08-27
 ---
+
+## 2026-08-27 — Black flash before cabinet browser
+
+- **Симптом:** тап «Личный кабинет» (Профиль / gate книги) → секунда чёрного экрана → белый браузер со спиннером загрузки.
+- **Причины:** (1) expo-web-browser default `presentationStyle: OverFullScreen` + презентация SFSafari поверх RN Modal (gate); (2) ожидание OTT до `openBrowserAsync` без prefetch.
+- **Фикс:** `FullScreen` + светлый toolbar; `beforeOpen` закрывает Modal до браузера; `prefetchAccountCabinetOtt` (Профиль focus / gate visible); Android `warmAccountCabinetBrowser` на tabs mount.
 
 ## 2026-08-20 — Cabinet country: GPS field vs ephemeral IP
 

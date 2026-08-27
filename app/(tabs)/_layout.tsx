@@ -11,6 +11,7 @@ import {
   useCompactTabBarStyle,
 } from "@/modules/ui/useCompactTabBarStyle";
 import { useTheme } from "@/modules/ui/theme";
+import { warmAccountCabinetBrowser } from "@/modules/account";
 import { ensureDayPlanPrefetch } from "@/services/dayPlanPrefetch";
 
 export default function TabLayout() {
@@ -27,6 +28,12 @@ export default function TabLayout() {
     if (!canOpenDay || !authUser?.id) return;
     ensureDayPlanPrefetch({ userId: authUser.id, locale, reason: "tabs_mount" });
   }, [authUser?.id, canOpenDay, locale]);
+
+  // Android Custom Tabs: warm browser process so «Личный кабинет» opens without a black flash.
+  useEffect(() => {
+    if (!authUser?.id) return;
+    warmAccountCabinetBrowser();
+  }, [authUser?.id]);
 
   return (
     <Tabs

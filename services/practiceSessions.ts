@@ -2,7 +2,8 @@ import { getSupabase } from "@/services/supabase";
 import type { Database, Json } from "@/services/supabase-types";
 import { getResponseLocale } from "@/modules/i18n";
 import { clearCachedDayPlan } from "@/services/dayPlanCache";
-import { clearPrefetchedDayPlan, markDayPlanStale } from "@/services/dayPlanReloadRequest";
+import { ensureDayPlanPrefetch } from "@/services/dayPlanPrefetch";
+import { markDayPlanStale } from "@/services/dayPlanReloadRequest";
 
 type PracticeSessionInsert = Database["public"]["Tables"]["practice_sessions"]["Insert"];
 export type DailyPracticeStat = Database["public"]["Tables"]["user_daily_stats"]["Row"];
@@ -49,10 +50,25 @@ export async function recordPracticeSession(input: RecordPracticeSessionInput): 
     }
     return null;
   }
-  // Stale Day cache/prefetch/in-memory still shows pending practice cards until network refresh.
+  // Stale Day cache/prefetch/in-memory still shows pending practice cards until
+  // network refresh. Clear first, then warm /api/day in the background so the
+  // Day tab can paint instantly when the user opens it after a practice.
   markDayPlanStale();
-  clearPrefetchedDayPlan();
-  void clearCachedDayPlan({ userId: input.userId, locale: getResponseLocale() });
+  const locale = getResponseLocale();
+  void (async () => {
+    try {
+      await clearCachedDayPlan({ userId: input.userId, locale });
+    } catch {
+      /* best-effort */
+    }
+    ensureDayPlanPrefetch({
+      userId: input.userId,
+      locale,
+      reason: "after_practice",
+      // Drop any in-flight cold/home prefetch so it cannot re-store a pre-practice plan.
+      force: true,
+    });
+  })();
   return data.id;
 }
 

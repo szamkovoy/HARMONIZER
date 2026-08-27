@@ -8,7 +8,7 @@ import {
   useAccess,
   type FeatureKey,
 } from "@/modules/access";
-import { deleteAccountRemote, openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
+import { deleteAccountRemote, openAccountCabinet, prefetchAccountCabinetOtt, useAccountLinksEnabled } from "@/modules/account";
 import { resolveBookAccess } from "@/modules/book/core/bookAccess";
 import { bookLocaleForAppLocale } from "@/modules/book/core/bookIds";
 import { BookProfileCard } from "@/modules/book/ui/BookProfileCard";
@@ -471,6 +471,14 @@ export default function ProfileTabRoute() {
         cancelled = true;
       };
     }, [authUser?.id]),
+  );
+
+  // Prefetch OTT while Profile is visible so «Личный кабинет» can open the browser immediately.
+  useFocusEffect(
+    useCallback(() => {
+      if (!showCabinet) return;
+      prefetchAccountCabinetOtt();
+    }, [showCabinet]),
   );
 
   useFocusEffect(

@@ -243,8 +243,7 @@ function MembershipNoticeModal({
     setErrorText(null);
     setOpening(true);
     try {
-      await openAccountCabinet();
-      onClose();
+      await openAccountCabinet("tier", { beforeOpen: onClose });
     } catch (error) {
       logRuntimeEvent(
         "membership_notice_cabinet_error",

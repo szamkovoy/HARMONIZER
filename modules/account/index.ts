@@ -1,5 +1,12 @@
 export { getAccountLinksEnabled, useAccountLinksEnabled } from "./core/accountLinksConfig";
-export { getAccountCabinetUrl, openAccountCabinet, type CabinetContext } from "./core/openAccountCabinet";
+export {
+  getAccountCabinetUrl,
+  openAccountCabinet,
+  prefetchAccountCabinetOtt,
+  warmAccountCabinetBrowser,
+  type CabinetContext,
+  type OpenAccountCabinetOptions,
+} from "./core/openAccountCabinet";
 export {
   resolveBillingCurrency,
   resolveBillingGeo,

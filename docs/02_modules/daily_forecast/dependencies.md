@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.19
-updated: 2026-08-20
+version: 2.20
+updated: 2026-08-27
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -14,6 +14,8 @@ code_refs:
     services/dayContentCache.ts,
     services/dayPlan.ts,
     services/dayPlanCache.ts,
+    services/dayPlanPrefetch.ts,
+    services/dayPlanReloadRequest.ts,
     services/homeDayContentReloadRequest.ts,
     services/globalContentClient.ts,
     modules/daily-engine/index.ts,
@@ -86,6 +88,7 @@ code_refs:
 
 - **`practices`**  
   - `app/(tabs)/index.tsx` вызывает `launchPractice` с контекстом, производным от дня (чакра/практика с главного экрана); карта планета→чакра — **`getPlanetChakraMap(locale)`** (`modules/home/planetChakra.ts`), питается `forecast.planetOfTheDay`.
+  - Обратно: `services/practiceSessions.recordPracticeSession` (Вспышка / дыхание / асана / ТВ) → `markDayPlanStale` + `clearCachedDayPlan` + `ensureDayPlanPrefetch({ reason: "after_practice", force: true })`, чтобы вкладка «День» прогревалась после практики без ожидания фокуса.
 
 ## 3. Контрактные точки риска
 

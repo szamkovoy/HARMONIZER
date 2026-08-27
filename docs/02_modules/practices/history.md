@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.71
-updated: 2026-08-24
+version: 1.72
+updated: 2026-08-27
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -16,6 +16,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-27 (Day re-prefetch after practice):** `recordPracticeSession` после `markDayPlanStale` + `clearCachedDayPlan` вызывает `ensureDayPlanPrefetch({ reason: "after_practice", force: true })`, чтобы вкладка «День» снова прогревалась в фоне (Вспышка / дыхание / асана / ТВ). Calm по-прежнему без `recordPracticeSession`. См. `daily_forecast/history.md`.
 
 - **2026-08-24 (Calm — binaural bed убран из выбора, только nature-beds):** Для медитации «Спокойствие» binaural (neuro-sync) sound bed больше не предлагается — оставлены только nature-beds (ручей, волны, дождь, лесные птицы, ветер, костёр, всплеск, мурчение кошки). Причина: neuro-sync bed строился на 12 коротких предзаписанных лупах (изначально 4 с, потом 30 с) с кроссфейдом по `targetHz` (сигмоида 12→2 Гц); пользователь воспринимал это как «зацикленный фрагмент» вместо непрерывной протяжки частоты по формуле под точную длительность практики. Рантайм-синтез одного WAV под точную длительность неосуществим для длинных практик (3–8 ч → сотни МБ / низкое качество несущей). Решение продукта: убрать binaural из выбора для Calm; nature-beds лупятся бесшовно по **естественной длине каждого файла** (пользователь обрезал края под бесшовный луп; `player.loop=true` лупит по фактической длительности файла, а не по жёсткой отметке — никакого «перерубания в одинаковый момент»). Дыхательные практики и «Вспышка» (sacred-symbol-stream) сохраняют neuro-sync. Реализация: `soundBed.ts` — `CALM_DEFAULT_SOUND_BED = "creek"` + `parseCalmSoundBedId` (отбрасывает `neuro-sync` → fallback на `CALM_DEFAULT_SOUND_BED`); `calmPreferences.ts` — дефолт `soundBed` сменён на `CALM_DEFAULT_SOUND_BED`, `parse`/`updateCalmPreferences` валидируют через `parseCalmSoundBedId` → ранее сохранённый `neuro-sync` у старых пользователей автоматически мигрирует на nature-bed при гидратации; `PracticeCard.tsx` — опции пикера sound bed для Calm = `NATURE_SOUND_BED_IDS` (без neuro-sync), для остальных = `SOUND_BED_OPTIONS` (с neuro-sync); `CalmPracticeScreen.tsx` дефолт `soundBed` → `CALM_DEFAULT_SOUND_BED`, fallback image → `CALM_BED_IMAGES[CALM_DEFAULT_SOUND_BED]`; `app/calm-practice.tsx` → `parseCalmSoundBedId` (URL `?soundBed=neuro-sync` мигрирует на nature). Реэкспорт `CALM_DEFAULT_SOUND_BED`/`parseCalmSoundBedId` добавлен в `modules/mandala-sound/index.ts`. Бинауральные ассеты (30 с) и генератор оставлены — neuro-sync bed используется дыханием/«Вспышкой».
 

@@ -13,26 +13,39 @@ import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
 let inFlightKey: string | null = null;
 let inFlight: Promise<void> | null = null;
+/** Bumped when a prior prefetch must not win (e.g. after practice clears cache). */
+let prefetchGeneration = 0;
 
 function prefetchKey(userId: string, locale: AppLocale): string {
   return `${userId}:${locale}`;
 }
 
-/** Fire-and-forget; dedupes concurrent calls for the same user+locale. */
+/** Fire-and-forget; dedupes concurrent calls for the same user+locale unless `force`. */
 export function ensureDayPlanPrefetch(options: {
   userId: string;
   locale: AppLocale;
   reason?: string;
+  /** Restart even if a prefetch is already in flight; discard results from the prior run. */
+  force?: boolean;
 }): void {
   const userId = options.userId.trim();
   if (!userId) return;
   const key = prefetchKey(userId, options.locale);
-  if (inFlight && inFlightKey === key) return;
 
+  if (options.force) {
+    prefetchGeneration += 1;
+    inFlightKey = null;
+    inFlight = null;
+  } else if (inFlight && inFlightKey === key) {
+    return;
+  }
+
+  const generation = prefetchGeneration;
   inFlightKey = key;
   inFlight = (async () => {
     try {
       const disk = await loadCachedDayPlan({ userId, locale: options.locale });
+      if (generation !== prefetchGeneration) return;
       if (disk && isDayPlanCurrent(disk)) {
         storePrefetchedDayPlan(disk);
         logRuntimeEvent("day_plan_prefetch", {
@@ -41,6 +54,7 @@ export function ensureDayPlanPrefetch(options: {
         });
       }
       const plan = await loadDayPlan();
+      if (generation !== prefetchGeneration) return;
       storePrefetchedDayPlan(plan);
       logRuntimeEvent("day_plan_prefetch", {
         source: "network",
@@ -48,13 +62,14 @@ export function ensureDayPlanPrefetch(options: {
         currentLocalDate: plan.currentLocalDate,
       });
     } catch (error) {
+      if (generation !== prefetchGeneration) return;
       logRuntimeEvent("day_plan_prefetch_failed", {
         reason: options.reason ?? "ensure",
         message: error instanceof Error ? error.message : String(error),
       });
       console.warn("[DayPlanPrefetch] Failed", error);
     } finally {
-      if (inFlightKey === key) {
+      if (generation === prefetchGeneration && inFlightKey === key) {
         inFlightKey = null;
         inFlight = null;
       }

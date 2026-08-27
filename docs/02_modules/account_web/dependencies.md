@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.7
-updated: 2026-08-20
+version: 1.8
+updated: 2026-08-27
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -30,7 +30,7 @@ code_refs:
 
 ## 2. От него зависят
 
-- **`subscription`** — `AccountGateDialog` / `AccountUpsellPanel` вызывают `openAccountCabinet()` и `useAccountLinksEnabled()`; все точки гейтинга приложения ведут в кабинет через этот модуль.
+- **`subscription`** — `AccountGateDialog` / `AccountUpsellPanel` вызывают `openAccountCabinet()` / `prefetchAccountCabinetOtt` и `useAccountLinksEnabled()`; gate передаёт `beforeOpen: onClose`, чтобы Modal закрылся до SFSafari.
 - **`profile`** — ссылки «Выйти» / «Удалить аккаунт» на `app/(tabs)/profile.tsx` (`deleteAccountRemote`).
 - **`admin_panel`** — KPI/графики **net**-выручки и `/admin/payments/stats` читают `payment_settlements` (`lavatop` / `yookassa`); ручной леджер `payments` — отдельно как гранты.
 - **Веб-страница кабинета (standalone на zamkovoi.yoga)** — контракт `POST /api/account/session` и `GET /api/account/overview` (форма `AccountOverview`); при изменении полей overview синхронно править `web_cabinet/cabinet/index.html`. Оферта — статика Vercel `/cabinet/offer/{lang}.json` (только по клику). Страница не должна отдаваться через тему WordPress.

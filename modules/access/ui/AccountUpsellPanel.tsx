@@ -8,10 +8,14 @@
  * Комплаенс: без цен и коммерческих формулировок — только «параметры
  * рекомендаций» и «Личный кабинет». Тексты — `gate.homePanel.*`.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
+import {
+  openAccountCabinet,
+  prefetchAccountCabinetOtt,
+  useAccountLinksEnabled,
+} from "@/modules/account";
 import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import { useTranslate } from "@/modules/i18n";
 import { AppButton } from "@/modules/ui/AppButton";
@@ -28,6 +32,11 @@ export function AccountUpsellPanel() {
   const [expanded, setExpanded] = useState(false);
   const [opening, setOpening] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!expanded || !showCabinet) return;
+    prefetchAccountCabinetOtt();
+  }, [expanded, showCabinet]);
 
   const onOpenCabinet = async () => {
     logRuntimeTap("home_upsell_open_cabinet", {});

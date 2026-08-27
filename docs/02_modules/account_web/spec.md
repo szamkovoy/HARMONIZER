@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.16
-updated: 2026-08-20
+version: 1.17
+updated: 2026-08-27
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -69,7 +69,9 @@ code_refs:
 
 Экспорт `modules/account/index.ts`:
 
-- **`openAccountCabinet(ctx?: CabinetContext): Promise<void>`** — `POST /api/account/ott` (Bearer JWT приложения) → `WebBrowser.openBrowserAsync("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")` (SFSafariViewController / Chrome Custom Tabs; на Android `createTask: false`, чтобы не убивать Activity). Бросает ошибку при недоступности OTT (UI показывает `gate.cabinetError`). `ctx`: `"tier"` (default) | `"webinar:<id>"` | `"course:<id>"` — задел под вебинары/курсы. Перед открытием пишет флаг `cabinetVisit.{userId}` (см. `readFreshCabinetVisit`).
+- **`openAccountCabinet(ctx?, options?): Promise<void>`** — `POST /api/account/ott` (Bearer JWT) → `WebBrowser.openBrowserAsync("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")` (SFSafariViewController / Chrome Custom Tabs; Android `createTask: false`). iOS: `presentationStyle: FullScreen` (не дефолтный OverFullScreen) + светлый `toolbarColor`, чтобы не было чёрного кадра до белой HTML-страницы. `options.beforeOpen` — закрыть RN Modal до презентации браузера (иначе SFSafari поверх Modal → чёрный экран; особенно заметно из book gate). Бросает при недоступности OTT (`gate.cabinetError`). `ctx`: `"tier"` | `"webinar:<id>"` | `"course:<id>"`. Перед открытием — `cabinetVisit.{userId}`.
+- **`prefetchAccountCabinetOtt()`** — фоновый прогрев OTT (TTL кэша ~3 мин из 5 мин серверного); вызывается при фокусе Профиля, открытии gate/upsell.
+- **`warmAccountCabinetBrowser()`** — Android `WebBrowser.warmUpAsync` + `mayInitWithUrlAsync` базового URL кабинета (tabs mount).
 - **`resolveBillingGeo` / `resolveBillingCurrency`** — страна/валюта кабинета: **сначала** `users.country_code` (только Nominatim после GPS; поле не обнуляется, если позже доступ к гео запретили), иначе **`GET /api/geo/ip-country`** (Vercel `x-vercel-ip-country`, fallback ipwho.is по публичному IP / VPN egress) → RU=RUB, US=USD, иначе EUR. IP **не** пишется в `users.country_code` и **не** персистится в SecureStore (VPN не должен засорять GPS-поле). В ссылку уходят `currency` + `country` (шлюз). Timeout **800 мс** даёт эфемерный EUR **без** записи в SecureStore; GPS-страна из профиля персистится.
 - **`getAccountCabinetUrl()`** — URL кабинета; переопределяется `EXPO_PUBLIC_ACCOUNT_CABINET_URL`.
 - **`useAccountLinksEnabled(): boolean`** / **`getAccountLinksEnabled()`** — kill-switch из `app_config` (in-memory TTL 5 мин + персист последнего явного значения; fail-safe `false`). «Нет строк»/сеть/503 schema cache НЕ пишутся как свежее `false`; при ошибке — ретраи, затем прежний кэш/персист. Персист убирает мигание кнопки на Профиле, пока идёт refetch.

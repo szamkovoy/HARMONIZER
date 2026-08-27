@@ -9,10 +9,14 @@
  *
  * Тексты — `gate.*` в modules/i18n/catalog (8 локалей).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, StyleSheet, View } from "react-native";
 
-import { openAccountCabinet, useAccountLinksEnabled } from "@/modules/account";
+import {
+  openAccountCabinet,
+  prefetchAccountCabinetOtt,
+  useAccountLinksEnabled,
+} from "@/modules/account";
 import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import type { FeatureKey } from "@/modules/access/core/features";
 import { useTranslate } from "@/modules/i18n";
@@ -58,13 +62,19 @@ export function AccountGateDialog({
   const [opening, setOpening] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
+  // Prefetch OTT while the user reads the gate — book path especially benefits.
+  useEffect(() => {
+    if (!visible || !showCabinet) return;
+    prefetchAccountCabinetOtt();
+  }, [visible, showCabinet]);
+
   const onOpenCabinet = async () => {
     logRuntimeTap("account_gate_open_cabinet", { feature });
     setErrorText(null);
     setOpening(true);
     try {
-      await openAccountCabinet();
-      onClose();
+      // Dismiss Modal before SFSafari/Custom Tabs — avoids black flash over backdrop.
+      await openAccountCabinet("tier", { beforeOpen: onClose });
     } catch (error) {
       logRuntimeEvent(
         "account_gate_cabinet_error",

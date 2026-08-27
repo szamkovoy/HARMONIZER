@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.19
-updated: 2026-08-23
+version: 1.20
+updated: 2026-08-27
 depends_on:
   [
     01_foundation/product_model,
@@ -36,7 +36,7 @@ code_refs:
   `app/(tabs)/_layout.tsx` — таб «Практики» виден всем (каталог — витрина); `modules/practices/ui/PracticeCatalogScreen.tsx`, `app/(tabs)/day.tsx`, `app/asana-practice.tsx` — `canUseFeature` / `AccountGateDialog` на запуск (`meditations` / `breath_practices` / `asana_practices`). Парная запись: `docs/02_modules/subscription/dependencies.md` §2.
 
 - **`daily_forecast`**  
-  Прямой импорт прогноза в **`modules/practices/`** отсутствует. Связь через главный экран: `app/(tabs)/index.tsx` при открытом оверлее ассистента передаёт в `Communicator` forecast-метаданные дня; серверный выбор практики (`_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`) может учитывать контекст дня и вернуть coherent breathing на чакру дня. Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.
+  Прямой импорт прогноза в **`modules/practices/`** отсутствует. Связь через главный экран: `app/(tabs)/index.tsx` при открытом оверлее ассистента передаёт в `Communicator` forecast-метаданные дня; серверный выбор практики (`_legacy_web/app/api/communicator/v2/dialog/practiceSelection.ts`) может учитывать контекст дня и вернуть coherent breathing на чакру дня. Косвенно: `services/practiceSessions.recordPracticeSession` после записи сессии сбрасывает Day cache и вызывает `ensureDayPlanPrefetch({ reason: "after_practice", force: true })` (модуль `daily_forecast` / Day tab). Парная запись: `docs/02_modules/daily_forecast/dependencies.md` §2.
 
 - **`biofeedback`**  
   `app/breath-coherence.tsx` → **`CoherenceBreathScreen`** — PPG / BLE pipeline, wearable preferences (`modules/biofeedback/wearables/preferences.ts`), общий **`WearablePickerDialog`** (`modules/biofeedback/wearables/WearablePickerDialog.tsx`) и запись **`metrics`** в `practice_sessions`. `PracticeCard.tsx` читает remembered BLE-датчик из biofeedback-модуля и открывает тот же picker до старта, чтобы запекать `sensorMode/deviceId/capabilityTier` в launch-контракт. Медитация **`SacredSymbolStreamScreen`** biofeedback не использует. Парная запись: `docs/02_modules/biofeedback/dependencies.md` §2.

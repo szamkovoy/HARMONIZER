@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.45
-updated: 2026-08-20
+version: 2.46
+updated: 2026-08-27
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -22,6 +22,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-27 (Day prefetch after practice):** `recordPracticeSession` сбрасывал Day cache/prefetch (`markDayPlanStale` + `clearCachedDayPlan`), но **не** запускал повторный `ensureDayPlanPrefetch` — после «Вспышки»/дыхания/асаны первое открытие «День» снова ждало `/api/day` (второй раз — мгновенно). Fix: после очистки disk — `ensureDayPlanPrefetch({ reason: "after_practice", force: true })` (generation discard, чтобы in-flight cold/home prefetch не перезаписал план до практики). Calm без `recordPracticeSession` — вне этого пути. Cold-path (tabs_mount + home_ready) без изменений.
 
 - **2026-08-20 (Ask Next Time → system sheet):** Возврат из Настроек после «Спросить в следующий раз» сразу показывает системный лист геолокации (не требует второго тапа по CTA).
 
