@@ -73,7 +73,7 @@
     "title": "Ventanas de oportunidades",
     "emptyDetail": "Hoy sin ventana precisa",
     "windowTitles": {
-      "sunrise": "Amanecer",
+      "sunrise": "Salida",
       "culmination": "Culminación",
       "exactAspect": "Aspecto exacto"
     },
@@ -109,7 +109,7 @@
       "freeOpening": "El planeta más fuerte del día es {planet}. El gráfico muestra cuándo {planet} sale y alcanza el cenit en tu ubicación.",
       "paidOpening": "El planeta más fuerte de tu carta natal hoy es {natalPlanet}. Esta fuerza se debe en gran parte a la interacción con el planeta de tránsito {transitPlanet}, cuyo movimiento en el cielo abre para ti ventanas especiales de oportunidades.",
       "paidOpeningNoTransit": "Hoy el gráfico muestra una ventana de oportunidades general sin un planeta de tránsito claramente destacado.",
-      "sunriseLine": "Amanecer: {time} — {planet} se eleva sobre el horizonte.",
+      "sunriseLine": "Salida: {time} — {planet} se eleva sobre el horizonte.",
       "culminationLine": "Culminación: {time} — {planet} en el punto más alto de su recorrido diario.",
       "exactAspectLine": "Aspecto exacto: {time} — {aspect} {transitPlanet} (tránsito) y {natalPlanet} (natal).",
       "closing": "Estos son momentos clave específicamente para tu ubicación. Úsalos para prácticas espirituales, afirmaciones, intenciones, meditación, etc.",

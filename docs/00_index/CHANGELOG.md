@@ -1,3 +1,4 @@
+- 2026-08-28 (550): Home «Окна возможностей» — 24‑часовое время для всех локалей кроме EN (`getHomeStrings.formatTime`; DE больше не показывает 9:06 PM).
 - 2026-08-27 (549): Личный кабинет — убран чёрный кадр перед браузером (`FullScreen` + светлый toolbar; закрытие RN Modal до SFSafari; prefetch OTT; Android Custom Tabs warm-up).
 - 2026-08-27 (548): Day tab — re-prefetch `/api/day` after `recordPracticeSession` clears cache (`force: true` so an in-flight home prefetch cannot restore a pre-practice plan; Flash/breath/asana/TV).
 - 2026-08-27 (547): Zero-Tap restore — location CTA dead after silent login. Prompt only from Home (not PushRegistrationBridge under splash); longer settle; CTA preferFresh; clear stale awaitingSettingsGrant on undetermined.

@@ -1,14 +1,15 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.46
-updated: 2026-08-27
+version: 2.47
+updated: 2026-08-28
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
     modules/daily-engine/computeDailyForecast.ts,
     modules/daily-engine/planetDiurnalCurve.ts,
     modules/home/ui/OpportunityWindows.tsx,
+    modules/home/i18n/home.ts,
     modules/home/useDayContent.ts,
     app/(tabs)/day.tsx,
     modules/ui/BlockingStatusToast.tsx,
@@ -22,6 +23,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-08-28 (opportunity windows 24h clock):** Времена на карточке «Окна возможностей» (и колокольчиках) через `getHomeStrings.formatTime`: 12‑часовой формат только для `en`; RU/DE/FR/IT/ES/PT/NL — 24‑часовой. Исправлена ошибка, когда non‑RU локали наследовали `en` через `inlineBaseLocale`. См. i18n history.
 
 - **2026-08-27 (Day prefetch after practice):** `recordPracticeSession` сбрасывал Day cache/prefetch (`markDayPlanStale` + `clearCachedDayPlan`), но **не** запускал повторный `ensureDayPlanPrefetch` — после «Вспышки»/дыхания/асаны первое открытие «День» снова ждало `/api/day` (второй раз — мгновенно). Fix: после очистки disk — `ensureDayPlanPrefetch({ reason: "after_practice", force: true })` (generation discard, чтобы in-flight cold/home prefetch не перезаписал план до практики). Calm без `recordPracticeSession` — вне этого пути. Cold-path (tabs_mount + home_ready) без изменений.
 

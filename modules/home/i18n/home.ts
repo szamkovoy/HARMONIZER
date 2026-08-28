@@ -1,5 +1,5 @@
 import type { AppContentLocale } from "@/modules/i18n/localeCodes";
-import { inlineBaseLocale } from "@/modules/i18n/localeCodes";
+import { inlineBaseLocale, intlLocaleTag } from "@/modules/i18n/localeCodes";
 import { mergeTypedLocale } from "@/modules/i18n/typed/merge";
 import type { AspectType, DailyForecast, Planet, TodayTone } from "@/modules/daily-engine";
 import { chakraLabelGenitive, type ChakraLocale } from "@/modules/chakra/i18n";
@@ -175,12 +175,14 @@ export interface HomeStrings {
   formatTime: (value: string) => string;
 }
 
-function formatTime(value: string, locale: string): string {
+/** Clock times on Home (opportunity windows, bells): 12h only for English; 24h elsewhere. */
+function formatTime(value: string, locale: AppContentLocale): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(11, 16);
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(intlLocaleTag(locale), {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: locale === "en",
   }).format(date);
 }
 
@@ -623,7 +625,7 @@ const en: HomeStrings = {
         forecast.isAlternativeChoice && forecast.alternativeReasonText
           ? forecast.alternativeReasonText
           : "If this theme repeats several days in a row, the app may choose the second-most important chakra so your effort does not get stuck.",
-        "The opportunity windows below show moments when body and attention can shift more easily: sunrise brings impulse, culmination amplifies expression, an exact aspect makes the theme especially visible.",
+        "The opportunity windows below show moments when body and attention can shift more easily: rise brings impulse, culmination amplifies expression, an exact aspect makes the theme especially visible.",
       ];
     },
   },
@@ -689,7 +691,7 @@ export function getHomeStrings(locale: HomeLocale): HomeStrings {
     ...merged,
     locale,
     opportunityWindows: bindOpportunityWindowHelpers(merged.opportunityWindows),
-    formatTime: (value) => formatTime(value, inlineBaseLocale(locale)),
+    formatTime: (value) => formatTime(value, locale),
   };
 }
 

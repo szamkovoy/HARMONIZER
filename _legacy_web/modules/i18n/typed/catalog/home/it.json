@@ -73,7 +73,7 @@
     "title": "Finestre di opportunità",
     "emptyDetail": "Oggi senza finestra precisa",
     "windowTitles": {
-      "sunrise": "Alba",
+      "sunrise": "Sorgere",
       "culmination": "Culminazione",
       "exactAspect": "Aspetto esatto"
     },
@@ -109,7 +109,7 @@
       "freeOpening": "Il pianeta più forte del giorno è {planet}. Il grafico mostra quando {planet} sorge e raggiunge lo zenit nella vostra posizione.",
       "paidOpening": "Il pianeta più forte della vostra carta natale oggi è {natalPlanet}. Questa forza è in gran parte dovuta all'interazione con il pianeta di transito {transitPlanet}, il cui movimento nel cielo apre per voi finestre di opportunità particolari.",
       "paidOpeningNoTransit": "Oggi il grafico mostra una finestra di opportunità generale senza un pianeta di transito chiaramente evidenziato.",
-      "sunriseLine": "Alba: {time} — {planet} sale sopra l'orizzonte.",
+      "sunriseLine": "Sorgere: {time} — {planet} sale sopra l'orizzonte.",
       "culminationLine": "Culminazione: {time} — {planet} nel punto più alto del percorso giornaliero.",
       "exactAspectLine": "Aspetto esatto: {time} — {aspect} {transitPlanet} (transito) e {natalPlanet} (natale).",
       "closing": "Questi sono momenti chiave specificamente per la vostra posizione. Usateli per pratiche spirituali, affermazioni, intenzioni, meditazione e simili.",

@@ -119,7 +119,11 @@ const ru: DayStrings = {
   formatTime: (value) => {
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) return "";
-    return new Intl.DateTimeFormat("ru", { hour: "2-digit", minute: "2-digit" }).format(date);
+    return new Intl.DateTimeFormat("ru", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
   },
   formatDurationMinutes: (minutes) => `${minutes} мин`,
 };
@@ -176,7 +180,11 @@ const en: DayStrings = {
   formatTime: (value) => {
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) return "";
-    return new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(date);
+    return new Intl.DateTimeFormat("en", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(date);
   },
   formatDurationMinutes: (minutes) => `${minutes} min`,
 };
@@ -198,7 +206,11 @@ export function getDayStrings(locale: DayLocale = "ru"): DayStrings {
     formatTime: (value) => {
       const date = new Date(value);
       if (!Number.isFinite(date.getTime())) return "";
-      return new Intl.DateTimeFormat(intlTag, { hour: "2-digit", minute: "2-digit" }).format(date);
+      return new Intl.DateTimeFormat(intlTag, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: locale === "en",
+      }).format(date);
     },
   };
 }

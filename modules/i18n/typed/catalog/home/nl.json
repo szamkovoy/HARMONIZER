@@ -73,7 +73,7 @@
     "title": "Kansenvensters",
     "emptyDetail": "Vandaag geen exact venster",
     "windowTitles": {
-      "sunrise": "Zonsopgang",
+      "sunrise": "Opkomst",
       "culmination": "Culminatie",
       "exactAspect": "Exact aspect"
     },

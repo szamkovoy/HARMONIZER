@@ -73,7 +73,7 @@
     "title": "Fenêtres d'opportunités",
     "emptyDetail": "Aujourd'hui sans fenêtre précise",
     "windowTitles": {
-      "sunrise": "Lever du soleil",
+      "sunrise": "Lever",
       "culmination": "Culmination",
       "exactAspect": "Aspect exact"
     },

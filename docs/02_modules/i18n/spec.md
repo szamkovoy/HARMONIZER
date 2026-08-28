@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.18
-updated: 2026-08-24
+version: 1.19
+updated: 2026-08-28
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -149,6 +149,9 @@ cost never decides layer-C design.
 - **`inlineBaseLocale(locale)`** — `ru` for source locale, `en` for all others; selects
   the inline RU/EN base table before `mergeTypedLocale` overlay.
 - **`intlLocaleTag(locale)`** — BCP 47 tag for `Intl.DateTimeFormat` (`ru-RU`, `de-DE`, …).
+  Home/Day clock times (`getHomeStrings` / `getDayStrings` → `formatTime`) pass this tag and set
+  **`hour12: true` only for `en`**; all other locales force 24-hour (`21:06`, not `9:06 PM`).
+  Do not pass `inlineBaseLocale(locale)` into `Intl` — that made DE/FR/… inherit English 12-hour.
 - **`formatRelativeTime(isoOrDate, locale, now?)`** — относительные метки с **сокращёнными** единицами (`15 мин`, `2 h`, `3 дн`); одна доминирующая единица (часы без минут, дни без часов). Каталог без склонений. Hermes не реализует `Intl.RelativeTimeFormat`, поэтому Luxon `toRelative()` на RN не используется.
 - **`pickLocalizedText` / `pickLocalizedUrl` / `hasLocalizedTitle`** — soft chain preferred → en → ru (notifications push/inbox).
 - **`pickExactLocalizedText` / `pickExactLocalizedUrl` / `hasExactLocalizedTitle`** — только активная локаль; Videos/Webinars feed и announce UI.

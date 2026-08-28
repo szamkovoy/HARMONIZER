@@ -73,7 +73,7 @@
     "title": "Fenster der Möglichkeiten",
     "emptyDetail": "Heute ohne genaues Zeitfenster",
     "windowTitles": {
-      "sunrise": "Sonnenaufgang",
+      "sunrise": "Aufgang",
       "culmination": "Kulmination",
       "exactAspect": "Exakter Aspekt"
     },
