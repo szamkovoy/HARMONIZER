@@ -529,6 +529,39 @@ async function precomputeMorningRecommendation(params: {
   return { status: "generated", modelUsed: result.model, tokensUsed: result.tokensUsed ?? null };
 }
 
+function parseMorningCacheLocale(cacheKey: unknown, userId: string): AppContentLocale | null {
+  if (typeof cacheKey !== "string" || !cacheKey) return null;
+  const prefix = `${MORNING_SCENARIO_ID}:${userId}:`;
+  if (!cacheKey.startsWith(prefix)) return null;
+  const suffix = cacheKey.slice(prefix.length);
+  const locale = suffix.split(":").pop()?.trim().toLowerCase() ?? "";
+  return (SUPPORTED_LOCALES as readonly string[]).includes(locale) ? (locale as AppContentLocale) : null;
+}
+
+/** Locales this user actually opened recently — midnight cron must warm them, not only users.locale. */
+async function listRecentMorningLocales(db: any, userId: string, primary: AppContentLocale): Promise<AppContentLocale[]> {
+  const cutoff = daysAgo(ACTIVE_PRECOMPUTE_DAYS);
+  const { data, error } = await db
+    .from("scenario_cache")
+    .select("cache_key, created_at")
+    .eq("user_id", userId)
+    .eq("scenario_id", MORNING_SCENARIO_ID)
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: false })
+    .limit(40);
+  if (error) throw error;
+  const seen = new Set<AppContentLocale>();
+  const extras: AppContentLocale[] = [];
+  for (const row of data ?? []) {
+    const locale = parseMorningCacheLocale(row.cache_key, userId);
+    if (!locale || locale === primary || seen.has(locale)) continue;
+    seen.add(locale);
+    extras.push(locale);
+    if (extras.length >= 2) break;
+  }
+  return extras;
+}
+
 async function processUser(db: any, chart: any, force: boolean, promptConfig: Awaited<ReturnType<typeof loadMorningPromptConfig>>) {
   const user = chart.users;
   if (!user?.id) {
@@ -552,12 +585,6 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
   if (!forecastDate) return { status: "skipped", reason: "invalid_date" };
   const locale = normalizeLocale(user.locale);
   const cachedForecast = !force ? await loadFreshForecastCache(db, user.id, forecastDate) : null;
-  const cachedMorning = !force
-    ? await loadFreshMorningCache(db, user.id, forecastDate, locale, promptConfig.expectedModel)
-    : null;
-  if (cachedForecast && cachedMorning) {
-    return { status: "skipped", reason: "cache_hit" };
-  }
 
   const natalProfile = natalProfileFromRow(chart);
   const calibration = await loadActiveCalibration(db, user.id);
@@ -594,15 +621,39 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
     force,
   });
 
+  const extraLocales = await listRecentMorningLocales(db, user.id, locale);
+  const extraMorning = [];
+  for (const extraLocale of extraLocales) {
+    extraMorning.push(
+      await precomputeMorningRecommendation({
+        db,
+        userId: user.id,
+        forecastDate,
+        locale: extraLocale,
+        promptConfig,
+        forecast,
+        natalProfile,
+        calibration,
+        addressForm: user.address_form ?? null,
+        force,
+      }),
+    );
+  }
+
+  const morningGenerated = morning.status === "generated" || extraMorning.some((item) => item.status === "generated");
   return {
-    status: forecastStatus === "computed" || morning.status === "generated" ? "computed" : "skipped",
-    reason: forecastStatus === "cache_hit" && morning.status === "cache_hit" ? "cache_hit" : undefined,
+    status: forecastStatus === "computed" || morningGenerated ? "computed" : "skipped",
+    reason:
+      forecastStatus === "cache_hit" && morning.status === "cache_hit" && !morningGenerated
+        ? "cache_hit"
+        : undefined,
     forecastDate,
     locale,
+    extraLocales: extraMorning.map((item, index) => ({ locale: extraLocales[index], status: item.status })),
     planetOfTheDay: forecast.planetOfTheDay ?? forecast.planet_of_the_day,
     forecastStatus,
     morningStatus: morning.status,
-    modelUsed: morning.modelUsed ?? null,
+    modelUsed: morning.modelUsed ?? extraMorning.find((item) => item.modelUsed)?.modelUsed ?? null,
   };
 }
 
@@ -619,25 +670,29 @@ Deno.serve(async (req) => {
 
     const db = createServiceClient();
     const promptConfig = await loadMorningPromptConfig(db);
-    let query = db
-      .from("user_natal_charts")
-      .select("*, users!inner(id,tz,lat,lon,last_seen_at,onboarded_at,locale,address_form,membership_tier,trial_expires_at,membership_expires_at)")
-      .eq("is_active", true)
-      .order("computed_at", { ascending: false })
-      .limit(BATCH_SIZE);
-
-    if (targetUserId) query = query.eq("user_id", targetUserId);
-    const { data: charts, error } = await query;
-    if (error) throw error;
-
     const results = [];
-    for (const chart of charts ?? []) {
-      try {
-        results.push({ userId: chart.user_id, ...(await processUser(db, chart, force, promptConfig)) });
-      } catch (error) {
-        console.error("[precompute-daily-forecasts] user failed", chart.user_id, error);
-        results.push({ userId: chart.user_id, status: "error", error: error instanceof Error ? error.message : String(error) });
+    let offset = 0;
+    for (;;) {
+      let query = db
+        .from("user_natal_charts")
+        .select("*, users!inner(id,tz,lat,lon,last_seen_at,onboarded_at,locale,address_form,membership_tier,trial_expires_at,membership_expires_at)")
+        .eq("is_active", true)
+        .order("user_id", { ascending: true })
+        .range(offset, offset + BATCH_SIZE - 1);
+      if (targetUserId) query = query.eq("user_id", targetUserId);
+      const { data: charts, error } = await query;
+      if (error) throw error;
+      const page = charts ?? [];
+      for (const chart of page) {
+        try {
+          results.push({ userId: chart.user_id, ...(await processUser(db, chart, force, promptConfig)) });
+        } catch (error) {
+          console.error("[precompute-daily-forecasts] user failed", chart.user_id, error);
+          results.push({ userId: chart.user_id, status: "error", error: error instanceof Error ? error.message : String(error) });
+        }
       }
+      if (targetUserId || page.length < BATCH_SIZE) break;
+      offset += BATCH_SIZE;
     }
 
     return json({

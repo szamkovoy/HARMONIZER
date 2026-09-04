@@ -1,4 +1,5 @@
-- 2026-09-04 (554): Android Profile — language switch no longer cancelled by Modal blur; sign-out no longer waits on Restore Credentials. OTP for nicerammy@gmail.com was sent (SES hook 200×2).
+- 2026-09-05 (555): Cold start — phone day-cache survives GPS jitter (relaxed read; no delete); locale hydrates before Home fetch; locale sync uses session snapshot; midnight cron paginates all natal charts and warms recently used locales.
+
 - 2026-09-04 (552): Dialog scaffold — `summaryAlreadyComplete` for the empty day-summary terminal (was hardcoded RU). 8 locales via PREMIUM fill.
 - 2026-09-04 (551): Summarizing FINAL — if native Health figures are cited, the same sentence names `Apple Health` (iOS) or `Health Connect` (Android). Yoga-only / denied / empty metrics stay unattributed. Server-only (`formatHealthForPrompt`); client already sent `provider`.
 - 2026-08-28 (550): Home «Окна возможностей» — 24‑часовое время для всех локалей кроме EN (`getHomeStrings.formatTime`; DE больше не показывает 9:06 PM).

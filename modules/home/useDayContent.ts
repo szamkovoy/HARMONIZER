@@ -516,7 +516,7 @@ export function useDayContent(options?: UseDayContentOptions): UseDayContentResu
       if (!locationForRequest && profileId) {
         locationForRequest = await loadCachedUserCoords(profileId);
       }
-      if (!locationForRequest && profileId && !opts?.forceRefresh && !relaxedCache) {
+      if (profileId && !opts?.forceRefresh && !relaxedCache) {
         setHomeBootstrapPhase("initializing", "HOME/day_cache_relaxed_read");
         for (const scopeKeyCandidate of contentScopeKeys) {
           relaxedCache = await loadDayContentCacheRelaxed({

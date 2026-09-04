@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.40
-updated: 2026-09-04
+version: 1.41
+updated: 2026-09-05
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -57,7 +57,7 @@ code_refs:
 - **`useAuth()`** (`modules/auth/useAuth.ts`) внутри `AuthProvider` возвращает **`AuthContextValue`** (`modules/auth/types.ts`):
   - **`session`**, **`authUser`** — стандартные объекты Supabase (`Session`, `User`).
   - **`profile: AuthUserRow | null`** — полная строка **`public.users`** по `id = auth.users.id`, тип **`Database["public"]["Tables"]["users"]["Row"]`** (`services/supabase-types.ts`). Поля, от которых зависят другие домены, включают среди прочих: `birth_date`, `birth_time`, `birth_place`, `tz`, `lat`, `lon`, `location_name`, `locale`, `membership_tier`, `trial_expires_at`, `display_name`, `avatar_url`, `onboarded_at`.
-  - **`profileLoading`**, **`initializing`**, **`signingIn`** — флаги жизненного цикла. На cold start при непустой session `completeBootstrap` поднимает `profileLoading` **до** `initializing=false`, чтобы layout/splash не видели тик без loading при ещё пустом `profile`.
+  - **`profileLoading`**, **`initializing`**, **`signingIn`** — флаги жизненного цикла. На cold start при непустой session `completeBootstrap` поднимает `profileLoading` **до** `initializing=false`, чтобы layout/splash не видели тик без loading при ещё пустом `profile`. Перед снятием `profileLoading` `syncProfile` **await** `hydrateAppLocale`, чтобы Home не запросил день на `deviceLocale` (SecureStore ещё не прочитан).
   - **`requestEmailCode(email, displayName?)`**, **`verifyEmailCode(email, code)`**, **`signOut`** (email-OTP; `modules/auth/sign-in-email.ts`). Перед `signInWithOtp`: `POST /api/auth/otp-gate` (Firebase App Check / debug attestation + rate limits → permit) и RPC `set_signin_name_hint`. Edge `send-auth-email` вызывает `otp_consume_send_permit` (для `STORE_REVIEW_EMAIL` — без отправки письма). Verify: `POST /api/auth/otp-verify` (store-review mint) или GoTrue `verifyOtp`. Лимиты: 60 с / 10/ч / 25/сут на email; ≤10 неверных verify/ч. `OTP_REQUIRE_APP_CHECK=true` включает обязательный permit. Поле **`users.store_review_account`**: демо App Store / Play — UI скрывает кабинет / выход / удаление (`isStoreReviewAccount`). **`signOut`:** сразу `supabase.auth.signOut()` (при сетевом таймауте ~5 с — `{ scope: "local" }`); revoke Android Restore Credential идёт **фоном** с бюджетом ~4 с и не блокирует выход.
   - **`refreshProfile()`** — повторный `select * from users` для текущего `session.user` (после `createNatalProfile`, онбординга, Realtime membership). **Silent:** не ставит `profileLoading` (иначе Home abort’ит загрузку дня). Initial `syncProfile` после login/session по-прежнему выставляет `profileLoading`.
 

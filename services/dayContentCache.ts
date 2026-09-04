@@ -61,7 +61,8 @@ const CACHE_PREFIX = "harmonizer.dayContent.v1";
 const MANIFEST_KEY = `${CACHE_PREFIX}.manifest`;
 const SECURE_STORE_CHUNK_SIZE = 1800;
 const SECURE_STORE_KEY_RX = /^[A-Za-z0-9._-]+$/;
-const LOCATION_EPSILON = 0.0001;
+/** ~1.1 km. Android Balanced GPS often jitters 20–50 m; 0.0001° (~11 m) was deleting today's cache. */
+const LOCATION_EPSILON = 0.01;
 const memoryCache = new Map<string, DayContentCacheEntry>();
 
 function safeStorageKey(key: string): string | null {
@@ -345,9 +346,13 @@ export async function loadDayContentCache(params: {
   const entry = memoryCache.get(key) ?? parseJson<DayContentCacheEntry>(await getRaw(key));
   if (!entry) return null;
 
-  if (!entryMatchesLookup(entry, params) || !sameLocation(entry.location, params.userLocation)) {
+  if (!entryMatchesLookup(entry, params)) {
     memoryCache.delete(key);
     await removeRaw(key);
+    return null;
+  }
+  if (!sameLocation(entry.location, params.userLocation)) {
+    // GPS jitter / first-fix vs birth coords — keep the day's row for relaxed reads.
     return null;
   }
 

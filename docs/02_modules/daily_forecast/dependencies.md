@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.20
-updated: 2026-08-27
+version: 2.21
+updated: 2026-09-05
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -65,7 +65,7 @@ code_refs:
 
 - **`subscription`**  
   - `app/(tabs)/index.tsx` — `useAccess().canUseFeature("personal_daily_forecast")` и проброс tier в `useDayContent`; внутри хука ветка `nextAccessMode === "free"` vs персональный прогноз и разные базовые URL.
-  - `supabase/functions/precompute-daily-forecasts/index.ts` использует серверный premium/personal gate (`membership_tier`, `trial_expires_at`) и греет personal path при активности **5 дней** (`users.last_seen_at` / `onboarded_at`). GPS не обязателен (last coords или Moscow+tz fallback).
+  - `supabase/functions/precompute-daily-forecasts/index.ts` использует серверный premium/personal gate (`membership_tier`, `trial_expires_at`) и греет personal path при активности **5 дней** (`users.last_seen_at` / `onboarded_at`). GPS не обязателен (last coords или Moscow+tz fallback). Выборка — пагинация всех активных наталов; morning-кэш ещё и для недавних UI-локалей пользователя, не только `users.locale`.
   - Dev test «Обновить» на Home: `services/devDayContentResetClient.ts` → `POST /api/ai/dev-day-reset` с `resetScope: "both"` (одним вызовом чистит и shared `global_daily_content`, и персональные `scenario_cache`/`user_daily_forecasts` этого пользователя, затем `refresh({forceRefresh:true})` регенерирует активный тариф); legacy `POST /api/ai/global-content` `{ devReset: true }` на сервере остаётся только для `global` scope.
 
 - **`assistant` (server monologue cache)**

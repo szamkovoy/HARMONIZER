@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.14
-updated: 2026-08-20
+version: 1.15
+updated: 2026-09-05
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -58,7 +58,7 @@ code_refs:
 ## 2. От него зависят
 
 - **`daily_forecast`**  
-  `useDayContent` и главный экран читают `profile` из `useAuth()` (tz, координаты, birth fields, tier) для выбора режима контента и scope кэша; смена birth с профиля инициирует отложенный **`blockingReload`** главного через `homeDayContentReloadRequest` (см. §1). Вкладка **`app/(tabs)/day.tsx`** дополнительно использует **`authUser.id`** для ключа **`dayPlanCache`**; **`loadDayPlan`** берёт Bearer через **`getSupabaseAccessSession`**, который **`AuthProvider`** подпитывает **`rememberSupabaseSession`**.
+  `useDayContent` и главный экран читают `profile` из `useAuth()` (tz, координаты, birth fields, tier) для выбора режима контента и scope кэша; `AuthProvider.syncProfile` гидратит locale до снятия `profileLoading`. Смена birth с профиля инициирует отложенный **`blockingReload`** главного через `homeDayContentReloadRequest` (см. §1). Вкладка **`app/(tabs)/day.tsx`** дополнительно использует **`authUser.id`** для ключа **`dayPlanCache`**; **`loadDayPlan`** берёт Bearer через **`getSupabaseAccessSession`**, который **`AuthProvider`** подпитывает **`rememberSupabaseSession`**.
 
 - **`subscription`**  
   Тот же объект `profile` — вход `AccessProvider`; без актуальных `membership_tier` / `trial_expires_at` ломается вся матрица gate.

@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.43
-updated: 2026-09-04
+version: 1.44
+updated: 2026-09-05
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-09-05 (locale before Home fetch):** `syncProfile` await `hydrateAppLocale` до `profileLoading=false`, иначе child `useDayContent` стартовал день на языке ОС, а не SecureStore/`users.locale`, и midnight cron miss держал splash на LLM.
 
 - **2026-09-04 (Android locale + sign-out):** Смена языка на Android: `useFocusEffect` cleanup сбрасывал `localeRebuild` при блюре от RN `Modal` (confirm/loading), комбо оставался на optimistic locale, UI — на старом языке. Fix: на blur закрывать только комбо; probe показывает спиннер и имеет таймаут 8 с. «Выйти» зависал на `await revokeRestoreCredentialOnSignOut()` (Credential Manager `clearCredentialState` / сеть) — кабинет disabled, сессия жива. Fix: revoke фоном с бюджетом; `signOut` с таймаутом и fallback `scope: "local"`. `AppDialog` вооружает кнопки через ~320 мс (Android tap-through).
 

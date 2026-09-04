@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.20
-updated: 2026-09-04
+version: 1.21
+updated: 2026-09-05
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -114,8 +114,11 @@ cost never decides layer-C design.
     must not force remote push into the old language).
   - `getAppLocale()` / `setAppLocale(locale)` / `subscribeAppLocale(cb)`.
     `setAppLocale` persists locally and mirrors to `users.locale`
-    via `services/userLocaleClient.ts` (`syncUserLocaleToServer`) even when
-    the in-memory locale is unchanged (heals DB drift).
+    via `services/userLocaleClient.ts` (`syncUserLocaleToServer`, bearer через
+    **`getSupabaseAccessSession`**, не блокирующий `auth.getSession()`) even when
+    the in-memory locale is unchanged (heals DB drift). `AuthProvider.syncProfile`
+    hydrates locale **before** clearing `profileLoading`, so Home day-fetch does
+    not race the device language.
   - `coerceAppLocale(value)` — reduce any locale-ish string to the nearest
     **enabled** locale (else default). Use this at every boundary.
   - **`getResponseLocale()`** — locale the assistant should answer in (sent as

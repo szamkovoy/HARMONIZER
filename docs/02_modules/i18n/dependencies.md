@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.15
-updated: 2026-07-17
+version: 1.16
+updated: 2026-09-05
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -43,7 +43,8 @@ This file lists the contracts so a change here is traceable to its blast radius.
 ## Outbound — what i18n provides to other modules
 | Consumer (module) | Uses | Contract |
 |-------------------|------|----------|
-| `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called in `AccessBridge` when `profile?.locale` changes; `users.locale` wins over sticky SecureStore from a previous account. |
+| `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called in `AccessBridge` when `profile?.locale` changes; `users.locale` wins over sticky SecureStore from a previous account. Cold-start hydrate also runs from **`AuthProvider.syncProfile`** before `profileLoading` clears. |
+| `profile` (`AuthProvider`) | `hydrateAppLocale` | Locale store ready before Home `useDayContent` refresh. |
 | `bootstrap` (`AppStartupProvider`) | `useAppLocale()`, `t(locale, "startup.step.*")`, `t(locale, "startup.fallback")` | Splash footer copy follows the shared locale store; internal step ids map to catalog keys (`AUTH/foo` → `startup.step.AUTH_foo`). |
 | `practices` (`catalog.ts`, `PracticeCard`) | `useAppLocale()`, `getPracticeCatalogStrings`, `asContentLocale` / `inlineBaseLocale` / `SOURCE_LOCALE` | Catalog UI strings + yoga jsonb title lookup for all 8 content locales. |
 | `app/(tabs)/_layout.tsx` (subscription/nav) | `useTranslate().t("tabs.*")` | Tab labels via catalog; labels refresh on locale change without remounting `<Tabs>` (scroll/state preserved). |
@@ -57,7 +58,7 @@ This file lists the contracts so a change here is traceable to its blast radius.
 | `charts` (`DonutChart`) | `getChartStrings(locale)` via `mergeTypedLocale("charts", …)` | `DonutChart`: center `balanceLabel`. RU/EN inline in `modules/charts/i18n/charts.ts`, de/fr/it/es/pt/nl in `typed/catalog/charts/*.json`. |
 | `communicator` (`Communicator.tsx`) | `useAppLocale()`, `getTranscribeLocale()` | Default STT via `getTranscribeLocale()` (active locale). Each dialog POST sends **`responseLocale`** + **`inputLocale`**; with `EXPO_PUBLIC_I18N_TEST_MODE` voice turns may auto-detect speech and temporarily route the reply there, while outside test mode the reply stays on the selected/profile locale. UI strings still come from the host `locale` prop. |
 | `services/communicator-client.ts` | `getResponseLocale()`, `getTranscribeLocale()` | `buildDialogPostBody` adds `responseLocale` and `inputLocale` to every dialog POST (defaults = active locale for both); voice flow may still override per turn when test mode intentionally enables speech-driven replies. |
-| `services/userLocaleClient.ts` | `syncUserLocaleToServer` | Called from `setAppLocale`; mirrors active locale to Supabase `users.locale`. |
+| `services/userLocaleClient.ts` | `syncUserLocaleToServer` | Called from `setAppLocale` / hydrate write-back; mirrors active locale to Supabase `users.locale` via **`getSupabaseAccessSession`**. |
 
 ## Inbound — what i18n depends on
 - **`assistant` (server)** consumes `responseLocale` via

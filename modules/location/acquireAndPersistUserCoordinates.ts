@@ -4,7 +4,8 @@ import { AppState, InteractionManager, Linking, Platform } from "react-native";
 import { invalidateBillingGeoCache } from "@/modules/account/core/billingCurrency";
 import { notifyForegroundLocationPermissionChanged } from "@/modules/location/foregroundLocationEvents";
 import { scheduleGeoPlaceSyncAfterCoords } from "@/modules/location/syncUserGeoPlace";
-import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
+import { metersBetweenCoords, shouldPersistGpsUpdate } from "@/modules/location/gpsPersistDecision";
+import { loadCachedUserCoords, saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { requireSupabase } from "@/services/supabase";
 import { logRuntimeEvent } from "@/services/runtimeDiagnostics";
 
@@ -367,6 +368,18 @@ async function acquireAndPersistUserCoordinatesImpl(userId: string): Promise<Loc
     lng: pos.coords.longitude,
     timezone: deviceTimeZone(),
   };
+  const previous = await loadCachedUserCoords(userId);
+  if (!shouldPersistGpsUpdate(previous, coords)) {
+    logRuntimeEvent(
+      "location:auto_acquire_unchanged",
+      {
+        accuracy: pos.coords.accuracy ?? null,
+        meters: previous ? Math.round(metersBetweenCoords(previous, coords)) : 0,
+      },
+      "info",
+    );
+    return { ok: true, coords: previous ?? coords, persisted: false };
+  }
   await saveCachedUserCoords(userId, coords);
 
   const result = await persistCoords(userId, coords.lat, coords.lng, coords.timezone);

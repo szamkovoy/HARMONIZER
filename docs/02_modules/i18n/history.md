@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.23
-updated: 2026-09-04
+version: 1.24
+updated: 2026-09-05
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-05 (locale sync + hydrate order):** `syncUserLocaleToServer` больше не зовёт `auth.getSession()` (на Android cold start часто пустой/висит → `users.locale` отстаёт, midnight cron греет не тот язык). Bearer — `getSupabaseAccessSession`. `AuthProvider` гидратит locale до Home fetch.
 
 - **2026-09-04 (dialog scaffold `summaryAlreadyComplete`):** RU source «Все неподытоженные действия уже подытожены.» + 7 locales via `i18n-sync fill --all` (`AI_MODEL_PREMIUM`). Used by summarizing terminal when `daySummaryRequested` and `dueEvents` are empty (`dialog/route.ts`).
 

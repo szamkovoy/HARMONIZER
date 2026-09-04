@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.47
-updated: 2026-08-28
+version: 2.48
+updated: 2026-09-05
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -23,6 +23,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-05 (cold-start cache + midnight locale):** Android cold start после process death ходил в сеть/LLM, хотя день уже был на телефоне: `peek*` не читает SecureStore; async relaxed пропускался при наличии GPS; strict load с epsilon ~11 m **удалял** сегодняшний кэш при джиттере. Fix: epsilon ~1 km, mismatch не delete, relaxed read всегда; GPS persist только при сдвиге ≥500 m / смене TZ. Cron `precompute-daily-forecasts` больше не берёт 100 самых новых наталов — пагинация всех; кроме `users.locale` греет до двух локалей из недавнего `scenario_cache`. Auth гидратит locale до снятия `profileLoading`; `syncUserLocaleToServer` через `getSupabaseAccessSession` (не `auth.getSession()`).
 
 - **2026-08-28 (opportunity windows 24h clock):** Времена на карточке «Окна возможностей» (и колокольчиках) через `getHomeStrings.formatTime`: 12‑часовой формат только для `en`; RU/DE/FR/IT/ES/PT/NL — 24‑часовой. Исправлена ошибка, когда non‑RU локали наследовали `en` через `inlineBaseLocale`. См. i18n history.
 

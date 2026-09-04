@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/caching_strategy
 title: Astro Caching Strategy
-version: 1.2
-updated: 2026-06-13
+version: 1.3
+updated: 2026-09-05
 depends_on: [01_foundation/architecture, 02_modules/infra/spec, 02_modules/daily_forecast/spec]
 code_refs:
   [
@@ -48,7 +48,7 @@ code_refs:
 
 ## 5. Клиентский кэш (поверх Supabase)
 
-- **`services/dayContentCache.ts` + `modules/home/useDayContent.ts`:** после успешной загрузки полного дневного контента (прогноз + при необходимости monologue) результат кладётся в **SecureStore / web storage** с ключом по `userId`, `accessMode`, `accessTier`, `forecastDate`, `scopeKey` (рождение/локация) и **TTL** `expiresAt = min(cacheValidUntil прогноза, конец локального дня прогноза)` — см. `earlierIso` + `endOfLocalForecastDay` в `dayContentCache.ts`.
+- **`services/dayContentCache.ts` + `modules/home/useDayContent.ts`:** после успешной загрузки полного дневного контента (прогноз + при необходимости monologue) результат кладётся в **SecureStore / web storage** с ключом по `userId`, `accessMode`, `accessTier`, `forecastDate`, `scopeKey` (рождение/локация) и **TTL** `expiresAt = min(cacheValidUntil прогноза, конец локального дня прогноза)` — см. `earlierIso` + `endOfLocalForecastDay` в `dayContentCache.ts`. Strict location match ~1 km; GPS jitter не удаляет запись — Home читает relaxed.
 - **Смысл:** быстрый оффлайн-повтор главного экрана в пределах «свежести»; при смене дня или scope ключ не совпадает — промах и повторный fetch.
 - **Связь с сервером:** клиент по-прежнему ходит в `POST /api/astro/daily-forecast` и `/api/ai/monologue`; локальный кэш не заменяет RLS и не хранит натал отдельно (натал читается из Supabase в `natalProfileClient`).
 

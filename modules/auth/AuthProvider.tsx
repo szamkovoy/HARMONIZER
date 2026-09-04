@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { AppState } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
+import { hydrateAppLocale } from "@/modules/i18n";
 import { resetLocationPermissionAutoPrompt } from "@/modules/location/acquireAndPersistUserCoordinates";
 import { saveCachedUserCoords } from "@/modules/location/userLocationProfileCache";
 import { rememberSupabaseSession, readPersistedAuthSessionFromStorage, requireSupabase } from "@/services/supabase";
@@ -189,6 +190,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           timezone: row.tz?.trim() || "UTC",
         }).catch(() => undefined);
       }
+      if (!silent && row) {
+        await hydrateAppLocale(row.locale, user.id);
+      }
       // Cold start: все attempt-ы упали и профиля ещё не было — не отпускаем
       // сплэш в free/global-content: ещё один полный круг fetch, затем снимаем loading.
       if (failed && !row && !keptStale) {
@@ -196,9 +200,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const uid = user.id;
         setTimeout(() => {
           if (lastUserIdRef.current !== uid) return;
-          void fetchProfile(uid).then(({ row: retryRow }) => {
+          void fetchProfile(uid).then(async ({ row: retryRow }) => {
             if (lastUserIdRef.current !== uid) return;
-            if (retryRow) setProfile(retryRow);
+            if (retryRow) {
+              setProfile(retryRow);
+              await hydrateAppLocale(retryRow.locale, uid);
+            }
             setProfileLoading(false);
           });
         }, 1_500);
