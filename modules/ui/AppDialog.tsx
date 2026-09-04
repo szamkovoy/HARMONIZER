@@ -5,7 +5,7 @@
  * (RN Modal) с затемняющим backdrop по центру viewport — не зависит от ScrollView.
  * Цвета/радиусы/типографика — из темы. Кнопки принимает слотом `actions`.
  */
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Modal, StyleSheet, View } from "react-native";
 
 import { AppText } from "@/modules/ui/AppText";
@@ -35,6 +35,22 @@ export function AppDialog({
   onRequestClose,
 }: AppDialogProps) {
   const theme = useTheme();
+  const [actionsArmed, setActionsArmed] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setActionsArmed(false);
+      return;
+    }
+    // Android delivers the opening tap's touch-up to the new Modal; arm
+    // buttons only after the fade so Confirm is not pressed accidentally.
+    const id = setTimeout(() => setActionsArmed(true), 320);
+    return () => {
+      clearTimeout(id);
+      setActionsArmed(false);
+    };
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -67,6 +83,7 @@ export function AppDialog({
             </AppText>
           ) : null}
           <View
+            pointerEvents={actionsArmed ? "auto" : "none"}
             style={[
               styles.actionsSlot,
               actionsLayout === "row" ? styles.actionsRow : styles.actionsColumn,

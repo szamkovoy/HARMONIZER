@@ -448,9 +448,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const doSignOut = useCallback(async () => {
     setSigningIn(true);
     try {
-      await revokeRestoreCredentialOnSignOut();
+      // Android Restore Credentials must not block leaving the session:
+      // Credential Manager / Play Services can hang on clearCredentialState.
+      void revokeRestoreCredentialOnSignOut();
       const supabase = requireSupabase();
-      await supabase.auth.signOut();
+      try {
+        await Promise.race([
+          supabase.auth.signOut(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("signOut timeout")), 5_000);
+          }),
+        ]);
+      } catch {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+      }
     } finally {
       resetLocationPermissionAutoPrompt();
       setSigningIn(false);

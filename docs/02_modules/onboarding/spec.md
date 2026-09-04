@@ -1,8 +1,8 @@
 ---
 id: 02_modules/onboarding/spec
 title: Onboarding Wizard — spec
-version: 1.10
-updated: 2026-08-20
+version: 1.11
+updated: 2026-09-04
 depends_on: [02_modules/onboarding/dependencies, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/astro/spec]
 code_refs:
   [
@@ -59,7 +59,7 @@ code_refs:
 - Пока идёт отправка: CTA `busy` + лейбл `auth.sending` («Отправляется…»), без dim. На mount welcome — `prefetchOtpAppCheck` (прогрев Play Integrity); на критическом пути getToken ≤ ~1.2 с, иначе gate без токена (пока enforce выключен).
 - Лимиты отправки (сервер, email): ≥60 с между письмами; ≤10/час; ≤25/сутки. UI cooldown 60 с на welcome и resend (SecureStore; «Изменить email» не обходит).
 - `verifyEmailOtpCode`: ≤10 неверных попыток/час на email (RPC `otp_check_verify_allowed` / `otp_record_verify_failure`). Сначала `POST /api/auth/otp-verify`: если email = `STORE_REVIEW_EMAIL` и код = `STORE_REVIEW_OTP` → сервер mint'ит сессию (`generateLink` + `verifyOtp`) и ensure'ит Master/onboarded (`users.store_review_account`; seed рождения/Москва только если `birth_date` пуст — иначе не затирает правки); иначе клиент делает обычный GoTrue `verifyOtp`. Секреты только на Vercel/edge — не в клиенте.
-- **Android Restore Credentials (Zero-Tap):** после успешного OTP `AuthProvider` в фоне создаёт restore key (native `harmonizer-android-restore-credentials` + Vercel `/api/auth/restore-credential/register/*`). На новом Android при переносе данных — silent sign-in до экрана OTP (`/api/auth/restore-credential/auth/*`). «Выйти» отзывает ключ. iOS не затронут. Требует новый Android dev/prod client.
+- **Android Restore Credentials (Zero-Tap):** после успешного OTP `AuthProvider` в фоне создаёт restore key (native `harmonizer-android-restore-credentials` + Vercel `/api/auth/restore-credential/register/*`). На новом Android при переносе данных — silent sign-in до экрана OTP (`/api/auth/restore-credential/auth/*`). «Выйти» отзывает ключ **best-effort** (таймаут ~4 с, не блокирует `supabase.auth.signOut`; native `clearRestoreCredentialState` — restore-only + 3.5 с). iOS не затронут. Требует новый Android dev/prod client.
 - Turnstile/капча **не** используются (RN WebView UX); защита — rate limits + Firebase App Check.
 - `LegalFooter` **только** на `welcome`. `footerInContent={sub === "welcome"}`.
 - Картинка подтверждения — `assets/onboarding/email_600.jpg`.

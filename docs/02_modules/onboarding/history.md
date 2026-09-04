@@ -1,14 +1,16 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.11
-updated: 2026-08-20
+version: 1.12
+updated: 2026-09-04
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
 
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-09-04 (sign-out not blocked by Zero-Tap):** `signOut` больше не `await` revoke Restore Credential. На Android `clearCredentialState` / revoke fetch могли зависнуть → «Выйти» оставлял сессию, кнопка кабинета disabled. Revoke — фон, бюджет 4 с; native timeout 3.5 с + `TYPE_CLEAR_RESTORE_CREDENTIAL`; GoTrue sign-out 5 с → local fallback.
 
 - **2026-08-27 (Zero-Tap + location CTA):** После silent restore гео-диалог успевал стартовать из `PushRegistrationBridge` под сплэшем → Android sheet orphan, CTA «Включить геопозицию» «нажималась» без эффекта (ждала тот же in-flight). Fix: prompt только из Home (`useDayContent`); settle 1.2s + wait `AppState=active`; CTA `preferFresh` бросает stale in-flight >8s; stale `awaitingSettingsGrant` сбрасывается при `undetermined` (backup/D2D).
 

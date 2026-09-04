@@ -69,6 +69,7 @@ import type { AccessMode } from "@/services/globalContentClient";
 
 type LocaleRebuildState =
   | { phase: "idle" }
+  | { phase: "probing"; pendingLocale: AppLocale; previousLocale: AppLocale; accessMode: AccessMode }
   | { phase: "confirm"; pendingLocale: AppLocale; previousLocale: AppLocale; accessMode: AccessMode }
   | { phase: "loading"; pendingLocale: AppLocale; previousLocale: AppLocale; accessMode: AccessMode }
   | {
@@ -78,6 +79,9 @@ type LocaleRebuildState =
       accessMode: AccessMode;
       message: string;
     };
+
+/** Phone/server probe can hang on Android; surface the confirm dialog instead. */
+const LOCALE_PROBE_TIMEOUT_MS = 8_000;
 
 function errorMessage(value: unknown, fallback = "Неизвестная ошибка"): string {
   if (value instanceof Error && value.message.trim()) return value.message;
@@ -256,8 +260,17 @@ export default function ProfileTabRoute() {
         commitLocale(code);
         return;
       }
+      localeEnsureAbortRef.current?.abort();
+      const controller = new AbortController();
+      localeEnsureAbortRef.current = controller;
+      setLocaleRebuild({
+        phase: "probing",
+        pendingLocale: code,
+        previousLocale: locale,
+        accessMode: dayAccessMode,
+      });
       try {
-        const probe = await probeLocaleDayContentReady({
+        const probePromise = probeLocaleDayContentReady({
           userId: authUser.id,
           locale: code,
           accessMode: dayAccessMode,
@@ -269,6 +282,27 @@ export default function ProfileTabRoute() {
           lat: profile?.lat,
           lon: profile?.lon,
         });
+        const probe = await new Promise<Awaited<typeof probePromise>>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error("locale probe timeout")), LOCALE_PROBE_TIMEOUT_MS);
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(new Error("aborted"));
+          };
+          controller.signal.addEventListener("abort", onAbort);
+          probePromise.then(
+            (value) => {
+              clearTimeout(timer);
+              controller.signal.removeEventListener("abort", onAbort);
+              resolve(value);
+            },
+            (error) => {
+              clearTimeout(timer);
+              controller.signal.removeEventListener("abort", onAbort);
+              reject(error);
+            },
+          );
+        });
+        if (controller.signal.aborted) return;
         if (probe.ready) {
           // Texts exist — still show translating overlay while we warm phone cache.
           await runLocaleEnsure({
@@ -286,12 +320,17 @@ export default function ProfileTabRoute() {
           accessMode: probe.accessMode,
         });
       } catch {
+        if (controller.signal.aborted) return;
         setLocaleRebuild({
           phase: "confirm",
           pendingLocale: code,
           previousLocale: locale,
           accessMode: dayAccessMode,
         });
+      } finally {
+        if (localeEnsureAbortRef.current === controller) {
+          localeEnsureAbortRef.current = null;
+        }
       }
     },
     [
@@ -484,10 +523,11 @@ export default function ProfileTabRoute() {
   useFocusEffect(
     useCallback(() => {
       return () => {
-        localeEnsureAbortRef.current?.abort();
-        localeEnsureAbortRef.current = null;
+        // Close combos when leaving the tab. Do NOT abort locale ensure / reset
+        // rebuild state: on Android an AppDialog/BlockingStatusToast Modal blurs
+        // this screen and would cancel the confirm dialog mid-switch.
         setLocaleOpen(false);
-        setLocaleRebuild({ phase: "idle" });
+        setPaletteOpen(false);
       };
     }, []),
   );
@@ -821,7 +861,7 @@ export default function ProfileTabRoute() {
         />
 
         <BlockingStatusToast
-          visible={localeRebuild.phase === "loading"}
+          visible={localeRebuild.phase === "probing" || localeRebuild.phase === "loading"}
           message={
             localeRebuild.phase === "loading"
               ? translate(localeRebuild.pendingLocale, "profile.language.translating")

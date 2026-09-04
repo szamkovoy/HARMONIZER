@@ -19,13 +19,13 @@ import { AuthProvider, useAuth } from "@/modules/auth";
 | `signingIn` | true во время вызова sign-in/out |
 | `requestEmailCode(email, name?)` | запрос OTP на email |
 | `verifyEmailCode(email, code, name?)` | проверка OTP → сессия |
-| `signOut()` | выход (+ revoke Restore Credential на Android) |
+| `signOut()` | выход (revoke Restore Credential на Android — фон, не блокирует) |
 | `refreshProfile()` | перечитать `public.users` (после онбординга) |
 
 ## Android Restore Credentials (Zero-Tap)
 
 - Native: `harmonizer-android-restore-credentials` (Credential Manager API).
-- Client: `modules/auth/restoreCredentials.ts` — provision после входа, silent restore на cold start, revoke при выходе.
+- Client: `modules/auth/restoreCredentials.ts` — provision после входа, silent restore на cold start, revoke при выходе (**best-effort, с таймаутом**; `signOut` не ждёт Credential Manager).
 - Server: `POST /api/auth/restore-credential/*` на Vercel + таблицы `user_restore_credentials`, `restore_credential_challenges` (миграция `20260826120000_restore_credentials.sql`).
 - **Требует новый Android dev/prod client** (не работает в старом dev-client без native-модуля).
 - Vercel (опционально, строже origin): `WEBAUTHN_ANDROID_ORIGINS` — JSON `{ "com.zamkovoi.harmonizer": "android:apk-key-hash:…" }` per package variant.

@@ -15,6 +15,7 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Android Restore Credentials (Zero-Tap Sign-In) via Credential Manager.
@@ -86,9 +87,23 @@ class AndroidRestoreCredentialsModule : Module() {
 
     AsyncFunction("clearRestoreCredentialState") {
       val activity = appContext.currentActivity ?: return@AsyncFunction null
-      runBlocking {
-        val credentialManager = CredentialManager.create(activity)
-        credentialManager.clearCredentialState(ClearCredentialStateRequest())
+      try {
+        runBlocking {
+          // Default clearCredentialState can wait on Play Services UI forever.
+          // Restore-only request + timeout so sign-out never wedges the JS thread.
+          withTimeoutOrNull(3_500L) {
+            val credentialManager = CredentialManager.create(activity)
+            try {
+              credentialManager.clearCredentialState(
+                ClearCredentialStateRequest(ClearCredentialStateRequest.TYPE_CLEAR_RESTORE_CREDENTIAL),
+              )
+            } catch (_: Exception) {
+              credentialManager.clearCredentialState(ClearCredentialStateRequest())
+            }
+          }
+        }
+      } catch (_: Exception) {
+        // Best-effort on sign-out.
       }
       null
     }

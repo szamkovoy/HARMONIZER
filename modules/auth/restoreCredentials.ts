@@ -16,7 +16,24 @@ import {
   nativeGetRestoreCredential,
 } from "harmonizer-android-restore-credentials";
 
-import { getSupabaseAccessToken, requireSupabase } from "@/services/supabase";
+import { getSupabaseAccessToken, getSupabaseSessionSnapshot, requireSupabase } from "@/services/supabase";
+
+/** Server revoke + native clear must not block sign-out if Play Services hangs. */
+export const RESTORE_CREDENTIAL_REVOKE_BUDGET_MS = 4_000;
+const REVOKE_FETCH_TIMEOUT_MS = 2_500;
+
+/** Resolves when `promise` settles or `ms` elapses, whichever is first. Never throws. */
+export async function settleWithTimeout(promise: Promise<unknown>, ms: number): Promise<void> {
+  await Promise.race([
+    Promise.resolve(promise).then(
+      () => undefined,
+      () => undefined,
+    ),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, ms);
+    }),
+  ]);
+}
 
 function apiOrigin(): string {
   const raw =
@@ -186,13 +203,19 @@ export async function provisionRestoreCredential(): Promise<void> {
   }
 }
 
-/** Revoke restore key on sign-out (server + native). */
-export async function revokeRestoreCredentialOnSignOut(): Promise<void> {
-  if (!isRestoreCredentialsEnabled()) return;
+async function revokeRestoreCredentialBestEffort(): Promise<void> {
   const origin = apiOrigin();
-  const token = await getSupabaseAccessToken();
+  let token: string | null = null;
+  try {
+    const snapshot = await getSupabaseSessionSnapshot({ allowExpired: true });
+    token = snapshot?.access_token?.trim() || null;
+  } catch {
+    token = null;
+  }
 
   if (origin && token) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REVOKE_FETCH_TIMEOUT_MS);
     try {
       await fetch(`${origin}/api/auth/restore-credential/revoke`, {
         method: "POST",
@@ -200,11 +223,23 @@ export async function revokeRestoreCredentialOnSignOut(): Promise<void> {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
+        signal: controller.signal,
       });
     } catch {
       // Continue with native clear even if server revoke fails.
+    } finally {
+      clearTimeout(timer);
     }
   }
 
   await nativeClearRestoreCredentialState();
+}
+
+/**
+ * Revoke restore key on sign-out (server + native). Best-effort: never throws,
+ * and never waits longer than `RESTORE_CREDENTIAL_REVOKE_BUDGET_MS`.
+ */
+export async function revokeRestoreCredentialOnSignOut(): Promise<void> {
+  if (!isRestoreCredentialsEnabled()) return;
+  await settleWithTimeout(revokeRestoreCredentialBestEffort(), RESTORE_CREDENTIAL_REVOKE_BUDGET_MS);
 }
