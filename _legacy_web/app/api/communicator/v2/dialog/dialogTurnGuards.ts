@@ -185,6 +185,34 @@ function looksLikeMultiActionPlanningBlob(desc: string): boolean {
   return commaSegments.length >= 3;
 }
 
+const USER_SPEECH_PLANNING_CUE_RE =
+  /(?:i\s+want(?:ed)?|i(?:['’]d|\s+would)\s+like|during the day|хочу|планирую|собираюсь|voglio|vorrei|je\s+(?:veux|voudrais)|ich\s+(?:will|möchte|moechte)|quiero|quero|ik\s+wil)/i;
+
+const COORDINATED_TIME_SHIFT_IN_DESC_RE =
+  /,?\s+(?:and|und|et|e|y|en|и)\s+(?:in the (?:morning|afternoon|evening)|at night|tonight|later|then|this (?:morning|evening|afternoon)|вечером|утром|днем|днём|ночью|am (?:abend|morgen)|le soir|la sera|por la (?:noche|tarde)|à noite|'s avonds)/i;
+
+function looksLikeUserSpeechPlanningBlob(desc: string): boolean {
+  const trimmed = desc.trim();
+  if (trimmed.length < PLANNING_DESC_BLOB_MIN_LENGTH) return false;
+  if (USER_SPEECH_PLANNING_CUE_RE.test(trimmed)) return true;
+  if (COORDINATED_TIME_SHIFT_IN_DESC_RE.test(trimmed)) return true;
+  return looksLikeMultiActionPlanningBlob(trimmed);
+}
+
+/** Keep model/target-locale wording unless it is a raw user-speech blob. */
+function preferEssencePlanningDesc(current: string, fallback: string): string {
+  const a = current.trim();
+  const b = fallback.trim();
+  if (!a) return b;
+  if (!b) return a;
+  const aBlob = looksLikeUserSpeechPlanningBlob(a);
+  const bBlob = looksLikeUserSpeechPlanningBlob(b);
+  if (aBlob && !bBlob) return b;
+  if (bBlob && !aBlob) return a;
+  if (aBlob && bBlob) return a.length <= b.length ? a : b;
+  return a;
+}
+
 function isSupersededPlanningDescBlob(
   marker: PlannedEventMarker,
   markers: PlannedEventMarker[],
@@ -221,10 +249,34 @@ export function filterPlanningDescBlobMarkers(markers: PlannedEventMarker[]): Pl
   return markers.filter((marker) => !isSupersededPlanningDescBlob(marker, markers));
 }
 
+/**
+ * User declines the practice offer. JS word boundaries (\b) never match around
+ * Cyrillic, so whitespace/fragment patterns are used. Bare negation is accepted
+ * only when the message does not itself request a practice (type/duration), so
+ * "Нет, лучше дыхание 5 минут" still routes to validation, not decline.
+ */
+export function userDeclinesPractice(text: string): boolean {
+  const normalized = normalizeLocaleGuardText(text.trim());
+  if (!normalized) return false;
+  if (
+    /(?:не\s*надо|не\s*хочу|не\s*предлаг\w*|без\s*практик|не\s*буду|ничего\s+не\s+(?:надо|нужно)|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|некогда|нет\s+времени|в\s+другой\s+раз|не\s+сегодня|skip|no\s*practice|not\s*now|maybe\s*later|without\s*(?:a\s*)?practice|don'?t\s*(?:offer|suggest)|no\s+time|there\s+is\s+no\s+time|don'?t\s+have\s+time|another\s+time|some\s+other\s+time|not\s+this\s+time|i['’]?ll\s+skip|skip\s+(?:it|today|this)|keine\s+zeit|nicht\s+jetzt|spaeter|spater|überspring|uberspring|pas\s+le\s+temps|pas\s+maintenant|plus\s+tard|une\s+autre\s+fois|non\s+ho\s+tempo|non\s+ora|un['’]?altra\s+volta|piu\s+tardi|no\s+tengo\s+tiempo|no\s+ahora|en\s+otro\s+momento|mas\s+tarde|nao\s+tenho\s+tempo|agora\s+nao|outra\s+hora|geen\s+tijd|niet\s+nu|een\s+andere\s+keer)/i.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+  const mentionsPractice =
+    /(?:медитац|дыхан|пранаям|асан|йог|минут|practice|meditation|breath|yoga|asana|\bmin\b|atmung|respiration|respirazione|respiracion|ademhaling)/i.test(
+      normalized,
+    );
+  if (!mentionsPractice && /^(?:нет|нету|неа|no|nope|nein|non|nao|nee)[.!?,…\s]/i.test(`${normalized} `)) {
+    return true;
+  }
+  return false;
+}
+
 export function userDeclinesPracticeOffer(text: string): boolean {
-  return /(?:не надо|не хочу|не предлаг|без практик|не буду|пропуст|потом|позже|не сейчас|обойдёмся|обойдемся|skip|no practice|not now|maybe later|without a practice|without practice|don'?t (?:offer|suggest))/i.test(
-    text,
-  );
+  return userDeclinesPractice(text);
 }
 
 export function userAffirmsPracticeOffer(userMessage: string, history: MessageRecord[]): boolean {
@@ -441,7 +493,7 @@ export function mergePlanningMarkersWithVisibleFinalize(
         return {
           ...marker,
           ...salvaged,
-          desc: salvaged.desc,
+          desc: preferEssencePlanningDesc(salvaged.desc, marker.desc),
           recommendation: salvaged.recommendation?.trim() ? salvaged.recommendation : marker.recommendation,
           cells: salvaged.cells.length > 0 ? salvaged.cells : marker.cells,
           snippets: salvaged.snippets.length > 0 ? salvaged.snippets : marker.snippets,

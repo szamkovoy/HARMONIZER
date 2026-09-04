@@ -48,6 +48,7 @@ function splitEventSegments(text: string): string[] {
       const next = shiftTrailingTimeLead[index + 1]!;
       if (
         /^(?:(?:сегодня|завтра|послезавтра)\s+)?(?:утром|днем|днём|вечером|ночью)\b/i.test(current)
+        || /^(?:(?:and|und|et|y|e|en|и)\s+)?(?:in the (?:morning|afternoon|evening)|at night|tonight|this (?:morning|evening|afternoon)|during the day)\b/i.test(current)
         || /^(?:перед|после)\b/i.test(current)
         || /^(?:может быть|возможно|наверное|думаю|ну|да)\b/i.test(current)
       ) {
@@ -106,17 +107,28 @@ function leadingVerbStem(value: string): string {
   return normalizedTokens(value)[0]?.slice(0, 6) ?? "";
 }
 
+const RU_INDEPENDENT_CLAUSE_RE =
+  /^(?:(?:пораньше|раньше|позже|потом|сначала|вечером|утром|днем|днём|ночью|может\s+быть|наверное)\s+){0,2}(?:[A-Za-zА-Яа-яЁё-]*?(?:ть|ться|чь))(?=\s|$|[,.!?])/iu;
+
+const COORDINATED_TIME_SHIFT_RE =
+  /(?:вечером|утром|днем|днём|ночью|пораньше|позже|потом|сначала|in the (?:morning|afternoon|evening)|at night|tonight|later(?:\s+on)?|then|this (?:morning|evening|afternoon)|afterwards|after that|during the day|am (?:abend|morgen)|le soir|le matin|la sera|la mattina|por la (?:noche|tarde|mañana)|à noite|de manhã|'s avonds|'s ochtends)/i;
+
+const SHARED_PLANNING_CUE_RE =
+  /^(.*?(?:^|[\s,.;:!?()])(?:хочу|планирую|собираюсь|хотел(?:\s+бы)?|хотела(?:\s+бы)?|буду|i\s+want(?:ed)?|i(?:['’]d|\s+would)\s+like|i(?:['’]m|\s+am)\s+(?:going|planning)|i(?:['’]ll|\s+will)|i\s+plan|voglio|vorrei|je\s+(?:veux|voudrais)|ich\s+(?:will|möchte|moechte)|quiero|quero|ik\s+wil)\s+(?:to\s+)?)(.+)$/i;
+
 function looksLikeIndependentActionClause(value: string): boolean {
-  return /^(?:(?:пораньше|раньше|позже|потом|сначала|вечером|утром|днем|днём|ночью|может\s+быть|наверное)\s+){0,2}(?:[A-Za-zА-Яа-яЁё-]*?(?:ть|ться|чь))(?=\s|$|[,.!?])/iu
-    .test(value.trim());
+  const trimmed = value.trim();
+  if (RU_INDEPENDENT_CLAUSE_RE.test(trimmed)) return true;
+  return /^(?:(?:in the (?:morning|afternoon|evening)|at night|tonight|later(?:\s+on)?|then|this (?:morning|evening|afternoon)|during the day)\s+)?(?:to\s+)?[a-z]{2,}\b/i
+    .test(trimmed);
 }
 
-function splitCoordinatedActionSegment(segment: string): string[] {
-  if (!/\s+и\s+/i.test(segment)) return [segment];
+function splitRussianCoordinatedActionSegment(segment: string): string[] {
+  if (!/\s+и\s+/i.test(segment)) return [];
   const sharedCue = segment.match(
     /^(.*?(?:^|[\s,.;:!?()])(?:хочу|планирую|собираюсь|хотел(?:\s+бы)?|хотела(?:\s+бы)?|буду)\s+)(.+)$/i,
   );
-  if (!sharedCue) return [segment];
+  if (!sharedCue) return [];
 
   const prefix = sharedCue[1]!.trim();
   const body = sharedCue[2]!.trim();
@@ -127,16 +139,40 @@ function splitCoordinatedActionSegment(segment: string): string[] {
     )
     .map((part) => part.trim())
     .filter(Boolean);
-  if (clauses.length < 2) return [segment];
-  if (!clauses.every(looksLikeIndependentActionClause)) return [segment];
-  if (!clauses.every(clauseCanStandAsSeparateAction)) return [segment];
+  if (clauses.length < 2) return [];
+  if (!clauses.every(looksLikeIndependentActionClause)) return [];
+  if (!clauses.every(clauseCanStandAsSeparateAction)) return [];
 
   if (clauses.length === 2) {
     const pairKey = `${leadingVerbStem(clauses[0]!)}|${leadingVerbStem(clauses[1]!)}`;
-    if (SUPPORTIVE_COORDINATED_ACTION_PAIRS.has(pairKey)) return [segment];
+    if (SUPPORTIVE_COORDINATED_ACTION_PAIRS.has(pairKey)) return [];
   }
 
   return clauses.map((clause) => `${prefix} ${clause}`.replace(/\s+/g, " ").trim());
+}
+
+/** Split "A, and in the evening B" without turning goal+means ("store and buy milk") into two events. */
+function splitTimeShiftedCoordinatedActionSegment(segment: string): string[] {
+  const splitRe = new RegExp(`,?\\s+(?:and|und|et|e|y|en|и)\\s+(?=${COORDINATED_TIME_SHIFT_RE.source})`, "i");
+  if (!splitRe.test(segment)) return [];
+  const sharedCue = segment.match(SHARED_PLANNING_CUE_RE);
+  const prefix = sharedCue?.[1]?.trim() ?? "";
+  const body = (sharedCue?.[2] ?? segment).trim();
+  const clauses = body
+    .split(splitRe)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (clauses.length < 2) return [];
+  if (!clauses.every(clauseCanStandAsSeparateAction)) return [];
+  return clauses.map((clause) => `${prefix} ${clause}`.replace(/\s+/g, " ").trim());
+}
+
+function splitCoordinatedActionSegment(segment: string): string[] {
+  const russian = splitRussianCoordinatedActionSegment(segment);
+  if (russian.length >= 2) return russian;
+  const timeShifted = splitTimeShiftedCoordinatedActionSegment(segment);
+  if (timeShifted.length >= 2) return timeShifted;
+  return [segment];
 }
 
 function stripMatchedPhrase(text: string, matchedPhrase: string | null): string {
@@ -196,6 +232,14 @@ const EVENT_IDENTITY_STOPWORDS = new Set([
   "хотела",
   "хотелбы",
   "хотелабы",
+  "want",
+  "wanted",
+  "during",
+  "today",
+  "tonight",
+  "evening",
+  "morning",
+  "afternoon",
   "предстоит",
   "договорились",
   "некоторое",
@@ -255,8 +299,9 @@ function identityStem(token: string): string {
   if (/^(?:клиент)/.test(normalized)) return "клиент";
   if (/^(?:позавтрак|завтрак)/.test(normalized)) return "завтрак";
   if (/^(?:театр|спектак)/.test(normalized)) return "театр";
-  if (/^(?:фильм|кино|сериал)/.test(normalized)) return "фильм";
-  if (/^(?:магаз)/.test(normalized)) return "магаз";
+  if (/^(?:фильм|кино|сериал|cinema|movie)/.test(normalized)) return "фильм";
+  if (/^(?:магаз|store|shop)/.test(normalized)) return "магаз";
+  if (/^(?:лодк|boat|inflatable|dinghy)/.test(normalized)) return "boat";
   if (/^(?:удоч|спиннинг)/.test(normalized)) return "рыбал";
   return normalized.slice(0, 6);
 }
@@ -517,6 +562,31 @@ function inferImplicitTimeNorm(segment: string, locale: string): string | null {
   return null;
 }
 
+function stripPlanningSpeechLeadIn(description: string): string {
+  let current = description.trim();
+  for (let step = 0; step < 5; step += 1) {
+    const next = current
+      .replace(/^(?:and|und|et|y|e|en|и)\s+/i, "")
+      .replace(
+        /^(?:during the day|in the (?:morning|afternoon|evening)|at night|tonight|this (?:morning|evening|afternoon)|today|вечером|утром|днем|днём|ночью)\s+/i,
+        "",
+      )
+      .replace(
+        /^(?:i\s+(?:want(?:ed)?|would like|plan|am going|will)|i['’](?:d like|m going|m planning|ll))\s+(?:to\s+)?/i,
+        "",
+      )
+      .replace(
+        /^(?:voglio|vorrei|je\s+(?:veux|voudrais)|ich\s+(?:will|möchte|moechte)|quiero|quero|ik\s+wil)\s+(?:to\s+|ir\s+)?/i,
+        "",
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+    if (next === current) break;
+    current = next;
+  }
+  return current.replace(/^to\s+(?=[a-zа-яё])/i, "").trim();
+}
+
 function buildEventDescription(segment: string, matchedPhrase: string | null): string | null {
   let description = stripMatchedPhrase(segment, matchedPhrase)
     .replace(/^(?:у меня|мне|я)\s+/i, "")
@@ -529,6 +599,8 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
   if (!description) {
     description = stripMatchedPhrase(segment, matchedPhrase);
   }
+
+  description = stripPlanningSpeechLeadIn(description);
 
   description = stripTrailingPracticeClause(description)
     // Strip ack particles including the comma: «Да, я…» → «я…», not «, я…».
@@ -550,12 +622,13 @@ function buildEventDescription(segment: string, matchedPhrase: string | null): s
     .replace(/(^|[\s,.;:!?()])(?:примерно|где[-\s]*то|около)(?=$|[\s,.;:!?()])/gi, "$1")
     .replace(/^(?:я\s+)?(?:хотелось\s+бы|хочу|планирую|собираюсь|хотел(?:\s+бы)?|хотела(?:\s+бы)?)\s+/i, "")
     .replace(/^(?:l['’]unico\s+obiettivo\s+[èe]|il\s+mio\s+obiettivo\s+[èe]|obiettivo:)\s*/i, "")
-    .replace(/(?:^|[\s,.;:!?()])(?:сегодня|завтра|послезавтра)(?=$|[\s,.;:!?()])/gi, " ")
+    .replace(/(?:^|[\s,.;:!?()])(?:сегодня|завтра|послезавтра|today|tonight|tomorrow)(?=$|[\s,.;:!?()])/gi, " ")
     .replace(/(^|[\s,.;:!?()])(?:во-?\s*первых|во-?\s*вторых)(?=$|[\s,.;:!?()])/gi, "$1")
     .replace(/\s+/g, " ")
     .replace(/[,.;:!?]+$/g, "")
     .replace(/\s+и$/i, "")
     .trim();
+  description = stripPlanningSpeechLeadIn(description);
   if (/^лечь$/i.test(description)) description = "лечь спать";
   return description.length >= 4 ? description : null;
 }

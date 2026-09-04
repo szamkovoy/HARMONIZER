@@ -557,3 +557,44 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(merged[0]?.time).toBe("13:00");
   });
 });
+
+describe("English coordinated planning labels", () => {
+  it("splits boat and cinema into essence labels, not the full utterance", () => {
+    const nowLocal = DateTime.fromISO("2026-09-04T13:30:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [],
+      pendingUserMessage:
+        "During the day I want to go to the store to choose an inflatable boat, and in the evening to go to the cinema.",
+      nowLocal,
+      relativeNowLocal: nowLocal,
+      tz: TZ,
+      locale: "en",
+    });
+
+    const descriptions = inferred.map((item) => item.desc.toLowerCase());
+    expect(descriptions).toHaveLength(2);
+    expect(descriptions[0]).toMatch(/store|boat/);
+    expect(descriptions[0]).not.toMatch(/cinema/);
+    expect(descriptions[0]).not.toMatch(/i want/);
+    expect(descriptions[0]).not.toMatch(/during the day/);
+    expect(descriptions[1]).toMatch(/cinema/);
+    expect(descriptions[1]).not.toMatch(/boat/);
+    expect(descriptions.every((item) => item.length < 70)).toBe(true);
+  });
+
+  it("keeps a store visit and purchase as one outing when there is no time shift", () => {
+    const nowLocal = DateTime.fromISO("2026-09-04T13:30:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [],
+      pendingUserMessage: "I want to go to the store and buy an inflatable boat.",
+      nowLocal,
+      relativeNowLocal: nowLocal,
+      tz: TZ,
+      locale: "en",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc.toLowerCase()).toMatch(/store|boat/);
+    expect(inferred[0]?.desc.toLowerCase()).not.toMatch(/^i want/);
+  });
+});

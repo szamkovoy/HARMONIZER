@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.104
+version: 2.105
 updated: 2026-09-04
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-04 (practice decline + planning essence labels):** EN QA after planning→practice: (1) «No, there is no time to practice now» не матчило `userDeclinesPractice` (bare `no` пропускался из-за слова `practice`, а `no time` не было в regex) — модель тепло закрывала без `[PRACTICE_DECLINED]`, `shouldClose` не ставился, кнопка «Выйти» не появлялась, mic оставался живым. Детектор перенесён в `dialogTurnGuards.ts` (тот же, что coerce), добавлены no-time / another time и аналоги 8 локалей; decline не срабатывает при `validation.confident`. (2) Первое действие вкладки «День» сохраняло дословную реплику («During the day I want to… boat, and in the evening to go to the cinema»), второе — короткое «Going to the cinema»: EN coordinated split не резал `and`+time-shift, speech lead-in не срезался, а finalize `preferCurrentByDisplayOrder` отдавал model/salvage blob обратно поверх inferred. Fix: time-shift split + strip `I want to`/`During the day` + `preferEssencePlanningDesc`. Промпт не расширяли.
 
 - **2026-09-04 (summaryAlreadyComplete locale):** Terminal reply when `daySummaryRequested` arrives with empty `dueEvents` was hardcoded RU «Все неподытоженные действия уже подытожены.». Now `getDialogScaffoldStrings(locale).summaryAlreadyComplete` (layer C, all 8 locales), same path as `summaryEmptyDueHandoff`.
 

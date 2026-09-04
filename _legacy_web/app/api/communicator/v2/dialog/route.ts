@@ -106,6 +106,7 @@ import {
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
+  userDeclinesPractice,
   visibleTextMentionsEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
 import {
@@ -324,38 +325,6 @@ function formatPracticesForPrompt(value: unknown): string {
   return items.join("\n");
 }
 
-/**
- * User declines the practice offer. JS word boundaries (\b) never match around
- * Cyrillic, so the previous \b-wrapped pattern silently failed for Russian and
- * the dialog stayed open after e.g. "Нет, ничего не надо сохранять". This uses
- * whitespace/fragment patterns instead, plus a bare-negation reply — but only
- * when the message does not itself request a practice (type/duration), so
- * "Нет, лучше дыхание 5 минут" is still routed to validation, not decline.
- */
-function userDeclinesPractice(text: string): boolean {
-  const normalized = text.trim().toLowerCase();
-  if (!normalized) return false;
-  if (
-    /(не\s*надо|не\s*хочу|не\s*предлаг\w*|без\s*практик|не\s*буду|ничего\s+не\s+(?:надо|нужно)|пропуст|потом|позже|не\s*сейчас|обойд[её]мся|обойтись|skip|no\s*practice|not\s*now|maybe\s*later|without\s*(?:a\s*)?practice|don'?t\s*(?:offer|suggest))/i.test(
-      normalized,
-    )
-  ) {
-    return true;
-  }
-  const mentionsPractice =
-    /(медитац|дыхан|пранаям|асан|йог|минут|practice|meditation|breath|yoga|asana|\bmin\b)/i.test(normalized);
-  if (!mentionsPractice && /^(?:нет|нету|неа|no|nope)[.!?,…\s]/i.test(`${normalized} `)) {
-    return true;
-  }
-  return false;
-}
-
-/**
- * User declines to plan the day right now (not the same as "I'm done adding").
- * Avoids JS word boundaries around Cyrillic (which never match) by using
- * whitespace and word-fragment patterns. Used only inside the planning branch
- * when no action was extracted, so false positives are unlikely.
- */
 function userDeclinesPlanning(text: string): boolean {
   const normalized = text.toLowerCase();
   return /(некогда|нет\s+времени|не\s+до\s+планов|не\s+до\s+этого\s+сейчас|не\s+хоч\w*\s+планир|не\s+буду\s+планир|не\s+могу\s+планир|без\s+планир|план\w*\s+потом|потом\s+планир|не\s+сейчас[^.?!]{0,20}планир|не\s+готов\w*\s+планир|skip\s+planning|don'?t\s+want\s+to\s+plan|no\s+time\s+to\s+plan|not\s+now[^.?!]{0,20}plan)/iu.test(normalized);
@@ -1885,8 +1854,10 @@ export async function POST(req: Request) {
               }
             }
           } else if (branchForTurn === "practice") {
-            const declined = (containsPracticeDeclined(fullText) || userDeclinesPractice(userMessage)) && !markers.practicePick;
             const validation = practiceValidationForTurn(history, userMessage);
+            const declined = (containsPracticeDeclined(fullText) || userDeclinesPractice(userMessage))
+              && !markers.practicePick
+              && !validation.confident;
             if (historyHasPracticePicked(history)) {
               nextFsm = { ...fsmAtTurnStart, practiceDecided: true, branch: "done", branchIndex: fsmAtTurnStart.flow.length };
               turnMode = "final_without_practice";

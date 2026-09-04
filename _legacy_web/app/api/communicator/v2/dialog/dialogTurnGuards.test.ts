@@ -28,6 +28,7 @@ import {
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
+  userDeclinesPractice,
 } from "./dialogTurnGuards";
 
 const ALL_RECOMMENDATION_LABELS: Array<{ locale: AppContentLocale; label: string }> = [
@@ -928,5 +929,71 @@ describe("dialogTurnGuards", () => {
       "Confronta le opzioni con calma.",
       "Lascia che diventi un vero cambio di ritmo.",
     ]);
+  });
+
+  it("prefers a short inferred label over a user-speech blob on finalize merge", () => {
+    const merged = mergeHistoryPlanningMarkers(
+      [
+        {
+          desc: "Go to the store to choose an inflatable boat",
+          recommendation: null,
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 1 }],
+          snippets: [],
+        },
+        {
+          desc: "Go to the cinema",
+          recommendation: null,
+          displayOrder: 2,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 1 }],
+          snippets: [],
+        },
+      ],
+      [
+        {
+          desc: "During the day I want to go to the store to choose an inflatable boat, and in the evening to go to the cinema",
+          recommendation: "Approach the store like a decision-maker.",
+          displayOrder: 1,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 1 }],
+          snippets: [],
+        },
+        {
+          desc: "Going to the cinema",
+          recommendation: "Pick the film that genuinely pulls you.",
+          displayOrder: 2,
+          time: null,
+          timeNorm: null,
+          cells: [{ sphere: 2, weight: 1 }],
+          snippets: [],
+        },
+      ],
+      { preferCurrentByDisplayOrder: true },
+    );
+
+    expect(merged.map((item) => item.desc)).toEqual([
+      "Go to the store to choose an inflatable boat",
+      "Going to the cinema",
+    ]);
+    expect(merged[0]?.recommendation).toBe("Approach the store like a decision-maker.");
+  });
+
+  it("treats no-time practice replies as a decline across locales", () => {
+    expect(userDeclinesPractice("No, there is no time to practice now.")).toBe(true);
+    expect(userDeclinesPractice("No thanks, I'll do it another time.")).toBe(true);
+    expect(userDeclinesPractice("Нет, сейчас нет времени на практику.")).toBe(true);
+    expect(userDeclinesPractice("Keine Zeit für eine Praxis jetzt.")).toBe(true);
+    expect(userDeclinesPractice("Je n'ai pas le temps maintenant.")).toBe(true);
+    expect(userDeclinesPractice("Non ho tempo ora.")).toBe(true);
+    expect(userDeclinesPractice("No tengo tiempo ahora.")).toBe(true);
+    expect(userDeclinesPractice("Não tenho tempo agora.")).toBe(true);
+    expect(userDeclinesPractice("Ik heb geen tijd nu.")).toBe(true);
+    expect(userDeclinesPractice("Нет, лучше дыхание 5 минут")).toBe(false);
+    expect(userDeclinesPractice("No, better breathing 5 min")).toBe(false);
   });
 });

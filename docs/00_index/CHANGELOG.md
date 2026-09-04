@@ -1,3 +1,4 @@
+- 2026-09-04 (553): Daily dialog — practice «no time» decline now sets `shouldClose` (exit button); planned-event labels keep the essence, not the full user utterance (EN boat+cinema).
 - 2026-09-04 (552): Dialog scaffold — `summaryAlreadyComplete` for the empty day-summary terminal (was hardcoded RU). 8 locales via PREMIUM fill.
 - 2026-09-04 (551): Summarizing FINAL — if native Health figures are cited, the same sentence names `Apple Health` (iOS) or `Health Connect` (Android). Yoga-only / denied / empty metrics stay unattributed. Server-only (`formatHealthForPrompt`); client already sent `provider`.
 - 2026-08-28 (550): Home «Окна возможностей» — 24‑часовое время для всех локалей кроме EN (`getHomeStrings.formatTime`; DE больше не показывает 9:06 PM).
