@@ -8,6 +8,7 @@
   "chakraOrdinal_6": "sixième",
   "chakraOrdinal_7": "septième",
   "dayPartEarlyMorning": "Il est après minuit mais la journée calendaire vient de commencer. \"Bonne nuit\" est acceptable, mais ne dites PAS que la journée est \"déjà le soir\", n'associez pas le jour de la semaine avec le soir, et évitez les phrases de détente comme \"le temps de regarder calmement en arrière\" ou \"terminez la journée\".",
+  "emptyRecoveryPrompt": "Continuons — qu'est-ce qui est le plus important pour vous en ce moment ?",
   "fallbackPracticeQuestion": "Souhaitez-vous faire une pratique maintenant : méditation, respiration ou asanas ? Si oui, nommez le type et la durée approximative, ou dites que vous allez la sauter aujourd'hui.",
   "fallbackSoftPracticeClose": "S'il vous reste un moment pour vous, une douce pratique de yoga axée sur le chakra {ordinal} peut soutenir cette journée. Vous pouvez accéder au catalogue des pratiques dans votre espace personnel au niveau Maître.",
   "greetingInstruction": "Si vous saluez, utilisez \"{greeting}\". Ne mélangez pas les salutations de différents moments de la journée.",
@@ -30,6 +31,7 @@
   "practiceKind_meditation": "méditation",
   "practiceKind_yoga": "asanas",
   "recommendationLabel": "Recommandation",
+  "summaryAlreadyComplete": "Toutes les actions non récapitulées ont déjà été récapitulées.",
   "summaryBridge_cancelledPrefix": "Entendu.",
   "summaryBridge_en": "Je suis désolé que cela ne se soit pas produit. Comment s'est passé \"{next}\" ?",
   "summaryBridge_ruTemplate": "{prefix} Comment s'est passé l'élément suivant{nextSuffix} ?",
@@ -47,6 +49,5 @@
   "summaryClarify_work_1": "Comment avez-vous ressenti ce travail de l'intérieur — motivé et concentré, collaboratif, ou plus épuisant que gratifiant ?",
   "summaryDefaultEvent": "cet événement",
   "summaryEmptyDueHandoff": "Bien — le regard rétrospectif sur ce qui était prévu est clos. On peut laisser le vécu tel quel.",
-  "emptyRecoveryPrompt": "Continuons — qu'est-ce qui est le plus important pour vous en ce moment ?",
   "summaryToPlanningBridge": "Qu'est-ce qui semble important de planifier pour aujourd'hui ?"
 }

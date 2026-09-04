@@ -1,8 +1,8 @@
 ---
 id: 02_modules/assistant/dependencies
 title: Assistant Dependencies
-version: 1.30
-updated: 2026-08-16
+version: 1.31
+updated: 2026-09-04
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/daily_forecast/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/ai/monologue/route.ts, _legacy_web/app/api/_utils/dialogLocale.ts, _legacy_web/app/api/_utils/dialogScaffold/index.ts, _legacy_web/data/dialog_scaffold/ru.json, services/communicator-client.ts, services/aiClient.ts, modules/i18n/index.ts]
 ---
@@ -37,7 +37,7 @@ code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app
 - **Shared server util (assistant-internal)**
   - **`_legacy_web/app/api/_utils/sphereHint.ts`**: `buildSphereStats`, `buildSphereHint`, `buildSphereBalanceLensForPrompt`, `loadRecentSphereRows` — общий расчёт баланса life-spheres по `planned_events.cells` (последние 7 активных локальных дней). Потребители: **`GET /api/day`** (`sphereHint`, `sphereStats`) и dialog add-flow (`resolveAddFlowSphereBalanceLens` → `addFlowSphereBalanceLens` в `buildPlanningPrompt`; compact English lens, не UI-текст Day-tab).
   - **`_legacy_web/app/api/_utils/planningDonePhrases.ts`**: context-first классификация planning-gathering closure (`isPlanningGatheringClosureTurn`, `looksLikeNewPlannedAction`, `filterClosureEchoPlanningMarkers`), включая empty-plan отказы («Ничего планировать не хочу») и снятие negated want-cue (`не хочу` ≠ planning cue). Потребители: **`dialogTurnGuards.ts`** (`userSignalsPlanningDone`, `filterPersistablePlanningMarkers`, `assistantAcknowledgedEmptyPlanAndOfferedPractice`) и **`plannedEventInference.ts`** (skip closure-turns / decline-like desc).
-  - **`dialogHealthPrompt.ts`**: `formatHealthForPrompt` — только положительные Health-метрики в summarizing FINAL (zeros omitted).
+  - **`dialogHealthPrompt.ts`**: `formatHealthForPrompt` — только положительные Health-метрики в summarizing FINAL (zeros omitted); при наличии цифр к метрике привязывается `Apple Health` / `Health Connect` из уже переданного `dayHealthContext.provider`.
 
 ## 2. От него зависят
 

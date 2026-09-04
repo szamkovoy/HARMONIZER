@@ -8,6 +8,7 @@
   "chakraOrdinal_6": "sixth",
   "chakraOrdinal_7": "seventh",
   "dayPartEarlyMorning": "It is after midnight but the calendar day has just begun. \"Good night\" is fine, but do NOT say the day is \"already evening\", do not pair the weekday with evening, and avoid wind-down phrases like \"time to calmly look back\" or \"wrap up the day\".",
+  "emptyRecoveryPrompt": "Let's continue — what feels most important for you right now?",
   "fallbackPracticeQuestion": "Would you like to do a practice now: meditation, breathing, or asanas? If yes, name the kind and approximate duration, or say you will skip it today.",
   "fallbackSoftPracticeClose": "If you find a moment for yourself, a gentle yoga practice focusing on the {ordinal} chakra can support this day. The practice catalog can be opened in your Personal Account at the Master level.",
   "greetingInstruction": "If you greet, use \"{greeting}\". Do not mix greetings from different parts of the day.",
@@ -30,6 +31,7 @@
   "practiceKind_meditation": "meditation",
   "practiceKind_yoga": "asanas",
   "recommendationLabel": "Recommendation",
+  "summaryAlreadyComplete": "All unsummarized actions have already been summarized.",
   "summaryBridge_cancelledPrefix": "Got it.",
   "summaryBridge_en": "I'm sorry it didn't happen. How did \"{next}\" go?",
   "summaryBridge_ruTemplate": "{prefix} How did the next item go{nextSuffix}?",
@@ -47,6 +49,5 @@
   "summaryClarify_work_1": "How did the work feel from the inside — driven and focused, collaborative, or more draining than rewarding?",
   "summaryDefaultEvent": "this event",
   "summaryEmptyDueHandoff": "Alright — the review of earlier plans is now over. You can leave the experience be.",
-  "emptyRecoveryPrompt": "Let's continue — what feels most important for you right now?",
   "summaryToPlanningBridge": "What feels important to plan for today?"
 }

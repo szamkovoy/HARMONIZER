@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.19
-updated: 2026-08-28
+version: 1.20
+updated: 2026-09-04
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -204,8 +204,8 @@ Two resolvers — do not conflate layer B and layer C:
   (source changed since translation).
 
 ### 4.1b Layer-C dialog scaffold (server)
-- Source of truth: `_legacy_web/data/dialog_scaffold/ru.json` (~48 flat keys:
-  `recommendationLabel`, planning finals, greetings, summary clarifiers, etc.).
+- Source of truth: `_legacy_web/data/dialog_scaffold/ru.json` (~49 flat keys:
+  `recommendationLabel`, planning finals, greetings, summary clarifiers, `summaryAlreadyComplete`, etc.).
 - Targets: same eight locales as the UI catalog (`en` required + six optional).
 - Meta: `_legacy_web/data/dialog_scaffold/.sync-meta.json` — same stale/missing
   semantics as the UI catalog.

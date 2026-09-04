@@ -395,3 +395,18 @@ describe("emptyRecoveryPrompt scaffold string (deterministic fallback contract)"
   }
 });
 
+describe("summaryAlreadyComplete scaffold string (day-summary empty due)", () => {
+  for (const locale of ALL_LOCALES) {
+    it(`provides a non-empty summaryAlreadyComplete for ${locale}`, () => {
+      const s = getDialogScaffoldStrings(locale);
+      expect(s.summaryAlreadyComplete.trim().length).toBeGreaterThan(0);
+    });
+  }
+
+  it("keeps the Russian source of truth", () => {
+    expect(getDialogScaffoldStrings("ru").summaryAlreadyComplete).toBe(
+      "Все неподытоженные действия уже подытожены.",
+    );
+  });
+});
+

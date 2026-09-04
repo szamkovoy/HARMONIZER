@@ -1,3 +1,5 @@
+- 2026-09-04 (552): Dialog scaffold — `summaryAlreadyComplete` for the empty day-summary terminal (was hardcoded RU). 8 locales via PREMIUM fill.
+- 2026-09-04 (551): Summarizing FINAL — if native Health figures are cited, the same sentence names `Apple Health` (iOS) or `Health Connect` (Android). Yoga-only / denied / empty metrics stay unattributed. Server-only (`formatHealthForPrompt`); client already sent `provider`.
 - 2026-08-28 (550): Home «Окна возможностей» — 24‑часовое время для всех локалей кроме EN (`getHomeStrings.formatTime`; DE больше не показывает 9:06 PM).
 - 2026-08-27 (549): Личный кабинет — убран чёрный кадр перед браузером (`FullScreen` + светлый toolbar; закрытие RN Modal до SFSafari; prefetch OTT; Android Custom Tabs warm-up).
 - 2026-08-27 (548): Day tab — re-prefetch `/api/day` after `recordPracticeSession` clears cache (`force: true` so an in-flight home prefetch cannot restore a pre-practice plan; Flash/breath/asana/TV).

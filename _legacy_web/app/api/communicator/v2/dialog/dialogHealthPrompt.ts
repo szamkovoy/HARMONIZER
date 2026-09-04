@@ -3,7 +3,14 @@ function numberOrNull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function formatMetricForPrompt(label: string, value: unknown): string | null {
+/** Official product name for visible attribution. Null = do not name a source. */
+function healthSourceDisplayName(provider: string): string | null {
+  if (provider === "apple_health") return "Apple Health";
+  if (provider === "google_health") return "Health Connect";
+  return null;
+}
+
+function formatMetricForPrompt(label: string, value: unknown, sourceName?: string | null): string | null {
   if (!value || typeof value !== "object") return null;
   const metric = value as { value?: unknown; average?: unknown; comparison?: unknown };
   const current = numberOrNull(metric.value);
@@ -14,7 +21,8 @@ function formatMetricForPrompt(label: string, value: unknown): string | null {
   const comparison = typeof metric.comparison === "string" ? metric.comparison : "unknown";
   const averagePart = average != null && average > 0 ? `, average: ${Math.round(average)}` : "";
   const comparisonPart = comparison !== "unknown" ? `, comparison: ${comparison}` : "";
-  return `${label}: ${Math.round(current)}${averagePart}${comparisonPart}`;
+  const sourcePart = sourceName ? ` (${sourceName})` : "";
+  return `${label}${sourcePart}: ${Math.round(current)}${averagePart}${comparisonPart}`;
 }
 
 function formatDurationMinutesForPrompt(totalMinutes: number): string {
@@ -90,15 +98,17 @@ export function formatHealthForPrompt(value: unknown): string {
     lines.push(`yoga minutes: ${Math.round(yogaMinutes)}${averagePart}${comparisonPart}${kindsPart}`);
   }
 
-  const stepsLine = formatMetricForPrompt("steps", ctx.activity?.steps);
+  const sourceName = healthSourceDisplayName(provider);
+  const stepsLine = formatMetricForPrompt("steps", ctx.activity?.steps, sourceName);
   // Apple HealthKit and Google Health Connect both expose active energy in
   // kilocalories (we request unit "kcal" / read inKilocalories). Label must say
   // kcal so the model does not call everyday food-"calories" (1 kcal = 1000 cal).
-  const caloriesLine = formatMetricForPrompt("active energy kcal", ctx.activity?.activeCalories);
-  const workoutLine = formatMetricForPrompt("workout minutes", ctx.activity?.workoutMinutes);
+  const caloriesLine = formatMetricForPrompt("active energy kcal", ctx.activity?.activeCalories, sourceName);
+  const workoutLine = formatMetricForPrompt("workout minutes", ctx.activity?.workoutMinutes, sourceName);
   const sleepMinutes = sleepDurationMinutes(ctx.sleep?.durationMinutes);
+  const sleepSourcePart = sourceName ? ` (${sourceName})` : "";
   const sleepLine = sleepMinutes != null && sleepMinutes > 0
-    ? `sleep duration: ${formatDurationMinutesForPrompt(sleepMinutes)}`
+    ? `sleep duration${sleepSourcePart}: ${formatDurationMinutesForPrompt(sleepMinutes)}`
     : null;
   if (stepsLine) lines.push(stepsLine);
   if (caloriesLine) lines.push(caloriesLine);
@@ -107,27 +117,33 @@ export function formatHealthForPrompt(value: unknown): string {
   if (sleepLine && typeof ctx.sleep?.quality === "string" && ctx.sleep.quality !== "unknown") {
     const sleepQuality = sleepQualityLabelForPrompt(ctx.sleep.quality);
     if (sleepQuality) {
-      lines.push(`sleep quality note: ${sleepQuality}; do not quote raw provider codes.`);
+      lines.push(`sleep quality note${sleepSourcePart}: ${sleepQuality}; do not quote raw provider codes.`);
     }
   }
   const hasNativeHealthMetric = Boolean(stepsLine || caloriesLine || workoutLine || sleepLine);
   const noInventNative =
-    "CRITICAL: no Apple/Google Health numbers were shared for steps/sleep/active-energy/workouts — do NOT invent any of those figures and do NOT mention steps, sleep duration, kilocalories/kcal, or workouts at all (not even vaguely). Yoga/app practices above are allowed.";
+    "CRITICAL: no Apple/Google Health numbers were shared for steps/sleep/active-energy/workouts — do NOT invent any of those figures and do NOT mention steps, sleep duration, kilocalories/kcal, or workouts at all (not even vaguely). Do not name Apple Health or Health Connect. Yoga/app practices above are allowed.";
 
   if (!lines.length) {
     return ctx.providerStatus === "available"
       ? `provider: ${provider}; ${noInventNative}`
-      : "Apple/Google Health is unavailable; do not mention steps, sleep, kilocalories/kcal, workouts, or workload at all — not even vaguely.";
+      : "Apple/Google Health is unavailable; do not mention steps, sleep, kilocalories/kcal, workouts, or workload at all — not even vaguely. Do not name Apple Health or Health Connect.";
   }
   if (hasNativeHealthMetric) {
+    const sourceClause = sourceName
+      ? ` attributing it in the same sentence to ${sourceName} (exact product name; not a separate remark, and not for yoga/app practices);`
+      : "";
     lines.push(
-      "Cite at least one concrete Health figure from the metrics above in the FINAL (exact numeric value from this context); pair any qualitative judgment with that number. Never invent a different step/sleep/kcal number than the one listed. For active energy, say kilocalories/kcal (RU: килокалории/ккал) — never plain «calories/калории».",
+      `Cite at least one concrete Health figure from the metrics above in the FINAL (exact numeric value from this context);${sourceClause} pair any qualitative judgment with that number. Never invent a different step/sleep/kcal number than the one listed. For active energy, say kilocalories/kcal (RU: килокалории/ккал) — never plain «calories/калории».`,
     );
   } else {
     // Yoga-only (or other non-native lines): still forbid inventing pedometer/sleep figures.
     lines.push(noInventNative);
   }
-  return [`provider: ${provider}`, ...lines].join(", ");
+  const prefix = hasNativeHealthMetric && sourceName
+    ? `source: ${sourceName}`
+    : `provider: ${provider}`;
+  return [prefix, ...lines].join(", ");
 }
 
 /**
@@ -143,6 +159,7 @@ export function stripInventedNativeHealthClaims(text: string, hasNativeMetric: b
     if (!trimmed) return false;
     const mentionsNative =
       /(?:шаг(?:ов|а|и|ами)?|steps?|сон(?:а|у|ом)?|sleep|калор(?:ий|ии|иями)?|calories?|workout|трениров)/i.test(trimmed);
+    const mentionsHealthSource = /Apple Health|Health Connect|Google Health|Google Fit|HealthKit/i.test(trimmed);
     const hasDigit = /\d/.test(trimmed);
     // Drop only claims that invent a number for native Health topics.
     if (mentionsNative && hasDigit) return false;
@@ -150,6 +167,8 @@ export function stripInventedNativeHealthClaims(text: string, hasNativeMetric: b
     if (mentionsNative && /(?:по шагам|по сну|по калориям|по нагрузке|light on steps|quiet on steps)/i.test(trimmed)) {
       return false;
     }
+    // No native metrics were passed — do not leave a standalone source name.
+    if (mentionsHealthSource) return false;
     return true;
   });
   return kept.join(" ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/  +/g, " ").trim();

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.22
-updated: 2026-08-28
+version: 1.23
+updated: 2026-09-04
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-04 (dialog scaffold `summaryAlreadyComplete`):** RU source «Все неподытоженные действия уже подытожены.» + 7 locales via `i18n-sync fill --all` (`AI_MODEL_PREMIUM`). Used by summarizing terminal when `daySummaryRequested` and `dueEvents` are empty (`dialog/route.ts`).
 
 - **2026-08-28 (Home/Day clock 24h except EN):** `getHomeStrings.formatTime` больше не передаёт `inlineBaseLocale(locale)` в `Intl` (из‑за этого DE/FR/… получали английский 12‑часовой циферблат с AM/PM на «Окнах возможностей»). Теперь — `intlLocaleTag(locale)` + `hour12: locale === "en"` (EN: 9:06 PM; RU/DE/FR/IT/ES/PT/NL: 21:06). Та же политика в `getDayStrings.formatTime`. Регрессия: `modules/home/i18n/home-format-time.test.ts`.
 

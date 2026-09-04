@@ -8,6 +8,7 @@
   "chakraOrdinal_6": "sesto",
   "chakraOrdinal_7": "settimo",
   "dayPartEarlyMorning": "È dopo la mezzanotte ma il giorno del calendario è appena iniziato. \"Buonanotte\" va bene, ma NON dire che il giorno è \"già sera\", non abbinare il giorno della settimana alla sera, ed evita frasi di chiusura come \"è ora di guardare indietro con calma\" o \"concludere la giornata\".",
+  "emptyRecoveryPrompt": "Continuiamo — cosa è più importante per te in questo momento?",
   "fallbackPracticeQuestion": "Vorresti fare una pratica ora: meditazione, respirazione o asana? Se sì, indica il tipo e la durata approssimativa, oppure di' che la salterai oggi.",
   "fallbackSoftPracticeClose": "Se trovi un minuto per te, una delicata pratica yoga incentrata sul {ordinal} chakra può sostenere questa giornata. Puoi aprire il catalogo delle pratiche nel tuo account personale a livello Master.",
   "greetingInstruction": "Se saluti, usa \"{greeting}\". Non mescolare saluti di diverse parti della giornata.",
@@ -30,6 +31,7 @@
   "practiceKind_meditation": "meditazione",
   "practiceKind_yoga": "asana",
   "recommendationLabel": "Raccomandazione",
+  "summaryAlreadyComplete": "Tutte le azioni non riepilogate sono già state riepilogate.",
   "summaryBridge_cancelledPrefix": "Capito.",
   "summaryBridge_en": "Mi dispiace che non sia successo. Com'è andato \"{next}\"?",
   "summaryBridge_ruTemplate": "{prefix} Com'è andato il prossimo elemento{nextSuffix}?",
@@ -47,6 +49,5 @@
   "summaryClarify_work_1": "Come ti è sembrato il lavoro da dentro — guidato e concentrato, collaborativo, o più estenuante che gratificante?",
   "summaryDefaultEvent": "questo evento",
   "summaryEmptyDueHandoff": "Bene — abbiamo concluso la riflessione su ciò che avevi programmato. Puoi lasciare ciò che hai vissuto così com'è.",
-  "emptyRecoveryPrompt": "Continuiamo — cosa è più importante per te in questo momento?",
   "summaryToPlanningBridge": "Cosa senti importante pianificare per oggi?"
 }

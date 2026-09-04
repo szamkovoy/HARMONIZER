@@ -59,6 +59,26 @@ describe("buildSummarizingPrompt", () => {
     expect(userInstruction).not.toMatch(/9 июня/i);
     expect(userInstruction).toMatch(/ONLY that event/i);
     expect(userInstruction).toMatch(/exactly one question about the NEXT event/i);
+    expect(userInstruction).not.toMatch(/Apple Health|Health Connect/i);
+  });
+
+  it("asks the FINAL to name the health source only when native metrics are in context", () => {
+    const { userInstruction } = buildSummarizingPrompt(brainCtx, {
+      isOpening: false,
+      currentEvent: { ref: "evt-1", description: "Прогулка в парке" },
+      nextEvent: null,
+      completedEarlierEvents: [],
+      isLastEvent: true,
+      clarifyingAlreadyAsked: false,
+      healthContext: "source: Apple Health, steps (Apple Health): 1537, Cite at least one concrete Health figure",
+      practicesContext: "",
+      summaryWorkingLocalDate: "2026-06-09",
+      currentEventPlannedLocalDate: "2026-06-09",
+      continuesToPlanning: true,
+    });
+    expect(userInstruction).toMatch(/Weave the exact source product name shown next to that metric into the SAME sentence/i);
+    expect(userInstruction).toMatch(/do not name Apple Health or Health Connect/i);
+    expect(userInstruction).toContain("steps (Apple Health): 1537");
   });
 });
 

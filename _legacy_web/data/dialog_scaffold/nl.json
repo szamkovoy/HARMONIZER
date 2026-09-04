@@ -8,6 +8,7 @@
   "chakraOrdinal_6": "zesde",
   "chakraOrdinal_7": "zevende",
   "dayPartEarlyMorning": "Het is na middernacht maar de kalenderdag is net begonnen. 'Goedenacht' is prima, maar zeg NIET dat de dag 'al avond' is, koppel de weekdag niet aan avond, en vermijd afsluitende uitdrukkingen zoals 'tijd om rustig terug te kijken' of 'de dag af te ronden'.",
+  "emptyRecoveryPrompt": "Laten we doorgaan — wat is nu het belangrijkst voor je?",
   "fallbackPracticeQuestion": "Wil je nu een oefening doen: meditatie, ademhaling of asana's? Zo ja, noem het type en de geschatte duur, of zeg dat je het vandaag overslaat.",
   "fallbackSoftPracticeClose": "Als er een moment voor jezelf is, kan een zachte yogapractice gericht op de {ordinal} chakra deze dag ondersteunen. De catalogus met practices kan worden geopend in het Persoonlijke Dashboard op Meester-niveau.",
   "greetingInstruction": "Als je begroet, gebruik dan \"{greeting}\". Combineer geen begroetingen uit verschillende dagdelen.",
@@ -30,6 +31,7 @@
   "practiceKind_meditation": "meditatie",
   "practiceKind_yoga": "asana's",
   "recommendationLabel": "Aanbeveling",
+  "summaryAlreadyComplete": "Alle niet-samengevatte acties zijn al samengevat.",
   "summaryBridge_cancelledPrefix": "Begrepen.",
   "summaryBridge_en": "Het spijt me dat het niet is gebeurd. Hoe is \"{next}\" gegaan?",
   "summaryBridge_ruTemplate": "{prefix} Hoe is het volgende item gegaan{nextSuffix}?",
@@ -47,6 +49,5 @@
   "summaryClarify_work_1": "Hoe voelde het werk van binnen — gedreven en gefocust, samenwerkend, of meer uitputtend dan belonend?",
   "summaryDefaultEvent": "deze gebeurtenis",
   "summaryEmptyDueHandoff": "Goed — de terugblik op wat eerder gepland stond is afgerond. Laat de ervaring zoals ze is.",
-  "emptyRecoveryPrompt": "Laten we doorgaan — wat is nu het belangrijkst voor je?",
   "summaryToPlanningBridge": "Wat voelt belangrijk om vandaag te plannen?"
 }

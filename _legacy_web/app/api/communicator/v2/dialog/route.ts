@@ -1181,9 +1181,10 @@ export async function POST(req: Request) {
         fsm = nextFsm;
       } else {
         await closeConversation(db, userId, conversation.id);
+        const locale = resolveDialogScaffoldLocale(context.user.locale);
         return immediateDialogStream({
           conversationId: conversation.id,
-          fullText: "Все неподытоженные действия уже подытожены.",
+          fullText: getDialogScaffoldStrings(locale).summaryAlreadyComplete.trim(),
           turnMode: "final_without_practice",
           phaseTime: context.phaseTime,
           targetChakra: context.targetChakra,

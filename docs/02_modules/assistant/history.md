@@ -1,13 +1,17 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.102
-updated: 2026-08-23
+version: 2.104
+updated: 2026-09-04
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-04 (summaryAlreadyComplete locale):** Terminal reply when `daySummaryRequested` arrives with empty `dueEvents` was hardcoded RU «Все неподытоженные действия уже подытожены.». Now `getDialogScaffoldStrings(locale).summaryAlreadyComplete` (layer C, all 8 locales), same path as `summaryEmptyDueHandoff`.
+
+- **2026-09-04 (Health source attribution in summarizing FINAL):** App Store review: if the summarizing FINAL cites Apple HealthKit figures (steps, sleep, …), the visible sentence must name the source. `formatHealthForPrompt` already received `dayHealthContext.provider` (`apple_health` / `google_health`) and already omitted zeros/denied access. Change is data-bound, not a new prompt section: positive native metrics now carry the official product name (`Apple Health` / `Health Connect`) on the same line, and the existing cite-instruction asks to weave that exact name into the same sentence as the figure. Yoga/app practices stay unattributed. When no native metric is present, the health block forbids naming either product; `stripInventedNativeHealthClaims` drops leftover source sentences. Shared preamble and intermediate summarizing turns unchanged. Client unchanged — no extra OS field. Product names stay as proper nouns in all 8 locales; surrounding grammar is LLM layer B.
 
 - **2026-08-23 (empty-text graduated recovery + uniform buffering):** Sentry production error `Model returned empty text after sanitization` (`POST /api/communicator/v2/dialog`, `stage=responder_stream`): DeepSeek returned 200 with ~95 chars, but after `sanitizeAssistantText`/`stripBrainSentinels` the visible text became `""` (marker-only draft), and `route.ts` threw — user saw SSE `error`. Fix: (1) **Uniform buffering** — `bufferUntilGuards = true` always (was conditional on branch/state); raw LLM stream is never emitted as live `chunk` until sanitization completes, so `<PLANNED_EVENT>` / `display_order=` / `spheres=` leaks structurally impossible (client `StreamingAssistantLines` still does paced line-by-line FadeIn after the single sanitized `chunk`). (2) **Graduated recovery** replaces the throw: same-model retry with `buildEmptyContentRepairInstruction` (prefix-cache warm, same `systemInstruction` + `baseHistory` + `currentTurnPrefix`) → if still empty, `AI_MODEL_FALLBACK` model retry with same repair instruction (context window preserved) → if still empty, deterministic branch-aware fallback (`buildSummaryClarifyingQuestion` / `summaryEmptyDueHandoff` / `buildPracticeClarificationFallback` / `buildPostDialogReply` / new scaffold `emptyRecoveryPrompt`, all 8 locales). Never throws; logs `console.warn` with diagnostics (`branch`, `totalLen`, `markerOnly`, `stage`), not Sentry error. `collectBufferedRetryText` gained optional `{ modelOverride }`. Existing 4 hidden repair paths (planning finalize, summary close, summary mixed, leaked markup) untouched. Client not changed (already unified into `StreamingAssistantLines`).
 
