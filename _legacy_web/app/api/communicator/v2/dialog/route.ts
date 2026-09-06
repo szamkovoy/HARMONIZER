@@ -45,6 +45,13 @@ import {
   type TurnHistoryItem,
 } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import {
+  appendDailyDialogArchiveSafe,
+  archiveMetaFromTrigger,
+  buildDailyDialogArchiveTurns,
+  markDailyDialogArchiveSupersededSafe,
+  resolveDailyDialogArchiveOutcome,
+} from "@legacy/app/api/communicator/v2/dialog/dialogQaArchive";
+import {
   loadDialogDailyContext,
   resolveSummarizingPromptContext,
   type DialogDailyContext,
@@ -87,6 +94,7 @@ import {
 import {
   assistantFinalizeWithoutMarkers,
   buildPostDialogReply,
+  assistantAsksWhetherUserWantsPractice,
   assistantVisibleContainsSummaryClarifyingCue,
   collectPlanningBranchDialogHistory,
   collectPlanningBranchUserHistory,
@@ -96,6 +104,7 @@ import {
   historyHasPracticePicked,
   inferPlanningSpheresFromText,
   isPostDialogTurn,
+  lastAssistantText,
   mergeHistoryPlanningMarkers,
   mergePlanningMarkersWithVisibleFinalize,
   resolveAddFlowPlanningMarkers,
@@ -105,6 +114,7 @@ import {
   userAnswerHasSufficientStateForSummary,
   userAnswerIsThinForSummary,
   userSaysEventDidNotHappen,
+  assistantAskedPlanningClosure,
   userSignalsPlanningDone,
   userDeclinesPractice,
   visibleTextMentionsEvent,
@@ -112,7 +122,9 @@ import {
 import {
   buildEmptyContentRepairInstruction,
   buildLeakedMarkupRepairInstruction,
+  buildPlanningClosureInterpretRepairInstruction,
   buildPlanningFinalizeRepairInstruction,
+  buildPracticeDeclineInterpretRepairInstruction,
   planningFinalizeArtifactsReady,
 } from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
 import {
@@ -130,7 +142,7 @@ import {
   type PersistedSummarizedEvent,
 } from "@legacy/app/api/communicator/v2/dialog/dialogBrainPersistence";
 import type { MatrixCell } from "@legacy/app/api/_utils/lifeMatrix";
-import { looksLikeNewPlannedAction } from "@legacy/app/api/_utils/planningDonePhrases";
+import { assistantDraftStillPlanningGathering, previousAssistantAskedToAddMoreToPlan, looksLikeNewPlannedAction, planningGatheringQuestionsLookRepeated } from "@legacy/app/api/_utils/planningDonePhrases";
 import {
   inferPlannedEventsFromUserHistory,
   samePlannedEventIdentity,
@@ -389,8 +401,58 @@ async function closeSiblingOpenConversations(
     return !metaUseCase || metaUseCase === useCase;
   });
   for (const conversation of siblings) {
+    if (useCase === "daily_dialog") {
+      await markDailyDialogArchiveSupersededSafe(db, userId, conversation.id);
+    }
     await closeConversation(db, userId, conversation.id);
   }
+}
+
+async function recordDailyDialogQa(params: {
+  db: SupabaseClient;
+  userId: string;
+  conversation: ConversationRecord;
+  useCase: DialogueUseCase;
+  locale?: string | null;
+  userMessage?: string;
+  assistantText?: string;
+  branch?: string | null;
+  turnMode?: string | null;
+  shouldClose?: boolean;
+  practicePicked?: boolean;
+  guards?: string[];
+  planningPersistence?: unknown;
+  streamError?: boolean;
+  interrupted?: boolean;
+}): Promise<void> {
+  if (params.useCase !== "daily_dialog") return;
+  const { dayTabMode } = archiveMetaFromTrigger(params.conversation.trigger_meta ?? null);
+  await appendDailyDialogArchiveSafe(params.db, {
+    userId: params.userId,
+    conversationId: params.conversation.id,
+    entrySource: params.conversation.entry_source ?? null,
+    dayTabMode,
+    locale: params.locale ?? null,
+    turns: buildDailyDialogArchiveTurns({
+      userMessage: params.userMessage,
+      assistantText: params.assistantText,
+      branch: params.branch,
+      turnMode: params.turnMode,
+      shouldClose: params.shouldClose,
+      guards: params.guards,
+      planningPersistence: params.planningPersistence,
+      practicePicked: params.practicePicked,
+    }),
+    outcome: resolveDailyDialogArchiveOutcome({
+      shouldClose: params.shouldClose,
+      practicePicked: params.practicePicked,
+      streamError: params.streamError,
+      interrupted: params.interrupted,
+    }),
+    lastBranch: params.branch ?? null,
+    lastTurnMode: params.turnMode ?? null,
+    lastShouldClose: params.shouldClose ?? null,
+  });
 }
 
 async function loadConversation(
@@ -414,7 +476,12 @@ async function loadConversation(
     if (!conversation.ended_at && !isConversationExpired(conversation, timezone)) return conversation;
 
     const summary = await summarizeConversationIfNeeded(db, userId, conversation.id);
-    if (!conversation.ended_at) await closeConversation(db, userId, conversation.id);
+    if (!conversation.ended_at) {
+      if (useCase === "daily_dialog") {
+        await markDailyDialogArchiveSupersededSafe(db, userId, conversation.id);
+      }
+      await closeConversation(db, userId, conversation.id);
+    }
     return createConversation(db, userId, body, useCase, scenarioId, {
       reset_reason: "session_expired",
       previous_conversation_id: conversation.id,
@@ -1104,11 +1171,18 @@ export async function POST(req: Request) {
     const due = openDueEvents(context);
     const currentEvent = due[0] ?? null;
     const nextEvent = due[1] ?? null;
-    const planningDoneIntent =
+    let planningDoneIntent =
       !isInitiate && fsm.branch === "planning"
         ? userSignalsPlanningDone(userMessage, history)
         : false;
-    const planningMarkerFilterOptions = {
+    const answeringPlanningClosure =
+      !isInitiate
+      && fsm.branch === "planning"
+      && !fsm.planningFinalized
+      && assistantAskedPlanningClosure(history);
+    const alreadyClarifiedPlanningClosure =
+      answeringPlanningClosure && previousAssistantAskedToAddMoreToPlan(history);
+    const planningMarkerFilterOptions: { closureUserMessage?: string; addFlow?: true } = {
       ...(planningDoneIntent ? { closureUserMessage: userMessage } : {}),
       // Day-tab «Добавить действие» (noGreeting): drop past-tense scaffolding
       // like «подумал, что стоит добавить что-нибудь из сферы отдыха».
@@ -1136,6 +1210,18 @@ export async function POST(req: Request) {
             "[DIALOG_FSM] Summarizing had no open due events on a user turn — emitting handoff instead of planning on the same reply",
             JSON.stringify({ conversationId: conversation.id, nextBranch: nextFsm.branch }),
           );
+          await recordDailyDialogQa({
+            db,
+            userId,
+            conversation,
+            useCase,
+            locale: resolveResponseLocale(context.user.locale),
+            userMessage: isInitiate ? "" : userMessage,
+            assistantText: handoffText,
+            branch: "summarizing",
+            turnMode: nextFsm.branch === "done" ? "final_without_practice" : "inquiry",
+            shouldClose: nextFsm.branch === "done",
+          });
           return immediateDialogStream({
             conversationId: conversation.id,
             fullText: handoffText,
@@ -1151,9 +1237,22 @@ export async function POST(req: Request) {
       } else {
         await closeConversation(db, userId, conversation.id);
         const locale = resolveDialogScaffoldLocale(context.user.locale);
+        const alreadyCompleteText = getDialogScaffoldStrings(locale).summaryAlreadyComplete.trim();
+        await recordDailyDialogQa({
+          db,
+          userId,
+          conversation,
+          useCase,
+          locale: resolveResponseLocale(context.user.locale),
+          userMessage: isInitiate ? "" : userMessage,
+          assistantText: alreadyCompleteText,
+          branch: "summarizing",
+          turnMode: "final_without_practice",
+          shouldClose: true,
+        });
         return immediateDialogStream({
           conversationId: conversation.id,
-          fullText: getDialogScaffoldStrings(locale).summaryAlreadyComplete.trim(),
+          fullText: alreadyCompleteText,
           turnMode: "final_without_practice",
           phaseTime: context.phaseTime,
           targetChakra: context.targetChakra,
@@ -1167,6 +1266,7 @@ export async function POST(req: Request) {
       fsm.branch === "practice" ? practiceValidationForTurn(history, userMessage) : null;
     let prompt: { systemInstruction: string; userInstruction: string };
     let summarizingHealthDebug: Record<string, unknown> | null = null;
+    let isPracticeOpening = false;
     if (fsm.branch === "summarizing") {
       const completedEarlierEvents = mergeSummarySessionItems(
         readSummarySessionItems(conversationMeta),
@@ -1200,7 +1300,7 @@ export async function POST(req: Request) {
         .reverse()
         .find((message) => message.role === "assistant")
         ?.meta?.dialog_branches;
-      const isPracticeOpening = !Array.isArray(lastAssistantBranch) || !lastAssistantBranch.includes("practice");
+      isPracticeOpening = !Array.isArray(lastAssistantBranch) || !lastAssistantBranch.includes("practice");
       prompt = buildPracticePrompt(brainCtx, {
         isOpening: isPracticeOpening,
         pickImmediately: practiceValidationAtTurn?.confident === true,
@@ -1226,6 +1326,8 @@ export async function POST(req: Request) {
         softPracticeClose: fsm.softPracticeClose,
         noGreeting: fsm.noGreeting,
         userSignaledDone: planningDoneIntent,
+        answeringClosureQuestion: answeringPlanningClosure,
+        alreadyClarifiedClosure: alreadyClarifiedPlanningClosure,
         planningLocked: fsm.planningFinalized,
         existingActionCount,
         addFlowSphereBalanceLens,
@@ -1285,6 +1387,18 @@ export async function POST(req: Request) {
         .select("id")
         .single();
       if (postDialogInsertError) throw postDialogInsertError;
+      await recordDailyDialogQa({
+        db,
+        userId,
+        conversation,
+        useCase,
+        locale: resolveResponseLocale(context.user.locale),
+        userMessage,
+        assistantText: replyText,
+        branch: "practice",
+        turnMode: "final_without_practice",
+        shouldClose: true,
+      });
       await closeConversation(db, userId, conversation.id);
       return immediateDialogStream({
         conversationId: conversation.id,
@@ -1326,6 +1440,7 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         let fullText = "";
+        const qaGuards: string[] = [];
         try {
           let modelUsed = model;
           const collectBufferedRetryText = async (
@@ -1376,6 +1491,134 @@ export async function POST(req: Request) {
             && !isOpening
             && currentEvent != null
             && userAnswerHasSufficientStateForSummary(userMessage);
+          if (
+            branchForTurn === "planning"
+            && !isOpening
+            && !fsmAtTurnStart.planningFinalized
+            && !planningDoneIntent
+          ) {
+            const persistableThisTurn = filterPersistablePlanningMarkers(
+              markers.plannedEvents,
+              planningMarkerFilterOptions,
+            );
+            const stillGathering = assistantDraftStillPlanningGathering(sanitizedVisibleText);
+            const gatheringLoop = planningGatheringQuestionsLookRepeated(
+              lastAssistantText(history),
+              sanitizedVisibleText,
+            ) && persistableThisTurn.length === 0;
+            const unansweredClosure =
+              answeringPlanningClosure
+              && stillGathering
+              && persistableThisTurn.length === 0;
+            if (unansweredClosure && (alreadyClarifiedPlanningClosure || gatheringLoop)) {
+              try {
+                const repaired = await collectBufferedRetryText(buildPlanningClosureInterpretRepairInstruction({
+                  baseInstruction: prompt.userInstruction,
+                  noGreeting: fsmAtTurnStart.noGreeting,
+                  alreadyClarified: alreadyClarifiedPlanningClosure,
+                }));
+                modelUsed = repaired.modelUsed;
+                fullText = repaired.fullText;
+                markers = parseResponseMarkers(fullText);
+                sanitizedVisibleText = stripBrainSentinels(
+                  sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)),
+                );
+                console.warn(
+                  "[DIALOG_FSM] Semantic planning-closure interpret repair",
+                  JSON.stringify({
+                    conversationId: conversation.id,
+                    noGreeting: fsmAtTurnStart.noGreeting,
+                    alreadyClarified: alreadyClarifiedPlanningClosure,
+                    gatheringLoop,
+                  }),
+                );
+              } catch (repairError) {
+                console.warn("[DIALOG_FSM] Hidden retry for planning-closure interpret failed; keeping original response", repairError);
+              }
+            }
+            const persistableAfterInterpret = filterPersistablePlanningMarkers(
+              markers.plannedEvents,
+              planningMarkerFilterOptions,
+            );
+            const stillGatheringAfterInterpret = assistantDraftStillPlanningGathering(sanitizedVisibleText);
+            if (
+              persistableAfterInterpret.length === 0
+              && (
+                planningGatheringQuestionsLookRepeated(lastAssistantText(history), sanitizedVisibleText)
+                || (alreadyClarifiedPlanningClosure && stillGatheringAfterInterpret)
+              )
+            ) {
+              planningDoneIntent = true;
+              if (!planningMarkerFilterOptions.closureUserMessage) {
+                planningMarkerFilterOptions.closureUserMessage = userMessage;
+              }
+              console.warn(
+                "[DIALOG_FSM] Planning gathering stop-valve — forcing finalize",
+                JSON.stringify({
+                  conversationId: conversation.id,
+                  noGreeting: fsmAtTurnStart.noGreeting,
+                  gatheringLoop,
+                  alreadyClarified: alreadyClarifiedPlanningClosure,
+                }),
+              );
+              qaGuards.push("planning_stop_valve");
+            }
+          }
+          if (
+            branchForTurn === "practice"
+            && !historyHasPracticePicked(history)
+            && practiceValidationAtTurn?.confident !== true
+            && !markers.practicePick
+            && !containsPracticeDeclined(fullText)
+            && !buildCatalogReconciliationInstruction(practiceValidationAtTurn!).trim()
+          ) {
+            const alreadyClarifiedPractice = !isPracticeOpening;
+            const stillWantOffer = assistantAsksWhetherUserWantsPractice(sanitizedVisibleText);
+            const stillAsking = /[?？]/.test(sanitizedVisibleText);
+            const shouldInterpretPractice =
+              (alreadyClarifiedPractice && stillAsking)
+              || (isPracticeOpening && stillWantOffer);
+            if (shouldInterpretPractice) {
+              try {
+                const repaired = await collectBufferedRetryText(buildPracticeDeclineInterpretRepairInstruction({
+                  baseInstruction: prompt.userInstruction,
+                  alreadyClarified: alreadyClarifiedPractice,
+                }));
+                modelUsed = repaired.modelUsed;
+                fullText = repaired.fullText;
+                markers = parseResponseMarkers(fullText);
+                sanitizedVisibleText = stripBrainSentinels(
+                  sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)),
+                );
+                console.warn(
+                  "[DIALOG_FSM] Semantic practice-decline interpret repair",
+                  JSON.stringify({ conversationId: conversation.id, alreadyClarified: alreadyClarifiedPractice }),
+                );
+              } catch (repairError) {
+                console.warn("[DIALOG_FSM] Hidden retry for practice-decline interpret failed; keeping original response", repairError);
+              }
+            }
+            if (
+              alreadyClarifiedPractice
+              && !markers.practicePick
+              && !containsPracticeDeclined(fullText)
+              && /[?？]/.test(sanitizedVisibleText)
+            ) {
+              const locale = resolveDialogScaffoldLocale(context.user.locale);
+              sanitizedVisibleText = buildPostDialogReply({
+                locale,
+                userMessage,
+                hadPractice: false,
+              });
+              fullText = `${sanitizedVisibleText}\n[PRACTICE_DECLINED]`;
+              markers = parseResponseMarkers(fullText);
+              console.warn(
+                "[DIALOG_FSM] Practice offer stop-valve — forcing decline after one clarifier",
+                JSON.stringify({ conversationId: conversation.id }),
+              );
+              qaGuards.push("practice_stop_valve");
+            }
+          }
           if (
             branchForTurn === "planning"
             && !isOpening
@@ -1855,7 +2098,20 @@ export async function POST(req: Request) {
             }
           } else if (branchForTurn === "practice") {
             const validation = practiceValidationForTurn(history, userMessage);
-            const declined = (containsPracticeDeclined(fullText) || userDeclinesPractice(userMessage))
+            const userOnlyAffirmedPractice =
+              /^(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|oui|ja|s[iì]|sim|конечно|давай)[.!?,…\s]*$/iu.test(
+                userMessage.trim(),
+              );
+            const closedWithoutQuestion =
+              !/[?？]/.test(sanitizedVisibleText)
+              && !markers.practicePick
+              && !validation.confident
+              && !userOnlyAffirmedPractice;
+            const declined = (
+              containsPracticeDeclined(fullText)
+              || userDeclinesPractice(userMessage)
+              || closedWithoutQuestion
+            )
               && !markers.practicePick
               && !validation.confident;
             if (historyHasPracticePicked(history)) {
@@ -2382,6 +2638,21 @@ export async function POST(req: Request) {
             // DTO-budget proxy (chars/3.5), same convention as greeting/calibration.
             total_tokens: Math.round(((userMessage?.length ?? 0) + (cleanText?.length ?? 0)) / 3.5),
           });
+          await recordDailyDialogQa({
+            db: routeDb,
+            userId: routeUserId,
+            conversation,
+            useCase,
+            locale: resolveResponseLocale(context.user.locale),
+            userMessage: isInitiate ? "" : userMessage,
+            assistantText: cleanText,
+            branch: branchForTurn,
+            turnMode,
+            shouldClose,
+            practicePicked: Boolean(practicePicked),
+            guards: qaGuards,
+            planningPersistence,
+          });
 
           const persistenceConfirmed = planningPersistence.summarized.length > 0
             || planningPersistence.inserted.length > 0
@@ -2443,6 +2714,20 @@ export async function POST(req: Request) {
             const salvaged = stripBrainSentinels(
               sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)),
             ).trim();
+            await recordDailyDialogQa({
+              db: routeDb,
+              userId: routeUserId,
+              conversation,
+              useCase,
+              locale: resolveResponseLocale(context.user.locale),
+              userMessage: isInitiate ? "" : userMessage,
+              assistantText: salvaged,
+              branch: branchForTurn,
+              turnMode: "inquiry",
+              streamError: !salvaged,
+              interrupted: Boolean(!salvaged && userMessage),
+              guards: qaGuards,
+            });
             if (salvaged) {
               controller.enqueue(
                 encoder.encode(

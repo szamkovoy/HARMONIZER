@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.58
-updated: 2026-08-24
+version: 2.59
+updated: 2026-09-06
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -166,6 +166,7 @@ code_refs:
 | **Устройство (канон текста)** | До 40 последних сообщений ленты, `conversationId`, ключ по локальному календарному дню | `services/dialogSessionCache.ts` — SecureStore (native) / `localStorage` (web); ключ `harmonizer.dialog.session.{userId}.{useCase}.{entrySource}` |
 | **POST на сервер** | Контекст ходов для LLM | `buildClientTurnHistory` → поле `turnHistory` (лимит 40); assistant-turn может нести `meta.practicePicked` и `meta.branches`/`dialog_branches`; сервер предпочитает его над пустым `messages.content` |
 | **Сервер (не текст)** | `messages.meta`, `planned_events` (`planned` + текущие `summarized`), rollup `daily_matrices`, snapshot `profile_report_snapshots` | `docs/02_modules/assistant/spec.md` |
+| **Сервер (журнал QA, не для приложения)** | Тексты daily dialog + исход/разбор, 7 дней | `daily_dialog_archives`; GET `/dialog` и клиент **не** читают |
 | **GET sync** | Проверка `reset`, гидрация `complete`, dev-export | `fetchDialogSession`; на mount **без** `conversationId` из local cache (только проп `Communicator`) |
 
 **Восстановление после перезапуска приложения:** local cache (если тот же день и `conversationId` совпал с сервером) → иначе сообщения GET → иначе seed из пропсов. Серверный `reset: true` или отсутствие `conversationId` **очищает** local cache.

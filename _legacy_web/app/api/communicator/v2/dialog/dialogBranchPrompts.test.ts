@@ -4,6 +4,7 @@ import {
   buildPlanningAddFinalVisibleText,
   buildPlanningPrompt,
   buildPlanningFinalVisibleText,
+  buildPracticePrompt,
   buildSummarizingPrompt,
   capitalizeFirstLetter,
   countDayTabActionsFromTriggerMeta,
@@ -334,6 +335,88 @@ describe("buildPlanningPrompt", () => {
     expect(userInstruction).toMatch(/Sphere 4 is ONLY for actions/i);
     expect(userInstruction).not.toMatch(/Quick guide:/i);
     expect(userInstruction).not.toContain('spheres="1:0.6;4:0.4"');
+  });
+
+  it("asks the model to read a closure-question reply by meaning, with one in-frame clarifier if unclear", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: false,
+      noGreeting: false,
+      userSignaledDone: false,
+      answeringClosureQuestion: true,
+      planningLocked: false,
+      existingActionCount: 1,
+    });
+    expect(userInstruction).toMatch(/Read the user's reply BY MEANING/i);
+    expect(userInstruction).toMatch(/do not look for fixed phrases/i);
+    expect(userInstruction).toMatch(/Three outcomes only/i);
+    expect(userInstruction).toMatch(/cannot tell/i);
+    expect(userInstruction).toMatch(/another action for today, or assemble the plan/i);
+    expect(userInstruction).not.toMatch(/stay in gathering mode/i);
+    expect(userInstruction).not.toMatch(/Больше планов на сегодня нет/);
+    expect(userInstruction).not.toMatch(/that's all/i);
+  });
+
+  it("finalizes without another question after the one planning clarifier was already asked", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: false,
+      noGreeting: false,
+      userSignaledDone: false,
+      answeringClosureQuestion: true,
+      alreadyClarifiedClosure: true,
+      planningLocked: false,
+      existingActionCount: 1,
+    });
+    expect(userInstruction).toMatch(/already asked once/i);
+    expect(userInstruction).toMatch(/FINALIZE now/i);
+    expect(userInstruction).toMatch(/Do not ask again/i);
+    expect(userInstruction).not.toMatch(/Three outcomes only/i);
+  });
+
+  it("hard-finalize THIS TURN still wins over the semantic closure instruction", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: false,
+      noGreeting: false,
+      userSignaledDone: true,
+      answeringClosureQuestion: true,
+      planningLocked: false,
+      existingActionCount: 1,
+    });
+    expect(userInstruction).toMatch(/write the FINAL planning message now/i);
+    expect(userInstruction).not.toMatch(/your previous message asked whether to add more/i);
+  });
+});
+
+describe("buildPracticePrompt", () => {
+  it("asks the model to accept a practice refusal by meaning, with one in-frame clarifier if unclear", () => {
+    const { userInstruction } = buildPracticePrompt(brainCtx, {
+      isOpening: true,
+      pickImmediately: false,
+      catalogReconciliation: "",
+      postPracticeReply: false,
+    });
+    expect(userInstruction).toMatch(/BY MEANING/i);
+    expect(userInstruction).toMatch(/do not look for fixed phrases/i);
+    expect(userInstruction).toMatch(/\[PRACTICE_DECLINED\]/);
+    expect(userInstruction).toMatch(/Three outcomes only/i);
+    expect(userInstruction).toMatch(/name kind and approximate duration, or skip today/i);
+    expect(userInstruction).not.toMatch(/no time to practice/i);
+    expect(userInstruction).not.toMatch(/maybe later/i);
+  });
+
+  it("closes the practice branch after one clarifier if the reply is still not a pick", () => {
+    const { userInstruction } = buildPracticePrompt(brainCtx, {
+      isOpening: false,
+      pickImmediately: false,
+      catalogReconciliation: "",
+      postPracticeReply: false,
+    });
+    expect(userInstruction).toMatch(/already asked once/i);
+    expect(userInstruction).toMatch(/\[PRACTICE_DECLINED\]/);
+    expect(userInstruction).toMatch(/do not ask again/i);
+    expect(userInstruction).not.toMatch(/Three outcomes only/i);
   });
 });
 

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.16
-updated: 2026-08-16
+version: 1.17
+updated: 2026-09-06
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql]
 ---
@@ -54,7 +54,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **Сборка API:** Next компилирует маршруты `app/api/*`; общая логика практик может тянуть типы/данные из `modules/practices/**`, что отражено в `.vercelignore`.
 - **Наблюдаемость:** серверная цепочка Sentry стартует из instrumentation → `sentry.server.config`; ошибки маршрутов централизованно пробрасываются в Sentry и в Supabase `user_event_log` через `monitoring.ts`.
 - **Данные:** версионируемая схема и edge-функции живут в `supabase/`; продакшен-изменения проходят через новые SQL-миграции, как зафиксировано в README. Для `author_presence` cleanup-контур `cleanup-expired-stories` удаляет истёкшие сторис и их storage assets вне интерактивного клиентского пути; hourly invoke фиксируется миграцией `pg_cron`, а админский `GET /api/admin/stories` использует тот же helper как safety net. Для `subscription`/`admin_panel` контур `reconcile-expired-memberships` (миграция `20260710023000`, schedule `20 * * * *`) батчево вызывает SQL `reconcile_expired_memberships` → `recompute_user_membership` для пользователей с истёкшим `membership_expires_at`; автооплату store не делает.
-- **Cron self-heal:** канон — `public.ensure_harmonizer_cron_jobs()`. Реестр: free/paid precompute hourly (`0 * * * *`), stories cleanup (`15 * * * *`), membership reconcile (`20 * * * *`), OTP ghost cleanup (`35 * * * *`), deliveries retention weekly (`37 4 * * 0`), **`notify_webinar_start_minutely`** (`* * * * *` → Edge `notify-webinar-start`), **`run_email_automations_hourly`** (`40 * * * *` → Vercel `/api/cron/email-automations`), **`sync_email_suppressions_daily`** (`20 5 * * *` → Vercel `/api/cron/email-suppressions-sync`), watchdog (`*/15 * * * *`).
+- **Cron self-heal:** канон — `public.ensure_harmonizer_cron_jobs()`. Реестр: free/paid precompute hourly (`0 * * * *`), stories cleanup (`15 * * * *`), membership reconcile (`20 * * * *`), OTP ghost cleanup (`35 * * * *`), deliveries retention weekly (`37 4 * * 0`), **`notify_webinar_start_minutely`** (`* * * * *` → Edge `notify-webinar-start`), **`run_email_automations_hourly`** (`40 * * * *` → Vercel `/api/cron/email-automations`), **`sync_email_suppressions_daily`** (`20 5 * * *` → Vercel `/api/cron/email-suppressions-sync`), **`cleanup_daily_dialog_archives_hourly`** (`50 * * * *` → SQL `cleanup_daily_dialog_archives`, 7 суток), watchdog (`*/15 * * * *`).
 - **Cron-контур free/paid day content:** free — `precompute-global-recommendations`; paid — `precompute-daily-forecasts` (оба через `pg_cron` + Vault `precompute_global_cron_secret` = Edge `CRON_SECRET`). Runbook в `DEPLOY.md` / `supabase/README.md` не заменяет миграции. Для LLM в cron/precompute-контуре: primary-модель до 3 попыток с паузой 60s, затем один `AI_MODEL_FALLBACK`.
 
 ## 4. Конфигурация и параметры

@@ -34,13 +34,75 @@ export function lastAssistantTextFromHistory(history: ClosureHistoryMessage[]): 
   return "";
 }
 
+const ASSEMBLE_PLAN_RE =
+  /(?:собр(?:ать|ем|ём|и|ите|аю)\s+(?:ваш\s+|мой\s+)?план|состав(?:ить|ь|лю|им)\s+(?:ваш\s+|мой\s+)?план|assemble(?:\s+the)?\s+plan|put(?:\s+the)?\s+plan\s+together|make(?:\s+the)?\s+plan|wrap\s+up(?:\s+the)?\s+plan|plan\s+zusammenstellen|den\s+plan\s+erstellen|assembler\s+le\s+plan|faire\s+le\s+plan|assemblare\s+il\s+piano|mettere\s+insieme\s+il\s+piano|armar\s+el\s+plan|montar\s+el\s+plan|montar\s+o\s+plano|plan\s+samenstellen)/iu;
+
 /** Assistant turn asked whether the user wants to add more to today's plan. */
 export function assistantAskedToAddMoreToPlan(assistantText: string): boolean {
   const text = assistantText.trim();
   if (!text || !/[?？]/.test(text)) return false;
+  const normalized = text.toLowerCase();
+  if (ASSEMBLE_PLAN_RE.test(normalized)) return true;
   return /(?:добав|ещ[её]|что-то\s+ещ[её]|anything\s+else|something\s+else|add\s+more|add\s+another|aggiung|qualcos['’]altro|altro\s+che|encore|noch\s+etwas|meer|m[aá]s|mais)/iu.test(
-    text.toLowerCase(),
+    normalized,
   );
+}
+
+/**
+ * Visible assistant draft is still fishing for more actions — not a numbered wrap-up.
+ * Used as a structural stop-valve; does not inspect the user's wording.
+ */
+export function assistantDraftStillPlanningGathering(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (/(?:^|\n)\s*\d+[.)]\s+\S/m.test(trimmed)) return false;
+  return assistantAskedToAddMoreToPlan(trimmed);
+}
+
+/**
+ * The assistant before the latest one already asked add-more/assemble.
+ * Used so one unclear reply may get a clarifier, but a second unclear reply closes.
+ */
+export function previousAssistantAskedToAddMoreToPlan(history: ClosureHistoryMessage[]): boolean {
+  let skippedLatest = false;
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index];
+    if (message?.role !== "assistant") continue;
+    if (!skippedLatest) {
+      skippedLatest = true;
+      continue;
+    }
+    return assistantAskedToAddMoreToPlan(textFromClosureHistoryMessage(message));
+  }
+  return false;
+}
+
+/** User explicitly asks to assemble / wrap up the plan already collected. */
+export function userRequestsPlanAssembly(text: string): boolean {
+  const normalized = normalizePlanningDoneText(text);
+  if (!normalized) return false;
+  if (looksLikeNewPlannedAction(text)) return false;
+  return ASSEMBLE_PLAN_RE.test(normalized);
+}
+
+/**
+ * Stop-valve: the model repeated the same gathering question instead of
+ * finalizing. Conservative — requires both turns to be gathering questions
+ * AND a long shared prefix, so two differently worded "anything else?" asks
+ * do not force-close a still-healthy planning branch.
+ */
+export function planningGatheringQuestionsLookRepeated(previous: string, current: string): boolean {
+  if (!assistantAskedToAddMoreToPlan(previous) || !assistantAskedToAddMoreToPlan(current)) return false;
+  const normalize = (value: string) => normalizePlanningDoneText(value)
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const left = normalize(previous);
+  const right = normalize(current);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const prefixLen = 48;
+  return left.length >= prefixLen && right.length >= prefixLen && left.slice(0, prefixLen) === right.slice(0, prefixLen);
 }
 
 const STRONG_PLANNING_CUE_RE =
@@ -61,7 +123,7 @@ function stripNegatedWantCues(text: string): string {
 function isEmptyPlanRefusal(text: string): boolean {
   const normalized = normalizePlanningDoneText(text);
   if (!normalized) return false;
-  return /(?:ничего\s+(?:сегодня\s+)?(?:не\s+)?планир|планир\p{L}*\s+(?:сегодня\s+)?не\s+хоч|не\s+хоч\p{L}*\s+(?:сегодня\s+)?(?:ничего\s+)?планир|не\s+буду\s+планир|без\s+планов|планов\s+нет|ничего\s+на\s+сегодня|nothing\s+to\s+plan|don'?t\s+want\s+to\s+plan|do\s+not\s+want\s+to\s+plan|no\s+plans?(?:\s+for\s+today|\s+today)?|nichts\s+planen|rien\s+[àa]\s+planifier|niente\s+da\s+pianificare|nada\s+que\s+planificar|nada\s+a\s+planejar|niets\s+te\s+plannen)/iu.test(
+  return /(?:ничего\s+(?:сегодня\s+)?(?:не\s+)?планир|планир\p{L}*\s+(?:сегодня\s+)?не\s+хоч|не\s+хоч\p{L}*\s+(?:сегодня\s+)?(?:ничего\s+)?планир|не\s+буду\s+планир|без\s+планов|планов(?:\s+\p{L}+){0,4}\s+нет|больше\s+планов(?:\s+\p{L}+){0,4}\s+нет|нет(?:\s+\p{L}+){0,3}\s+планов|ничего\s+на\s+сегодня|nothing\s+to\s+plan|don'?t\s+want\s+to\s+plan|do\s+not\s+want\s+to\s+plan|no\s+more\s+plans|no\s+plans?(?:\s+for\s+today|\s+today)?|keine\s+weiteren\s+pl[aä]ne|nichts\s+planen|pas\s+plus\s+de\s+plans|plus\s+aucun\s+plan|rien\s+[àa]\s+planifier|niente\s+altri\s+piani|niente\s+da\s+pianificare|no\s+hay\s+m[aá]s\s+planes|nada\s+que\s+planificar|sem\s+mais\s+planos|nada\s+a\s+planejar|geen\s+plannen\s+meer|niets\s+te\s+plannen)/iu.test(
     normalized,
   );
 }
@@ -70,6 +132,8 @@ function isEmptyPlanRefusal(text: string): boolean {
 export function looksLikeNewPlannedAction(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
+  // "Хочу собрать план" is a wrap-up request, not a new card.
+  if (ASSEMBLE_PLAN_RE.test(normalizePlanningDoneText(trimmed))) return false;
   // Prefer a named action over a trailing «больше ничего» / "that's all" in the
   // same turn — otherwise "Хочу фильм. И больше ничего." is treated as empty-plan.
   if (STRONG_PLANNING_CUE_RE.test(stripNegatedWantCues(trimmed))) return true;
@@ -78,7 +142,7 @@ export function looksLikeNewPlannedAction(text: string): boolean {
 }
 
 const DECLINE_ADDING_MORE_RE =
-  /(?:(?:^|[\s,.;:!?()])(?:non|no|not|n[oõ]o|don't|do not|won't|cannot|can't|нет|не)|(?:non\s+voglio|don't\s+want|je\s+ne\s+veux|no\s+quiero|n[aã]o\s+quero|не\s+хочу|nicht\s+mehr|ik\s+wil\s+geen))(?:\s+\w+){0,10}\s*(?:aggiung|add|ajout|hinzuf|toevoeg|a[nñ]ad|adicion|добав|больше|more|altro|niente|nothing|nulla|rien|nada|niets|nichts|mais|m[aá]s|encore)|(?:non\s+c\s*['’]?\s*e\s+pi[uú]\s+niente\s+da\s+aggiungere|niente\s+altro|nothing\s+else|nothing\s+more|that's\s+all|that\s+is\s+all|that's\s+enough|that\s+is\s+enough|basta|хватит|достаточно|больше\s+ничего|ничего\s+больше|plus\s+rien|meer\s+niet|niets\s+meer|nada\s+m[aá]s|nada\s+mais)/iu;
+  /(?:(?:^|[\s,.;:!?()])(?:non|no|not|n[oõ]o|don't|do not|won't|cannot|can't|нет|не)|(?:non\s+voglio|don't\s+want|je\s+ne\s+veux|no\s+quiero|n[aã]o\s+quero|не\s+хочу|nicht\s+mehr|ik\s+wil\s+geen))(?:\s+\w+){0,10}\s*(?:aggiung|add|ajout|hinzuf|toevoeg|a[nñ]ad|adicion|добав|больше|more|altro|niente|nothing|nulla|rien|nada|niets|nichts|mais|m[aá]s|encore)|(?:non\s+c\s*['’]?\s*e\s+pi[uú]\s+niente\s+da\s+aggiungere|niente\s+altro|nothing\s+else|nothing\s+more|that's\s+all|that\s+is\s+all|that's\s+enough|that\s+is\s+enough|basta|хватит|достаточно|больше\s+ничего|больше\s+планов(?:\s+\p{L}+){0,4}\s+нет|ничего\s+больше|plus\s+rien|meer\s+niet|niets\s+meer|nada\s+m[aá]s|nada\s+mais)/iu;
 
 function isDeclineOfAddingMore(text: string): boolean {
   const normalized = normalizePlanningDoneText(text);
@@ -107,6 +171,7 @@ function minimalUnpromptedDone(text: string): boolean {
 function explicitPlanFinishProposal(text: string): boolean {
   const normalized = normalizePlanningDoneText(text);
   if (!normalized) return false;
+  if (ASSEMBLE_PLAN_RE.test(normalized)) return true;
   return /(?<![\p{L}\p{N}-])(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)(?![\p{L}\p{N}-])/iu.test(
     normalized,
   );
@@ -119,11 +184,12 @@ function contextualFinishAfterCloseQuestion(text: string, history: ClosureHistor
   if (!assistantText || !/[?？]/.test(assistantText)) return false;
   const askedClosure =
     assistantAskedToAddMoreToPlan(assistantText)
-    || /(?:хватит|достаточно|закры|заверш|собер(?:е|ё)м\s+план|finish|done|close|wrap\s+up|va\s+bene\s+cos[ìi]|chiud|finir|suffi|enough|terminer|clore|reicht|genug|cerrar|fechar)/iu.test(
+    || /(?:хватит|достаточно|закры|заверш|собер(?:ать|е|ё)м?\s+план|finish|done|close|wrap\s+up|va\s+bene\s+cos[ìi]|chiud|finir|suffi|enough|terminer|clore|reicht|genug|cerrar|fechar)/iu.test(
       assistantText.toLowerCase(),
     );
   if (!askedClosure) return false;
-  return /^(?:(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|s[iì]|oui|ja|sim)[!.,\s]+)?(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|va\s+bene\s+cos[ìi]|niente\s+pi[uú]|niente\s+altro|nient['’]altro|basta|that'?s\s+enough|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)[!.,\s]*$/iu.test(
+  if (ASSEMBLE_PLAN_RE.test(normalized)) return true;
+  return /^(?:(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|s[iì]|oui|ja|sim|пожалуйста|please)[!.,\s]+)?(?:possiamo\s+finire|chiud(?:iamo|ere)\s+qua|chiud(?:iamo|ere)\s+(?:qui|il\s+piano)|va\s+bene\s+cos[ìi]|niente\s+pi[uú]|niente\s+altro|nient['’]altro|basta|that'?s\s+enough|let'?s\s+finish|we\s+can\s+finish|we\s+can\s+wrap\s+up|on\s+peut\s+finir|podemos\s+terminar|wir\s+k[oö]nnen\s+abschlie[ßs]en)[!.,\s]*$/iu.test(
     normalized,
   );
 }
@@ -155,6 +221,7 @@ export function isPlanningGatheringClosureTurn(userText: string, history: Closur
   if (userDeclinesAddingMoreToPlan(userText, history)) return true;
   if (minimalUnpromptedDone(userText)) return true;
   if (explicitPlanFinishProposal(userText)) return true;
+  if (userRequestsPlanAssembly(userText)) return true;
   if (contextualFinishAfterCloseQuestion(userText, history)) return true;
   return false;
 }

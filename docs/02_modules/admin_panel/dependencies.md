@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/dependencies
 title: Admin Panel Dependencies
-version: 1.3
-updated: 2026-07-22
+version: 1.4
+updated: 2026-09-06
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -24,7 +24,7 @@ code_refs:
 - **`subscription`** — модель тарифов: канон имён/порядка/фич в `modules/access/core/{tiers,features}.ts` (`TIER_LABELS_RU`, `PAID_PRODUCT_TIERS`, `TIER_ORDER`); runtime-доступ по полям `users` — `paidAccess.ts`. Сегмент **trial** на дашборде — `trial_expires_at > now()` (даже при `membership_tier=free`). Ручной грант пишет `payments`; **net**-выручка — `payment_settlements` (пишет account_web на вебхуке Lava). Hourly reconcile — Edge/SQL в infra.
 - **`account_web`** — `payment_settlements` + FX; админка только читает nets. Контракты Lava.top/ЮКасса → списки и воронки; `payment_catalog` редактируется из админки (цены/тексты для ЮKassa checkout).
 - **`author_presence`** (сторис/публикации/комментарии), **`webinars`**, **`notifications`**, **`marketing_email`** — admin_panel их управляющая консоль; продуктовые контракты в спеках этих модулей.
-- **`assistant`** — таблица `prompts`; playground Gemini; dialog-путь пишет `dialog_turn` / `llm_prompt_size` через `logDialogTurn` / `logLlmPromptSize` (`monitoring.ts`) — сырьё LLM-блока пульса.
+- **`assistant`** — таблица `prompts`; playground Gemini; dialog-путь пишет `dialog_turn` / `llm_prompt_size` через `logDialogTurn` / `logLlmPromptSize` (`monitoring.ts`) — сырьё LLM-блока пульса. Журнал разбора daily dialog — `daily_dialog_archives` (пишет assistant, читает `GET/PATCH /api/admin/users/[id]/dialogs`).
 - **`profile`** — карточка «Поддержка» → `SupportModal`; geo/last_seen пишутся в `users` с клиента (`acquireAndPersistUserCoordinates`, `logAppOpen`).
 
 ## 2. От него зависят

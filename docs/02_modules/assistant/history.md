@@ -1,13 +1,21 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.105
-updated: 2026-09-04
+version: 2.109
+updated: 2026-09-06
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-06 (daily dialog QA journal):** Теневая таблица `daily_dialog_archives` (7 дней, серверный `now()`, крон) хранит тексты daily dialog + исход хода и статус разбора для админки и последующего разбора алгоритма. Lean storage не меняется: `messages.content` пустой, GET/SSE прежние; запись архива не бросает в пользовательский путь. Клиент в сторах не трогали.
+
+- **2026-09-06 (one in-frame clarifier):** Unclear replies after “add more / assemble?” or the practice offer are not treated as done/decline on the first try. The model asks one short question in the expected frame (another action vs assemble; kind+duration vs skip). A second unclear reply closes: planning FINALIZE, practice `[PRACTICE_DECLINED]`. Identical repeated gathering question still force-finalizes.
+
+- **2026-09-06 (semantic planning/practice close):** QA: enumerating user phrases cannot cover wording × 8 locales («тогда хочу», «больше серьёзных планов у меня нет», «I'll pass»). Close is now **LLM-by-meaning**: after add-more/assemble, THIS TURN judges the reply by meaning (no phrase list in the prompt). Server stop-valve is structural (closure question asked + draft still gathering + no new persistable action → interpret-repair then force finalize; same for practice: still asking whether they want a practice → interpret-repair then `[PRACTICE_DECLINED]`). `coerceFsmBeforeTurn` after planning-lock always enters practice regardless of wording. Phrase helpers stay only to keep wrap-up text off Day-tab cards.
+
+- **2026-09-06 (planning loop + Day-tab duplicates):** QA Audrone: (1) Ассистент дня зациклился в gathering — «Спасибо. Больше планов на сегодня нет» / «Пожалуйста, собрать план на сегодня» не матчили `userSignalsPlanningDone`, hidden finalize-repair не запускался, модель повторяла тот же вопрос. Fix: closure-фразы «больше планов нет» / assemble-the-plan во всех 8 локалях; stop-valve `planningGatheringQuestionsLookRepeated` (повтор того же gathering-вопроса → force finalize + `shouldClose`). (2) Вкладка «День» показывала одно действие дважды разным текстом (`Тогда хочу убрать квартиру` + `Уборка квартиры`): incremental inference сохранял speech-blob, finalize писал короткое имя, `samePlannedEventIdentity` не схлопывал RU verb/noun. Fix: strip `Тогда хочу`, RU identity stems, `GET /api/day` `collapseDuplicatePlannedEventRows` удаляет лишние `planned` rows.
 
 - **2026-09-04 (practice decline + planning essence labels):** EN QA after planning→practice: (1) «No, there is no time to practice now» не матчило `userDeclinesPractice` (bare `no` пропускался из-за слова `practice`, а `no time` не было в regex) — модель тепло закрывала без `[PRACTICE_DECLINED]`, `shouldClose` не ставился, кнопка «Выйти» не появлялась, mic оставался живым. Детектор перенесён в `dialogTurnGuards.ts` (тот же, что coerce), добавлены no-time / another time и аналоги 8 локалей; decline не срабатывает при `validation.confident`. (2) Первое действие вкладки «День» сохраняло дословную реплику («During the day I want to… boat, and in the evening to go to the cinema»), второе — короткое «Going to the cinema»: EN coordinated split не резал `and`+time-shift, speech lead-in не срезался, а finalize `preferCurrentByDisplayOrder` отдавал model/salvage blob обратно поверх inferred. Fix: time-shift split + strip `I want to`/`During the day` + `preferEssencePlanningDesc`. Промпт не расширяли.
 

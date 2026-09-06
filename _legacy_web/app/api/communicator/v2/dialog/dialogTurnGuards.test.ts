@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
-import { looksLikeNewPlannedAction } from "@legacy/app/api/_utils/planningDonePhrases";
+import { assistantDraftStillPlanningGathering, looksLikeNewPlannedAction, previousAssistantAskedToAddMoreToPlan, planningGatheringQuestionsLookRepeated } from "@legacy/app/api/_utils/planningDonePhrases";
 import type { MessageRecord } from "@legacy/app/api/communicator/v2/dialog/dialogHelpers";
 import { initFsmState } from "./dialogFsm";
 import {
   assistantAskedPlanningClosure,
+  assistantAsksWhetherUserWantsPractice,
   assistantFinalizeWithoutMarkers,
   assistantOfferedPractice,
   assistantAskedSummaryClarifyingQuestion,
@@ -64,6 +65,12 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Не хочу ничего планировать")).toBe(true);
     expect(userSignalsPlanningDone("Планировать не хочу")).toBe(true);
     expect(userSignalsPlanningDone("Nothing to plan today")).toBe(true);
+    expect(userSignalsPlanningDone("Спасибо. Больше планов на сегодня нет.")).toBe(true);
+    expect(userSignalsPlanningDone("Thanks. No more plans for today.")).toBe(true);
+    expect(userSignalsPlanningDone("Keine weiteren Pläne für heute.")).toBe(true);
+    expect(userSignalsPlanningDone("Пожалуйста, собрать план на сегодня.")).toBe(true);
+    expect(userSignalsPlanningDone("Please assemble the plan for today.")).toBe(true);
+    expect(userSignalsPlanningDone("Хочу больше планов на неделю")).toBe(false);
     expect(userSignalsPlanningDone("ещё прогулка")).toBe(false);
     expect(
       userSignalsPlanningDone(
@@ -276,6 +283,103 @@ describe("dialogTurnGuards", () => {
     expect(userSignalsPlanningDone("Niente più.", history)).toBe(true);
     expect(userSignalsPlanningDone("Non voglio aggiungere più niente.", history)).toBe(true);
     expect(userSignalsPlanningDone("Sì, aggiungo ancora una cosa.", history)).toBe(false);
+  });
+
+  it("treats an assemble-the-plan reply as planning done after a close question", () => {
+    const history = [
+      assistantMsg("Отлично, что выбрались на природу — там можно по-настоящему выдохнуть и услышать себя. Собрать план на сегодня или ещё что-то добавите?"),
+    ];
+    expect(assistantAskedPlanningClosure(history)).toBe(true);
+    expect(userSignalsPlanningDone("Спасибо. Больше планов на сегодня нет.", history)).toBe(true);
+    expect(userSignalsPlanningDone("Пожалуйста, собрать план на сегодня.", history)).toBe(true);
+    expect(userSignalsPlanningDone("ещё прогулка к озеру", history)).toBe(false);
+  });
+
+  it("detects a repeated gathering question as a stuck planning loop", () => {
+    const first =
+      "Отлично, что выбрались на природу — там можно по-настоящему выдохнуть и услышать себя. Собрать план на сегодня или ещё что-то добавите?";
+    const repeated =
+      "Отлично, что выбрались на природу — там можно по-настоящему выдохнуть и услышать себя. Собрать план на сегодня или ещё что-то добавите?";
+    expect(planningGatheringQuestionsLookRepeated(first, repeated)).toBe(true);
+    expect(
+      planningGatheringQuestionsLookRepeated(
+        first,
+        "Хотите добавить ещё что-нибудь к вечеру, или этого достаточно?",
+      ),
+    ).toBe(false);
+  });
+
+  it("treats a gathering question without a numbered wrap-up as still-gathering", () => {
+    expect(
+      assistantDraftStillPlanningGathering(
+        "Собрать план на сегодня или ещё что-то добавите?",
+      ),
+    ).toBe(true);
+    expect(
+      assistantDraftStillPlanningGathering(
+        [
+          "Сегодня держите ясность.",
+          "",
+          "1. Прогулка",
+          "Рекомендация: Идите спокойно.",
+          "",
+          "Хотите добавить ещё что-то?",
+        ].join("\n"),
+      ),
+    ).toBe(false);
+  });
+
+  it("treats two consecutive add-more questions as already having asked the clarifier", () => {
+    const history = [
+      assistantMsg("Собрать план на сегодня или ещё что-то добавите?"),
+      { id: "u", role: "user" as const, content: "ну как сказать", transcript: null, meta: null, created_at: null },
+      assistantMsg("Ещё одно дело на сегодня, или собрать то, что уже есть?"),
+    ];
+    expect(previousAssistantAskedToAddMoreToPlan(history)).toBe(true);
+    expect(previousAssistantAskedToAddMoreToPlan([
+      assistantMsg("Что важного вы хотите запланировать на текущий день?"),
+      { id: "u", role: "user" as const, content: "прогулка", transcript: null, meta: null, created_at: null },
+      assistantMsg("Собрать план на сегодня или ещё что-то добавите?"),
+    ])).toBe(false);
+  });
+
+  it("coerces into the practice branch after planning lock regardless of user wording", () => {
+    const fsm = initFsmState({
+      tabMode: "plan",
+      daySummaryRequested: false,
+      hasDueEvents: false,
+      targetChakra: 7,
+      workingLocalDate: "2026-09-06",
+    });
+    const history = [
+      assistantMsg("1. Прогулка\nРекомендация: Тихо.\n\nХотите короткую практику перед сном?"),
+    ];
+    const next = coerceFsmBeforeTurn({
+      fsm: { ...fsm, planningFinalized: true },
+      history,
+      userMessage: "I think I'll pass for now, not really in the mood.",
+      isInitiate: false,
+    });
+    expect(next.branch).toBe("practice");
+    expect(next.planningFinalized).toBe(true);
+  });
+
+  it("distinguishes a yes/no practice offer from a kind/duration clarifier", () => {
+    expect(
+      assistantAsksWhetherUserWantsPractice(
+        "Хотите сейчас выполнить практику: медитацию, дыхание или асаны? Если да, назовите тип и примерную длительность — или скажите, что сегодня без практики.",
+      ),
+    ).toBe(true);
+    expect(
+      assistantAsksWhetherUserWantsPractice(
+        "Would you like to do a practice now: meditation, breathing, or asanas? If yes, name the kind and approximate duration, or say you will skip it today.",
+      ),
+    ).toBe(true);
+    expect(
+      assistantAsksWhetherUserWantsPractice(
+        "Какую практику выбрать — медитацию, дыхание или асаны, и на сколько минут?",
+      ),
+    ).toBe(false);
   });
 
   it("treats unseen decline phrasing as closure when answering an add-more question", () => {

@@ -98,6 +98,33 @@ describe("dialogBrainPersistence", () => {
     expect(deduped[0]?.cells).toEqual([{ sphere: 3, chakra: 3 }]);
   });
 
+  it("dedupes Russian speech-blob vs polished labels of the same action", () => {
+    const deduped = dedupePlanningMarkersByIdentity([
+      {
+        desc: "Тогда хочу убрать квартиру",
+        time: null,
+        timeNorm: null,
+        recommendation: null,
+        displayOrder: 1,
+        cells: [{ sphere: 1, weight: 1 }],
+        snippets: [],
+      },
+      {
+        desc: "Уборка квартиры",
+        time: null,
+        timeNorm: null,
+        recommendation: "Делайте не спеша.",
+        displayOrder: 2,
+        cells: [{ sphere: 1, weight: 1 }],
+        snippets: [],
+      },
+    ]);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0]?.desc).toBe("Уборка квартиры");
+    expect(deduped[0]?.recommendation).toBe("Делайте не спеша.");
+  });
+
   it("collapses same display_order cake refinements into one recommended action", () => {
     const deduped = dedupePlanningMarkersByIdentity([
       {

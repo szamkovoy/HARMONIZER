@@ -9,7 +9,9 @@ import {
 import {
   buildEmptyContentRepairInstruction,
   buildLeakedMarkupRepairInstruction,
+  buildPlanningClosureInterpretRepairInstruction,
   buildPlanningFinalizeRepairInstruction,
+  buildPracticeDeclineInterpretRepairInstruction,
   planningFinalizeArtifactsReady,
 } from "@legacy/app/api/communicator/v2/dialog/planningTurnRepair";
 import {
@@ -365,6 +367,42 @@ describe("planning repair helpers", () => {
     });
     expect(instruction).toContain("CORRECT_RECOMMENDATION");
     expect(instruction).toMatch(/no conversational ack/i);
+  });
+
+  it("builds a planning-closure interpret repair that classifies by meaning, not phrases", () => {
+    const instruction = buildPlanningClosureInterpretRepairInstruction({
+      baseInstruction: "BASE",
+      noGreeting: false,
+    });
+    expect(instruction).toContain("BASE");
+    expect(instruction).toMatch(/BY MEANING/i);
+    expect(instruction).toMatch(/do not look for fixed phrases/i);
+    expect(instruction).toMatch(/If you cannot tell/i);
+    expect(instruction).not.toMatch(/больше планов/i);
+    expect(instruction).not.toMatch(/that's all/i);
+  });
+
+  it("builds a planning-closure repair that finalizes after the clarifier was already asked", () => {
+    const instruction = buildPlanningClosureInterpretRepairInstruction({
+      baseInstruction: "BASE",
+      noGreeting: false,
+      alreadyClarified: true,
+    });
+    expect(instruction).toMatch(/already asked a clarifier/i);
+    expect(instruction).toMatch(/FINALIZE now/i);
+    expect(instruction).not.toMatch(/If you cannot tell/i);
+  });
+
+  it("builds a practice-decline interpret repair that classifies by meaning, not phrases", () => {
+    const instruction = buildPracticeDeclineInterpretRepairInstruction({
+      baseInstruction: "BASE",
+    });
+    expect(instruction).toContain("BASE");
+    expect(instruction).toMatch(/BY MEANING/i);
+    expect(instruction).toMatch(/\[PRACTICE_DECLINED\]/);
+    expect(instruction).toMatch(/If you cannot tell/i);
+    expect(instruction).not.toMatch(/no time/i);
+    expect(instruction).not.toMatch(/maybe later/i);
   });
 
   it("builds a leaked-markup retry that keeps square-bracket markers and forbids XML", () => {

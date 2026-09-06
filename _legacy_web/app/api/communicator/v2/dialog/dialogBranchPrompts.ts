@@ -499,6 +499,16 @@ export type PlanningTurnInput = {
   noGreeting: boolean;
   /** User signaled they are done naming actions — this turn must emit markers. */
   userSignaledDone: boolean;
+  /**
+   * Previous assistant turn asked whether to add more or assemble the plan.
+   * THIS TURN must judge the reply by meaning (any language), not by matching phrases.
+   */
+  answeringClosureQuestion?: boolean;
+  /**
+   * The assistant already asked add-more/assemble once, the user replied unclearly,
+   * and the assistant already asked a one-shot clarifier. This reply must decide.
+   */
+  alreadyClarifiedClosure?: boolean;
   /** Planning finalize already happened; do not re-emit PLANNED_EVENT or repeat the wrap-up. */
   planningLocked: boolean;
   /** Count of actions ALREADY planned for the day at the start of this turn (drives the add-flow opening). */
@@ -788,7 +798,7 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
     "- If you propose an example of something they might add, only suggest actions substantial enough to look back on later — something that takes at least a few minutes and leaves a felt inner trace (e.g. read a book, write a letter, take a walk, a real conversation, reflect on a question). NEVER suggest micro-gestures that are over in seconds (jot down one thought, read a couple of lines, one stretch): such actions are not meaningful to summarize into states.",
     "- CANCELLING an action: if the user clearly asks to remove / cancel / drop an action they planned for today (for example remove the cafe snack, cancel the bike ride), emit an invisible [CANCEL_EVENT: ref=\"<the action as the user named it>\"] marker — one per action to drop — and warmly confirm in the visible reply that you removed it. Use the user's own wording for ref. Only do this for an explicit removal request, never on your own initiative.",
     "",
-    "FINALIZE the planning ONLY when the user signals they are done (or you already have 2-3 clear actions and they add nothing new). On the finalize turn:",
+    "FINALIZE the planning when the user has finished naming actions — judge that BY MEANING of their message, in any supported language and any wording. Do not look for fixed phrases or word order. Also finalize when you already have 2-3 clear actions and they add nothing new. On the finalize turn:",
     input.noGreeting
       ? "- Give a short, warm confirmation of the added action(s) in the energy of the day's target chakra."
       : [
@@ -844,11 +854,15 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
         ? (input.softPracticeClose
           ? "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the soft practice closing with NO question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. Emit those markers with square brackets only, never XML tags. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user."
           : "THIS TURN: the user has finished naming their actions — write the FINAL planning message now (the day recommendation, then each action with its recommendation, then the practice question). This message MUST include the invisible markers: one [PLANNED_EVENT] per action and one [CORRECT_RECOMMENDATION] for the overall day focus. Emit those markers with square brackets only, never XML tags. The server reads exactly these markers to save the plan into the Day tab — if a marker is missing, that action (or the day focus) is NOT saved and is lost to the user. (In an add-flow there is no day focus: emit only [PLANNED_EVENT].)")
+        : input.answeringClosureQuestion
+          ? (input.alreadyClarifiedClosure
+            ? "THIS TURN: you already asked once whether they want to add another action for today or to assemble the plan. Read this reply BY MEANING in whatever language they used — do not look for fixed phrases. If they named a new concrete action, emit [PLANNED_EVENT] for it. Otherwise they have finished planning: FINALIZE now. Do not ask again, and do not ask what they meant."
+            : "THIS TURN: your previous message asked whether to add more or to assemble the plan. Read the user's reply BY MEANING in whatever language they used — do not look for fixed phrases or word order. Three outcomes only: (1) they named a new concrete action for today → emit [PLANNED_EVENT] for it and you may ask once more; (2) they are done / wrapping up / do not want to add more → FINALIZE now; (3) you cannot tell which of those they meant → ask ONE short question in that same frame (another action for today, or assemble the plan?). Do not invent an action. Do not ask a generic 'what do you mean?'. Do not FINALIZE yet if it is genuinely unclear.")
         : input.planningLocked
           ? "THIS TURN: the user is answering the practice-offer question from planning finalize — this is NOT planning. Do not emit planning markers."
           : input.noGreeting
-            ? "THIS TURN: continue the Day-tab ADD flow. Unless the user clearly signaled they are done, stay in gathering mode on this turn: briefly acknowledge the newly added action(s), optionally ask whether they want to add one more thing, or warmly offer to assemble what is already there. Do NOT finalize on the very first added action just because it was named."
-            : "THIS TURN: continue from the conversation above; gather or finalize as the rules describe.",
+            ? "THIS TURN: continue the Day-tab ADD flow. If they named a new action, stay in gathering mode: briefly acknowledge it, optionally ask whether they want to add one more thing, or warmly offer to assemble what is already there. Do NOT finalize on the very first added action just because it was named. If they have finished adding — judge that BY MEANING, not by matching phrases — FINALIZE."
+            : "THIS TURN: continue from the conversation above. Gather or finalize by MEANING of the user's message in any language (do not look for fixed phrases).",
   );
 
   return {
@@ -877,7 +891,7 @@ export function buildPracticePrompt(ctx: BrainPromptContext, input: PracticeTurn
     "  - Set duration_min within the catalog range for that kind; chakra is the day's target chakra unless the user clearly chose another.",
     "  - Leave id=\"\" so the server selects the concrete practice from the catalog.",
     "  - Visible text on the pick turn: ONLY card_blurb (1-2 sentences why this practice fits today). NEVER write step-by-step instructions (no \"sit comfortably\", \"close your eyes\", breathing counts, etc.). The app shows the practice card separately.",
-    "- If the user declines or wants to skip, do NOT emit [PRACTICE_PICK]. Instead write a short, kind closing line and emit the invisible sentinel [PRACTICE_DECLINED].",
+    "- If the user does not want a practice now, judge that BY MEANING of their reply in any supported language and any wording. Do not look for fixed phrases. Then do NOT emit [PRACTICE_PICK]: write a short, kind closing line and emit the invisible sentinel [PRACTICE_DECLINED]. If they want a practice but kind or duration is unclear, ask ONE short question for kind and/or duration. If the reply is not clearly a pick and not clearly a refusal, ask ONE short question in that same frame (name kind and duration, or skip today). Never re-ask whether they want a practice after they have declined. After that one clarifier, a still-unclear reply is a refusal: close with [PRACTICE_DECLINED].",
     input.postPracticeReply
       ? "- A practice card was already shown. Reply in 1-2 short sentences only: acknowledge the user, gently point them to the practice card, wish a good day/evening. Do NOT reopen planning, do NOT emit [PRACTICE_PICK], do NOT ask new questions."
       : "",
@@ -887,9 +901,11 @@ export function buildPracticePrompt(ctx: BrainPromptContext, input: PracticeTurn
       ? "THIS TURN: post-practice wind-down only — short closing reply, no new practice pick."
       : input.pickImmediately
         ? "THIS TURN: the user already named a clear practice type and duration — pick immediately with [PRACTICE_PICK]; visible text = card_blurb only."
+        : input.catalogReconciliation
+          ? "THIS TURN: resolve the catalog mismatch with the one reconciliation question above."
         : input.isOpening
-          ? "THIS TURN: the planning branch just offered an optional practice — continue from the user's answer; pick, clarify kind/duration, or accept refusal."
-          : "THIS TURN: continue from the conversation above; pick the practice or accept the refusal per the rules.",
+          ? "THIS TURN: the planning branch just offered an optional practice. Read the user's reply BY MEANING in whatever language they used — do not look for fixed phrases. Three outcomes only: (1) they want a practice → pick, or ask kind/duration if missing; (2) they do not want a practice now → close with [PRACTICE_DECLINED]; (3) you cannot tell → ask ONE short question in that same frame (name kind and approximate duration, or skip today). Do not ask a generic 'what do you mean?'."
+          : "THIS TURN: you already asked once in this practice branch. Read the reply BY MEANING. If they named a practice, pick. If they refuse, or the reply is still not a clear pick, close with [PRACTICE_DECLINED] — do not ask again.",
   ];
 
   return {

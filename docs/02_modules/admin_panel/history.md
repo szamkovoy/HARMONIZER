@@ -1,13 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.4
-updated: 2026-08-24
+version: 1.5
+updated: 2026-09-06
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-06 (daily dialog journal):** Карточка пользователя → `/admin/users/[id]/dialogs`: лента daily dialog за 7 дней (исход сервера + статус разбора). Данные из `daily_dialog_archives` (модуль assistant); `requireAdmin`; приложение не затронуто.
 
 - **2026-08-24 (breath interpretation prompt):** В `/admin/prompts` — `breath_practice_interpretation` (миграции `20260824102708` / `20260824103708`); текст = прежний рабочий; роут читает active из БД. Playground seed: `{{language_name}}` + `{{outcome}}`.
 

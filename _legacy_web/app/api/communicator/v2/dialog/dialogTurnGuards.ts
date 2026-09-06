@@ -94,7 +94,7 @@ export function assistantAskedPlanningClosure(history: MessageRecord[]): boolean
   const asksToAddMore =
     /(?:добав|ещ[её]|что-то\s+ещ[её]|anything\s+else|something\s+else|add\s+more|add\s+another|aggiung|qualcos['’]altro|altro|plus\s+rien|encore|weiter|noch\s+etwas|meer|más|mais)/iu.test(normalized);
   const asksToClose =
-    /(?:хватит|достаточно|закры|заверш|собер(?:е|ё)м\s+план|finish|done|close|wrap\s+up|va\s+bene\s+cos[ìi]|chiud|finir|suffi|plan|piano|enough|terminer|clore|reicht|genug|cerrar|fechar)/iu.test(normalized);
+    /(?:хватит|достаточно|закры|заверш|собер(?:ать|е|ё)м?\s+план|finish|done|close|wrap\s+up|va\s+bene\s+cos[ìi]|chiud|finir|suffi|plan|piano|enough|terminer|clore|reicht|genug|cerrar|fechar)/iu.test(normalized);
   return asksToAddMore || asksToClose;
 }
 
@@ -115,6 +115,28 @@ export function assistantOfferedPractice(text: string): boolean {
   if (!normalized) return false;
   if (!PRACTICE_OFFER_RE.test(normalized)) return false;
   return /\?/.test(normalized) || /(?:хотите|хочешь|предлож|offer|would you like|want me to)/i.test(normalized);
+}
+
+/**
+ * Assistant is still asking WHETHER the user wants a practice (yes/no or combined
+ * offer), not a follow-up that only clarifies kind/duration after a yes.
+ * Structural — inspects the assistant draft, not user phrasing.
+ */
+export function assistantAsksWhetherUserWantsPractice(text: string): boolean {
+  if (!assistantOfferedPractice(text)) return false;
+  const normalized = text.toLowerCase();
+  const asksKindMenu =
+    /(?:медитац\p{L}*.{0,80}(?:дыхан|breath|пранаям).{0,80}(?:асан|yoga|asan)|meditation.{0,80}breath.{0,80}asan)/iu.test(
+      normalized,
+    );
+  const asksDuration =
+    /(?:минут|minutes|\bmin\b|длительн|how long|сколько\s+(?:минут|времени)|duration)/iu.test(normalized);
+  const asksWantPractice =
+    /(?:хотите\s+(?:сейчас\s+)?(?:выполнить\s+)?практик|would you like.{0,40}practic|want.{0,20}practic|предложить?\s+практик|möchten sie.{0,40}übung|souhaitez-vous.{0,40}pratiqu|vorresti.{0,40}pratic|te gustaría.{0,40}práctic|gostaria.{0,40}prát|wil je.{0,40}oefen)/iu.test(
+      normalized,
+    );
+  if ((asksKindMenu || asksDuration) && !asksWantPractice) return false;
+  return asksWantPractice || (!asksKindMenu && !asksDuration);
 }
 
 /**
@@ -307,7 +329,7 @@ export function coerceFsmBeforeTurn(params: {
   userMessage: string;
   isInitiate: boolean;
 }): DialogFsmState {
-  const { fsm, history, userMessage, isInitiate } = params;
+  const { fsm, history, isInitiate } = params;
   if (isInitiate || fsm.noPractice) return fsm;
 
   if (fsm.branch === "planning") {
@@ -322,9 +344,9 @@ export function coerceFsmBeforeTurn(params: {
       fsm.planningFinalized
       || assistantFinalizeWithoutMarkers(history)
       || assistantAcknowledgedEmptyPlanAndOfferedPractice(lastAssistantText(history));
-    const answeringPracticeOffer =
-      planningLocked && (userAffirmsPracticeOffer(userMessage, history) || userDeclinesPracticeOffer(userMessage));
-    if (answeringPracticeOffer) {
+    // After planning is locked, the next user reply is the practice-offer answer
+    // regardless of wording — the practice prompt judges accept vs refuse by meaning.
+    if (planningLocked) {
       const practiceIndex = fsm.flow.indexOf("practice");
       if (practiceIndex >= 0) {
         return {

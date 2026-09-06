@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.53
-updated: 2026-08-24
+version: 2.54
+updated: 2026-09-06
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-06 (QA journal is server-only):** Daily dialog texts for admin review live in `daily_dialog_archives`. Communicator GET/POST/SSE and `messages.content` are unchanged; `startFreshSession` still starts a new chat. The store build does not read the journal.
 
 - **2026-08-24 (breath interpretation prompt):** Рабочий текст интерпретации дыхания — ключ `breath_practice_interpretation` в `public.prompts`; роут читает active через `getActivePrompt` (fallback = прежний hardcoded). Админка `/admin/prompts` редактирует и прогоняет playground на сиде `{{outcome}}`.
 

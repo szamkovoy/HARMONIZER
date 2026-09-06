@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.16
-updated: 2026-08-04
+version: 1.17
+updated: 2026-09-06
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-06 (daily dialog archive cron):** Hourly `cleanup_daily_dialog_archives` (`50 * * * *`) deletes QA journal rows older than 7 server days. Registry entry in `ensure_harmonizer_cron_jobs` (миграция `20260906091502`).
 
 - **2026-08-23 (OTP email — webhook verify inlined, no esm.sh):** After the SES SigV4 fix, `signInWithOtp` for **new** users still hung (30s, 0 bytes, no `otp_send_events` row, DB idle) while **existing** users (iPhone) worked. Root cause: `send-auth-email/index.ts` did `await import("https://esm.sh/standardwebhooks@1.0.0")` inside the handler. The unsigned direct probe returned 401 in ~0.8s (warm isolate), but GoTrue's hook invocation hit a **cold edge isolate** where the remote `esm.sh` fetch hung — so the hook never reached `consumeOtpSendPermit` and GoTrue waited indefinitely (no hook timeout on managed GoTrue). Existing users hit warm isolates (kept warm by repeated sign-ins), so they were unaffected. Fix: replaced the `esm.sh` dynamic import with an **inline Standard Webhooks verify** (Web Crypto HMAC-SHA256, base64-decoded secret key, comma-split `v1,<sig>` signatures) mirroring the official JS library exactly — no external fetch on cold start. Verified: `signInWithOtp` for a brand-new email → `200 {}` in ~2.2s, `otp_send_events` row written, Amazon SES `SendEmail` delivered. No app rebuild needed (edge-only change).
 

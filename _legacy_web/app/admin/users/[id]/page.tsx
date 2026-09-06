@@ -666,6 +666,14 @@ export default function AdminUserCardPage() {
               />
             ) : null}
           </dl>
+          <div className="mt-3">
+            <Link
+              href={`/admin/users/${user.id}/dialogs`}
+              className="text-xs font-medium text-emerald-700 hover:underline"
+            >
+              Диалоги ассистента (7 дней)
+            </Link>
+          </div>
           {subscription?.status === "active" ? (
             <div className="mt-4">
               <button

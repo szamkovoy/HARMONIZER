@@ -1,3 +1,11 @@
+- 2026-09-06 (559): Daily dialog QA journal — `daily_dialog_archives` (7 days, server time): texts + outcome + review flag for admin and algorithm review. Lean storage / store app unchanged (`messages.content` empty; archive write cannot fail the chat). Admin: user card → dialogs page.
+
+- 2026-09-06 (558): Daily dialog — one in-frame clarifier if the reply after planning-close or practice-offer is unclear; a second unclear reply finalizes the plan or declines the practice.
+
+- 2026-09-06 (557): Daily dialog — planning wrap-up and practice refusal are judged by meaning (any wording, 8 locales), not phrase lists; structural stop-valves force finalize / `[PRACTICE_DECLINED]` if the model keeps asking.
+
+- 2026-09-06 (556): Planning dialog — «больше планов нет» / «собрать план» close the gathering branch; repeated gathering question force-finalizes (`shouldClose`). Day tab collapses identity-duplicate planned rows (speech-blob vs short label).
+
 - 2026-09-05 (555): Cold start — phone day-cache survives GPS jitter (relaxed read; no delete); locale hydrates before Home fetch; locale sync uses session snapshot; midnight cron paginates all natal charts and warms recently used locales.
 
 - 2026-09-04 (552): Dialog scaffold — `summaryAlreadyComplete` for the empty day-summary terminal (was hardcoded RU). 8 locales via PREMIUM fill.

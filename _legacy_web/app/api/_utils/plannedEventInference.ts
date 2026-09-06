@@ -232,6 +232,7 @@ const EVENT_IDENTITY_STOPWORDS = new Set([
   "хотела",
   "хотелбы",
   "хотелабы",
+  "тогда",
   "want",
   "wanted",
   "during",
@@ -303,6 +304,14 @@ function identityStem(token: string): string {
   if (/^(?:магаз|store|shop)/.test(normalized)) return "магаз";
   if (/^(?:лодк|boat|inflatable|dinghy)/.test(normalized)) return "boat";
   if (/^(?:удоч|спиннинг)/.test(normalized)) return "рыбал";
+  if (/^(?:убра|убор)/.test(normalized)) return "уборк";
+  if (/^(?:позвон|звон)/.test(normalized)) return "звонк";
+  if (/^(?:отдых|отдыха)/.test(normalized)) return "отдых";
+  if (/^(?:книг)/.test(normalized)) return "книг";
+  if (/^(?:озер)/.test(normalized)) return "озер";
+  if (/^(?:мам[аеуыой])/u.test(normalized)) return "мама";
+  if (/^(?:квартир)/.test(normalized)) return "квартир";
+  if (/^(?:поездк|съезд|съеха)/.test(normalized)) return "trip";
   return normalized.slice(0, 6);
 }
 
@@ -329,6 +338,59 @@ export function samePlannedEventIdentity(left: string, right: string): boolean {
   const overlap = leftTokens.filter((token) => rightSet.has(token));
   if (overlap.length >= 2) return true;
   return overlap.length === 1 && (leftTokens.length === 1 || rightTokens.length === 1);
+}
+
+export type PlannedEventIdentityRow = {
+  id: string;
+  description: string;
+  recommendation_text?: string | null;
+  status?: string | null;
+  planned_local_date?: string | null;
+};
+
+function plannedEventIdentityRowScore(row: PlannedEventIdentityRow): number {
+  return (row.recommendation_text?.trim() ? 4 : 0) + (row.description.trim().length <= 48 ? 2 : 0);
+}
+
+function preferPlannedEventIdentityRow<T extends PlannedEventIdentityRow>(left: T, right: T): T {
+  const leftScore = plannedEventIdentityRowScore(left);
+  const rightScore = plannedEventIdentityRowScore(right);
+  if (rightScore > leftScore) return right;
+  if (rightScore < leftScore) return left;
+  return right.description.trim().length <= left.description.trim().length ? right : left;
+}
+
+/**
+ * Collapse same-day planned rows that describe the same action in different
+ * words ("Тогда хочу убрать квартиру" vs "Уборка квартиры"). Summarized rows
+ * are left untouched.
+ */
+export function collapseDuplicatePlannedEventRows<T extends PlannedEventIdentityRow>(
+  rows: T[],
+): { kept: T[]; droppedIds: string[] } {
+  const kept: T[] = [];
+  const droppedIds: string[] = [];
+  for (const row of rows) {
+    if (row.status && row.status !== "planned") {
+      kept.push(row);
+      continue;
+    }
+    const matchIndex = kept.findIndex((item) => (
+      (!item.status || item.status === "planned")
+      && (item.planned_local_date ?? "") === (row.planned_local_date ?? "")
+      && samePlannedEventIdentity(item.description, row.description)
+    ));
+    if (matchIndex === -1) {
+      kept.push(row);
+      continue;
+    }
+    const current = kept[matchIndex]!;
+    const preferred = preferPlannedEventIdentityRow(current, row);
+    const dropped = preferred === row ? current : row;
+    kept[matchIndex] = preferred;
+    if (dropped.id && dropped.id !== preferred.id) droppedIds.push(dropped.id);
+  }
+  return { kept, droppedIds };
 }
 
 export type ExistingPlannedEventLike = {
@@ -568,11 +630,15 @@ function stripPlanningSpeechLeadIn(description: string): string {
     const next = current
       .replace(/^(?:and|und|et|y|e|en|и)\s+/i, "")
       .replace(
-        /^(?:during the day|in the (?:morning|afternoon|evening)|at night|tonight|this (?:morning|evening|afternoon)|today|вечером|утром|днем|днём|ночью)\s+/i,
+        /^(?:during the day|in the (?:morning|afternoon|evening)|at night|tonight|this (?:morning|evening|afternoon)|today|вечером|утром|днем|днём|ночью|тогда|потом|ещё|еще|сейчас)\s+/i,
         "",
       )
       .replace(
         /^(?:i\s+(?:want(?:ed)?|would like|plan|am going|will)|i['’](?:d like|m going|m planning|ll))\s+(?:to\s+)?/i,
+        "",
+      )
+      .replace(
+        /^(?:(?:я\s+)?(?:хотелось\s+бы|хочу|планирую|собираюсь|хотел(?:\s+бы)?|хотела(?:\s+бы)?))\s+/i,
         "",
       )
       .replace(

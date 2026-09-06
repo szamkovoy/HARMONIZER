@@ -5,6 +5,7 @@ import { getDayStrings } from "@/modules/day/i18n/day";
 import { asContentLocale, SOURCE_LOCALE, type AppContentLocale } from "@legacy/app/api/_utils/contentLocales";
 import { buildSphereHint, buildSphereStats, loadRecentSphereRows } from "@legacy/app/api/_utils/sphereHint";
 import { asPlanningSphereCells } from "@legacy/app/api/_utils/lifeMatrix";
+import { collapseDuplicatePlannedEventRows } from "@legacy/app/api/_utils/plannedEventInference";
 import { purgeHistoricalSummarizedPlannedEvents } from "@legacy/app/api/communicator/v2/dialog/lifeMatrixPersistence";
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
 
@@ -168,7 +169,23 @@ export async function GET(req: Request) {
     if (currentActionsRes.error) throw currentActionsRes.error;
     if (offerRes.error) throw offerRes.error;
 
-    const overdueRows = overdueActionsRes.data ?? [];
+    const overdueCollapsed = collapseDuplicatePlannedEventRows(
+      (overdueActionsRes.data ?? []).map((row) => ({
+        ...row,
+        id: String(row.id),
+        description: String(row.description ?? ""),
+      })),
+    );
+    if (overdueCollapsed.droppedIds.length > 0) {
+      const { error: overdueDedupeError } = await db
+        .from("planned_events")
+        .delete()
+        .eq("user_id", userId)
+        .eq("status", "planned")
+        .in("id", overdueCollapsed.droppedIds);
+      if (overdueDedupeError) throw overdueDedupeError;
+    }
+    const overdueRows = overdueCollapsed.kept;
     const hasOverdueSummary = overdueRows.length > 0;
 
     if (hasOverdueSummary) {
@@ -265,7 +282,23 @@ export async function GET(req: Request) {
       }
     }
 
-    const currentRows = currentActionsRes.data ?? [];
+    const currentCollapsed = collapseDuplicatePlannedEventRows(
+      (currentActionsRes.data ?? []).map((row) => ({
+        ...row,
+        id: String(row.id),
+        description: String(row.description ?? ""),
+      })),
+    );
+    if (currentCollapsed.droppedIds.length > 0) {
+      const { error: currentDedupeError } = await db
+        .from("planned_events")
+        .delete()
+        .eq("user_id", userId)
+        .eq("status", "planned")
+        .in("id", currentCollapsed.droppedIds);
+      if (currentDedupeError) throw currentDedupeError;
+    }
+    const currentRows = currentCollapsed.kept;
     const actions = currentRows
       .map((row, index) => ({
         id: row.id,

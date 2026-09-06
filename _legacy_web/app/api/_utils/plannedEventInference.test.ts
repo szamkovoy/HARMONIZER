@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
 import {
+  collapseDuplicatePlannedEventRows,
   inferPlannedEventsFromUserHistory,
   isAddFlowPlanningScaffoldDescription,
   isMetaPlanningIntentDescription,
@@ -30,6 +31,19 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred).toHaveLength(1);
     expect(inferred[0]?.time).toBe("через полчаса");
     expect(inferred[0]?.desc.toLowerCase()).toContain("вебинар");
+  });
+
+  it("strips Russian speech lead-in like «Тогда хочу» from inferred labels", () => {
+    const nowLocal = DateTime.fromISO("2026-09-06T08:00:00", { zone: TZ });
+    const inferred = inferPlannedEventsFromUserHistory({
+      history: [{ role: "user", content: "Тогда хочу убрать квартиру." }],
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]?.desc.toLowerCase()).toBe("убрать квартиру");
   });
 
   it("ignores short duration-only replies", () => {
@@ -522,6 +536,27 @@ describe("inferPlannedEventsFromUserHistory", () => {
 
   it("recognises Russian eat/cake rewordings of the same treat", () => {
     expect(samePlannedEventIdentity("Кекс поесть", "Съесть кекс")).toBe(true);
+  });
+
+  it("recognises Russian speech-blob vs polished labels of the same action", () => {
+    expect(samePlannedEventIdentity("Тогда хочу убрать квартиру", "Уборка квартиры")).toBe(true);
+    expect(samePlannedEventIdentity("Тогда хочу позвонить маме", "Звонок маме")).toBe(true);
+    expect(samePlannedEventIdentity(
+      "Тогда хочу отдыхать у озера, читая книгу",
+      "Отдых у озера с книгой и блокнотом",
+    )).toBe(true);
+    expect(samePlannedEventIdentity("Поездка к озеру на природу", "Съездить к озеру на красивый вид")).toBe(true);
+    expect(samePlannedEventIdentity("Уборка квартиры", "Звонок маме")).toBe(false);
+  });
+
+  it("collapses duplicate planned rows that reword the same action", () => {
+    const { kept, droppedIds } = collapseDuplicatePlannedEventRows([
+      { id: "raw-1", description: "Тогда хочу убрать квартиру", recommendation_text: null, status: "planned", planned_local_date: "2026-09-06" },
+      { id: "keep-1", description: "Уборка квартиры", recommendation_text: "Делайте не спеша.", status: "planned", planned_local_date: "2026-09-06" },
+      { id: "other", description: "Суставная гимнастика и массаж шеи", recommendation_text: "Внимание на тело.", status: "planned", planned_local_date: "2026-09-06" },
+    ]);
+    expect(kept.map((row) => row.id).sort()).toEqual(["keep-1", "other"]);
+    expect(droppedIds).toEqual(["raw-1"]);
   });
 
   it("prefers the model marker when history clarification describes the same event", () => {

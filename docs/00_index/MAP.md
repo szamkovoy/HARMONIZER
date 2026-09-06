@@ -2,8 +2,8 @@
 
 id: 00_index/MAP
 title: Documentation Map
-version: 1.63
-updated: 2026-08-19
+version: 1.64
+updated: 2026-09-06
 depends_on: [01_foundation/architecture, 01_foundation/product_model]
 code_refs:
   [
@@ -75,7 +75,8 @@ code_refs:
 | --- | --- | --- |
 | Где хранится видимая лента чата после закрытия приложения? | `communicator/spec.md` § «Хранение и сброс daily dialog» | `services/dialogSessionCache.ts`, `Communicator.tsx` |
 | Что клиент шлёт на POST вместо `messages.content`? | `communicator/spec.md`, `communicator/dependencies.md` | `buildClientTurnHistory`, `turnHistory` в `communicator-client.ts` |
-| Что сервер пишет в БД (без длинного текста)? | `assistant/spec.md` §2 POST, §3 персистенция | `route.ts`, `lifeMatrixPersistence.ts` |
+| Что сервер пишет в БД (без длинного текста в `messages`) | `assistant/spec.md` §2 POST, §3 персистенция | `route.ts`, `lifeMatrixPersistence.ts` |
+| Журнал daily dialog для админки и разбора алгоритма (7 дней) | `assistant/spec.md` §3, `admin_panel/spec.md` | `daily_dialog_archives`, `dialogQaArchive.ts`, `/admin/users/[id]/dialogs` |
 | Снимки отчётов в профиле | `profile/spec.md` §4 отчёты | `profile_report_snapshots`, миграция `20260525130000_profile_report_snapshots.sql`, `GET /api/profile/life-matrix` |
 | Сброс диалога кнопкой «Обновить» на главной (test UI) | `communicator/spec.md`, `daily_forecast/spec.md` | `clearHomeDailyDialogCache`, `postDevDayContentReset`, `devResetScopeForAccessMode`, `app/(tabs)/index.tsx` |
 | Возобновление сессии после reopen / TTL | `assistant/spec.md` GET, `communicator/spec.md` жизненный цикл | `sessionResumeTtlMs`, GET `communicator/v2/dialog/route.ts` |
