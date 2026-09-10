@@ -1,13 +1,15 @@
 ---
 id: 02_modules/assistant/history
 title: Assistant History
-version: 2.109
-updated: 2026-09-06
+version: 2.110
+updated: 2026-09-11
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/practices/spec, 02_modules/subscription/spec]
 code_refs: [_legacy_web/app/api/communicator/v2/dialog/route.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBranchPrompts.ts, _legacy_web/app/api/communicator/v2/dialog/dialogTurnGuards.ts, _legacy_web/app/api/communicator/v2/dialog/dialogBrainPersistence.ts, _legacy_web/app/api/communicator/v2/dialog/dialogFsm.ts, _legacy_web/app/api/communicator/v2/dialog/practiceCardSummary.ts, _legacy_web/app/api/_utils/markers.ts, _legacy_web/app/api/_utils/gemini.ts, _legacy_web/app/api/_utils/deepseekOpenAi.ts, supabase/migrations/20260501173500_scenarios_architecture.sql, supabase/migrations/20260501185700_monologue_prompts_v2.sql, supabase/migrations/20260511140000_revert_dialog_quality_v4.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-11 (remove AI_MODEL_LOW):** Удалён мёртвый тир `low` из `getModelByHint` (`gemini.ts`). Он остался после снятия delayed `planningReconciliation` (2026-06-09); живых вызовов не было, `prompts.model_hint` принимает только `standard`/`premium`. LLM env — `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`.
 
 - **2026-09-06 (daily dialog QA journal):** Теневая таблица `daily_dialog_archives` (7 дней, серверный `now()`, крон) хранит тексты daily dialog + исход хода и статус разбора для админки и последующего разбора алгоритма. Lean storage не меняется: `messages.content` пустой, GET/SSE прежние; запись архива не бросает в пользовательский путь. Клиент в сторах не трогали.
 

@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.17
-updated: 2026-09-06
+version: 1.18
+updated: 2026-09-11
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-11 (remove AI_MODEL_LOW):** Снят неиспользуемый env `AI_MODEL_LOW` (локально и Vercel Production/Preview/Development). Рабочий набор LLM: `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`.
 
 - **2026-09-06 (daily dialog archive cron):** Hourly `cleanup_daily_dialog_archives` (`50 * * * *`) deletes QA journal rows older than 7 server days. Registry entry in `ensure_harmonizer_cron_jobs` (миграция `20260906091502`).
 

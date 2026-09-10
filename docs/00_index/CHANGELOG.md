@@ -1,3 +1,5 @@
+- 2026-09-11 (560): Removed leftover `AI_MODEL_LOW` (dead since delayed reconcile was deleted). LLM env is `AI_MODEL_STANDARD` / `AI_MODEL_PREMIUM` / `AI_MODEL_FALLBACK`. Docs `assistant` + `infra`.
+
 - 2026-09-06 (559): Daily dialog QA journal — `daily_dialog_archives` (7 days, server time): texts + outcome + review flag for admin and algorithm review. Lean storage / store app unchanged (`messages.content` empty; archive write cannot fail the chat). Admin: user card → dialogs page.
 
 - 2026-09-06 (558): Daily dialog — one in-frame clarifier if the reply after planning-close or practice-offer is unclear; a second unclear reply finalizes the plan or declines the practice.
