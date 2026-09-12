@@ -1,8 +1,8 @@
 ---
 id: 02_modules/onboarding/spec
 title: Onboarding Wizard — spec
-version: 1.11
-updated: 2026-09-04
+version: 1.12
+updated: 2026-09-12
 depends_on: [02_modules/onboarding/dependencies, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/astro/spec]
 code_refs:
   [
@@ -88,7 +88,7 @@ code_refs:
 - **Кэш телефона:** `saveDayContentCache` с ключами из `services/dayContentScope.ts` (`dayContentNatalScopeKey` нормализует `birth_time` к канону `HH:MM:SS` — как Postgres при чтении; мастер `12:45` → `12:45:00`, чтобы ключ совпадал с Home).
 - **Шаги 3–7:** пользователь читает интро, пока идёт прогрев.
 - **После шага 7:** если слоган + короткая рекомендация уже готовы → сразу `finishOnboarding()` (экран «Готовим ваш день» не показываем). Иначе → `step === "warm"` и ждём тот же promise.
-- **`finishOnboarding`:** вызывает `forceNextHomeBootstrapSplash()` — первый blocking Home после мастера идёт полной заставкой, не `day_card` поверх недогруженной главной.
+- **`finishOnboarding`:** пишет `users.onboarded_at` только если ещё `NULL` (ремонт мастера не сдвигает дату и не перезапускает welcome-письма). Затем `forceNextHomeBootstrapSplash()` — первый blocking Home после мастера идёт полной заставкой, не `day_card` поверх недогруженной главной.
 - **Таймаут** (`ONBOARDING_DAILY_FORECAST_TIMEOUT_MS` = LLM budget): по истечении всё равно открываем главную (она догрузит тексты в фоне). События: `onboarding_warmup_prefetch_start/result/done/timeout/error`.
 
 ## 7.1 Геолокация на шаге 2

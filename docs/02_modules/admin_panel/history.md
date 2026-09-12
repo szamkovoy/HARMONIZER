@@ -1,13 +1,17 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.5
-updated: 2026-09-06
+version: 1.7
+updated: 2026-09-12
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-12 (automation pause freeze):** Подсказка цепочки: пауза замораживает оставшееся ожидание у тех, кто уже внутри.
+
+- **2026-09-12 (automation trigger copy):** Welcome-цепочка в админке подписана как регистрация в Гармонизаторе (мастер), не «первый OTP»; выключение описано как пауза.
 
 - **2026-09-06 (daily dialog journal):** Карточка пользователя → `/admin/users/[id]/dialogs`: лента daily dialog за 7 дней (исход сервера + статус разбора). Данные из `daily_dialog_archives` (модуль assistant); `requireAdmin`; приложение не затронуто.
 

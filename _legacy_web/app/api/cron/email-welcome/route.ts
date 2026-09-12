@@ -1,4 +1,4 @@
-import { runEmailAutomations } from "../../_utils/emailAutomationRunner";
+import { enrollWelcomeForUser } from "../../_utils/emailAutomationRunner";
 import { createServiceSupabase, errorResponse, json } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -15,19 +15,18 @@ function assertCronSecret(req: Request): Response | null {
   return json({ error: "Unauthorized" }, { status: 401 });
 }
 
-/** Cron: enroll welcome drip + send due automation steps. */
+/** Triggered when users.onboarded_at is first set. Enroll + send due welcome step. */
 export async function POST(req: Request) {
   const unauthorized = assertCronSecret(req);
   if (unauthorized) return unauthorized;
   try {
-    const result = await runEmailAutomations(createServiceSupabase());
-    console.info("[email-automations]", result);
+    const body = (await req.json().catch(() => ({}))) as { user_id?: unknown };
+    const userId = typeof body.user_id === "string" ? body.user_id.trim() : "";
+    if (!userId) return json({ error: "user_id is required" }, { status: 400 });
+    const result = await enrollWelcomeForUser(createServiceSupabase(), userId);
+    console.info("[email-welcome]", { userId, ...result });
     return json({ ok: true, ...result });
   } catch (error) {
     return errorResponse(error);
   }
-}
-
-export async function GET(req: Request) {
-  return POST(req);
 }

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.8
-updated: 2026-07-31
+version: 1.10
+updated: 2026-09-12
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -18,6 +18,7 @@ code_refs:
     _legacy_web/app/api/admin/email/campaigns/route.ts,
     _legacy_web/app/api/admin/email/automations/route.ts,
     _legacy_web/app/api/cron/email-automations/route.ts,
+    _legacy_web/app/api/cron/email-welcome/route.ts,
     _legacy_web/app/api/cron/email-suppressions-sync/route.ts,
     supabase/migrations/20260727180000_email_suppressions_sync_cron.sql,
     _legacy_web/app/api/webhooks/resend-marketing/route.ts,
@@ -35,6 +36,8 @@ code_refs:
     scripts/email-optimize-stored-html.mjs,
     _legacy_web/app/unsubscribe/email/route.ts,
     supabase/migrations/20260724200000_marketing_email.sql,
+    supabase/migrations/20260912120000_email_automation_welcome_realtime.sql,
+    supabase/migrations/20260912102150_email_automation_pause_freeze.sql,
     supabase/migrations/20260727150000_email_automations_b2_c1_c2.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
     supabase/migrations/20260728010000_email_automation_step_name.sql,
@@ -64,7 +67,7 @@ code_refs:
 - Карточка пользователя: в истории писем — статус send (delivered/opened/clicked/…); у уведомлений — прочитано/нет.
 - **Open/click UX:** `GET /api/email/track/{open,click}` отвечают сразу (GIF / 302), запись события — в `after()`. На send `email-assets` img → `GET /api/email/asset?u=` (edge, Cache-Control 1y); upload `cacheControl=31536000`.
 - Карточка пользователя: `active_enrollments` + `POST …/messaging` `cancel_chain` (enrollment → `cancelled`); история sends — имена цепочки/письма/рассылки
-- **Автоцепочки × удаление аккаунта:** `wipeUserAccount` вызывает `cancelActiveEmailAutomationsForUser` (все `active` enrollments контакта → `cancelled`) до `deleteUser`. Due-send дополнительно отменяет enrollment, если у контакта `user_id` null (orphan после wipe). **Welcome (`account_registered`):** enroll только после `users.onboarded_at` (мастер Harmonizer) + `auth.email_confirmed_at`; `cycle_key` = `onboarded_at`. OTP-only / «Не в гармонизаторе» в welcome не попадают; due-send отменяет enrollment без `onboarded_at`. **Повторная регистрация** с тем же email: skip только при уже **активном** enrollment; `completed`/`cancelled` не блокируют.
+- **Автоцепочки × удаление аккаунта:** `wipeUserAccount` вызывает `cancelActiveEmailAutomationsForUser` (все `active` enrollments контакта → `cancelled`) до `deleteUser`. Due-send дополнительно отменяет enrollment, если у контакта `user_id` null (orphan после wipe). **Welcome (`account_registered`):** enroll после первого `users.onboarded_at` (мастер Harmonizer) + `auth.email_confirmed_at`; `cycle_key` = `onboarded_at`. OTP-only / «Не в гармонизаторе» в welcome не попадают; due-send отменяет enrollment без `onboarded_at`. Событие — trigger `trg_users_onboarded_email_welcome` → `POST /api/cron/email-welcome` (письмо 1 сразу, delay 0); страховка — `run_email_automations_every_5m`. Полный `sync_email_contacts_from_users` на welcome не гоняется (только `sync_email_contact_for_user`). **Пауза:** выключение ставит `paused_at` и не отменяет active enrollments / не шлёт due. Включение сдвигает `next_step_at` активных enrollments на длительность паузы (оставшееся ожидание до следующего письма сохраняется), затем `activated_at=now`, `paused_at=null` — новые события во время паузы не догоняются (welcome / C1 / C2). C1 срабатывает в `periodEnd+3d ≥ activated_at`; C2 в `last_seen|created+14d ≥ activated_at`. Сбой send — retry через 5 мин, до 5 попыток, затем шаг пропускается. **Повторная регистрация** с тем же email: skip при **активном** enrollment или том же `cycle_key`; иначе новый цикл.
 - **`sync_email_contacts_from_users`:** только `auth.users` с `email_confirmed_at IS NOT NULL` — неподтверждённый OTP не становится маркетинговым контактом и не входит в «Вся база» / «Все установившие» через app-sync.
 - Карточка кампании `/admin/email/[id]`: заголовок «Рассылка»; статус RU (`черновик` / `отправлено · дата`); после send — KPI-карточки, read-only имя/сегмент/контент, без блока «Отправка»; копирование доступно
 - Общий UI-фундамент: `EmailListRow`, `EmailDeliveryStats`, `EmailMessageWorkspace`; названия/копии — `emailNaming` (`emailListTitle`, `emailCopyName`) для рассылок и шагов. Письмо цепочки: `name` в GET steps; «Копировать» → `POST …/steps/[stepId]/copy` → редирект на копию (`… (копия)`); delay; `POST …/send` `{test_to}`. «Редактировать»: если название изменено и не сохранено — confirm «Новое название будет сохранено» → save → редактор (рассылка и шаг цепочки).

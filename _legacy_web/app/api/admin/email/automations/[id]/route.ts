@@ -1,3 +1,4 @@
+import { shiftEnrollmentsAfterPause } from "../../../../_utils/emailAutomationRunner";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ export async function GET(req: Request, ctx: Ctx) {
     const { data: automation, error } = await db
       .from("email_automations")
       .select(
-        "id, key, name, trigger_type, is_active, activated_at, trigger_config, created_at, updated_at",
+        "id, key, name, trigger_type, is_active, activated_at, paused_at, trigger_config, created_at, updated_at",
       )
       .eq("id", id)
       .maybeSingle();
@@ -51,7 +52,7 @@ type PatchBody = {
   trigger_config?: Record<string, unknown>;
 };
 
-/** Update name / trigger / active (sets activated_at on first activate). */
+/** Update name / trigger / active (off→on: freeze remaining drip, no new-event backfill). */
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     await requireAdmin(req);
@@ -61,13 +62,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     const { data: current, error: loadError } = await db
       .from("email_automations")
-      .select("id, is_active, activated_at")
+      .select("id, is_active, activated_at, paused_at")
       .eq("id", id)
       .maybeSingle();
     if (loadError) throw loadError;
     if (!current) return json({ error: "Цепочка не найдена" }, { status: 404 });
 
-    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const patch: Record<string, unknown> = { updated_at: nowIso };
     if (typeof body.name === "string") patch.name = body.name.trim() || "Цепочка";
     if (typeof body.trigger_type === "string" && TRIGGERS.has(body.trigger_type)) {
       patch.trigger_type = body.trigger_type;
@@ -77,9 +80,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     if (typeof body.is_active === "boolean") {
       patch.is_active = body.is_active;
+      if (!body.is_active && current.is_active) {
+        patch.paused_at = nowIso;
+      }
       if (body.is_active && !current.is_active) {
-        // Anti-backfill for welcome: enroll only confirms after this moment.
-        patch.activated_at = new Date().toISOString();
+        const pausedAt =
+          typeof current.paused_at === "string" && current.paused_at.trim()
+            ? current.paused_at
+            : null;
+        if (pausedAt) {
+          // Shift before is_active=true so cron does not flush overdue letters.
+          await shiftEnrollmentsAfterPause(db, id, pausedAt, now);
+        }
+        patch.activated_at = nowIso;
+        patch.paused_at = null;
       }
     }
 
@@ -88,7 +102,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       .update(patch)
       .eq("id", id)
       .select(
-        "id, key, name, trigger_type, is_active, activated_at, trigger_config, updated_at",
+        "id, key, name, trigger_type, is_active, activated_at, paused_at, trigger_config, updated_at",
       )
       .single();
     if (error) throw error;

@@ -25,7 +25,7 @@ type Automation = {
 
 const TRIGGER_RU: Record<string, string> = {
   manual: "Вручную",
-  account_registered: "Регистрация аккаунта (первый OTP)",
+  account_registered: "Регистрация в Гармонизаторе (мастер пройден)",
   app_first_open: "Первый запуск (legacy)",
   onboarded: "После онбординга (legacy)",
   subscription_expired: "Не продлил подписку (3 дня)",

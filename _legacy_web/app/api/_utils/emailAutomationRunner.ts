@@ -21,6 +21,45 @@ import { htmlToPlaintext, sendMarketingEmail, sleep } from "./marketingMail";
 const C1_DAYS = 3;
 const C2_DAYS = 14;
 const PAID_TIERS = new Set(["oracle", "master", "practitioner"]);
+export const SEND_RETRY_DELAY_MS = 5 * 60_000;
+export const SEND_MAX_ATTEMPTS = 5;
+
+export function isAfterActivation(
+  firedAtMs: number,
+  activatedAt: string | null | undefined,
+): boolean {
+  if (!activatedAt) return false;
+  const activatedMs = new Date(activatedAt).getTime();
+  return Number.isFinite(firedAtMs) && Number.isFinite(activatedMs) && firedAtMs >= activatedMs;
+}
+
+/** Remaining wait until the next letter is frozen for the pause duration. */
+export function shiftedNextStepIso(
+  nextStepAtIso: string,
+  pausedAtIso: string,
+  resumedAtMs: number,
+): string {
+  const nextMs = Date.parse(nextStepAtIso);
+  const pausedMs = Date.parse(pausedAtIso);
+  if (!Number.isFinite(nextMs) || !Number.isFinite(pausedMs)) return nextStepAtIso;
+  const pauseMs = Math.max(0, resumedAtMs - pausedMs);
+  return new Date(nextMs + pauseMs).toISOString();
+}
+
+export async function shiftEnrollmentsAfterPause(
+  db: SupabaseClient,
+  automationId: string,
+  pausedAt: string,
+  resumedAt: Date,
+): Promise<number> {
+  const { data, error } = await db.rpc("shift_email_automation_enrollments_after_pause", {
+    p_automation_id: automationId,
+    p_paused_at: pausedAt,
+    p_resumed_at: resumedAt.toISOString(),
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
+}
 
 type Automation = {
   id: string;
@@ -143,54 +182,70 @@ async function insertEnrollment(
     next_step_at: string;
     cycle_key?: string | null;
   },
-): Promise<boolean> {
-  const { error } = await db.from("email_automation_enrollments").insert({
-    automation_id: row.automation_id,
-    contact_id: row.contact_id,
-    current_position: 0,
-    next_step_at: row.next_step_at,
-    status: "active",
-    cycle_key: row.cycle_key ?? null,
-  });
+): Promise<string | null> {
+  const { data, error } = await db
+    .from("email_automation_enrollments")
+    .insert({
+      automation_id: row.automation_id,
+      contact_id: row.contact_id,
+      current_position: 0,
+      next_step_at: row.next_step_at,
+      status: "active",
+      cycle_key: row.cycle_key ?? null,
+    })
+    .select("id")
+    .maybeSingle();
   if (error) {
     // concurrent active unique
-    if (error.code === "23505") return false;
+    if (error.code === "23505") return null;
     throw error;
   }
-  return true;
+  return data?.id ?? null;
 }
 
-/**
- * Welcome after Harmonizer onboarding (`users.onboarded_at`), not bare OTP.
- * OTP-only ghosts must never enter this drip (see sync_email_contacts + cleanup).
- * Re-registration may start the chain again: skip only when an *active*
- * enrollment already exists. Completed/cancelled history does not block.
- */
-export async function enrollAccountRegistered(db: SupabaseClient): Promise<number> {
-  const automation = await loadActiveAutomation(db, "account_registered");
-  if (!automation?.activated_at) return 0;
+type WelcomeCandidate = {
+  user_id: string;
+  onboarded_at: string;
+  skip_email_automations: boolean;
+};
 
-  const delayH = await firstStepDelayHours(db, automation.id);
-  if (delayH == null) return 0;
-
-  await db.rpc("sync_email_contacts_from_users");
-
-  const { data: onboarded, error } = await db.rpc("email_automation_onboarded_users", {
-    p_since: automation.activated_at,
+async function loadWelcomeCandidates(
+  db: SupabaseClient,
+  automationId: string,
+  since: string,
+  userId?: string,
+): Promise<WelcomeCandidate[]> {
+  const { data, error } = await db.rpc("email_automation_welcome_candidates", {
+    p_automation_id: automationId,
+    p_since: since,
+    p_user_id: userId ?? null,
   });
   if (error) throw error;
+  return (data ?? []) as WelcomeCandidate[];
+}
 
-  const rows = (onboarded ?? []) as {
-    user_id: string;
-    onboarded_at: string;
-    skip_email_automations: boolean;
-  }[];
+async function upsertContactForUser(db: SupabaseClient, userId: string): Promise<void> {
+  const { error } = await db.rpc("sync_email_contact_for_user", { p_user_id: userId });
+  if (error) throw error;
+}
+
+async function enrollWelcomeRows(
+  db: SupabaseClient,
+  automation: Automation,
+  rows: WelcomeCandidate[],
+): Promise<{ enrolled: number; enrollmentIds: string[] }> {
+  const delayH = await firstStepDelayHours(db, automation.id);
+  if (delayH == null) return { enrolled: 0, enrollmentIds: [] };
 
   let enrolled = 0;
-  const nextAt = new Date(Date.now() + delayH * 3600_000).toISOString();
+  const enrollmentIds: string[] = [];
 
   for (const row of rows) {
     if (row.skip_email_automations) continue;
+    if (!isAfterActivation(new Date(row.onboarded_at).getTime(), automation.activated_at)) {
+      continue;
+    }
+    await upsertContactForUser(db, row.user_id);
     const { data: contact } = await db
       .from("email_contacts")
       .select("id, marketing_status")
@@ -199,143 +254,251 @@ export async function enrollAccountRegistered(db: SupabaseClient): Promise<numbe
       .maybeSingle();
     if (!contact) continue;
     if (await hasActiveEnrollment(db, automation.id, contact.id)) continue;
-    const ok = await insertEnrollment(db, {
+    const nextAt = new Date(Date.now() + delayH * 3600_000).toISOString();
+    const enrollmentId = await insertEnrollment(db, {
       automation_id: automation.id,
       contact_id: contact.id,
       next_step_at: nextAt,
       cycle_key: row.onboarded_at,
     });
-    if (ok) enrolled += 1;
+    if (!enrollmentId) continue;
+    enrolled += 1;
+    enrollmentIds.push(enrollmentId);
   }
-  return enrolled;
+  return { enrolled, enrollmentIds };
 }
 
-/** C1: paid Harmonizer ended ≥3d ago; re-fire on later expiry cycles. */
+/**
+ * Welcome after Harmonizer onboarding (`users.onboarded_at`), not bare OTP.
+ * Only events at/after `activated_at` (deactivate = pause; reactivate does not backfill).
+ */
+export async function enrollAccountRegistered(db: SupabaseClient): Promise<number> {
+  const automation = await loadActiveAutomation(db, "account_registered");
+  if (!automation?.activated_at) return 0;
+  const rows = await loadWelcomeCandidates(db, automation.id, automation.activated_at);
+  const result = await enrollWelcomeRows(db, automation, rows);
+  return result.enrolled;
+}
+
+/** Immediate welcome enroll + due send for one user (DB trigger / catch-up). */
+export async function enrollWelcomeForUser(
+  db: SupabaseClient,
+  userId: string,
+): Promise<{ enrolled: number; sent: number; skipped: string | null }> {
+  const automation = await loadActiveAutomation(db, "account_registered");
+  if (!automation?.activated_at) {
+    return { enrolled: 0, sent: 0, skipped: "inactive" };
+  }
+  const rows = await loadWelcomeCandidates(
+    db,
+    automation.id,
+    automation.activated_at,
+    userId,
+  );
+  if (!rows.length) return { enrolled: 0, sent: 0, skipped: "not_candidate" };
+  const result = await enrollWelcomeRows(db, automation, rows);
+  let sent = 0;
+  for (const enrollmentId of result.enrollmentIds) {
+    const due = await processDueAutomationSteps(db, { enrollmentId });
+    sent += due.sent;
+  }
+  return { enrolled: result.enrolled, sent, skipped: null };
+}
+
+/** C1: paid Harmonizer ended ≥3d ago; re-fire on later expiry cycles.
+ * Trigger instant = periodEnd + 3d; must be ≥ activated_at (pause does not backfill).
+ */
 export async function enrollSubscriptionExpired(db: SupabaseClient): Promise<number> {
   const automation = await loadActiveAutomation(db, "subscription_expired");
-  if (!automation) return 0;
+  if (!automation?.activated_at) return 0;
   const delayH = await firstStepDelayHours(db, automation.id);
   if (delayH == null) return 0;
 
-  await db.rpc("sync_email_contacts_from_users");
-
+  const activationMs = new Date(automation.activated_at).getTime();
   const cutoff = Date.now() - C1_DAYS * 86400_000;
-  const { data: contacts, error } = await db
-    .from("email_contacts")
-    .select("id, user_id, marketing_status")
-    .eq("marketing_status", "active")
-    .not("user_id", "is", null)
-    .limit(5000);
-  if (error) throw error;
+  const periodEndMin = activationMs - C1_DAYS * 86400_000;
+  const cutoffIso = new Date(cutoff).toISOString();
+  const periodEndMinIso = new Date(periodEndMin).toISOString();
+
+  const userIds = new Set<string>();
+  const { data: expiredUsers, error: expiredError } = await db
+    .from("users")
+    .select("id")
+    .eq("skip_email_automations", false)
+    .not("membership_expires_at", "is", null)
+    .lte("membership_expires_at", cutoffIso)
+    .gte("membership_expires_at", periodEndMinIso)
+    .limit(500);
+  if (expiredError) throw expiredError;
+  for (const row of expiredUsers ?? []) userIds.add(row.id);
+
+  const { data: contracts, error: contractError } = await db
+    .from("payment_contracts")
+    .select("user_id, current_period_end")
+    .in("tier", ["oracle", "master"])
+    .eq("product_kind", "subscription")
+    .not("current_period_end", "is", null)
+    .lte("current_period_end", cutoffIso)
+    .gte("current_period_end", periodEndMinIso)
+    .limit(500);
+  if (contractError) throw contractError;
+  for (const row of contracts ?? []) {
+    if (row.user_id) userIds.add(row.user_id);
+  }
+
+  const { data: payments, error: paymentError } = await db
+    .from("payments")
+    .select("user_id, paid_until")
+    .in("tier", ["oracle", "master", "practitioner"])
+    .not("paid_until", "is", null)
+    .lte("paid_until", cutoffIso)
+    .gte("paid_until", periodEndMinIso)
+    .limit(500);
+  if (paymentError) throw paymentError;
+  for (const row of payments ?? []) {
+    if (row.user_id) userIds.add(row.user_id);
+  }
 
   let enrolled = 0;
   const nextAt = new Date(Date.now() + delayH * 3600_000).toISOString();
 
-  for (const c of contacts ?? []) {
-    if (!c.user_id) continue;
-    if (await hasActiveEnrollment(db, automation.id, c.id)) continue;
+  for (const userId of userIds) {
+    await upsertContactForUser(db, userId);
+    const { data: contact } = await db
+      .from("email_contacts")
+      .select("id, user_id, marketing_status")
+      .eq("user_id", userId)
+      .eq("marketing_status", "active")
+      .maybeSingle();
+    if (!contact) continue;
+    if (await hasActiveEnrollment(db, automation.id, contact.id)) continue;
 
     const { data: user } = await db
       .from("users")
-      .select(
-        "id, membership_tier, membership_expires_at, skip_email_automations, display_name",
-      )
-      .eq("id", c.user_id)
+      .select("id, membership_tier, membership_expires_at, skip_email_automations")
+      .eq("id", userId)
       .maybeSingle();
     if (!user || user.skip_email_automations) continue;
     if (isCurrentlyPaid(user)) continue;
 
-    // Last subscription period end from contracts + manual payments.
-    let periodEndMs = 0;
-    const { data: contracts } = await db
-      .from("payment_contracts")
-      .select("current_period_end, tier, product_kind, status")
-      .eq("user_id", c.user_id)
-      .in("tier", ["oracle", "master"])
-      .eq("product_kind", "subscription");
-    for (const pc of contracts ?? []) {
-      if (!pc.current_period_end) continue;
-      const t = new Date(pc.current_period_end).getTime();
-      if (Number.isFinite(t) && t > periodEndMs) periodEndMs = t;
-    }
-    const { data: payments } = await db
-      .from("payments")
-      .select("paid_until, tier")
-      .eq("user_id", c.user_id)
-      .in("tier", ["oracle", "master", "practitioner"]);
-    for (const p of payments ?? []) {
-      if (!p.paid_until) continue;
-      const t = new Date(p.paid_until).getTime();
-      if (Number.isFinite(t) && t > periodEndMs) periodEndMs = t;
-    }
-    if (user.membership_expires_at) {
-      const t = new Date(user.membership_expires_at).getTime();
-      if (Number.isFinite(t) && t > periodEndMs && t <= Date.now()) periodEndMs = t;
-    }
-
+    const periodEndMs = await subscriptionPeriodEndMs(db, userId, user.membership_expires_at);
     if (!periodEndMs || periodEndMs > cutoff) continue;
+    const fireMs = periodEndMs + C1_DAYS * 86400_000;
+    if (!isAfterActivation(fireMs, automation.activated_at)) continue;
 
     const cycleKey = new Date(periodEndMs).toISOString();
-    const last = await lastCompletedEnrollment(db, automation.id, c.id);
+    const last = await lastCompletedEnrollment(db, automation.id, contact.id);
     if (last?.cycle_key && last.cycle_key === cycleKey) continue;
     if (last?.cycle_key && new Date(last.cycle_key).getTime() >= periodEndMs) continue;
 
-    const ok = await insertEnrollment(db, {
+    const enrollmentId = await insertEnrollment(db, {
       automation_id: automation.id,
-      contact_id: c.id,
+      contact_id: contact.id,
       next_step_at: nextAt,
       cycle_key: cycleKey,
     });
-    if (ok) enrolled += 1;
+    if (enrollmentId) enrolled += 1;
   }
   return enrolled;
 }
 
-/** C2: inactive ≥14d; re-fire after return then leave again. */
+async function subscriptionPeriodEndMs(
+  db: SupabaseClient,
+  userId: string,
+  membershipExpiresAt?: string | null,
+): Promise<number> {
+  let periodEndMs = 0;
+  const { data: contracts } = await db
+    .from("payment_contracts")
+    .select("current_period_end, tier, product_kind, status")
+    .eq("user_id", userId)
+    .in("tier", ["oracle", "master"])
+    .eq("product_kind", "subscription");
+  for (const pc of contracts ?? []) {
+    if (!pc.current_period_end) continue;
+    const t = new Date(pc.current_period_end).getTime();
+    if (Number.isFinite(t) && t > periodEndMs) periodEndMs = t;
+  }
+  const { data: payments } = await db
+    .from("payments")
+    .select("paid_until, tier")
+    .eq("user_id", userId)
+    .in("tier", ["oracle", "master", "practitioner"]);
+  for (const p of payments ?? []) {
+    if (!p.paid_until) continue;
+    const t = new Date(p.paid_until).getTime();
+    if (Number.isFinite(t) && t > periodEndMs) periodEndMs = t;
+  }
+  if (membershipExpiresAt) {
+    const t = new Date(membershipExpiresAt).getTime();
+    if (Number.isFinite(t) && t > periodEndMs && t <= Date.now()) periodEndMs = t;
+  }
+  return periodEndMs;
+}
+
+/** C2: inactive ≥14d; re-fire after return then leave again.
+ * Trigger instant = last_seen (or created) + 14d; must be ≥ activated_at.
+ */
 export async function enrollInactive(db: SupabaseClient): Promise<number> {
   const automation = await loadActiveAutomation(db, "inactive");
-  if (!automation) return 0;
+  if (!automation?.activated_at) return 0;
   const delayH = await firstStepDelayHours(db, automation.id);
   if (delayH == null) return 0;
 
-  await db.rpc("sync_email_contacts_from_users");
-
   const cutoff = Date.now() - C2_DAYS * 86400_000;
-  const { data: contacts, error } = await db
-    .from("email_contacts")
-    .select("id, user_id, marketing_status")
-    .eq("marketing_status", "active")
-    .not("user_id", "is", null)
-    .limit(5000);
-  if (error) throw error;
+  const lastSeenMin = new Date(automation.activated_at).getTime() - C2_DAYS * 86400_000;
+  const cutoffIso = new Date(cutoff).toISOString();
+  const lastSeenMinIso = new Date(lastSeenMin).toISOString();
+
+  const { data: quietSeen, error: seenError } = await db
+    .from("users")
+    .select("id, last_seen_at, created_at, skip_email_automations")
+    .eq("skip_email_automations", false)
+    .not("last_seen_at", "is", null)
+    .lte("last_seen_at", cutoffIso)
+    .gte("last_seen_at", lastSeenMinIso)
+    .limit(500);
+  if (seenError) throw seenError;
+
+  const { data: quietNever, error: neverError } = await db
+    .from("users")
+    .select("id, last_seen_at, created_at, skip_email_automations")
+    .eq("skip_email_automations", false)
+    .is("last_seen_at", null)
+    .lte("created_at", cutoffIso)
+    .gte("created_at", lastSeenMinIso)
+    .limit(500);
+  if (neverError) throw neverError;
+
+  const quiet = [...(quietSeen ?? []), ...(quietNever ?? [])];
 
   let enrolled = 0;
   const nextAt = new Date(Date.now() + delayH * 3600_000).toISOString();
 
-  for (const c of contacts ?? []) {
-    if (!c.user_id) continue;
-    if (await hasActiveEnrollment(db, automation.id, c.id)) continue;
-
-    const { data: user } = await db
-      .from("users")
-      .select("id, last_seen_at, created_at, skip_email_automations")
-      .eq("id", c.user_id)
-      .maybeSingle();
-    if (!user || user.skip_email_automations) continue;
-
-    const lastSeenMs = user.last_seen_at
-      ? new Date(user.last_seen_at).getTime()
-      : null;
+  for (const user of quiet ?? []) {
+    const lastSeenMs = user.last_seen_at ? new Date(user.last_seen_at).getTime() : null;
     const createdMs = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const inactiveAnchorMs = lastSeenMs ?? createdMs;
+    const fireMs = inactiveAnchorMs + C2_DAYS * 86400_000;
+    if (!isAfterActivation(fireMs, automation.activated_at)) continue;
     const inactive =
       lastSeenMs == null
         ? createdMs > 0 && createdMs <= cutoff
         : lastSeenMs <= cutoff;
     if (!inactive) continue;
 
-    const last = await lastCompletedEnrollment(db, automation.id, c.id);
+    await upsertContactForUser(db, user.id);
+    const { data: contact } = await db
+      .from("email_contacts")
+      .select("id, user_id, marketing_status")
+      .eq("user_id", user.id)
+      .eq("marketing_status", "active")
+      .maybeSingle();
+    if (!contact) continue;
+    if (await hasActiveEnrollment(db, automation.id, contact.id)) continue;
+
+    const last = await lastCompletedEnrollment(db, automation.id, contact.id);
     if (last) {
-      // Must have returned after last completed, then gone quiet again.
       if (lastSeenMs == null) continue;
       const completedAt = new Date(last.updated_at).getTime();
       if (lastSeenMs <= completedAt) continue;
@@ -344,11 +507,11 @@ export async function enrollInactive(db: SupabaseClient): Promise<number> {
 
     const cycleKey = lastSeenMs
       ? new Date(lastSeenMs).toISOString()
-      : `never:${user.created_at ?? c.id}`;
+      : `never:${user.created_at ?? contact.id}`;
 
     const ok = await insertEnrollment(db, {
       automation_id: automation.id,
-      contact_id: c.id,
+      contact_id: contact.id,
       next_step_at: nextAt,
       cycle_key: cycleKey,
     });
@@ -469,23 +632,35 @@ export async function enrollContactManual(
   return { ok: true };
 }
 
-export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
+export async function processDueAutomationSteps(
+  db: SupabaseClient,
+  opts?: { enrollmentId?: string },
+): Promise<{
   processed: number;
   sent: number;
   skipped: number;
   failed: number;
 }> {
   const nowIso = new Date().toISOString();
-  // Fresh locales before send — user may have switched language mid-chain.
-  await db.rpc("sync_email_contacts_from_users");
-
-  const { data: due, error } = await db
+  let dueQuery = db
     .from("email_automation_enrollments")
     .select("id, automation_id, contact_id, current_position, next_step_at, status, cycle_key")
     .eq("status", "active")
     .lte("next_step_at", nowIso)
     .order("next_step_at", { ascending: true })
     .limit(50);
+  if (opts?.enrollmentId) {
+    dueQuery = dueQuery.eq("id", opts.enrollmentId);
+  } else {
+    const { data: activeAutos } = await db
+      .from("email_automations")
+      .select("id")
+      .eq("is_active", true);
+    const activeIds = (activeAutos ?? []).map((row) => row.id as string);
+    if (!activeIds.length) return { processed: 0, sent: 0, skipped: 0, failed: 0 };
+    dueQuery = dueQuery.in("automation_id", activeIds);
+  }
+  const { data: due, error } = await dueQuery;
   if (error) throw error;
   if (!due?.length) return { processed: 0, sent: 0, skipped: 0, failed: 0 };
 
@@ -500,10 +675,7 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
       .eq("id", enrollment.automation_id)
       .maybeSingle();
     if (!automation?.is_active) {
-      await db
-        .from("email_automation_enrollments")
-        .update({ status: "cancelled", updated_at: nowIso })
-        .eq("id", enrollment.id);
+      // Pause: keep enrollment, skip send until the chain is turned on again.
       continue;
     }
 
@@ -690,6 +862,22 @@ export async function processDueAutomationSteps(db: SupabaseClient): Promise<{
           updated_at: nowIso,
         })
         .eq("id", step.id);
+      const { count: failedAttempts } = await db
+        .from("email_automation_sends")
+        .select("id", { count: "exact", head: true })
+        .eq("enrollment_id", enrollment.id)
+        .eq("step_id", step.id)
+        .eq("status", "failed");
+      if ((failedAttempts ?? 0) < SEND_MAX_ATTEMPTS) {
+        await db
+          .from("email_automation_enrollments")
+          .update({
+            next_step_at: new Date(Date.now() + SEND_RETRY_DELAY_MS).toISOString(),
+            updated_at: nowIso,
+          })
+          .eq("id", enrollment.id);
+        continue;
+      }
     }
 
     await advanceEnrollment(db, enrollment, ordered, nowIso);

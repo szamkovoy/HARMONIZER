@@ -287,7 +287,8 @@ export default function OnboardingScreen() {
       const { error: err } = await supabase
         .from("users")
         .update({ onboarded_at: new Date().toISOString() })
-        .eq("id", authUser.id);
+        .eq("id", authUser.id)
+        .is("onboarded_at", null);
       if (err) throw err;
     } catch (e) {
       logRuntimeEvent("onboarding_finish_error", {

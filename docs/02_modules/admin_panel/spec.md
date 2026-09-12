@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.14
-updated: 2026-09-06
+version: 1.16
+updated: 2026-09-12
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -77,7 +77,7 @@ code_refs:
 
 **Уведомления (фаза F, list-first):** `GET /api/admin/notifications?page=&limit=50&user_id=` — список; `POST` `{draft:true}` → черновик (`sent_at=null`) или без draft — сразу send (карточка пользователя); `PATCH /[id]` — правка черновика; `POST /[id]` `{action:"send"|"delete"}`. UI: `/admin/notifications` infinite scroll + «Новое»; редактор `/admin/notifications/[id]`. Exact copy на `users.locale`. Контракт — `02_modules/notifications/spec.md`.
 
-**Рассылки / marketing_email:** nav «Рассылки» → `/admin/email` (`?page=&limit=50&user_id=`, UI — infinite scroll); цепочки `/admin/email/automations` + редактор `[id]`; deliverability; карточка пользователя — Общее/Гармонизатор, письма/пуши ≤10 + «все», send, launch chain, `skip_email_automations`, отмена оплаты. Контракт — `02_modules/marketing_email/spec.md`.
+**Рассылки / marketing_email:** nav «Рассылки» → `/admin/email` (`?page=&limit=50&user_id=`, UI — infinite scroll); цепочки `/admin/email/automations` + редактор `[id]` (welcome = мастер Harmonizer, не OTP; выкл. = пауза, у уже записанных интервал до следующего письма замораживается); deliverability; карточка пользователя — Общее/Гармонизатор, письма/пуши ≤10 + «все», send, launch chain, `skip_email_automations`, отмена оплаты. Контракт — `02_modules/marketing_email/spec.md`.
 
 **Клиентский гейт:** `adminFetch` — Bearer + mutex на `refreshSession`, `AdminApiError` со статусом; опциональный `timeoutMs` (дефолт 45s; перевод видео — 180s); `AdminChrome` вызывает `signOut` только при 401/403 от `/api/admin/me` (сетевые сбои не разлогинивают). `getBrowserSupabase()` (`supabaseBrowser.ts`): (1) перед `createClient` подчищает из `localStorage` непригодные `*-auth-token` сессии — нет access/refresh, битый JSON, `expires_at`/JWT `exp` в прошлом или в margin 90 c (число или строка; legacy `currentSession`); (2) ставит узкий фильтр `console.error` на известные refresh `AuthApiError` / `AuthSessionMissingError` от supabase-js, чтобы Next.js 15 dev overlay не перекрывал `/admin/login` после отозванного refresh (задание пароля через Auth Admin API). Без этого `_recoverAndRefresh` / auto-refresh пишет `console.error` даже когда сам удаляет сессию.
 

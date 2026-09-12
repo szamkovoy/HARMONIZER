@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.1
-updated: 2026-07-31
+version: 1.3
+updated: 2026-09-12
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -12,6 +12,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-12 (pause freezes remaining drip):** Выключение пишет `paused_at`. Включение сдвигает `next_step_at` active enrollments на длительность паузы, затем `activated_at=now`. Новые события за паузу по-прежнему не догоняются. Миграция `20260912102150`.
+
+- **2026-09-12 (welcome realtime + pause):** Цепочки больше не зависят от hourly full-sync (pg_net 5s обрывал enroll). Welcome — trigger на первый `onboarded_at` → `/api/cron/email-welcome` + catch-up `*/5`; таймаут pg_net 120s; контакт upsert точечный. Выключение = пауза (не cancel due). `activated_at` на каждое вкл — без backfill паузы (welcome/C1/C2). Failed send retry 5×/5мин. Миграция `20260912120000`.
 
 - **2026-08-10 (admin list infinite scroll):** `/admin/email` — подзагрузка страницами API вместо «Назад/Вперёд».
 

@@ -1,3 +1,7 @@
+- 2026-09-12 (564): Pause/resume of an email chain freezes the remaining wait until the next letter for people already in the drip. Docs `marketing_email`.
+
+- 2026-09-12 (563): Welcome email chain fires on first Harmonizer onboarding (`onboarded_at`), not hourly full-sync. Pause/resume without backfill; 5‑min catch-up; pg_net timeout 120s. Docs `marketing_email` + `infra` + `onboarding`.
+
 - 2026-09-11 (560): Removed leftover `AI_MODEL_LOW` (dead since delayed reconcile was deleted). LLM env is `AI_MODEL_STANDARD` / `AI_MODEL_PREMIUM` / `AI_MODEL_FALLBACK`. Docs `assistant` + `infra`.
 
 - 2026-09-06 (559): Daily dialog QA journal — `daily_dialog_archives` (7 days, server time): texts + outcome + review flag for admin and algorithm review. Lean storage / store app unchanged (`messages.content` empty; archive write cannot fail the chat). Admin: user card → dialogs page.

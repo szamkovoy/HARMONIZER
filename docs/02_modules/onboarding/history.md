@@ -1,14 +1,16 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.12
-updated: 2026-09-04
+version: 1.13
+updated: 2026-09-12
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
 
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-09-12 (`onboarded_at` first-write):** `finishOnboarding` пишет `onboarded_at` только если поле ещё пустое (ремонтный проход мастера не сдвигает дату регистрации и не перезапускает welcome-цепочку).
 
 - **2026-09-04 (sign-out not blocked by Zero-Tap):** `signOut` больше не `await` revoke Restore Credential. На Android `clearCredentialState` / revoke fetch могли зависнуть → «Выйти» оставлял сессию, кнопка кабинета disabled. Revoke — фон, бюджет 4 с; native timeout 3.5 с + `TYPE_CLEAR_RESTORE_CREDENTIAL`; GoTrue sign-out 5 с → local fallback.
 
