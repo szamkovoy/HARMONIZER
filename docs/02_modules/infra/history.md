@@ -1,7 +1,7 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.19
+version: 1.21
 updated: 2026-09-12
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
@@ -10,6 +10,10 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 ## Decision Log
 
 - **2026-09-12 (email automations every 5m + 120s pg_net):** Welcome больше не hourly/`timeout 5s`. Реестр: `run_email_automations_every_5m` + `invoke_email_welcome_for_user` (trigger на первый `onboarded_at`). Миграция `20260912120000`.
+
+- **2026-09-11 (iOS Maven prefetch):** Local `pod install` падал на `Error installing ReactNativeDependencies`: `curl: (56) Recv failure: Operation timed out` с `repo1.maven.org` (~19 КБ из 18–78 МБ). Hermes с того же Maven иногда проходил. Fix: `scripts/prefetch-rn-ios-artifacts.mjs` + кэш `~/.cache/harmonizer/react-native-artifacts/` + RN patch отдаёт CocoaPods `file://` (не `RCT_USE_LOCAL_RN_DEP`, чтобы Release-swap `[RNDeps]` остался). Не уходить в source-build: на Xcode 26.4 это fmt 11.0.2.
+
+- **2026-09-11 (iOS Archive Xcode 26.4):** Local production Archive на Xcode 26.4 / iPhoneOS26.4.sdk сначала падал на `PhaseScriptExecution [RNDeps]` (exit 65), затем — после ошибочного `buildReactNativeFromSource: true` — на `fmt` 11.0.2 consteval (`format-inl.h`). Рабочий путь 8 сент. — precompiled RN + static frameworks. Fix: оставить precompiled; `plugins/with-ios-xcode26-archive.js` (`ENABLE_USER_SCRIPT_SANDBOXING=NO`, fmt `FMT_USE_CONSTEVAL=0` если под компилируется); `patches/react-native+0.81.5.patch` — абсолютные пути и проверка `tar` в `[RNDeps]`. Source-build не использовать: на Clang 21 он компилирует fmt 11.0.2 и падает.
 
 - **2026-09-11 (remove AI_MODEL_LOW):** Снят неиспользуемый env `AI_MODEL_LOW` (локально и Vercel Production/Preview/Development). Рабочий набор LLM: `AI_MODEL_STANDARD`, `AI_MODEL_PREMIUM`, `AI_MODEL_FALLBACK`.
 

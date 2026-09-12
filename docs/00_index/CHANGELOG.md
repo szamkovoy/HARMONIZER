@@ -2,6 +2,10 @@
 
 - 2026-09-12 (563): Welcome email chain fires on first Harmonizer onboarding (`onboarded_at`), not hourly full-sync. Pause/resume without backfill; 5‑min catch-up; pg_net timeout 120s. Docs `marketing_email` + `infra` + `onboarding`.
 
+- 2026-09-11 (562): iOS `pod install` — prefetch RN/Hermes Maven tarballs to a local cache and feed CocoaPods `file://` (repo1.maven.org curl 56 stall). Docs `infra`.
+
+- 2026-09-11 (561): iOS local production Archive on Xcode 26.4 — keep precompiled RN; disable script sandboxing + harden `[RNDeps]` (not `buildReactNativeFromSource`, which compiles fmt 11.0.2 and fails). Docs `infra`.
+
 - 2026-09-11 (560): Removed leftover `AI_MODEL_LOW` (dead since delayed reconcile was deleted). LLM env is `AI_MODEL_STANDARD` / `AI_MODEL_PREMIUM` / `AI_MODEL_FALLBACK`. Docs `assistant` + `infra`.
 
 - 2026-09-06 (559): Daily dialog QA journal — `daily_dialog_archives` (7 days, server time): texts + outcome + review flag for admin and algorithm review. Lean storage / store app unchanged (`messages.content` empty; archive write cannot fail the chat). Admin: user card → dialogs page.

@@ -213,6 +213,8 @@ npm run build:ios:dev:local  # → dist/harmonizer-development.ipa
 
 Prereqs: Android SDK + JDK 17 in `~/.zshrc`; Xcode + CocoaPods + Fastlane for iOS.  
 `EXPO_NO_CAPABILITY_SYNC=1` is baked into the iOS npm scripts.  
+iOS Archive on Xcode 26.4: keep precompiled RN (do **not** set `buildReactNativeFromSource`). `plugins/with-ios-xcode26-archive.js` turns off user-script sandboxing; `patches/react-native+0.81.5.patch` hardens the `[RNDeps]` tarball swap. Compiling RN from source hits a `fmt` 11.0.2 consteval error on Apple Clang 21.  
+`npm run build:ios:prod` prefetches RN/Hermes Maven tarballs into `~/.cache/harmonizer/react-native-artifacts/` (HTTP/1.1 + mirrors) so `pod install` uses `file://` and does not stall on `repo1.maven.org` (`curl: 56`). Re-prefetch: `npm run prefetch:rn-ios`.  
 `ascAppId` is in `eas.json` → `submit.production.ios`.  
 Do **not** rely on `eas submit --latest` after `--local` (cloud-oriented); use the fixed `--output` paths above.
 

@@ -1,0 +1,275 @@
+diff --git a/node_modules/react-native/scripts/cocoapods/rncore.rb b/node_modules/react-native/scripts/cocoapods/rncore.rb
+index 7108f14..e1b3bd7 100644
+--- a/node_modules/react-native/scripts/cocoapods/rncore.rb
++++ b/node_modules/react-native/scripts/cocoapods/rncore.rb
+@@ -102,7 +102,7 @@ class ReactNativeCoreUtils
+                 return self.podspec_source_download_prebuild_stable_tarball()
+             rescue => e
+                 rncore_log("Failed to download release tarball: #{e.message}", :error)
+-                return
++                abort("[ReactNativeCore] #{e.message}")
+             end
+         end
+ 
+@@ -123,11 +123,10 @@ class ReactNativeCoreUtils
+             return
+         end
+ 
+-        url = stable_tarball_url(@@react_native_version, :debug)
+-        rncore_log("Using tarball from URL: #{url}")
+-        download_stable_rncore(@@react_native_path, @@react_native_version, :debug)
++        debug_path = download_stable_rncore(@@react_native_path, @@react_native_version, :debug)
+         download_stable_rncore(@@react_native_path, @@react_native_version, :release)
+-        return {:http => url}
++        rncore_log("Using local tarball: #{debug_path}")
++        return HarmonizerRnIosArtifacts.file_http_source(debug_path)
+     end
+ 
+     def self.stable_tarball_url(version, build_type)
+@@ -177,17 +176,17 @@ class ReactNativeCoreUtils
+         destination_path = configuration == nil ?
+             "#{artifacts_dir()}/reactnative-core-#{version}.tar.gz" :
+             "#{artifacts_dir()}/reactnative-core-#{version}-#{configuration}.tar.gz"
+-
+-        unless File.exist?(destination_path)
+-          # Download to a temporary file first so we don't cache incomplete downloads.
+-          tmp_file = "#{artifacts_dir()}/reactnative-core.download"
+-          `mkdir -p "#{artifacts_dir()}" && curl "#{tarball_url}" -Lo "#{tmp_file}" && mv "#{tmp_file}" "#{destination_path}"`
+-        end
+-
+-        return destination_path
++        maven_filename = configuration == nil ?
++            "react-native-artifacts-#{version}-reactnative-core.tar.gz" :
++            "react-native-artifacts-#{version}-reactnative-core-#{configuration}.tar.gz"
++        require File.expand_path("../scripts/harmonizer-rn-ios-artifacts.rb", Pod::Config.instance.installation_root)
++        return HarmonizerRnIosArtifacts.install_into(destination_path, version, maven_filename)
+     end
+ 
+     def self.release_artifact_exists(version)
++        require File.expand_path("../scripts/harmonizer-rn-ios-artifacts.rb", Pod::Config.instance.installation_root)
++        cached = File.join(HarmonizerRnIosArtifacts.cache_dir(version), "react-native-artifacts-#{version}-reactnative-core-debug.tar.gz")
++        return true if File.exist?(cached) && File.size(cached) >= HarmonizerRnIosArtifacts::MIN_BYTES
+         return artifact_exists(stable_tarball_url(version, :debug))
+     end
+ 
+diff --git a/node_modules/react-native/scripts/cocoapods/rndependencies.rb b/node_modules/react-native/scripts/cocoapods/rndependencies.rb
+index 2717ab0..07a5179 100644
+--- a/node_modules/react-native/scripts/cocoapods/rndependencies.rb
++++ b/node_modules/react-native/scripts/cocoapods/rndependencies.rb
+@@ -89,7 +89,7 @@ class ReactNativeDependenciesUtils
+                 return self.podspec_source_download_prebuild_release_tarball()
+             rescue => e
+                 rndeps_log("Failed to download release tarball: #{e.message}", :error)
+-                return
++                abort("[ReactNativeDependencies] #{e.message}")
+             end
+         end
+ 
+@@ -158,11 +158,10 @@ class ReactNativeDependenciesUtils
+             return
+         end
+ 
+-        url = release_tarball_url(@@react_native_version, :debug)
+-        rndeps_log("Using tarball from URL: #{url}")
+-        download_stable_rndeps(@@react_native_path, @@react_native_version, :debug)
++        debug_path = download_stable_rndeps(@@react_native_path, @@react_native_version, :debug)
+         download_stable_rndeps(@@react_native_path, @@react_native_version, :release)
+-        return {:http => url}
++        rndeps_log("Using local tarball: #{debug_path}")
++        return HarmonizerRnIosArtifacts.file_http_source(debug_path)
+     end
+ 
+     def self.release_tarball_url(version, build_type)
+@@ -212,17 +211,17 @@ class ReactNativeDependenciesUtils
+         destination_path = configuration == nil ?
+             "#{artifacts_dir()}/reactnative-dependencies-#{version}.tar.gz" :
+             "#{artifacts_dir()}/reactnative-dependencies-#{version}-#{configuration}.tar.gz"
+-
+-        unless File.exist?(destination_path)
+-          # Download to a temporary file first so we don't cache incomplete downloads.
+-          tmp_file = "#{artifacts_dir()}/reactnative-dependencies.download"
+-          `mkdir -p "#{artifacts_dir()}" && curl "#{tarball_url}" -Lo "#{tmp_file}" && mv "#{tmp_file}" "#{destination_path}"`
+-        end
+-
+-        return destination_path
++        maven_filename = configuration == nil ?
++            "react-native-artifacts-#{version}-reactnative-dependencies.tar.gz" :
++            "react-native-artifacts-#{version}-reactnative-dependencies-#{configuration}.tar.gz"
++        require File.expand_path("../scripts/harmonizer-rn-ios-artifacts.rb", Pod::Config.instance.installation_root)
++        return HarmonizerRnIosArtifacts.install_into(destination_path, version, maven_filename)
+     end
+ 
+     def self.release_artifact_exists(version)
++        require File.expand_path("../scripts/harmonizer-rn-ios-artifacts.rb", Pod::Config.instance.installation_root)
++        cached = File.join(HarmonizerRnIosArtifacts.cache_dir(version), "react-native-artifacts-#{version}-reactnative-dependencies-debug.tar.gz")
++        return true if File.exist?(cached) && File.size(cached) >= HarmonizerRnIosArtifacts::MIN_BYTES
+         return artifact_exists(release_tarball_url(version, :debug))
+     end
+ 
+diff --git a/node_modules/react-native/sdks/hermes-engine/hermes-utils.rb b/node_modules/react-native/sdks/hermes-engine/hermes-utils.rb
+index d01a1d3..088a003 100644
+--- a/node_modules/react-native/sdks/hermes-engine/hermes-utils.rb
++++ b/node_modules/react-native/sdks/hermes-engine/hermes-utils.rb
+@@ -180,11 +180,11 @@ def podspec_source_build_from_github_main()
+ end
+ 
+ def podspec_source_download_prebuild_release_tarball(react_native_path, version)
+-    url = release_tarball_url(version, :debug)
+-    hermes_log("Using release tarball from URL: #{url}")
+-    download_stable_hermes(react_native_path, version, :debug)
++    debug_path = download_stable_hermes(react_native_path, version, :debug)
+     download_stable_hermes(react_native_path, version, :release)
+-    return {:http => url}
++    hermes_log("Using local tarball: #{debug_path}")
++    require File.expand_path("../scripts/harmonizer-rn-ios-artifacts.rb", Pod::Config.instance.installation_root)
++    return HarmonizerRnIosArtifacts.file_http_source(debug_path)
+ end
+ 
+ def podspec_source_download_prebuilt_nightly_tarball(version)
+@@ -226,12 +226,11 @@ def download_hermes_tarball(react_native_path, tarball_url, version, configurati
+         "#{artifacts_dir()}/hermes-ios-#{version}.tar.gz" :
+         "#{artifacts_dir()}/hermes-ios-#{version}-#{configuration}.tar.gz"
+ 
+-    unless File.exist?(destination_path)
+-      # Download to a temporary file first so we don't cache incomplete downloads.
+-      tmp_file = "#{artifacts_dir()}/hermes-ios.download"
+-      `mkdir -p "#{artifacts_dir()}" && curl "#{tarball_url}" -Lo "#{tmp_file}" && mv "#{tmp_file}" "#{destination_path}"`
+-    end
+-    return destination_path
++    maven_filename = configuration == nil ?
++        "react-native-artifacts-#{version}-hermes-ios.tar.gz" :
++        "react-native-artifacts-#{version}-hermes-ios-#{configuration}.tar.gz"
++    require File.expand_path("../scripts/harmonizer-rn-ios-artifacts.rb", Pod::Config.instance.installation_root)
++    return HarmonizerRnIosArtifacts.install_into(destination_path, version, maven_filename)
+ end
+ 
+ def nightly_tarball_url(version)
+diff --git a/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec b/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
+index e08e6c2..373c767 100644
+--- a/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
++++ b/node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec
+@@ -35,6 +35,10 @@ Pod::Spec.new do |spec|
+   spec.user_target_xcconfig = {
+     'WARNING_CFLAGS' => '-Wno-comma -Wno-shorten-64-to-32',
+   }
++  # Xcode 26+ defaults user-script sandboxing on; the [RNDeps] swap needs tar/node writes in Pods.
++  spec.pod_target_xcconfig = {
++    'ENABLE_USER_SCRIPT_SANDBOXING' => 'NO',
++  }
+ 
+   spec.source               = source
+   spec.preserve_paths       = '**/*.*'
+@@ -82,6 +86,7 @@ Pod::Spec.new do |spec|
+         CONFIG="Debug"
+       fi
+ 
++      cd "$PODS_ROOT"
+       "$NODE_BINARY" "$REACT_NATIVE_PATH/third-party-podspecs/replace_dependencies_version.js" -c "$CONFIG" -r "#{version}" -p "$PODS_ROOT"
+       EOS
+     }
+diff --git a/node_modules/react-native/third-party-podspecs/replace_dependencies_version.js b/node_modules/react-native/third-party-podspecs/replace_dependencies_version.js
+index 66fa888..d330c71 100644
+--- a/node_modules/react-native/third-party-podspecs/replace_dependencies_version.js
++++ b/node_modules/react-native/third-party-podspecs/replace_dependencies_version.js
+@@ -12,9 +12,16 @@
+ 
+ const {spawnSync} = require('child_process');
+ const fs = require('fs');
++const path = require('path');
+ const yargs = require('yargs');
+ 
+-const LAST_BUILD_FILENAME = 'ReactNativeDependencies/.last_build_configuration';
++function lastBuildFile(podsRoot /*: string */) {
++  return path.join(
++    podsRoot,
++    'ReactNativeDependencies',
++    '.last_build_configuration',
++  );
++}
+ 
+ function validateBuildConfiguration(configuration /*: string */) {
+   if (!['Debug', 'Release'].includes(configuration)) {
+@@ -28,12 +35,16 @@ function validateVersion(version /*: ?string */) {
+   }
+ }
+ 
+-function shouldReplaceRnDepsConfiguration(configuration /*: string */) {
+-  const fileExists = fs.existsSync(LAST_BUILD_FILENAME);
++function shouldReplaceRnDepsConfiguration(
++  configuration /*: string */,
++  podsRoot /*: string */,
++) {
++  const lastBuildFilename = lastBuildFile(podsRoot);
++  const fileExists = fs.existsSync(lastBuildFilename);
+ 
+   if (fileExists) {
+-    console.log(`Found ${LAST_BUILD_FILENAME} file`);
+-    const oldConfiguration = fs.readFileSync(LAST_BUILD_FILENAME).toString();
++    console.log(`Found ${lastBuildFilename} file`);
++    const oldConfiguration = fs.readFileSync(lastBuildFilename).toString();
+     if (oldConfiguration === configuration) {
+       console.log(
+         'Same config of the previous build. No need to replace RNDeps',
+@@ -58,17 +69,26 @@ function replaceRNDepsConfiguration(
+   version /*: string */,
+   podsRoot /*: string */,
+ ) {
+-  const tarballURLPath = `${podsRoot}/ReactNativeDependencies-artifacts/reactnative-dependencies-${version.toLowerCase()}-${configuration.toLowerCase()}.tar.gz`;
++  const tarballURLPath = path.join(
++    podsRoot,
++    'ReactNativeDependencies-artifacts',
++    `reactnative-dependencies-${version.toLowerCase()}-${configuration.toLowerCase()}.tar.gz`,
++  );
+ 
+-  const finalLocation = 'ReactNativeDependencies/framework';
++  const finalLocation = path.join(podsRoot, 'ReactNativeDependencies', 'framework');
+   console.log('Preparing the final location', finalLocation);
+   fs.rmSync(finalLocation, {force: true, recursive: true});
+   fs.mkdirSync(finalLocation, {recursive: true});
+ 
+   console.log('Extracting the tarball', tarballURLPath);
+-  spawnSync('tar', ['-xf', tarballURLPath, '-C', finalLocation], {
++  const tarResult = spawnSync('tar', ['-xf', tarballURLPath, '-C', finalLocation], {
+     stdio: 'inherit',
+   });
++  if (tarResult.status !== 0) {
++    throw new Error(
++      `tar extract failed (${String(tarResult.status)}) for ${tarballURLPath}`,
++    );
++  }
+ 
+   // Now we need to remove the extra third-party folder as we do in the podspec's prepare-script
+   // We need to take the ReactNativeDependencies.xcframework folder and move it up one level
+@@ -90,9 +110,14 @@ function replaceRNDepsConfiguration(
+   }
+ }
+ 
+-function updateLastBuildConfiguration(configuration /*: string */) {
+-  console.log(`Updating ${LAST_BUILD_FILENAME} with ${configuration}`);
+-  fs.writeFileSync(LAST_BUILD_FILENAME, configuration);
++function updateLastBuildConfiguration(
++  configuration /*: string */,
++  podsRoot /*: string */,
++) {
++  const lastBuildFilename = lastBuildFile(podsRoot);
++  console.log(`Updating ${lastBuildFilename} with ${configuration}`);
++  fs.mkdirSync(path.dirname(lastBuildFilename), {recursive: true});
++  fs.writeFileSync(lastBuildFilename, configuration);
+ }
+ 
+ function main(
+@@ -103,12 +128,12 @@ function main(
+   validateBuildConfiguration(configuration);
+   validateVersion(version);
+ 
+-  if (!shouldReplaceRnDepsConfiguration(configuration)) {
++  if (!shouldReplaceRnDepsConfiguration(configuration, podsRoot)) {
+     return;
+   }
+ 
+   replaceRNDepsConfiguration(configuration, version, podsRoot);
+-  updateLastBuildConfiguration(configuration);
++  updateLastBuildConfiguration(configuration, podsRoot);
+   console.log('Done replacing React Native Dependencies');
+ }
+ 

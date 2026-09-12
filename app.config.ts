@@ -272,6 +272,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           },
         },
       ],
+      // Xcode 26.4: keep precompiled RN; turn off script sandboxing + patch fmt if compiled.
+      "./plugins/with-ios-xcode26-archive.js",
       [
         "@sfourdrinier/react-native-ble-plx",
         {
