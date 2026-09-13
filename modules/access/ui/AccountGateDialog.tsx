@@ -16,6 +16,7 @@ import {
   openAccountCabinet,
   prefetchAccountCabinetOtt,
   useAccountLinksEnabled,
+  useModalDismissForBrowser,
 } from "@/modules/account";
 import { isStoreReviewAccount, useAuth } from "@/modules/auth";
 import type { FeatureKey } from "@/modules/access/core/features";
@@ -61,6 +62,7 @@ export function AccountGateDialog({
   const showCabinet = linksEnabled && !isStoreReviewAccount(profile);
   const [opening, setOpening] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const { hiding, hideAndWait, onDismiss, resetHiding } = useModalDismissForBrowser();
 
   // Prefetch OTT while the user reads the gate — book path especially benefits.
   useEffect(() => {
@@ -68,19 +70,26 @@ export function AccountGateDialog({
     prefetchAccountCabinetOtt();
   }, [visible, showCabinet]);
 
+  useEffect(() => {
+    if (!visible) resetHiding();
+  }, [visible, resetHiding]);
+
   const onOpenCabinet = async () => {
     logRuntimeTap("account_gate_open_cabinet", { feature });
     setErrorText(null);
     setOpening(true);
     try {
-      // Dismiss Modal before SFSafari/Custom Tabs — avoids black flash over backdrop.
-      await openAccountCabinet("tier", { beforeOpen: onClose });
+      // Hide this Modal and wait for native dismiss — do not unmount via onClose
+      // first (that wedges iOS SFSafari and then every other cabinet CTA).
+      await openAccountCabinet("tier", { beforeOpen: hideAndWait });
+      onClose();
     } catch (error) {
       logRuntimeEvent(
         "account_gate_cabinet_error",
         { message: error instanceof Error ? error.message : String(error) },
         "warn",
       );
+      resetHiding();
       setErrorText(t("gate.cabinetError"));
     } finally {
       setOpening(false);
@@ -88,7 +97,13 @@ export function AccountGateDialog({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible && !hiding}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+    >
       <View style={[styles.backdrop, { backgroundColor: theme.colors.modalBackdrop }]}>
         <View
           style={[

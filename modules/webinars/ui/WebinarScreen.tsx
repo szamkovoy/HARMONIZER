@@ -280,13 +280,11 @@ export function WebinarScreen() {
         )}
       </KeyboardAvoidingView>
 
-      {showUpgrade ? (
-        <AccountGateDialog
-          visible
-          feature="webinar_community"
-          onClose={() => setShowUpgrade(false)}
-        />
-      ) : null}
+      <AccountGateDialog
+        visible={showUpgrade}
+        feature="webinar_community"
+        onClose={() => setShowUpgrade(false)}
+      />
     </StackScreenLayout>
   );
 }

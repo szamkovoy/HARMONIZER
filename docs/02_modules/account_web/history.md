@@ -1,9 +1,19 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.16
-updated: 2026-08-27
+version: 1.18
+updated: 2026-09-14
 ---
+
+## 2026-09-14 — Cabinet present hang / dismiss deadlock
+
+- После фикса Modal+`locked` оставались: (1) `dismissBrowser` **перед** каждым iOS-open — completion на never-presented VC может не прийти, JS `opening` навечно, кнопка disabled; (2) зависший `openBrowserAsync` (present не вызвал `didPresent`) тоже держал `await` до закрытия Safari, которого нет. Фикс: dismiss только на `locked` и с таймаутом; hang-probe ~120 мс → не блокировать UI; после async `beforeOpen` ещё ~120 мс settle.
+
+## 2026-09-14 — Cabinet CTA freeze after gate Modal (iOS)
+
+- **Симптом:** «Читать книгу» → gate → «Личный кабинет» закрывает сообщение, кабинет не открывается; после этого та же кнопка в Профиле «не нажимается». То же с любого `AccountGateDialog` (практики, день, главная, вебинар) и trial-notice.
+- **Причина:** iOS expo-web-browser держит singleton `WebBrowserSession`. Фикс чёрного кадра (2026-08-27) закрывал Modal через sync `onClose` и ждал один rAF — dismiss анимации (~300 мс) не хватало. `present` SFSafari на ещё уходящий `RCTModalHostViewController` не вызывает `didPresent`; промис висит, `type: locked` на следующих тапах; иногда остаётся невидимый Modal, который ест нажатия. Android Custom Tabs lock не имеют, но старт tabs во время Dialog-dismiss тоже может тихо сорваться.
+- **Фикс:** `useModalDismissForBrowser` (ждать `onDismiss` / timeout, не размонтировать Modal через `{flag ? <Dialog/> : null}`); `presentCabinetBrowser` снимает `locked` через `dismissBrowser` + retry, на iOS крайний fallback — Safari.app. Все gate-поверхности держат `visible={flag}`.
 
 ## 2026-08-27 — Black flash before cabinet browser
 

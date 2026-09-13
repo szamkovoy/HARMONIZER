@@ -18,6 +18,7 @@ import { AppState, Modal, StyleSheet, View } from "react-native";
 
 import { useAccountLinksEnabled } from "@/modules/account/core/accountLinksConfig";
 import { openAccountCabinet } from "@/modules/account/core/openAccountCabinet";
+import { useModalDismissForBrowser } from "@/modules/account/core/useModalDismissForBrowser";
 import {
   clearCabinetVisit,
   readFreshCabinetVisit,
@@ -237,24 +238,27 @@ function MembershipNoticeModal({
   const showCabinet = linksEnabled && !isStoreReviewAccount(profile);
   const [opening, setOpening] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const { hiding, hideAndWait, onDismiss, resetHiding } = useModalDismissForBrowser();
 
   const onOpenCabinet = useCallback(async () => {
     logRuntimeTap("membership_notice_open_cabinet", { kind: notice.kind });
     setErrorText(null);
     setOpening(true);
     try {
-      await openAccountCabinet("tier", { beforeOpen: onClose });
+      await openAccountCabinet("tier", { beforeOpen: hideAndWait });
+      onClose();
     } catch (error) {
       logRuntimeEvent(
         "membership_notice_cabinet_error",
         { message: error instanceof Error ? error.message : String(error) },
         "warn",
       );
+      resetHiding();
       setErrorText(t("gate.cabinetError"));
     } finally {
       setOpening(false);
     }
-  }, [notice.kind, onClose, t]);
+  }, [hideAndWait, notice.kind, onClose, resetHiding, t]);
 
   const isTrialEnded = notice.kind === "trial_ended";
   const isWebinarPaid = notice.kind === "webinar_paid";
@@ -278,7 +282,13 @@ function MembershipNoticeModal({
           });
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={!hiding}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+    >
       <View style={[styles.backdrop, { backgroundColor: theme.colors.modalBackdrop }]}>
         <View
           style={[

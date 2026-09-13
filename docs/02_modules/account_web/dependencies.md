@@ -1,12 +1,14 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.8
-updated: 2026-08-27
+version: 1.9
+updated: 2026-09-14
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
     modules/account/core/openAccountCabinet.ts,
+    modules/account/core/presentCabinetBrowser.ts,
+    modules/account/core/useModalDismissForBrowser.ts,
     modules/account/core/accountLinksConfig.ts,
     modules/account/ui/MembershipEventsBridge.tsx,
     modules/access/ui/AccountGateDialog.tsx,
@@ -30,7 +32,7 @@ code_refs:
 
 ## 2. От него зависят
 
-- **`subscription`** — `AccountGateDialog` / `AccountUpsellPanel` вызывают `openAccountCabinet()` / `prefetchAccountCabinetOtt` и `useAccountLinksEnabled()`; gate передаёт `beforeOpen: onClose`, чтобы Modal закрылся до SFSafari.
+- **`subscription`** — `AccountGateDialog` / `AccountUpsellPanel` вызывают `openAccountCabinet()` / `prefetchAccountCabinetOtt` и `useAccountLinksEnabled()`; gate скрывает свой Modal через `useModalDismissForBrowser` (`beforeOpen: hideAndWait`) и держит компонент смонтированным (`visible={flag}`), пока native dismiss не завершится.
 - **`profile`** — ссылки «Выйти» / «Удалить аккаунт» на `app/(tabs)/profile.tsx` (`deleteAccountRemote`).
 - **`admin_panel`** — KPI/графики **net**-выручки и `/admin/payments/stats` читают `payment_settlements` (`lavatop` / `yookassa`); ручной леджер `payments` — отдельно как гранты.
 - **Веб-страница кабинета (standalone на zamkovoi.yoga)** — контракт `POST /api/account/session` и `GET /api/account/overview` (форма `AccountOverview`); при изменении полей overview синхронно править `web_cabinet/cabinet/index.html`. Оферта — статика Vercel `/cabinet/offer/{lang}.json` (только по клику). Страница не должна отдаваться через тему WordPress.

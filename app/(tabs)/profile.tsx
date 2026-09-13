@@ -1043,21 +1043,17 @@ export default function ProfileTabRoute() {
       {birthMapOpen && birthGeoPlace ? (
         <BirthPlaceMapModal place={birthGeoPlace} onClose={() => setBirthMapOpen(false)} />
       ) : null}
-      {upgradeFeature ? (
-        <AccountGateDialog
-          visible
-          feature={upgradeFeature}
-          onClose={() => setUpgradeFeature(null)}
-        />
-      ) : null}
-      {bookGateOpen ? (
-        <AccountGateDialog
-          visible
-          feature="profile"
-          bodyKey="gate.body.book"
-          onClose={() => setBookGateOpen(false)}
-        />
-      ) : null}
+      <AccountGateDialog
+        visible={upgradeFeature != null}
+        feature={upgradeFeature ?? "profile"}
+        onClose={() => setUpgradeFeature(null)}
+      />
+      <AccountGateDialog
+        visible={bookGateOpen}
+        feature="profile"
+        bodyKey="gate.body.book"
+        onClose={() => setBookGateOpen(false)}
+      />
     </TabScreenLayout>
     </DonutVisibilityProvider>
   );

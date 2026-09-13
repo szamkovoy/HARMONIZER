@@ -447,13 +447,11 @@ export function PracticeCatalogScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
       />
-      {lockedFeature ? (
-        <AccountGateDialog
-          visible
-          feature={lockedFeature}
-          onClose={() => setLockedFeature(null)}
-        />
-      ) : null}
+      <AccountGateDialog
+        visible={lockedFeature != null}
+        feature={lockedFeature ?? "practice_catalog"}
+        onClose={() => setLockedFeature(null)}
+      />
     </TabScreenLayout>
   );
 }

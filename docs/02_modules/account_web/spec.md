@@ -1,13 +1,15 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.17
-updated: 2026-08-27
+version: 1.19
+updated: 2026-09-14
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
     modules/account/index.ts,
     modules/account/core/openAccountCabinet.ts,
+    modules/account/core/presentCabinetBrowser.ts,
+    modules/account/core/useModalDismissForBrowser.ts,
     modules/account/core/billingCurrency.ts,
     modules/account/core/cabinetCountry.ts,
     _legacy_web/app/api/geo/ip-country/route.ts,
@@ -69,7 +71,8 @@ code_refs:
 
 Экспорт `modules/account/index.ts`:
 
-- **`openAccountCabinet(ctx?, options?): Promise<void>`** — `POST /api/account/ott` (Bearer JWT) → `WebBrowser.openBrowserAsync("https://zamkovoi.yoga/cabinet/?ott=…&lang=…&currency=…&ctx=…")` (SFSafariViewController / Chrome Custom Tabs; Android `createTask: false`). iOS: `presentationStyle: FullScreen` (не дефолтный OverFullScreen) + светлый `toolbarColor`, чтобы не было чёрного кадра до белой HTML-страницы. `options.beforeOpen` — закрыть RN Modal до презентации браузера (иначе SFSafari поверх Modal → чёрный экран; особенно заметно из book gate). Бросает при недоступности OTT (`gate.cabinetError`). `ctx`: `"tier"` | `"webinar:<id>"` | `"course:<id>"`. Перед открытием — `cabinetVisit.{userId}`.
+- **`openAccountCabinet(ctx?, options?): Promise<void>`** — `POST /api/account/ott` (Bearer JWT) → `presentCabinetBrowser` → SFSafariViewController / Chrome Custom Tabs (`createTask: false` на Android). iOS: `presentationStyle: FullScreen` + светлый `toolbarColor`. `options.beforeOpen` может быть async: скрыть RN Modal и **дождаться native dismiss** (`onDismiss` / safety timeout), плюс короткий settle после fade. Синхронный `onClose`, который размонтирует Modal, недостаточен — презентация SFSafari во время dismiss клинит singleton expo-web-browser (`type: locked`), после чего «Личный кабинет» на Профиле / Home / практиках / вебинаре тоже не открывается. `presentCabinetBrowser` не вызывает `dismissBrowser` до здорового open (иначе можно зависнуть на never-presented VC). `locked` → `dismissBrowser` с таймаутом + повтор; если сессия так и клинит — fallback `Linking.openURL` (Safari.app). Зависший `openBrowserAsync` (present не завершился) не держит JS `opening`: probe ~120 мс → `assumedOpen`, следующий тап снимает `locked`. Android Custom Tabs такого lock не имеют. Бросает при недоступности OTT (`gate.cabinetError`). `ctx`: `"tier"` | `"webinar:<id>"` | `"course:<id>"`. Перед открытием — `cabinetVisit.{userId}`.
+- **`useModalDismissForBrowser()`** — хук для gate/notice Modal: `hideAndWait` ставит `visible=false` и резолвится на `onDismiss` (iOS) или через ~500/250 мс safety; не вызывать `onClose` родителя до этого.
 - **`prefetchAccountCabinetOtt()`** — фоновый прогрев OTT (TTL кэша ~3 мин из 5 мин серверного); вызывается при фокусе Профиля, открытии gate/upsell.
 - **`warmAccountCabinetBrowser()`** — Android `WebBrowser.warmUpAsync` + `mayInitWithUrlAsync` базового URL кабинета (tabs mount).
 - **`resolveBillingGeo` / `resolveBillingCurrency`** — страна/валюта кабинета: **сначала** `users.country_code` (только Nominatim после GPS; поле не обнуляется, если позже доступ к гео запретили), иначе **`GET /api/geo/ip-country`** (Vercel `x-vercel-ip-country`, fallback ipwho.is по публичному IP / VPN egress) → RU=RUB, US=USD, иначе EUR. IP **не** пишется в `users.country_code` и **не** персистится в SecureStore (VPN не должен засорять GPS-поле). В ссылку уходят `currency` + `country` (шлюз). Timeout **800 мс** даёт эфемерный EUR **без** записи в SecureStore; GPS-страна из профиля персистится.

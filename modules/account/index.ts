@@ -7,6 +7,7 @@ export {
   type CabinetContext,
   type OpenAccountCabinetOptions,
 } from "./core/openAccountCabinet";
+export { useModalDismissForBrowser } from "./core/useModalDismissForBrowser";
 export {
   resolveBillingCurrency,
   resolveBillingGeo,

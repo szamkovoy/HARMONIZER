@@ -1,3 +1,5 @@
+- 2026-09-14 (565): «Личный кабинет» из любого gate-диалога больше не клинит ту же кнопку в Профиле: ждём dismiss RN Modal, снимаем iOS `locked` у SFSafari; hang-probe и таймаут `dismissBrowser`, чтобы кнопка не оставалась disabled. Docs `account_web` + `subscription`.
+
 - 2026-09-12 (564): Pause/resume of an email chain freezes the remaining wait until the next letter for people already in the drip. Docs `marketing_email`.
 
 - 2026-09-12 (563): Welcome email chain fires on first Harmonizer onboarding (`onboarded_at`), not hourly full-sync. Pause/resume without backfill; 5‑min catch-up; pg_net timeout 120s. Docs `marketing_email` + `infra` + `onboarding`.

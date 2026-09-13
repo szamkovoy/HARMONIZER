@@ -21,13 +21,14 @@
  * foreground MembershipEventsBridge сверяет тариф с сервером (страховка,
  * если Realtime-событие оплаты не дошло).
  *
- * UX: не открывать SFSafari поверх RN Modal (чёрный кадр) — call sites передают
- * `beforeOpen` (закрыть модалку) после готовности URL; presentationStyle =
- * FullScreen (не дефолтный OverFullScreen); светлый toolbar под белую страницу
- * кабинета; Android Custom Tabs можно прогреть через `warmAccountCabinetBrowser`.
+ * UX: не открывать SFSafari поверх RN Modal (чёрный кадр **и** клин
+ * singleton-сессии expo-web-browser). Call sites передают async `beforeOpen`
+ * (скрыть Modal и дождаться native dismiss). Презентация — FullScreen + светлый
+ * toolbar; Android Custom Tabs можно прогреть через `warmAccountCabinetBrowser`.
  */
 import { InteractionManager, Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
+import { presentCabinetBrowser } from "@/modules/account/core/presentCabinetBrowser";
 
 import { readAccountFlag, writeAccountFlag } from "@/modules/account/core/accountFlagsStore";
 import { resolveBillingGeo } from "@/modules/account/core/billingCurrency";
@@ -46,10 +47,13 @@ export type CabinetContext = "tier" | `webinar:${string}` | `course:${string}`;
 
 export type OpenAccountCabinetOptions = {
   /**
-   * Вызывается после готовности URL и до `openBrowserAsync` —
-   * закрыть RN Modal / диалог, иначе SFSafari поверх Modal даёт чёрный кадр.
+   * After the OTT URL is ready and before presenting the system browser.
+   * Must hide any RN Modal and resolve only once native dismiss finished
+   * (`onDismiss` / safety timeout). A sync `onClose` that unmounts the Modal
+   * is not enough — iOS then wedges SFSafari (`type: locked`) and later
+   * «Личный кабинет» taps on other screens do nothing.
    */
-  beforeOpen?: () => void;
+  beforeOpen?: () => void | Promise<void>;
 };
 
 /** Свежесть визита в кабинет для foreground-проверки тарифа. */
@@ -160,13 +164,30 @@ export async function clearCabinetVisit(userId: string): Promise<void> {
   await writeAccountFlag(`cabinetVisit.${userId}`, "");
 }
 
-function yieldForModalDismiss(): Promise<void> {
+function afterInteractions(): Promise<void> {
   return new Promise((resolve) => {
-    InteractionManager.runAfterInteractions(() => {
-      // One frame after interactions so RN Modal finishes unmount before SFSafari presents.
-      requestAnimationFrame(() => resolve());
-    });
+    InteractionManager.runAfterInteractions(() => resolve());
   });
+}
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fallback when `beforeOpen` is sync (legacy `onClose` that only sets state).
+ * iOS Modal fade is ~300ms; one rAF left SFSafari presenting mid-dismiss.
+ */
+async function yieldForSyncModalDismiss(): Promise<void> {
+  await afterInteractions();
+  await delay(Platform.OS === "ios" ? 450 : 200);
+  await nextFrame();
 }
 
 /**
@@ -195,28 +216,28 @@ export async function openAccountCabinet(
     url.searchParams.set("ctx", ctx);
     if (userId) await markCabinetVisit(userId, ctx);
 
-    // Close RN Modal (if any) before presenting the system browser.
-    options?.beforeOpen?.();
-    if (options?.beforeOpen) await yieldForModalDismiss();
+    // Close RN Modal (if any) and wait until it is gone before SFSafari/Custom Tabs.
+    const beforeOpenResult = options?.beforeOpen?.();
+    if (beforeOpenResult && typeof (beforeOpenResult as Promise<void>).then === "function") {
+      await beforeOpenResult;
+      // onDismiss can fire at the start of the fade; give UIKit one more beat
+      // so SFSafari is not presented onto a still-dismissing modal host.
+      await delay(Platform.OS === "ios" ? 120 : 40);
+      await nextFrame();
+    } else if (options?.beforeOpen) {
+      await yieldForSyncModalDismiss();
+    }
 
-    // Custom Tabs / SFSafariViewController — still an external browser (App Store /
-    // Play billing rules). createTask:false keeps the Expo activity alive on Android.
-    // FullScreen (not default OverFullScreen) + light toolbar avoid the black flash
-    // before the white cabinet HTML paints.
-    await WebBrowser.openBrowserAsync(url.toString(), {
-      createTask: Platform.OS === "android" ? false : undefined,
-      showInRecents: true,
-      toolbarColor: "#FFFFFF",
-      controlsColor: "#111111",
-      dismissButtonStyle: "close",
-      presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-    });
+    const presented = await presentCabinetBrowser(url.toString());
     logRuntimeEvent("cabinet:opened", {
       ctx,
       currency: geo.currency,
       country: geo.country || null,
       platform: Platform.OS,
       usedPrefetchedOtt: Boolean(cachedOtt),
+      recoveredFromLock: presented.recoveredFromLock,
+      usedSystemSafari: presented.usedSystemSafari,
+      assumedOpen: presented.assumedOpen ?? false,
     });
   } catch (error) {
     logRuntimeEvent(

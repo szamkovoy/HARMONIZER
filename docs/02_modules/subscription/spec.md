@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.9
-updated: 2026-08-14
+version: 1.10
+updated: 2026-09-14
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -53,7 +53,7 @@ code_refs:
 - **`accessModeForTier(tier: ProductTier): "free" | "premium"`** — агрегат для слоя дневного контента (глобальный vs персональный режим загрузки прогноза).
 - **Типы и константы:** `FeatureKey`, `ProductTier`, `PaidProductTier`, `EffectiveAccess`, `AccessContextValue`, `TIER_FEATURES`, `FEATURE_REQUIRED_TIER`, `PRODUCT_TIERS`, `PAID_PRODUCT_TIERS`, **`VISIBLE_PRODUCT_TIERS` / `VISIBLE_PAID_PRODUCT_TIERS`** (без legacy `practitioner`), `TIER_LABELS`, `TIER_LABELS_RU`, `TIER_ORDER`, **`tierAtLeast(tier, minimum)`**, **`isPaidProductTier`**, **`isProductTier`**.
 - **`DevTierSwitch`** — UI переключателя эффективного тарифа только при **`HARMONIZER_TEST_MODE`** (`EXPO_PUBLIC_HARMONIZER_TEST_MODE=true`). Без флага `AccessProvider` игнорирует override.
-- **`AccountGateDialog`** (заменил `UpgradeDialog` 2026-07-14) — комплаенс-диалог заблокированной фичи по `FeatureKey`: текст `gate.body.*` из JSON-каталога + кнопки «Закрыть» и «Личный кабинет» (OTT-переход в системный браузер, см. `account_web`). Опциональный **`bodyKey`** переопределяет тело (например книга: `gate.body.book` при `feature="profile"`). Кнопка ЛК скрывается kill-switch'ем `app_config.account_links_enabled`. Внутри приложения нет цен и слов «купить/оплатить» — модель Consumption-Only.
+- **`AccountGateDialog`** (заменил `UpgradeDialog` 2026-07-14) — комплаенс-диалог заблокированной фичи по `FeatureKey`: текст `gate.body.*` из JSON-каталога + кнопки «Закрыть» и «Личный кабинет» (OTT-переход в системный браузер, см. `account_web`). Перед браузером диалог **сам** скрывает Modal и ждёт native dismiss (`useModalDismissForBrowser`); родитель передаёт `visible={flag}` и не размонтирует дерево, пока флаг true. Опциональный **`bodyKey`** переопределяет тело (например книга: `gate.body.book` при `feature="profile"`). Кнопка ЛК скрывается kill-switch'ем `app_config.account_links_enabled`. Внутри приложения нет цен и слов «купить/оплатить» — модель Consumption-Only.
 - **`AccountUpsellPanel`** — сворачиваемая панель на главной для free-уровня («Включите индивидуальные рекомендации…», `gate.homePanel.*`), заменила прежний `FreeTierBanner`.
 - Подписи уровней через **`useTranslate()`** (`tier.*` в JSON-каталоге). Админ-панель использует **`TIER_LABELS_RU`** из того же `tiers.ts`.
 

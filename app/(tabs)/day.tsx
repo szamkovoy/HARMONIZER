@@ -1016,13 +1016,11 @@ export default function DayTabRoute() {
         </View>
       ) : null}
 
-      {lockedFeature ? (
-        <AccountGateDialog
-          visible
-          feature={lockedFeature}
-          onClose={() => setLockedFeature(null)}
-        />
-      ) : null}
+      <AccountGateDialog
+        visible={lockedFeature != null}
+        feature={lockedFeature ?? "practice_catalog"}
+        onClose={() => setLockedFeature(null)}
+      />
 
       <SurfaceHelpModal
         visible={sectionHelp != null}

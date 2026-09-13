@@ -1,13 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.10
-updated: 2026-08-11
+version: 1.11
+updated: 2026-09-14
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-09-14 (cabinet CTA / Modal):** `AccountGateDialog` больше не зовёт `onClose` как sync `beforeOpen` — скрывает Modal и ждёт dismiss, иначе iOS клинит все кнопки «Личный кабинет». Call sites держат диалог смонтированным (`visible={flag}`). См. `account_web`.
 
 - **2026-08-14 (affirmations FeatureKey):** `affirmations` → master + `gate.body.affirmation` (мягкий текст про дыхательные практики / кабинет).
 

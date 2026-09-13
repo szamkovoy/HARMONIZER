@@ -857,13 +857,11 @@ export default function HomeScreen() {
         onClose={() => setNatalBridgeOpen(false)}
         onSubmit={onSaveNatalBridge}
       />
-      {upgradeFeature ? (
-        <AccountGateDialog
-          visible
-          feature={upgradeFeature}
-          onClose={() => setUpgradeFeature(null)}
-        />
-      ) : null}
+      <AccountGateDialog
+        visible={upgradeFeature != null}
+        feature={upgradeFeature ?? "profile"}
+        onClose={() => setUpgradeFeature(null)}
+      />
       <BlockingStatusToast visible={assistantOpening} />
     </TabScreenLayout>
   );
