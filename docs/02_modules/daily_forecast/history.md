@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.49
-updated: 2026-09-06
+version: 2.50
+updated: 2026-09-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -23,6 +23,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-14 (Gateway Timeout):** Sentry `Error: Gateway Timeout` on `POST /api/astro/daily-forecast` (`handled=no`). Route had no `maxDuration` (Vercel ~10–15s) and no `reportRouteError`; cache-hit still loaded natal+calibration before serving. Fix: `maxDuration = 120`; cache-hit skips natal/compute; timeouts → 504; 5xx/`Gateway Timeout` via `reportRouteError` with `stage`.
 
 - **2026-09-06 (Day-tab identity duplicates):** `GET /api/day` схлопывает `planned` rows одного локального дня, которые описывают одно действие разными словами (speech-blob vs короткое имя), и удаляет лишние строки до `actions` / `sphereStats`. Канон identity — `samePlannedEventIdentity` (assistant).
 

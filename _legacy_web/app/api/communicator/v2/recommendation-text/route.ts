@@ -6,6 +6,7 @@ import { getActivePrompt, renderPrompt } from "@legacy/app/api/_utils/prompts";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type Body = {
   forecastDate?: string;

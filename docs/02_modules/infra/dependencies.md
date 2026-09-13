@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/dependencies
 title: Infra Dependencies
-version: 1.6
-updated: 2026-07-08
+version: 1.7
+updated: 2026-09-14
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
@@ -43,7 +43,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 ## 3. Контрактные точки риска
 
-- **Сигнатура и поведение `reportRouteError`** — все вызовы из API-роутов завязаны на shape `RouteErrorContext` (`endpoint`, `stage`, `userId`, `payload`); изменение тегов Sentry или полей `user_event_log` ломает аналитику и алерты.
+- **Сигнатура и поведение `reportRouteError`** — все вызовы из API-роутов завязаны на shape `RouteErrorContext` (`endpoint`, `stage`, `userId`, `payload`); изменение тегов Sentry или полей `user_event_log` ломает аналитику и алерты. `errorResponse` для `isTimeoutError` отдаёт **504**, не 500; клиентские retry (`withTransientNetworkRetry`) **не** ретраят 504 (только 502/503).
+- **`SUPABASE_FETCH_TIMEOUT_MS` (20s)** — общий abort на PostgREST fetch в `createServiceSupabase` / `createAnonSupabase`. Запросы длиннее 20s (админские батчи) должны идти чанками, а не одним select.
 - **`outputFileTracingRoot`** — должен указывать на `_legacy_web`; смещение ломает Vercel file tracing (правило в `.cursor/rules/vercel-deploy.mdc`).
 - **`.vercelignore` список `/modules/*`** — сейчас явно разрешён импорт из `modules/practices/**`; добавление API-импорта из другого поддерева `modules/` без правки ignore даёт «модуль не найден» на сервере.
 - **`SENTRY_DSN` / `EXPO_PUBLIC_SENTRY_DSN`** — разные ключи для сервера и клиента; перепутывание префиксов даёт молчаливое отключение (`enabled: false`).

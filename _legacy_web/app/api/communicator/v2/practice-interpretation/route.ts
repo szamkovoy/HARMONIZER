@@ -10,6 +10,7 @@ import {
 } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 const PROMPT_KEY = "breath_practice_interpretation";
 

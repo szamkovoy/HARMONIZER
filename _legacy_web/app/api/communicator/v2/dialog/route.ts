@@ -164,6 +164,11 @@ import {
 import { resolvePracticeCard } from "@legacy/app/api/communicator/v2/dialog/dialogPracticeCard";
 
 export const runtime = "nodejs";
+/**
+ * Streaming turn + DeepSeek 60s + hidden repairs. Without this Vercel defaults
+ * to ~10–15s and Sentry records `Error: Gateway Timeout` mid `load_context`.
+ */
+export const maxDuration = 300;
 
 type DialogueUseCase = "calibration" | "daily_dialog";
 type DialogueEntrySource = "home" | "event_reminder" | "practice_discuss" | "stories" | "onboarding" | "day";

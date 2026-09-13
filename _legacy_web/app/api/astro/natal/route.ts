@@ -5,6 +5,7 @@ import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
 
 // Запись в user_natal_charts только через service_role (RLS: владелец — SELECT).
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type Body = {
   birthData: BirthData;

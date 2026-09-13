@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.45
-updated: 2026-09-06
+version: 2.46
+updated: 2026-09-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -88,7 +88,7 @@ code_refs:
 
 ### Серверные эндпоинты (персональный прогноз)
 
-- `POST _legacy_web/app/api/astro/daily-forecast/route.ts` — Node: кэш `user_daily_forecasts`, загрузка натала, активной калибровки, `recentPlanetsOfDay`, расчёт через `computeDailyForecastWithAstronomia`, upsert строки прогноза. Ответ **`forecastPayload`** для Home дополняется **`loadCachedMorningRecommendation`** (read-only `scenario_cache`; без LLM на обычном load) или **`ensureMorningRecommendation`** при `forceRefresh`. Валидность morning-кэша для serve: `outputLocale` + `math_level` + непустые slogan/short в нужной локали — **без** требования `modelUsed === AI_MODEL_*` (иначе cutover моделей ломал cron warm). Planning-поля `recommendation_short_text` в строке прогноза сохраняются для вкладки «День», но не подменяют Home LLM-слой в payload.
+- `POST _legacy_web/app/api/astro/daily-forecast/route.ts` — Node: `export const maxDuration = 120`. Кэш `user_daily_forecasts`, загрузка натала, активной калибровки, `recentPlanetsOfDay`, расчёт через `computeDailyForecastWithAstronomia`, upsert строки прогноза. **Cache-hit без `forceRefresh` не грузит натал/калибровку и не считает эфемериды** — только row + `loadCachedMorningRecommendation`. `forceRefresh` по-прежнему `await ensureMorningRecommendation` (LLM). Ответ **`forecastPayload`** для Home дополняется morning-слоем. Таймаут/abort → HTTP **504** через `errorResponse`; 5xx идут в `reportRouteError` (`endpoint=astro/daily-forecast`, `stage=` cache/natal/compute/persist/morning_*). Валидность morning-кэша для serve: `outputLocale` + `math_level` + непустые slogan/short в нужной локали — **без** требования `modelUsed === AI_MODEL_*` (иначе cutover моделей ломал cron warm). Planning-поля `recommendation_short_text` в строке прогноза сохраняются для вкладки «День», но не подменяют Home LLM-слой в payload.
 - `POST supabase/functions/daily-forecast/index.ts` — Edge-аналог (общий расчётный слой в `supabase/functions/_shared/dailyForecast.ts`).
 - Фоновый контур: `supabase/functions/precompute-daily-forecasts/index.ts` — предрасчёт для пользователей с personal-forecast access и активностью за **5 дней** (`users.last_seen_at` или свежий `onboarded_at`). GPS не обязателен: берутся сохранённые `lat`/`lon`, иначе тот же fallback, что у Home (Москва + `users.tz`). Под локальную полночь пишет базовый forecast и греет `scenario_cache` `morning_recommendation` в locale пользователя.
 

@@ -6,9 +6,10 @@ import {
   type Planet,
 } from "../../../../modules/daily-engine";
 import { asContentLocale } from "../../_utils/contentLocales";
+import { reportRouteError } from "../../_utils/monitoring";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
 import { dailyForecastToInsert, loadActiveNatalProfile } from "../../_utils/astro-db";
-import { buildClientForecastPayload, dailyForecastFromRow } from "../../_utils/dailyForecastPayload";
+import { buildClientForecastPayload } from "../../_utils/dailyForecastPayload";
 import {
   ensureMorningRecommendation,
   loadCachedMorningRecommendation,
@@ -18,6 +19,8 @@ import { todayLocalDate } from "../../calibration/extract/forecast-cache-date";
 
 // Запись в user_daily_forecasts только через service_role (RLS: владелец — SELECT).
 export const runtime = "nodejs";
+/** Cache/structural path is seconds; `forceRefresh` awaits morning LLM (DeepSeek 60s + fallback). */
+export const maxDuration = 120;
 
 type Body = {
   forecastDate?: string;
@@ -129,39 +132,46 @@ async function respondWithForecast(params: {
 }
 
 export async function POST(req: Request) {
+  let db: ReturnType<typeof createServiceSupabase> | null = null;
+  let userId: string | null = null;
+  let endpointStage = "request";
   try {
-    const userId = await requireUserId(req);
+    userId = await requireUserId(req);
     const body = (await req.json()) as Body;
     if (!body.userLocation) {
       return json({ error: "userLocation is required" }, { status: 400 });
     }
 
-    const db = createServiceSupabase();
+    db = createServiceSupabase();
     const forecastDate = body.forecastDate ?? todayLocalDate(body.userLocation.timezone);
     const forceRefresh = body.forceRefresh === true;
 
+    if (!forceRefresh) {
+      endpointStage = "load_cache";
+      const cached = await cachedForecast(db, userId, forecastDate);
+      if (cached) {
+        endpointStage = "morning_cache";
+        const morning = await loadCachedMorningRecommendation({
+          db,
+          userId,
+          requestedLocale: body.responseLocale,
+        });
+        return json({
+          source: "cache",
+          forecast: cached,
+          forecastPayload: buildClientForecastPayload(cached, morning),
+          modelUsed: morning?.modelUsed ?? null,
+        });
+      }
+    }
+
+    endpointStage = "load_natal";
     const [{ profile: natalProfile }, calibration] = await Promise.all([
       loadActiveNatalProfile(db, userId),
       loadActiveCalibration(db, userId),
     ]);
 
-    if (!forceRefresh) {
-      const cached = await cachedForecast(db, userId, forecastDate);
-      if (cached) {
-        return respondWithForecast({
-          db,
-          userId,
-          source: "cache",
-          row: cached,
-          forecast: dailyForecastFromRow(cached),
-          natalProfile,
-          calibration,
-          forceRefresh: false,
-          requestedLocale: body.responseLocale,
-        });
-      }
-    }
-
+    endpointStage = "compute";
     const recentPlanetsOfDay = body.recentPlanetsOfDay
       ? body.recentPlanetsOfDay.slice(0, 2)
       : await loadRecentPlanets(db, userId);
@@ -177,6 +187,7 @@ export async function POST(req: Request) {
     // Recomputing the forecast (e.g. after the user edits their birth date) must
     // NOT wipe a day recommendation already written by the planning dialog —
     // otherwise the Day tab shows the actions but loses the day-level focus.
+    endpointStage = "persist";
     const { data: existing, error: existingError } = await db
       .from("user_daily_forecasts")
       .select("recommendation_short_text,recommendation_long_text,is_corrected_via_dialog,corrected_at")
@@ -205,6 +216,7 @@ export async function POST(req: Request) {
       .single();
     if (error) throw error;
 
+    endpointStage = forceRefresh ? "morning_generate" : "morning_cache";
     return respondWithForecast({
       db,
       userId,
@@ -217,6 +229,15 @@ export async function POST(req: Request) {
       requestedLocale: body.responseLocale,
     });
   } catch (error) {
+    const httpStatus = error instanceof Response ? error.status : undefined;
+    if (httpStatus == null || httpStatus >= 500) {
+      await reportRouteError(error, {
+        db,
+        userId,
+        endpoint: "astro/daily-forecast",
+        stage: endpointStage,
+      });
+    }
     return errorResponse(error);
   }
 }

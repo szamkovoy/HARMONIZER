@@ -1,1 +1,1 @@
-export { GET, POST, runtime } from "../../communicator/v2/dialog/route";
+export { GET, POST, runtime, maxDuration } from "../../communicator/v2/dialog/route";

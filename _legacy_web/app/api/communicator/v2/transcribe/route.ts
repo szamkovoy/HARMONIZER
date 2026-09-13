@@ -2,6 +2,7 @@ import { errorResponse, json, requireUserId } from "@legacy/app/api/_utils/supab
 import { transcribeWhisperAudio, type TranscribeAudioBody } from "@legacy/app/api/_utils/whisperTranscription";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {

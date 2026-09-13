@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { isTimeoutError } from "./monitoring";
+
 function requiredEnv(...names: string[]): string {
   for (const name of names) {
     const value = process.env[name]?.trim();
@@ -10,6 +12,26 @@ function requiredEnv(...names: string[]): string {
 
 function isModernSupabaseApiKey(key: string): boolean {
   return key.startsWith("sb_publishable_") || key.startsWith("sb_secret_");
+}
+
+/** Per PostgREST call. Hangs without this become Vercel `Gateway Timeout` (Sentry). */
+export const SUPABASE_FETCH_TIMEOUT_MS = 20_000;
+
+export function mergeAbortSignals(signals: AbortSignal[]): AbortSignal {
+  const viable = signals.filter((signal) => signal != null);
+  if (viable.length === 0) return AbortSignal.timeout(SUPABASE_FETCH_TIMEOUT_MS);
+  if (viable.length === 1) return viable[0]!;
+  if (typeof AbortSignal.any === "function") return AbortSignal.any(viable);
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  for (const signal of viable) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+  return controller.signal;
 }
 
 /** sb_* keys are not JWTs — never send them as Authorization: Bearer. */
@@ -23,7 +45,9 @@ function fetchWithoutSbBearer(apiKey: string): typeof fetch {
       }
       if (!headers.has("apikey")) headers.set("apikey", apiKey);
     }
-    return fetch(input, { ...init, headers });
+    const timeout = AbortSignal.timeout(SUPABASE_FETCH_TIMEOUT_MS);
+    const signal = init?.signal ? mergeAbortSignals([init.signal, timeout]) : timeout;
+    return fetch(input, { ...init, headers, signal });
   };
 }
 
@@ -256,7 +280,7 @@ export function errorResponse(error: unknown): Response {
   if (error instanceof Response) return error;
   const message = extractErrorMessage(error);
   console.error("[api]", message, error);
-  return json({ error: message }, { status: 500 });
+  return json({ error: message }, { status: isTimeoutError(error) ? 504 : 500 });
 }
 
 function extractErrorMessage(error: unknown): string {

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/error_tracking
 title: Infra Error Tracking
-version: 1.2
-updated: 2026-06-09
+version: 1.3
+updated: 2026-09-14
 depends_on: [02_modules/infra/spec]
 code_refs: [_legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, sentry.client.config.ts, package.json, _legacy_web/package.json]
 ---
@@ -13,7 +13,7 @@ code_refs: [_legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_
 - **`instrumentation.ts`** при `NEXT_RUNTIME === "nodejs"` динамически импортирует `sentry.server.config.ts`.
 - **`sentry.server.config.ts`** — `Sentry.init` с `dsn: process.env.SENTRY_DSN`, `enabled` только если DSN задан, `environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV`, `tracesSampleRate` из `SENTRY_TRACES_SAMPLE_RATE` (число, по умолчанию `0.05`); `beforeSend` через `isStreamPipeArtifactError` / `isExpectedLlmUnavailableError` отбрасывает `failed to pipe response` и связанные артефакты обрыва SSE.
 - **`onRequestError`** экспортируется как `Sentry.captureRequestError` для интеграции с обработкой ошибок Next.
-- **`reportRouteError`** в `app/api/_utils/monitoring.ts` — основной путь: `captureException` с тегами `endpoint`, `stage`, `timeout`, `llm_error`, `http_status` и контекстом payload; для штатного user-facing «Сервис временно недоступен…» / «Service is temporarily busy…» — `captureMessage` уровня `warning` с тегом `expected_llm_unavailable` (без `captureException`); дублирование в Supabase `user_event_log` через `logUserEvent`. Вспомогательные экспорты: `isExpectedLlmUnavailableError`, `isStreamPipeArtifactError`, `toUserFacingStreamErrorMessage`.
+- **`reportRouteError`** в `app/api/_utils/monitoring.ts` — основной путь: `captureException` с тегами `endpoint`, `stage`, `timeout`, `llm_error`, `http_status` и контекстом payload; для штатного user-facing «Сервис временно недоступен…» / «Service is temporarily busy…» — `captureMessage` уровня `warning` с тегом `expected_llm_unavailable` (без `captureException`); дублирование в Supabase `user_event_log` через `logUserEvent`. Вспомогательные экспорты: `isExpectedLlmUnavailableError`, `isStreamPipeArtifactError`, `isTimeoutError` (в т.ч. Vercel/Sentry `Gateway Timeout`), `toUserFacingStreamErrorMessage`. `POST /api/astro/daily-forecast` тоже зовёт `reportRouteError` (раньше 504 платформы приходил в Sentry как `handled=no` без `stage`). `errorResponse` для timeout → HTTP 504.
 
 ## 2. React Native (клиент)
 

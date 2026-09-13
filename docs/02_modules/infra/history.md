@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.21
-updated: 2026-09-12
+version: 1.22
+updated: 2026-09-14
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-14 (Gateway Timeout):** Production Sentry `Error: Gateway Timeout` on dialog (`stage=load_context`) and daily-forecast (`handled=no`). LLM/day routes lacked `maxDuration`; PostgREST fetch had no abort; `errorResponse` always 500. Fix: explicit `maxDuration` on dialog (300) / daily-forecast+sibling LLM routes (120) / transcribe+day+natal (60); `SUPABASE_FETCH_TIMEOUT_MS=20s`; timeout → HTTP 504.
 
 - **2026-09-12 (email automations every 5m + 120s pg_net):** Welcome больше не hourly/`timeout 5s`. Реестр: `run_email_automations_every_5m` + `invoke_email_welcome_for_user` (trigger на первый `onboarded_at`). Миграция `20260912120000`.
 

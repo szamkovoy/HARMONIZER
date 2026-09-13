@@ -89,23 +89,14 @@ async function loadCalibration(db: SupabaseClient, userId: string): Promise<Cali
   return (data as CalibrationLike | null) ?? null;
 }
 
-async function loadAggregatedMatrix(db: SupabaseClient, userId: string): Promise<{ count: number; matrix: DenseMatrix | null }> {
-  const { data, error } = await db
-    .from("daily_matrices")
-    .select("matrix")
-    .eq("user_id", userId)
-    .order("local_date", { ascending: false });
-  if (error) throw error;
-  const matrices = (data ?? [])
-    .map((row) => row.matrix)
-    .filter((matrix): matrix is DenseMatrix => Array.isArray(matrix));
-  return {
-    count: matrices.length,
-    matrix: matrices.length ? sumMatrices(matrices) : null,
-  };
-}
+/** Lookback used for planning lens + matrix-ready. Unbounded select used to stall `load_context`. */
+export const DIALOG_MATRIX_LOOKBACK_DAYS = 7;
 
-async function loadRecentMatrices(db: SupabaseClient, userId: string, limit = 7): Promise<DenseMatrix[]> {
+async function loadRecentMatrices(
+  db: SupabaseClient,
+  userId: string,
+  limit = DIALOG_MATRIX_LOOKBACK_DAYS,
+): Promise<DenseMatrix[]> {
   const { data, error } = await db
     .from("daily_matrices")
     .select("matrix")
@@ -175,11 +166,8 @@ export async function loadDialogDailyContext(
   void effectiveDialogNowLocal(nowLocal);
 
   await expireStalePlannedEvents(db, userId, nowIso);
-  if (!options?.skipPurgeSummarized) {
-    await purgeHistoricalSummarizedPlannedEvents(db, userId, localDate);
-  }
 
-  const [forecast, natal, calibration, dueEventsRaw, lastPlanning, aggregated, recentMatrices] = await Promise.all([
+  const [forecast, natal, calibration, dueEventsRaw, lastPlanning, recentMatrices] = await Promise.all([
     loadForecastForLocalDate(db, userId, localDate),
     loadActiveNatalProfile(db, userId),
     loadCalibration(db, userId),
@@ -192,18 +180,21 @@ export async function loadDialogDailyContext(
       || options?.summarizeUpToLocalDate
       ? Promise.resolve(null)
       : loadLastPlanningSummary(db, userId),
-    loadAggregatedMatrix(db, userId),
     loadRecentMatrices(db, userId),
+    options?.skipPurgeSummarized
+      ? Promise.resolve()
+      : purgeHistoricalSummarizedPlannedEvents(db, userId, localDate),
   ]);
   const dueEvents = dueEventsRaw;
 
   const top3Planets = forecast
     ? buildTopPetals(forecast as never, natal.profile, calibration, 3)
     : fallbackTop3FromForecast(null);
-  const matrixReady = isMatrixReady(aggregated.count);
+  const aggregatedMatrix = recentMatrices.length ? sumMatrices(recentMatrices) : null;
+  const matrixReady = isMatrixReady(recentMatrices.length);
   const fixedTargetChakra = typeof forecast?.day_target_chakra === "number" ? forecast.day_target_chakra : null;
   const fixedTargetReason = typeof forecast?.day_target_reason === "string" ? forecast.day_target_reason : null;
-  const chosenTargetChakra = chooseTargetChakra(top3Planets, matrixReady ? aggregated.matrix : null);
+  const chosenTargetChakra = chooseTargetChakra(top3Planets, matrixReady ? aggregatedMatrix : null);
 
   // Prefer astro primary over a stale matrix-filtered fix so dialog matches Home morning text.
   const shouldRefreshFixedTarget =
@@ -243,7 +234,7 @@ export async function loadDialogDailyContext(
     lastPlanningAt: lastPlanning?.generated_at ?? null,
     top3Planets,
     matrixReady,
-    aggregatedMatrix: matrixReady ? aggregated.matrix : null,
+    aggregatedMatrix: matrixReady ? aggregatedMatrix : null,
     planningSphereLens: buildPlanningSphereLens(recentMatrices, user.locale),
     targetChakra,
   };

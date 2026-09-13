@@ -1,3 +1,5 @@
+- 2026-09-14 (566): Production Sentry `Gateway Timeout` on dialog (`load_context`) and daily-forecast — missing `maxDuration`, unbounded `daily_matrices` read, PostgREST fetch without abort. Fix: dialog 300s / forecast+LLM routes 120s; matrix lookback 7 days; 20s DB fetch timeout; timeout → 504. Docs `assistant` + `daily_forecast` + `infra`.
+
 - 2026-09-14 (565): «Личный кабинет» из любого gate-диалога больше не клинит ту же кнопку в Профиле: ждём dismiss RN Modal, снимаем iOS `locked` у SFSafari; hang-probe и таймаут `dismissBrowser`, чтобы кнопка не оставалась disabled. Docs `account_web` + `subscription`.
 
 - 2026-09-12 (564): Pause/resume of an email chain freezes the remaining wait until the next letter for people already in the drip. Docs `marketing_email`.

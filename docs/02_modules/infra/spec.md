@@ -1,10 +1,10 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.21
-updated: 2026-09-12
+version: 1.22
+updated: 2026-09-14
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
-code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
+code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
 
 ## 1. Назначение
@@ -22,7 +22,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - `register()` (`_legacy_web/instrumentation.ts`) — при `NEXT_RUNTIME === "nodejs"` импортирует `logTestModeStartupWarning` из `app/api/_utils/testMode.ts` (однократный `console.warn` при `TEST_MODE_FAST_INTERVALS=1`), затем подгружает `sentry.server.config`.
 - `Sentry.init` (`_legacy_web/sentry.server.config.ts`) — серверный SDK: `dsn` из `SENTRY_DSN`, `enabled` при наличии DSN, `environment` из `VERCEL_ENV` / `NODE_ENV`, `tracesSampleRate` из `SENTRY_TRACES_SAMPLE_RATE` (дефолт `0.05`); `beforeSend` отбрасывает `failed to pipe response` и связанные с expected LLM-unavailable артефакты SSE.
 - `onRequestError` — экспорт `Sentry.captureRequestError` из `instrumentation.ts` для Next error boundary.
-- `reportRouteError(error, context)` (`_legacy_web/app/api/_utils/monitoring.ts`) — обогащает scope Sentry тегами (`endpoint`, `stage`, `timeout`, `llm_error`, `http_status`, `expected_llm_unavailable`), вызывает `Sentry.captureException` (или `captureMessage` уровня `warning` для штатного user-facing «Сервис временно недоступен…» после исчерпания LLM fallback), параллельно пишет строки в `user_event_log` через `logUserEvent` (виды `api_error`, `llm_error`, `llm_timeout`). Успешный dialog-ход дополнительно логирует `logDialogTurn` (`dialog_turn` + `latency_ms`) и `logLlmPromptSize` (`llm_prompt_size` + предпочтительно `total_tokens`) из communicator dialog — сырьё для админ-пульса.
+- `reportRouteError(error, context)` (`_legacy_web/app/api/_utils/monitoring.ts`) — обогащает scope Sentry тегами (`endpoint`, `stage`, `timeout`, `llm_error`, `http_status`, `expected_llm_unavailable`), вызывает `Sentry.captureException` (или `captureMessage` уровня `warning` для штатного user-facing «Сервис временно недоступен…» после исчерпания LLM fallback), параллельно пишет строки в `user_event_log` через `logUserEvent` (виды `api_error`, `llm_error`, `llm_timeout`). Успешный dialog-ход дополнительно логирует `logDialogTurn` (`dialog_turn` + `latency_ms`) и `logLlmPromptSize` (`llm_prompt_size` + предпочтительно `total_tokens`) из communicator dialog — сырьё для админ-пульса. `errorResponse` отдаёт **504** если `isTimeoutError` (`Gateway Timeout`, abort, LLM timed out), иначе 500.
+- `createServiceSupabase` / `createAnonSupabase` (`_legacy_web/app/api/_utils/supabase.ts`) — каждый PostgREST `fetch` ограничен `SUPABASE_FETCH_TIMEOUT_MS` (20s) через `AbortSignal`; зависание БД больше не держит функцию до платформенного Gateway Timeout.
 - `logUserEvent`, `isTimeoutError`, `isLlmError`, `isExpectedLlmUnavailableError`, `isStreamPipeArtifactError`, `toUserFacingStreamErrorMessage` — вспомогательные функции того же файла для маршрутов API.
 
 **Корень монорепозитория**
@@ -62,7 +63,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 | Область | Параметр | Где задаётся |
 | --- | --- | --- |
-| Сервер Sentry | `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE`, `VERCEL_ENV` | Vercel env + `sentry.server.config.ts` |
+| Next.js / Vercel duration | `export const maxDuration` on long routes: dialog **300**, daily-forecast / monologue / greeting / recommendation-text / practice-interpretation / calibration extract **120**, transcribe / day / natal **60**. Missing export → platform default ~10–15s (`Gateway Timeout`). | route files under `_legacy_web/app/api/` |
+| Server Sentry | `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE`, `VERCEL_ENV` | Vercel env + `sentry.server.config.ts` |
 | Клиент Sentry (RN) | `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_APP_ENV`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Expo env + `sentry.client.config.ts` |
 | Next bundle tracing | `outputFileTracingRoot` | `_legacy_web/next.config.ts` |
 | Sentry build plugin | `org`, `project`, `tunnelRoute: "/monitoring"` | `withSentryConfig` в `next.config.ts` |

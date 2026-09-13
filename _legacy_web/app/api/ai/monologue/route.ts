@@ -28,6 +28,8 @@ import { createServiceSupabase, errorResponse, json, requireUserId } from "../..
 import { buildTopPetals, describePetalsRelation, type CalibrationLike, type PetalData } from "../../_utils/topPetals";
 
 export const runtime = "nodejs";
+/** Morning recommendation LLM (DeepSeek 60s + fallback). */
+export const maxDuration = 120;
 
 type Body = {
   scenario_id?: string;

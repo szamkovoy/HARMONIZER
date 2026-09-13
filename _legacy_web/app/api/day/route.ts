@@ -10,6 +10,7 @@ import { purgeHistoricalSummarizedPlannedEvents } from "@legacy/app/api/communic
 import { errorResponse, requireUserId, createServiceSupabase, json } from "@legacy/app/api/_utils/supabase";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 function localDayBounds(localDate: string, timezone: string) {
   const start = DateTime.fromISO(localDate, { zone: timezone }).startOf("day");

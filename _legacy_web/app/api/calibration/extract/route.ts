@@ -22,6 +22,7 @@ import { createServiceSupabase, errorResponse, json, requireUserId } from "../..
 import { getUserTimezone, todayLocalDate } from "./forecast-cache-date";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type ExtractBody = {
   source?: CalibrationSource;
