@@ -792,6 +792,13 @@ export function inferPlannedEventsFromUserHistory(params: {
   locale: string;
   /** Day-tab «Добавить действие» — stricter drop of past-tense scaffolding. */
   addFlow?: boolean;
+  /** Flow has no practice branch → «йога»/«дыхание» segments are real day actions. */
+  keepPracticeLike?: boolean;
+  /**
+   * Segment only `pendingUserMessage`; earlier user turns stay in the timeline as
+   * closure context (what the assistant asked) but are not re-derived into actions.
+   */
+  onlyPendingMessage?: boolean;
 }): PlannedEventMarker[] {
   const timeline: HistoryMessage[] = [
     ...params.history.filter(Boolean),
@@ -802,10 +809,12 @@ export function inferPlannedEventsFromUserHistory(params: {
 
   const inferred: PlannedEventMarker[] = [];
   const seen = new Set<string>();
+  const hasPending = Boolean(params.pendingUserMessage?.trim());
 
   for (let index = 0; index < timeline.length; index += 1) {
     const message = timeline[index]!;
     if (message.role !== "user") continue;
+    if (params.onlyPendingMessage && (!hasPending || index !== timeline.length - 1)) continue;
     const text = userText(message);
     if (!text) continue;
     const historyBefore = timeline.slice(0, index);
@@ -817,7 +826,11 @@ export function inferPlannedEventsFromUserHistory(params: {
     for (const segment of splitEventSegments(text)) {
       if (isPlanningGatheringClosureTurn(segment, historyBefore) && !looksLikeNewPlannedAction(segment)) continue;
       if (isGenericDayOverviewSegment(segment)) continue;
-      if (isPracticeOnlySegment(segment, params.nowLocal, params.tz, params.locale)) continue;
+      if (params.keepPracticeLike) {
+        if (isDurationOnlyReply(segment)) continue;
+      } else if (isPracticeOnlySegment(segment, params.nowLocal, params.tz, params.locale)) {
+        continue;
+      }
       if (looksLikeCompletedOutcomeSegment(segment) && !hasStrongPlanningCue(segment)) continue;
       if (/^\s*(?:нужно|надо)\s+будет\b/i.test(segment)
         && /(?:почувств|понять|услышать|сопоставить|удержать|сохранить|проявить)\w*/i.test(segment)

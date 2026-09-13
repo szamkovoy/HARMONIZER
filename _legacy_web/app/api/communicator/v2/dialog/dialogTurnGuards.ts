@@ -11,6 +11,7 @@ import {
   summaryClarifyVariant,
 } from "@legacy/app/api/_utils/dialogScaffold";
 import {
+  assistantAskedToAddMoreToPlan,
   filterClosureEchoPlanningMarkers,
   isPlanningDoneLikeDescription,
   isPlanningGatheringClosureTurn,
@@ -90,6 +91,8 @@ export function collectPlanningBranchDialogHistory(history: MessageRecord[]): Cl
 export function assistantAskedPlanningClosure(history: MessageRecord[]): boolean {
   const text = lastAssistantText(history).trim();
   if (!text || !/[?？]/.test(text)) return false;
+  // Same detector the closure-phrase layer uses («Собрать план на сегодня?»).
+  if (assistantAskedToAddMoreToPlan(text)) return true;
   const normalized = text.toLowerCase();
   const asksToAddMore =
     /(?:добав|ещ[её]|что-то\s+ещ[её]|anything\s+else|something\s+else|add\s+more|add\s+another|aggiung|qualcos['’]altro|altro|plus\s+rien|encore|weiter|noch\s+etwas|meer|más|mais)/iu.test(normalized);
@@ -168,19 +171,30 @@ export function filterPlanningDoneLikePlannedEvents(markers: PlannedEventMarker[
   return markers.filter((marker) => !isPlanningDoneLikeDescription(marker.desc));
 }
 
+export type PlanningMarkerFilterOptions = {
+  closureUserMessage?: string | null;
+  addFlow?: boolean;
+  /**
+   * Flows without a practice branch (Day-tab add, Oracle/Free, day-summary):
+   * «йога» / «дыхание» named by the user is a legitimate Day-tab action there,
+   * not a practice pick that would duplicate the catalog card. Only flows that
+   * do enter the practice branch must drop practice-like descriptions.
+   */
+  keepPracticeLike?: boolean;
+};
+
 export function filterPersistablePlanningMarkers(
   markers: PlannedEventMarker[],
-  options?: { closureUserMessage?: string | null; addFlow?: boolean },
+  options?: PlanningMarkerFilterOptions,
 ): PlannedEventMarker[] {
   const isScaffold = options?.addFlow
     ? isAddFlowPlanningScaffoldDescription
     : isMetaPlanningIntentDescription;
+  const withoutScaffold = markers.filter((marker) => !isScaffold(marker.desc));
   return filterPlanningDescBlobMarkers(
     filterClosureEchoPlanningMarkers(
       filterPlanningDoneLikePlannedEvents(
-        filterPracticeLikePlannedEvents(
-          markers.filter((marker) => !isScaffold(marker.desc)),
-        ),
+        options?.keepPracticeLike ? withoutScaffold : filterPracticeLikePlannedEvents(withoutScaffold),
       ),
       options?.closureUserMessage,
     ),
@@ -299,6 +313,22 @@ export function userDeclinesPractice(text: string): boolean {
 
 export function userDeclinesPracticeOffer(text: string): boolean {
   return userDeclinesPractice(text);
+}
+
+/**
+ * The reply *opens* with a refusal («Нет, сейчас не буду… потом подышу 15 минут»).
+ * Leading polarity decides the answer to "practice now?" even when a type and a
+ * duration appear later in the same message (deferred to the evening). Used to
+ * stop the type+duration validator from turning a refusal into a pick; the
+ * model's own [PRACTICE_PICK] still wins.
+ */
+export function userLeadsWithPracticeRefusal(text: string): boolean {
+  const normalized = normalizeLocaleGuardText(text.trim());
+  if (!normalized) return false;
+  if (!userDeclinesPractice(normalized)) return false;
+  return /^(?:нет|нету|неа|no|nope|nein|non|nee|nao|не\s+(?:буду|хочу|надо|сейчас|сегодня)|not\s+now|nicht\s+jetzt|pas\s+maintenant|non\s+ora|no\s+ahora|agora\s+nao|niet\s+nu)(?=[.!?,…;:\s]|$)/i.test(
+    normalized,
+  );
 }
 
 export function userAffirmsPracticeOffer(userMessage: string, history: MessageRecord[]): boolean {
@@ -431,6 +461,7 @@ function escapeRegExp(value: string): string {
 export function extractPlanningMarkersFromVisibleFinalize(
   text: string,
   locale: AppContentLocale,
+  options?: Pick<PlanningMarkerFilterOptions, "keepPracticeLike">,
 ): PlannedEventMarker[] {
   const recommendationLabels = Array.from(new Set([
     getDialogScaffoldStrings(locale).recommendationLabel.trim(),
@@ -456,7 +487,7 @@ export function extractPlanningMarkersFromVisibleFinalize(
     const displayOrder = Number(match[1]);
     const desc = match[2]?.trim() ?? "";
     const recommendation = match[3]?.replace(/\s+/g, " ").trim() ?? "";
-    if (!desc || isPracticeLikePlannedEventDesc(desc)) {
+    if (!desc || (!options?.keepPracticeLike && isPracticeLikePlannedEventDesc(desc))) {
       match = pattern.exec(text);
       continue;
     }
@@ -535,6 +566,10 @@ export function mergePlanningMarkersWithVisibleFinalize(
     const current = merged[matchIndex]!;
     merged[matchIndex] = {
       ...current,
+      // The later source (model markers / visible finalize) carries the target-locale
+      // essence label; the accumulated source may be a raw user-speech blob from
+      // history inference («Сначала сделаю суставную гимнастику»). Keep the essence.
+      desc: preferEssencePlanningDesc(salvaged.desc, current.desc),
       recommendation: current.recommendation?.trim() ? current.recommendation : salvaged.recommendation,
       displayOrder: current.displayOrder ?? salvaged.displayOrder,
       cells: current.cells.length > 0 ? current.cells : salvaged.cells,
@@ -622,10 +657,28 @@ function normalizeLocaleGuardText(text: string): string {
     .replace(/ß/g, "ss");
 }
 
+/**
+ * The phrase backstop is for terse replies only. Long narratives («купил арбуз…
+ * много есть не стал… ел его ещё с утра») routinely contain a negated verb about
+ * some detail while the event itself happened — those go to the LLM, which judges
+ * by meaning. QA 2026-09-12: three false closes + one wrong-event close came from
+ * negations buried inside 14–40-word positive answers.
+ */
+const DID_NOT_HAPPEN_MAX_WORDS = 12;
+
+/** A reply that opens with a bare «no» token answers the "did it happen?" question directly. */
+const LEADING_BARE_NEGATION_RE = /^(?:нет|нету|no|nope|non|nein|nee|nao)(?=[.!?,…;:\s]|$)/i;
+
+function countWords(text: string): number {
+  return text.split(/[^\p{L}\p{N}'’-]+/u).filter(Boolean).length;
+}
+
 export function userSaysEventDidNotHappen(text: string): boolean {
   const normalized = normalizeLocaleGuardText(text.trim());
   if (!normalized) return false;
   if (/^(?:нет|no|нету|не)[.!?,…\s]*$/i.test(normalized)) return true;
+  if (countWords(normalized) > DID_NOT_HAPPEN_MAX_WORDS) return false;
+  if (LEADING_BARE_NEGATION_RE.test(normalized)) return true;
   if (NON_OCCURRENCE_RU.test(normalized)) return true;
   if (NON_OCCURRENCE_EN.test(normalized)) return true;
   if (NON_OCCURRENCE_IT.test(normalized)) return true;
@@ -726,7 +779,8 @@ export function buildSummaryClarifyingQuestion(eventDescription: string, locale:
       "А как это вышло: удалось ли, и стало ли от этого чуть спокойнее?",
     ],
     generic: [
-      "А что вы там в основном проживали внутри? Можно совсем коротко.",
+      // Plain everyday Russian: «проживали внутри» read as «where did you live?» (QA Лиза 2026-09-12).
+      "А как вы себя чувствовали при этом — спокойно, с удовольствием или с напряжением? Можно совсем коротко.",
       `А что отозвалось сильнее ${phrase}: спокойствие, радость, ясность — или что-то своё?`,
     ],
   };
@@ -737,29 +791,88 @@ export function buildSummaryClarifyingQuestion(eventDescription: string, locale:
 const SUMMARY_CLARIFYING_QUESTION_RE =
   /(?:уточн|какие состояния|какое состояние|в какой момент|что вы проживали|что вы проживал|что осталось|как вы себя чувств|матриц|body|mood|mind|relationships|what states|what state|which moment|how did you feel|clarify|matrix|sensazione|focalizz|concentrat|tensione|stati|sentir|sentito|provato|come ti sent|come ti sei sent|senti\b|ressenti|sentiez|fühlt|empfind|estados|estado|sentiste|gevoel|ressenti)/i;
 
-export function visibleTextMentionsEvent(text: string, description: string): boolean {
-  const needle = description.trim().toLowerCase();
-  if (needle.length < 4) return false;
-  return text.toLowerCase().includes(needle);
+const EVENT_MENTION_MIN_TOKEN_LEN = 4;
+const EVENT_MENTION_STEM_LEN = 5;
+
+/** Crude language-agnostic stems: significant tokens clipped to a fixed prefix. */
+function eventMentionStems(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((token) => token.length >= EVENT_MENTION_MIN_TOKEN_LEN)
+    .map((token) => token.slice(0, EVENT_MENTION_STEM_LEN));
 }
 
-/** Visible reply asks about two different planned events in the same turn. */
+/**
+ * Does the assistant's visible text talk about this planned event? The model
+ * paraphrases DB labels («Поработать в магазине» → «работа в магазине», «Выпить
+ * чаю не спеша» → «чай не спеша удалось выпить»), so an exact substring misses
+ * the very turns this guard exists for (QA 2026-09-12: 4/4 misses). Match on
+ * overlapping token stems instead; stems shared with `excludeDescription`
+ * (the current event) do not count, so «Работа с клиентами» vs «Работа в бюро»
+ * cannot fire on the shared word alone.
+ */
+/** Char index of the first token in `text` that belongs to the event label, or -1. */
+function firstEventMentionIndex(
+  text: string,
+  description: string,
+  excludeDescription?: string | null,
+): number {
+  const needle = description.trim().toLowerCase();
+  if (needle.length < EVENT_MENTION_MIN_TOKEN_LEN) return -1;
+  const haystack = text.toLowerCase();
+  const exactIdx = haystack.indexOf(needle);
+  if (exactIdx >= 0) return exactIdx;
+  const excluded = new Set(excludeDescription ? eventMentionStems(excludeDescription) : []);
+  const labelStems = new Set(eventMentionStems(needle).filter((stem) => !excluded.has(stem)));
+  if (labelStems.size === 0) return -1;
+  const tokenRe = /[\p{L}\p{N}]+/gu;
+  let hits = 0;
+  let firstIdx = -1;
+  const seen = new Set<string>();
+  for (const match of haystack.matchAll(tokenRe)) {
+    const token = match[0];
+    if (token.length < EVENT_MENTION_MIN_TOKEN_LEN) continue;
+    const stem = token.slice(0, EVENT_MENTION_STEM_LEN);
+    if (!labelStems.has(stem) || seen.has(stem)) continue;
+    seen.add(stem);
+    hits += 1;
+    if (firstIdx < 0) firstIdx = match.index ?? 0;
+  }
+  return hits >= Math.ceil(labelStems.size / 2) ? firstIdx : -1;
+}
+
+export function visibleTextMentionsEvent(
+  text: string,
+  description: string,
+  excludeDescription?: string | null,
+): boolean {
+  return firstEventMentionIndex(text, description, excludeDescription) >= 0;
+}
+
+/**
+ * Visible reply asks about two different planned events in the same turn:
+ * a question is asked before the next event is first mentioned (clarifier about
+ * the current one, then a bridge), or two questions with both events named.
+ * A clean «close + one question about the next event» is not mixed even when it
+ * contains a rhetorical second «?» («E il cinema? Sei riuscita ad andare?»).
+ */
 export function summaryVisibleTextMixesMultipleEvents(
   text: string,
-  _currentEventDescription: string,
+  currentEventDescription: string,
   nextEventDescription?: string | null,
 ): boolean {
   const next = nextEventDescription?.trim();
   if (!next || next.length < 4) return false;
   const normalized = text.trim().toLowerCase();
   if (!/\?/.test(normalized)) return false;
-  if (!visibleTextMentionsEvent(text, next)) return false;
+  const nextIdx = firstEventMentionIndex(text, next, currentEventDescription);
+  if (nextIdx < 0) return false;
+
+  if (nextIdx > 0 && /\?/.test(normalized.slice(0, nextIdx))) return true;
 
   const questionCount = (normalized.match(/\?/g) ?? []).length;
-  if (questionCount >= 2) return true;
-
-  const nextIdx = normalized.indexOf(next.toLowerCase());
-  if (nextIdx > 0 && /\?/.test(normalized.slice(0, nextIdx))) return true;
+  if (questionCount >= 2 && visibleTextMentionsEvent(text, currentEventDescription, next)) return true;
 
   return false;
 }
@@ -776,8 +889,8 @@ export function assistantAskedSummaryClarifyingQuestion(
 ): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized || !/\?/.test(normalized)) return false;
-  const next = nextEventDescription?.trim().toLowerCase();
-  if (next && next.length >= 4 && normalized.includes(next)) return false;
+  const next = nextEventDescription?.trim();
+  if (next && visibleTextMentionsEvent(text, next)) return false;
   return assistantVisibleContainsSummaryClarifyingCue(text);
 }
 
@@ -833,12 +946,31 @@ export function userAnswerIsThinForSummary(text: string): boolean {
   return claimsDone && !userAnswerHasSufficientStateForSummary(normalized);
 }
 
+/**
+ * Messages that belong to the practice offer/answer exchange: everything after
+ * the last planning-branch assistant turn (the finalize that offered a practice).
+ * Summarizing turns where the user *recounted* yesterday's pranayama («полтора
+ * часа», «небольшая медитация») must never feed the type+duration validator —
+ * QA 2026-09-12: that bleed produced a 1-minute meditation pick from a reply
+ * that named new day actions. Falls back to the whole history when no branch
+ * metadata is available (legacy clients).
+ */
+export function collectPracticeBranchHistory(history: MessageRecord[]): MessageRecord[] {
+  let lastPlanningIndex = -1;
+  for (let index = 0; index < history.length; index += 1) {
+    const message = history[index]!;
+    if (message.role !== "assistant") continue;
+    if (messageBranches(message).includes("planning")) lastPlanningIndex = index;
+  }
+  return lastPlanningIndex < 0 ? history : history.slice(lastPlanningIndex + 1);
+}
+
 export function practiceValidationForTurn(
   history: MessageRecord[],
   userMessage: string,
 ): ValidationResult {
   return validateHistoryHasDurationAndType([
-    ...history.filter((message) => message.role === "user"),
+    ...collectPracticeBranchHistory(history).filter((message) => message.role === "user"),
     { role: "user" as const, content: userMessage },
   ]);
 }

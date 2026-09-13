@@ -671,6 +671,16 @@ describe("buildPlanningFinalVisibleText", () => {
     expect(result).toContain("Урок танцев");
     expect(result).not.toContain("высших смыслов");
   });
+
+  it.each(["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const)(
+    "zero-action add-flow final is a full sentence, not a bare chakra line (%s)",
+    (locale) => {
+      const result = buildPlanningAddFinalVisibleText({ locale, events: [] });
+      expect(result.trim().length).toBeGreaterThan(20);
+      expect(result).not.toMatch(/^\s*\d+\./m);
+      expect(result).not.toMatch(/чакру|chakra/i);
+    },
+  );
 });
 
 describe("replaceSpontaneousEnglishRu", () => {

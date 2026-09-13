@@ -99,6 +99,7 @@ import {
   collectPlanningBranchDialogHistory,
   collectPlanningBranchUserHistory,
   coerceFsmBeforeTurn,
+  collectPracticeBranchHistory,
   extractPlanningMarkersFromVisibleFinalize,
   filterPersistablePlanningMarkers,
   historyHasPracticePicked,
@@ -117,7 +118,9 @@ import {
   assistantAskedPlanningClosure,
   userSignalsPlanningDone,
   userDeclinesPractice,
+  userLeadsWithPracticeRefusal,
   visibleTextMentionsEvent,
+  type PlanningMarkerFilterOptions,
 } from "@legacy/app/api/communicator/v2/dialog/dialogTurnGuards";
 import {
   buildEmptyContentRepairInstruction,
@@ -1149,6 +1152,7 @@ export async function POST(req: Request) {
         && extractPlanningMarkersFromVisibleFinalize(
           stripBrainSentinels(sanitizeAssistantText(lastAssistantText, resolveResponseLocale(context.user.locale))),
           resolveDialogScaffoldLocale(context.user.locale),
+          { keepPracticeLike: true },
         ).length > 0;
       if (visibleFinalizeWithoutPractice) {
         fsm = { ...fsm, planningFinalized: true, branch: "done", branchIndex: fsm.flow.length };
@@ -1187,11 +1191,13 @@ export async function POST(req: Request) {
       && assistantAskedPlanningClosure(history);
     const alreadyClarifiedPlanningClosure =
       answeringPlanningClosure && previousAssistantAskedToAddMoreToPlan(history);
-    const planningMarkerFilterOptions: { closureUserMessage?: string; addFlow?: true } = {
+    const planningMarkerFilterOptions: PlanningMarkerFilterOptions = {
       ...(planningDoneIntent ? { closureUserMessage: userMessage } : {}),
       // Day-tab «Добавить действие» (noGreeting): drop past-tense scaffolding
       // like «подумал, что стоит добавить что-нибудь из сферы отдыха».
       ...(fsm.noGreeting ? { addFlow: true as const } : {}),
+      // No practice branch in this flow → «йога»/«дыхание» is a real Day-tab action.
+      ...(fsm.noPractice ? { keepPracticeLike: true as const } : {}),
     };
 
     if (fsm.branch === "summarizing" && due.length === 0) {
@@ -1308,7 +1314,9 @@ export async function POST(req: Request) {
       isPracticeOpening = !Array.isArray(lastAssistantBranch) || !lastAssistantBranch.includes("practice");
       prompt = buildPracticePrompt(brainCtx, {
         isOpening: isPracticeOpening,
-        pickImmediately: practiceValidationAtTurn?.confident === true,
+        // Do not push «pick immediately» when the reply opens with a refusal —
+        // let the prompt's accept-vs-refuse judgement decide by meaning.
+        pickImmediately: practiceValidationAtTurn?.confident === true && !userLeadsWithPracticeRefusal(userMessage),
         catalogReconciliation: buildCatalogReconciliationInstruction(practiceValidationAtTurn!),
         postPracticeReply: historyHasPracticePicked(history),
       });
@@ -1568,6 +1576,30 @@ export async function POST(req: Request) {
               );
               qaGuards.push("planning_stop_valve");
             }
+            // Structural finalize: the assistant asked add-more/assemble, the user's
+            // reply names no new action, and the model's draft stopped asking. In
+            // planning there are only two states — gathering (asks) or finalize —
+            // so a non-asking draft after a closure question IS the finalize, no
+            // matter how it is formatted («План собран — … Хорошего дня!» без
+            // списка и без маркеров, QA Audrone 2026-09-08). Persistence and the
+            // visible wrap-up are then assembled deterministically from saved rows.
+            if (
+              !planningDoneIntent
+              && answeringPlanningClosure
+              && !looksLikeNewPlannedAction(userMessage)
+              && sanitizedVisibleText.trim()
+              && !/[?？]/.test(sanitizedVisibleText)
+            ) {
+              planningDoneIntent = true;
+              if (!planningMarkerFilterOptions.closureUserMessage) {
+                planningMarkerFilterOptions.closureUserMessage = userMessage;
+              }
+              console.warn(
+                "[DIALOG_FSM] Planning structural finalize — model stopped gathering after closure question",
+                JSON.stringify({ conversationId: conversation.id, noGreeting: fsmAtTurnStart.noGreeting }),
+              );
+              qaGuards.push("planning_structural_finalize");
+            }
           }
           if (
             branchForTurn === "practice"
@@ -1632,7 +1664,11 @@ export async function POST(req: Request) {
           ) {
             const explicitPlanningMarkers = filterPersistablePlanningMarkers(markers.plannedEvents, planningMarkerFilterOptions);
             const salvagedPlanningMarkers = filterPersistablePlanningMarkers(
-              extractPlanningMarkersFromVisibleFinalize(sanitizedVisibleText, resolveDialogScaffoldLocale(context.user.locale)),
+              extractPlanningMarkersFromVisibleFinalize(
+                sanitizedVisibleText,
+                resolveDialogScaffoldLocale(context.user.locale),
+                planningMarkerFilterOptions,
+              ),
               planningMarkerFilterOptions,
             );
             const markerDayFocus = stripPlanningDayFocusScaffold(markers.recommendationCorrection?.short_text);
@@ -1854,24 +1890,30 @@ export async function POST(req: Request) {
               )
                 ? null
                 : userMessage;
-            // When the model already emitted markers for this turn, do not
-            // keyword-resegment the current user message (it invents scaffolding
-            // the model correctly ignored in its visible reply).
-            const inferredFromPlanningHistory = !fsmAtTurnStart.planningFinalized && !isAddFlow
-              ? hydrateDeterministicPlanningMarkers(
-                  filterPersistablePlanningMarkers(
-                    inferPlannedEventsFromUserHistory({
-                      history: planningDialogHistory,
-                      pendingUserMessage: hadExplicitPlanningMarkers ? null : pendingPlanningUserMessage,
-                      nowLocal: context.nowLocal,
-                      relativeNowLocal: context.nowLocal,
-                      tz: userTimezone,
-                      locale: planningInferenceLocale,
-                    }),
-                    planningMarkerFilterOptions,
-                  ),
-                )
-              : [];
+            // Keyword inference is a backstop for THIS message only, and only when
+            // the model emitted no markers for it. Earlier planning messages are
+            // never re-segmented: their actions already live in `planned_events`
+            // (incremental persistence), and re-deriving them from raw speech
+            // produced greetings-as-actions and blob labels that overwrote the
+            // model's essence labels (QA 2026-09-07…13, home/plan flows).
+            const inferredFromPendingMessage =
+              !fsmAtTurnStart.planningFinalized && !isAddFlow && !hadExplicitPlanningMarkers && pendingPlanningUserMessage
+                ? hydrateDeterministicPlanningMarkers(
+                    filterPersistablePlanningMarkers(
+                      inferPlannedEventsFromUserHistory({
+                        history: planningDialogHistory,
+                        pendingUserMessage: pendingPlanningUserMessage,
+                        onlyPendingMessage: true,
+                        nowLocal: context.nowLocal,
+                        relativeNowLocal: context.nowLocal,
+                        tz: userTimezone,
+                        locale: planningInferenceLocale,
+                        keepPracticeLike: planningMarkerFilterOptions.keepPracticeLike,
+                      }),
+                      planningMarkerFilterOptions,
+                    ),
+                  )
+                : [];
             const { data: dismissedPlanningRows, error: dismissedPlanningError } = await routeDb
               .from("planned_events")
               .select("description")
@@ -1884,10 +1926,13 @@ export async function POST(req: Request) {
               ...((dismissedPlanningRows ?? []).map((row) => String((row as { description?: unknown }).description ?? "").trim()).filter(Boolean)),
               ...planningPersistence.cancelled.map((item) => item.title),
             ];
-            let existingAddFlowMarkers: PlannedEventMarker[] = [];
-            if (isAddFlow && !fsmAtTurnStart.planningFinalized) {
+            // Accumulation base for BOTH flows: rows this conversation already
+            // persisted for today. Model markers refine/extend them; the canonical
+            // list is never rebuilt from raw user speech.
+            let existingConversationMarkers: PlannedEventMarker[] = [];
+            if (!fsmAtTurnStart.planningFinalized) {
               const persistedRows = await loadPlannedEventsForLocalDate(routeDb, routeUserId, context.localDate);
-              existingAddFlowMarkers = hydrateDeterministicPlanningMarkers(
+              existingConversationMarkers = hydrateDeterministicPlanningMarkers(
                 filterPersistablePlanningMarkers(
                   persistedRows
                     .filter((row) => row.conversation_id === conversation.id && row.status === "planned")
@@ -1898,14 +1943,14 @@ export async function POST(req: Request) {
             }
             let plannedMarkers = isAddFlow
               ? resolveAddFlowPlanningMarkers({
-                  existingConversationMarkers: existingAddFlowMarkers,
+                  existingConversationMarkers,
                   modelMarkers: rawCurrentPlanningMarkers,
                 })
               : hadExplicitPlanningMarkers
-                ? mergeHistoryPlanningMarkers(inferredFromPlanningHistory, rawCurrentPlanningMarkers, {
+                ? mergeHistoryPlanningMarkers(existingConversationMarkers, rawCurrentPlanningMarkers, {
                     preferCurrentByDisplayOrder: preferTargetLocaleMarkers || planningDoneIntent,
                   })
-                : inferredFromPlanningHistory;
+                : mergeHistoryPlanningMarkers(existingConversationMarkers, inferredFromPendingMessage);
             // A visible numbered "N. {action}\nРекомендация: …" wrap-up means the
             // model finalized this turn even if it forgot the invisible markers or
             // the deterministic done-detector missed the user's phrasing.
@@ -1913,6 +1958,7 @@ export async function POST(req: Request) {
               extractPlanningMarkersFromVisibleFinalize(
                 stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale))),
                 locale,
+                planningMarkerFilterOptions,
               ),
               planningMarkerFilterOptions,
             );
@@ -1947,22 +1993,24 @@ export async function POST(req: Request) {
             // If rows already exist for this conversation, only backfill recommendations —
             // do not let a padded numbered list invent cards (QA текст-42FE…).
             if (isAddFlow && finalizeIntent && !hadExplicitPlanningMarkers && salvagedFromVisible.length > 0) {
-              plannedMarkers = mergeHistoryPlanningMarkers(existingAddFlowMarkers, salvagedFromVisible, {
+              plannedMarkers = mergeHistoryPlanningMarkers(existingConversationMarkers, salvagedFromVisible, {
                 preferCurrentByDisplayOrder: true,
-                allowSalvageOnlyAdditions: existingAddFlowMarkers.length === 0,
+                allowSalvageOnlyAdditions: existingConversationMarkers.length === 0,
               });
             }
             plannedMarkers = filterDismissedPlanningMarkers(plannedMarkers, dismissedPlanningRefs);
-            if (plannedMarkers.length > 0 && inferredFromPlanningHistory.length > 0 && !hadExplicitPlanningMarkers) {
+            if (inferredFromPendingMessage.length > 0) {
               console.warn(
-                "[DIALOG_FSM] Inferred accumulated planning markers from history",
+                "[DIALOG_FSM] Inferred planning markers from the pending user message (model emitted none)",
                 JSON.stringify({
                   conversationId: conversation.id,
-                  count: plannedMarkers.length,
+                  inferred: inferredFromPendingMessage.length,
+                  total: plannedMarkers.length,
                   historyTurns: planningHistory.length,
                   finalizeIntent,
                 }),
               );
+              qaGuards.push("planning_pending_inference");
             }
               plannedMarkers = dedupePlanningMarkersByIdentity(
               plannedMarkers.map((marker) => polishPlanningMarker(marker, locale)),
@@ -2102,7 +2150,10 @@ export async function POST(req: Request) {
               }
             }
           } else if (branchForTurn === "practice") {
-            const validation = practiceValidationForTurn(history, userMessage);
+            // Type+duration validation and card resolution see only the practice
+            // exchange, not summarizing/planning turns of this conversation.
+            const practiceHistory = collectPracticeBranchHistory(history);
+            const validation = practiceValidationForTurn(practiceHistory, userMessage);
             const userOnlyAffirmedPractice =
               /^(?:да|ага|угу|yes|yeah|yep|sure|ok|okay|oui|ja|s[iì]|sim|конечно|давай)[.!?,…\s]*$/iu.test(
                 userMessage.trim(),
@@ -2112,13 +2163,20 @@ export async function POST(req: Request) {
               && !markers.practicePick
               && !validation.confident
               && !userOnlyAffirmedPractice;
+            // A reply that opens with a refusal («нет, сейчас не буду… потом вечером
+            // подышу 15 минут») beats the regex validator: type+duration inside a
+            // refusal is not a pick. Only the model's own [PRACTICE_PICK] overrides.
+            const refusalBeatsValidator = validation.confident && userLeadsWithPracticeRefusal(userMessage);
             const declined = (
               containsPracticeDeclined(fullText)
               || userDeclinesPractice(userMessage)
               || closedWithoutQuestion
             )
               && !markers.practicePick
-              && !validation.confident;
+              && (!validation.confident || refusalBeatsValidator);
+            if (refusalBeatsValidator && !markers.practicePick) {
+              qaGuards.push("practice_decline_over_validation");
+            }
             if (historyHasPracticePicked(history)) {
               nextFsm = { ...fsmAtTurnStart, practiceDecided: true, branch: "done", branchIndex: fsmAtTurnStart.flow.length };
               turnMode = "final_without_practice";
@@ -2127,14 +2185,14 @@ export async function POST(req: Request) {
               nextFsm = advanceBranch({ ...fsmAtTurnStart, practiceDecided: true });
               turnMode = "final_without_practice";
               shouldClose = true;
-            } else if (markers.practicePick || validation.confident) {
+            } else if (markers.practicePick || (validation.confident && !refusalBeatsValidator)) {
               const card = await resolvePracticeCard({
                 db: routeDb,
                 userId: routeUserId,
                 marker: markers.practicePick,
                 context,
                 userMessage,
-                history,
+                history: practiceHistory,
                 conversationId: conversation.id,
               });
               if (card) {
@@ -2324,6 +2382,7 @@ export async function POST(req: Request) {
               && visibleTextMentionsEvent(
                 sanitizedVisibleText,
                 nextEvent.description,
+                currentEvent.description,
               )
             ) {
               console.warn("[DIALOG_FSM] Model mentioned the next event before closing the current one — keeping current event open");
@@ -2353,7 +2412,9 @@ export async function POST(req: Request) {
               persistedDayFocus
                 || stripPlanningDayFocusScaffold(markers.recommendationCorrection?.short_text),
             );
-            if (planningMarkersForVisible.length > 0 && fsmAtTurnStart.noGreeting) {
+            if (fsmAtTurnStart.noGreeting) {
+              // Add-flow: deterministic wrap-up from persisted rows (incl. the
+              // zero-action case — never a bare «Внимание на N чакру.» line).
               cleanText = buildPlanningAddFinalVisibleText({
                 events: planningMarkersForVisible,
                 locale,

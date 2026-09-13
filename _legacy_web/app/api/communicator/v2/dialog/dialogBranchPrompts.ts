@@ -467,12 +467,18 @@ export function buildPlanningFinalVisibleText(params: {
   return parts.filter((part) => part.trim()).join("\n\n");
 }
 
-/** Deterministic add-flow final: never trusts the model's count or proposed-but-rejected items. */
+/**
+ * Deterministic add-flow final: never trusts the model's count or proposed-but-rejected items.
+ * Zero persisted actions → one honest sentence, never a bare chakra-attention line.
+ */
 export function buildPlanningAddFinalVisibleText(params: {
   events: PlannedEventMarker[];
   locale: AppContentLocale;
 }): string {
   const { events, locale } = params;
+  if (events.length === 0) {
+    return getDialogScaffoldStrings(locale).planningAddIntro_none;
+  }
   const intro = planningAddIntro(events.length, locale);
   return [intro, buildPlanningActionsVisibleBlock(events, locale)].join("\n\n");
 }

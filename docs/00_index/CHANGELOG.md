@@ -1,3 +1,16 @@
+---
+id: 00_index/CHANGELOG
+title: Documentation Changelog
+version: 3.19
+updated: 2026-09-14
+depends_on: [docs/_proposal]
+code_refs: [docs/_proposal.md]
+---
+
+## Changelog
+
+- 2026-09-14 (567): Daily dialog QA sweep (35 archived dialogs) → 6 structural guard/FSM fixes, no prompt growth: planning accumulates on persisted rows (history re-inference only for the pending message), practice-like actions kept when the flow has no practice branch (+ `planningAddIntro_none`), did-not-happen backstop limited to short replies + leading «no», stem-based `visibleTextMentionsEvent`, practice validator scoped to the practice exchange with leading refusal beating it, structural planning finalize. Docs `assistant`.
+
 - 2026-09-14 (566): Production Sentry `Gateway Timeout` on dialog (`load_context`) and daily-forecast — missing `maxDuration`, unbounded `daily_matrices` read, PostgREST fetch without abort. Fix: dialog 300s / forecast+LLM routes 120s; matrix lookback 7 days; 20s DB fetch timeout; timeout → 504. Docs `assistant` + `daily_forecast` + `infra`.
 
 - 2026-09-14 (565): «Личный кабинет» из любого gate-диалога больше не клинит ту же кнопку в Профиле: ждём dismiss RN Modal, снимаем iOS `locked` у SFSafari; hang-probe и таймаут `dismissBrowser`, чтобы кнопка не оставалась disabled. Docs `account_web` + `subscription`.
@@ -588,18 +601,6 @@
 - 2026-06-29: `modules/breath/ui/CoherenceBreathScreen.tsx`, `modules/breath/i18n/coherence.ts`, `modules/i18n/typed/catalog/breath/*.json` — simplified production camera breathing UX to one soft reminder shown at most once per session after sustained signal loss, instead of multiple technical PPG-status banners.
 - 2026-06-29: `modules/breath/i18n/coherence.ts`, `modules/i18n/typed/catalog/breath/*.json`, `docs/02_modules/i18n/history.md` — cleaned up camera-mode runtime copy so pulse-loss overlays no longer mention paused biometrics/metrics now that production camera breathing is guidance-only.
 - 2026-06-29: `biofeedback/spec.md`, `biofeedback/history.md`, `practices/spec.md`, `practices/history.md` — documented the cleaned BLE reconnect/runtime state machine plus the new automatic `emulated -> live` return path for restored camera/BLE pulse, so the practice can keep running through long signal loss without staying synthetic forever.
----
-
-## id: 00_index/CHANGELOG
-
-title: Documentation Changelog
-version: 3.18
-updated: 2026-07-02
-depends_on: [docs/_proposal]
-code_refs: [docs/_proposal.md]
-
-## Changelog
-
 - 2026-07-12: `daily_forecast` / `i18n` — Day tab help «?» on «Психо-практики» and «Йога-практики» (`SurfaceCardTitleRow` + `SurfaceHelpModal`); copy in `modules/day/i18n/day.ts` + typed overlays. Synced `daily_forecast/history.md`, `i18n/history.md`.
 - 2026-07-12: `assistant` — planning day-focus sync fix (QA `текст-4808…`): strip gathering scaffold («Хорошо, собираю план.») from Day-tab/`CORRECT_RECOMMENDATION` text; greeted-flow hidden finalize-repair when day recommendation is missing so FINAL is not just «Внимание на N чакру.» + list. Synced `assistant/{spec,history}.md`.
 - 2026-07-01 (8): `biofeedback` / `practices` — camera (finger PPG) post-gap reacquire gate in `PulseBpmEngine` (holds BPM + new `pulseBpm.reacquiring` flag until clean post-gap RR accumulate, wearable RR untouched); breath result charts stop re-sanitizing guidance (removes the phantom horizontal plateau), drop the false post-gap ~58 BPM measured point via `dropPostGapMeasuredArtifacts`, hold guidance flat during emulated gaps (removes the phantom downward dip), and fix the coherence `perSecond` off-by-one coverage lookup. Added `pulse-bpm-engine.reacquire.test.ts`; synced `biofeedback/{spec,history}.md`, `practices/history.md`.

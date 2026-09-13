@@ -33,6 +33,31 @@ describe("inferPlannedEventsFromUserHistory", () => {
     expect(inferred[0]?.desc.toLowerCase()).toContain("вебинар");
   });
 
+  it("onlyPendingMessage: earlier planning turns are closure context, never re-derived (QA Евгений «Добрый вечер»)", () => {
+    const nowLocal = DateTime.fromISO("2026-09-11T19:00:00", { zone: TZ });
+    const history = [
+      { role: "assistant", content: "Добрый вечер. Что сегодня намечается — что хотелось бы успеть?" },
+      { role: "user", content: "Добрый вечер. Нет, сегодня ничего не намечается. У меня день отдыха после рабочих суток." },
+      { role: "assistant", content: "Отдых после рабочих суток — это уже хороший план. Есть ещё что-то, чем хотелось бы заняться сегодня?" },
+    ];
+    const pending = "Сейчас собираюсь выйти на улицу, прогуляться километра 2-3, потом зайти в магазин, купить арбуз.";
+    const full = inferPlannedEventsFromUserHistory({ history, pendingUserMessage: pending, nowLocal, tz: TZ, locale: "ru" });
+    const pendingOnly = inferPlannedEventsFromUserHistory({
+      history,
+      pendingUserMessage: pending,
+      onlyPendingMessage: true,
+      nowLocal,
+      tz: TZ,
+      locale: "ru",
+    });
+    expect(pendingOnly.length).toBeGreaterThan(0);
+    expect(pendingOnly.length).toBeLessThanOrEqual(full.length);
+    expect(pendingOnly.some((m) => /добрый вечер/i.test(m.desc))).toBe(false);
+    expect(pendingOnly.some((m) => /отдых/i.test(m.desc))).toBe(false);
+    // Nothing pending → nothing inferred, even with a rich history.
+    expect(inferPlannedEventsFromUserHistory({ history, onlyPendingMessage: true, nowLocal, tz: TZ, locale: "ru" })).toHaveLength(0);
+  });
+
   it("strips Russian speech lead-in like «Тогда хочу» from inferred labels", () => {
     const nowLocal = DateTime.fromISO("2026-09-06T08:00:00", { zone: TZ });
     const inferred = inferPlannedEventsFromUserHistory({

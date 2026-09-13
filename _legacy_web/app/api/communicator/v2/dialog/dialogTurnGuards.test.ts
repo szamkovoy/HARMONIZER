@@ -13,7 +13,10 @@ import {
   assistantVisibleContainsSummaryClarifyingCue,
   coerceFsmBeforeTurn,
   collectPlanningBranchUserHistory,
+  collectPracticeBranchHistory,
   extractPlanningMarkersFromVisibleFinalize,
+  practiceValidationForTurn,
+  userLeadsWithPracticeRefusal,
   filterPersistablePlanningMarkers,
   filterPracticeLikePlannedEvents,
   inferPlanningSpheresFromText,
@@ -30,6 +33,7 @@ import {
   userSaysEventDidNotHappen,
   userSignalsPlanningDone,
   userDeclinesPractice,
+  visibleTextMentionsEvent,
 } from "./dialogTurnGuards";
 
 const ALL_RECOMMENDATION_LABELS: Array<{ locale: AppContentLocale; label: string }> = [
@@ -408,6 +412,30 @@ describe("dialogTurnGuards", () => {
     expect(filtered[0]?.desc).toBe("Прогулка в парке");
   });
 
+  it("recognises an assemble-plan question as a planning closure question (QA Audrone 2026-09-08)", () => {
+    expect(assistantAskedPlanningClosure([assistantMsg("Отлично, звонок маме — это тепло и важно.\n\nСобрать план на сегодня?")])).toBe(true);
+    expect(assistantAskedPlanningClosure([assistantMsg("Записал. Ещё что-то на сегодня — или собираем план?")])).toBe(true);
+    expect(assistantAskedPlanningClosure([assistantMsg("Shall I put the plan together now?")])).toBe(true);
+    expect(assistantAskedPlanningClosure([assistantMsg("Как прошла прогулка?")])).toBe(false);
+    expect(assistantAskedPlanningClosure([assistantMsg("План собран — встреча с подругой, звонок маме. Хорошего вам дня!")])).toBe(false);
+  });
+
+  it("keeps practice-like actions in flows without a practice branch (QA Лиза «Занятия йогой» ×4)", () => {
+    const markers = [
+      { desc: "Занятия йогой", recommendation: "", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
+      { desc: "Почитать лекцию", recommendation: "", displayOrder: 2, time: null, timeNorm: null, cells: [], snippets: [] },
+    ];
+    // Master flow with a practice branch: yoga is still dropped (would duplicate the catalog card).
+    expect(filterPersistablePlanningMarkers(markers).map((m) => m.desc)).toEqual(["Почитать лекцию"]);
+    // Day-tab add / Oracle: no practice branch → yoga is a real Day-tab action.
+    expect(filterPersistablePlanningMarkers(markers, { addFlow: true, keepPracticeLike: true }).map((m) => m.desc))
+      .toEqual(["Занятия йогой", "Почитать лекцию"]);
+    const visible = "План собрали.\n\n1. Йога\nРекомендация: держите осанку ровной.";
+    expect(extractPlanningMarkersFromVisibleFinalize(visible, "ru")).toHaveLength(0);
+    expect(extractPlanningMarkersFromVisibleFinalize(visible, "ru", { keepPracticeLike: true }).map((m) => m.desc))
+      .toEqual(["Йога"]);
+  });
+
   it("filters planning-done closure phrases from persistable markers", () => {
     const filtered = filterPersistablePlanningMarkers([
       { desc: "Lavoro", recommendation: "a", displayOrder: 1, time: null, timeNorm: null, cells: [], snippets: [] },
@@ -609,9 +637,8 @@ describe("dialogTurnGuards", () => {
     expect(userAnswerIsThinForSummary(
       "Ужин в кафе прошел замечательно, с друзьями покушали, пообщались, давно не виделись, поэтому все очень даже хорошо.",
     )).toBe(false);
-    // "Нет, медитации не было." carries extra content → now delegated to the LLM
-    // (no longer caught by the minimal bare-no backstop).
-    expect(userSaysEventDidNotHappen("Нет, медитации не было.")).toBe(false);
+    // Short reply that opens with a bare «нет» answers "did it happen?" directly.
+    expect(userSaysEventDidNotHappen("Нет, медитации не было.")).toBe(true);
     expect(userSaysEventDidNotHappen("Нет")).toBe(true);
     expect(userSaysEventDidNotHappen("no")).toBe(true);
     expect(userAnswerIsThinForSummary("Нет")).toBe(false);
@@ -682,6 +709,44 @@ describe("dialogTurnGuards", () => {
     )).toBe(false);
   });
 
+  it("recognises paraphrased event labels in the visible text (QA 2026-09-11/12 cursor desync)", () => {
+    // Real archived turns: the model paraphrased the DB label, exact substring missed all four.
+    expect(visibleTextMentionsEvent(
+      "Слышу. Давайте по делу: по медитативному отдыху — получилось ли погрузиться?\n\nХорошо. Как прошла работа в магазине?",
+      "Поработать в магазине",
+      "Медитативный отдых",
+    )).toBe(true);
+    expect(visibleTextMentionsEvent(
+      "Понимаю. Как прошла прогулка: удалось выйти?\n\nХорошо. Теперь про рабочие задачи — как они прошли?",
+      "Разобрать рабочие задачи",
+      "Утренняя прогулка",
+    )).toBe(true);
+    expect(visibleTextMentionsEvent("Понятно.\n\nА чай не спеша удалось выпить?", "Выпить чаю не спеша", "Собрать с собой вещи")).toBe(true);
+    expect(visibleTextMentionsEvent("Okay. And did you manage to call your mother?", "Call mother in the evening", "Morning walk")).toBe(true);
+    // Shared word with the current event must not count: «Работа с клиентами» vs «Работа в бюро».
+    expect(visibleTextMentionsEvent("А как прошла работа с клиентами?", "Работа в бюро", "Работа с клиентами")).toBe(false);
+    // Unrelated text stays negative.
+    expect(visibleTextMentionsEvent("Тепло, что удалось и с мамой, и с внуком.", "Послушать музыку", "Позвонить маме")).toBe(false);
+
+    // Mixed turns from the archive now classify as mixed.
+    expect(summaryVisibleTextMixesMultipleEvents(
+      "Слышу. Давайте по делу: по медитативному отдыху — получилось ли погрузиться, или он так и не случился?\n\nХорошо. Как прошла работа в магазине?",
+      "Медитативный отдых",
+      "Поработать в магазине",
+    )).toBe(true);
+    expect(summaryVisibleTextMixesMultipleEvents(
+      "Понимаю — бывает, что само действие ускользает. Как прошла прогулка: удалось выйти, подышать, размяться?\n\nХорошо. Теперь про рабочие задачи — как они прошли?",
+      "Утренняя прогулка",
+      "Разобрать рабочие задачи",
+    )).toBe(true);
+    // A clean bridge to the next event only (jump without a clarifier) is not «mixed».
+    expect(summaryVisibleTextMixesMultipleEvents(
+      "Понятно.\n\nА чай не спеша удалось выпить?",
+      "Собрать с собой вещи",
+      "Выпить чаю не спеша",
+    )).toBe(false);
+  });
+
   it("treats thin Italian summary answers like other locales", () => {
     expect(userAnswerIsThinForSummary(
       "Ho avuto molte cose da fare oggi. L'obiettivo è fare molte cose, ma bisogna fare le cose in modo corretto.",
@@ -730,6 +795,78 @@ describe("dialogTurnGuards", () => {
       expect(userAnswerHasSufficientStateForSummary(sample.enough), sample.enough).toBe(true);
       expect(userAnswerIsThinForSummary(sample.enough), sample.enough).toBe(false);
     }
+  });
+
+  it("practice validation sees only the practice exchange, not summarizing turns (QA Евгений 2026-09-12)", () => {
+    const msg = (role: "user" | "assistant", content: string, branch?: string): MessageRecord => ({
+      id: "m",
+      role,
+      content,
+      transcript: null,
+      meta: branch ? { dialog_branches: [branch] } : null,
+      created_at: null,
+    });
+    const history: MessageRecord[] = [
+      msg("assistant", "Как прошла прогулка?", "summarizing"),
+      msg("user", "Отлично прошла прогулка."),
+      msg("assistant", "Что важного вы хотите запланировать на текущий день?", "summarizing"),
+      msg(
+        "user",
+        "Слушай, я на сегодня уже позанимался рано утром с тренером пранаямой. Это продлилось полтора часа. Потом небольшая медитация на дыхание.",
+      ),
+      msg("assistant", "1. Отдых после обеда\nРекомендация: …\n\nХотите сейчас выполнить практику?", "planning"),
+    ];
+    const reply = "Я сейчас собираюсь встать, налить чая. Дела такие: прикрутить сифон. Вечером заниматься аналомой-виломой. Возможно сходить на прогулку.";
+    expect(collectPracticeBranchHistory(history)).toHaveLength(0);
+    // Whole-history scan used to yield a confident 1-minute meditation from the recounted pranayama.
+    expect(practiceValidationForTurn(history, reply).confident).toBe(false);
+    // Legacy history without branch metadata keeps the old whole-history behaviour.
+    const legacy = history.map((m) => ({ ...m, meta: null }));
+    expect(collectPracticeBranchHistory(legacy)).toHaveLength(legacy.length);
+
+    // A reply that opens with a refusal is a decline even with type+duration later in it.
+    const refusal = "Нет, сейчас я не буду заниматься медитацией, дыханием и асаной. Я пойду прогуляюсь. А потом дыханием минут 15 позанимаюсь вечером.";
+    expect(practiceValidationForTurn([], refusal).confident).toBe(true);
+    expect(userLeadsWithPracticeRefusal(refusal)).toBe(true);
+    expect(userLeadsWithPracticeRefusal("No, not now — maybe 10 minutes of breathing tonight.")).toBe(true);
+    expect(userLeadsWithPracticeRefusal("Nein, jetzt nicht, vielleicht später 10 Minuten Atmung.")).toBe(true);
+    // A pick that merely mentions «потом» is not a leading refusal.
+    expect(userLeadsWithPracticeRefusal("Давайте дыхание 10 минут, а потом пойду гулять.")).toBe(false);
+    expect(userLeadsWithPracticeRefusal("Асаны 20 минут, пожалуйста.")).toBe(false);
+  });
+
+  it("did-not-happen backstop is a short-reply guard: long positive narratives go to the LLM (QA 2026-09-12)", () => {
+    // Real archived replies where a negated detail sits inside a clearly-happened answer.
+    const happenedLong = [
+      "Кстати про арбуз совсем забыл сказать. Да, купил арбуз в Дикси, выбрал его любимым продуктом. Арбуз на 7 килограмм, посмаковал его вечером, кусочек много есть не стал, чтобы потом не бегать часто в туалет. Ел его еще с утра сегодня.",
+      "Смысл не сложился, все сложилось. Я же его купил, попробовал, посмаковал, я ответил, попробовал, поел.",
+      "Вот и всё хорошо прошло, и озеро не смогло поехать, но почитала книгу дома и подумала про смысл жизни.",
+      "Yes, I went, though I didn't stay long because I got tired — still it was a lovely walk and I felt calm afterwards.",
+      "Sì, l'ho fatto, anche se non sono riuscito a finire tutto — però mi sono sentito soddisfatto e tranquillo alla fine.",
+      "Ja, ich war dort, auch wenn ich es nicht ganz geschafft habe — trotzdem war es ein ruhiger, schöner Abend für mich.",
+    ];
+    for (const text of happenedLong) {
+      expect(userSaysEventDidNotHappen(text), text).toBe(false);
+    }
+    // Short replies opening with a bare "no" token — any supported locale — close the event.
+    const leadingNo = [
+      "Нет, но я сделала гимнастику от Меди.",
+      "No, but I did some stretching instead.",
+      "Non, mais j'ai fait autre chose.",
+      "Nein, dafür bin ich spazieren gegangen.",
+      "No, hice otra cosa en su lugar.",
+      "Não, fiz outra coisa.",
+      "Nee, ik heb iets anders gedaan.",
+      "Non, ho fatto altro.",
+    ];
+    for (const text of leadingNo) {
+      expect(userSaysEventDidNotHappen(text), text).toBe(true);
+    }
+    // Terse curated phrasings still work (the model used to keep asking on these).
+    expect(userSaysEventDidNotHappen("Вчера не занималась английским языком.")).toBe(true);
+    // A leading «не …» that is not a bare no is left to the LLM (may be partial: «не совсем, но…»).
+    expect(userSaysEventDidNotHappen("Не совсем, но частично получилось и было спокойно.")).toBe(false);
+    expect(userAnswerHasSufficientStateForSummary(happenedLong[0]!)).toBe(true);
   });
 
   it("builds a short bridge when an event did not happen", () => {
@@ -905,6 +1042,32 @@ describe("dialogTurnGuards", () => {
     expect(merged).toHaveLength(1);
     expect(merged[0]?.recommendation).toBe("Profitez du trajet sans vous presser.");
     expect(merged[0]?.cells).toEqual([{ sphere: 2, weight: 0.8 }, { sphere: 1, weight: 0.2 }]);
+  });
+
+  it("keeps the model's essence label when history inference re-derives a speech blob for the same action (QA Audrone 2026-09-07)", () => {
+    const marker = (desc: string, displayOrder: number) => ({
+      desc,
+      recommendation: "",
+      displayOrder,
+      time: null,
+      timeNorm: null,
+      cells: [],
+      snippets: [],
+    });
+    // Accumulated history inference (raw user speech) vs. this turn's model markers.
+    const merged = mergeHistoryPlanningMarkers(
+      [
+        marker("Сначала сделаю суставную гимнастику", 1),
+        marker("Пойду на физиотерапию, визит у физиотерапевта будет почти вечером, потом дома отдых", 2),
+        marker("Позвонить маме", 3),
+      ],
+      [marker("Суставная гимнастика", 1), marker("Визит к физиотерапевту", 2)],
+    );
+    expect(merged.map((m) => m.desc)).toEqual([
+      "Суставная гимнастика",
+      "Визит к физиотерапевту",
+      "Позвонить маме",
+    ]);
   });
 
   it("prefers target-locale markers by display order instead of duplicating translated history items", () => {
