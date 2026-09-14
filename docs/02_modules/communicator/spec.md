@@ -2,8 +2,8 @@
 
 id: 02_modules/communicator/spec
 title: Communicator Spec
-version: 2.59
-updated: 2026-09-06
+version: 2.60
+updated: 2026-09-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -100,7 +100,7 @@ code_refs:
 
 - **`stripDialogScaffoldMarkdown(text): string`** — экспорт; зеркалит серверный одноимённый helper в `_legacy_web/app/api/_utils/markers.ts`.
 - **`stripInternalDialogMarkers(text): string`** — снимает square-bracket маркеры, XML-теги протокола (`<PLANNED_EVENT>…</PLANNED_EVENT>`) и leftover-атрибуты (`display_order=`, `spheres=`).
-- **`stripStreamingMarkers`** в `Communicator.tsx` — локальный regex `MARKER_RE` плюс `stripInternalDialogMarkers` вырезает из видимого стрима `[STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|MATRIX_CELLS:…]`, XML-форму тех же имён и bare sentinels `[PLAN_TOMORROW]` / `[PRACTICE_DECLINED]` до применения `stripDialogScaffoldMarkdown`.
+- **`stripStreamingMarkers`** в `Communicator.tsx` — локальный regex `MARKER_RE` плюс `stripInternalDialogMarkers` вырезает из видимого стрима `[STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|OFF_SCRIPT_NOTE|MATRIX_CELLS:…]`, XML-форму тех же имён и bare sentinels `[PLAN_TOMORROW]` / `[PRACTICE_DECLINED]` до применения `stripDialogScaffoldMarkdown`. Сервер сам prepend’ит текст `[OFF_SCRIPT_NOTE]` в `fullText` (см. `assistant/spec.md`); клиентский strip — паритет на случай регрессии буферизации.
 
 ### Гидрация `complete` из session sync (`modules/communicator/core/dialogTurnHydration.ts`)
 
