@@ -2,7 +2,11 @@ import { Platform } from "react-native";
 import { getLocales } from "expo-localization";
 
 import { resolveDeviceAppLocale } from "@/modules/i18n/resolveDeviceAppLocale";
-import { syncUserLocaleToServer } from "@/services/userLocaleClient";
+import {
+  markUserLocaleSynced,
+  resetUserLocaleSyncMemo,
+  syncUserLocaleToServer,
+} from "@/services/userLocaleClient";
 
 /**
  * Single source of truth for the app's active locale (UI + assistant response).
@@ -177,6 +181,7 @@ export async function hydrateAppLocale(
   if (!hydrated || accountChanged) {
     hydrated = true;
     hydratedUserId = nextUserId;
+    resetUserLocaleSyncMemo();
     const stored = await readPersisted();
     // On account switch / first pass: prefer account locale over device sticky store.
     const next = profileCode ?? stored ?? currentLocale;
@@ -187,13 +192,19 @@ export async function hydrateAppLocale(
     if (next !== stored) {
       await persist(next);
     }
-    void syncUserLocaleToServer(next).catch(() => undefined);
+    if (nextUserId && profileCode === next) {
+      // users.locale already equals the active locale — nothing to mirror.
+      markUserLocaleSynced(nextUserId, next);
+    } else {
+      void syncUserLocaleToServer(next).catch(() => undefined);
+    }
     return;
   }
 
   // Same account: do not overwrite UI with a lagging users.locale — re-sync UI → DB.
+  // `force`: the profile row is the evidence that the server value differs.
   if (profileCode && profileCode !== currentLocale) {
-    void syncUserLocaleToServer(currentLocale).catch(() => undefined);
+    void syncUserLocaleToServer(currentLocale, { force: true }).catch(() => undefined);
   }
 }
 

@@ -18,6 +18,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-09-14 (locale mirror memo):** Edge-логи: `PATCH /rest/v1/users` (locale) на каждом возврате приложения в foreground (`registerPushToken` → `syncUserLocaleToServer`) плюс два на холодном старте; каждый PATCH эхом возвращался через Realtime-подписку `MembershipEventsBridge` как полный `GET users(*)`. Правило «зеркалить всегда» сохранено на уровне вызывающих (оно закрывало «UI уже итальянский, БД русская»), но сам клиент мемоизирует запись по `(userId, locale)` на процесс; hydrate засевает memo, если `users.locale` уже совпадает, и форсит запись, когда профиль показывает расхождение. Требует store-билда.
 - **2026-09-05 (locale sync + hydrate order):** `syncUserLocaleToServer` больше не зовёт `auth.getSession()` (на Android cold start часто пустой/висит → `users.locale` отстаёт, midnight cron греет не тот язык). Bearer — `getSupabaseAccessSession`. `AuthProvider` гидратит locale до Home fetch.
 
 - **2026-09-04 (dialog scaffold `summaryAlreadyComplete`):** RU source «Все неподытоженные действия уже подытожены.» + 7 locales via `i18n-sync fill --all` (`AI_MODEL_PREMIUM`). Used by summarizing terminal when `daySummaryRequested` and `dueEvents` are empty (`dialog/route.ts`).

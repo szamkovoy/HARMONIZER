@@ -43,7 +43,10 @@ export async function POST(req: Request) {
       return json({ ok: false, code: "invalid_android_package" }, { status: 400 });
     }
     if (msg.startsWith("registration_not_verified") || msg.startsWith("challenge_")) {
-      return json({ ok: false, code: "verification_failed" }, { status: 401 });
+      // Expected client-flow outcomes (expired/mismatched challenge, cancelled attestation) —
+      // keep 401 for the client, but make the reason visible in runtime logs and the body.
+      console.warn("restore-credential/register/verify rejected", msg);
+      return json({ ok: false, code: "verification_failed", reason: msg }, { status: 401 });
     }
     console.error("restore-credential/register/verify", e);
     return json({ ok: false, code: "server_error" }, { status: 500 });

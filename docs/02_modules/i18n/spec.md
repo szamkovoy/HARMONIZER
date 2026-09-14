@@ -116,7 +116,15 @@ cost never decides layer-C design.
     `setAppLocale` persists locally and mirrors to `users.locale`
     via `services/userLocaleClient.ts` (`syncUserLocaleToServer`, bearer через
     **`getSupabaseAccessSession`**, не блокирующий `auth.getSession()`) even when
-    the in-memory locale is unchanged (heals DB drift). `AuthProvider.syncProfile`
+    the in-memory locale is unchanged (heals DB drift). The write itself is
+    **memoised per `(userId, locale)` for the JS process**: callers keep calling
+    "always" (`registerPushToken` on every foreground, `setAppLocale`), but only
+    the first call per pair reaches PostgREST; a failed write is retried next
+    time. `hydrateAppLocale` pre-seeds the memo (`markUserLocaleSynced`) when
+    `users.locale` already equals the chosen locale, and passes `{ force: true }`
+    on the "same account, lagging `users.locale`" branch — the profile row is the
+    evidence the server differs. Memo resets on account switch
+    (`resetUserLocaleSyncMemo`). Test: `services/userLocaleClient.test.ts`. `AuthProvider.syncProfile`
     hydrates locale **before** clearing `profileLoading`, so Home day-fetch does
     not race the device language.
   - `coerceAppLocale(value)` — reduce any locale-ish string to the nearest

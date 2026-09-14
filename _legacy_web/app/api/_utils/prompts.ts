@@ -13,7 +13,22 @@ export type PromptRecord = {
   response_format: "text" | "json_object" | null;
 };
 
+/**
+ * Same 60 s per-instance memory cache as `getScenario` — prompts are admin-edited config,
+ * read on every Home/dialog request. Only the healthy `is_active` hit is cached; the
+ * "latest version" fallback below is not, so a restored active row is picked up at once.
+ */
+const promptCache = new Map<string, { prompt: PromptRecord; expiresAt: number }>();
+const PROMPT_CACHE_TTL_MS = 60_000;
+
+export function clearPromptMemoryCache(): void {
+  promptCache.clear();
+}
+
 export async function getActivePrompt(db: SupabaseClient, promptKey: string): Promise<PromptRecord> {
+  const cached = promptCache.get(promptKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.prompt;
+
   const { data, error } = await db
     .from("prompts")
     .select(
@@ -25,6 +40,7 @@ export async function getActivePrompt(db: SupabaseClient, promptKey: string): Pr
 
   if (error) throw error;
   if (data) {
+    promptCache.set(promptKey, { prompt: data as PromptRecord, expiresAt: Date.now() + PROMPT_CACHE_TTL_MS });
     return data as PromptRecord;
   }
 

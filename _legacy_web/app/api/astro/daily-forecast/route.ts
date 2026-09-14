@@ -148,14 +148,19 @@ export async function POST(req: Request) {
 
     if (!forceRefresh) {
       endpointStage = "load_cache";
-      const cached = await cachedForecast(db, userId, forecastDate);
-      if (cached) {
-        endpointStage = "morning_cache";
-        const morning = await loadCachedMorningRecommendation({
+      // Warm path (cron pre-warmed day): both reads are independent — overlap them so the
+      // first Home paint costs ~2 sequential DB round trips instead of ~6 on a slow instance.
+      // On a cache miss the morning read is one wasted cheap SELECT.
+      const [cached, morning] = await Promise.all([
+        cachedForecast(db, userId, forecastDate),
+        loadCachedMorningRecommendation({
           db,
           userId,
           requestedLocale: body.responseLocale,
-        });
+        }),
+      ]);
+      if (cached) {
+        endpointStage = "morning_cache";
         return json({
           source: "cache",
           forecast: cached,

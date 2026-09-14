@@ -36,7 +36,21 @@ type WarmFeedSnapshot = {
 };
 
 const WARM_FEED_TTL_MS = 60_000;
+/**
+ * Adaptive feed poll (2026-09-14). The 20 s cadence (2026-07-09) stays for the
+ * first minutes after launch / foreground — that is when a user who just opened
+ * the app is likely watching the ring — then relaxes: author stories appear hours
+ * apart, and a flat 20 s poll was 3 RPC/min per device — the dominant PostgREST
+ * background at 10k users on Nano.
+ */
 const FEED_POLL_INTERVAL_MS = 20_000;
+const FEED_POLL_BURST_WINDOW_MS = 3 * 60_000;
+const FEED_POLL_IDLE_INTERVAL_MS = 90_000;
+
+/** Delay until the next poll, given ms elapsed since launch / last foreground. */
+export function storyFeedPollDelay(sinceForegroundMs: number): number {
+  return sinceForegroundMs < FEED_POLL_BURST_WINDOW_MS ? FEED_POLL_INTERVAL_MS : FEED_POLL_IDLE_INTERVAL_MS;
+}
 /**
  * Soft hold for newly discovered stories so CDN edge + cover JPEG can settle.
  * Do NOT HTTP-range-warm the MP4 here: aborting a Range fetch corrupts the
@@ -530,7 +544,7 @@ export async function refreshStoryFeedInBackground(userId: string): Promise<Stor
   }
 }
 
-export { FEED_POLL_INTERVAL_MS };
+export { FEED_POLL_BURST_WINDOW_MS, FEED_POLL_IDLE_INTERVAL_MS, FEED_POLL_INTERVAL_MS };
 
 /** Локально помечает сторис просмотренной и синхронизирует warm-cache до следующего fetch. */
 export function rememberStoryViewedLocally(userId: string, storyId: string): void {

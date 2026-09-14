@@ -142,8 +142,19 @@ export function warmAccountCabinetBrowser(): void {
   })();
 }
 
+const cabinetVisitListeners = new Set<(userId: string) => void>();
+
+/** Fires right after `markCabinetVisit` — MembershipEventsBridge opens its Realtime window. */
+export function subscribeCabinetVisit(listener: (userId: string) => void): () => void {
+  cabinetVisitListeners.add(listener);
+  return () => {
+    cabinetVisitListeners.delete(listener);
+  };
+}
+
 export async function markCabinetVisit(userId: string, ctx: CabinetContext): Promise<void> {
   await writeAccountFlag(`cabinetVisit.${userId}`, JSON.stringify({ ctx, ts: Date.now() }));
+  cabinetVisitListeners.forEach((listener) => listener(userId));
 }
 
 export async function readFreshCabinetVisit(

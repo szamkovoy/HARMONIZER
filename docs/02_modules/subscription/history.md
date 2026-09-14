@@ -1,13 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.11
+version: 1.12
 updated: 2026-09-14
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-09-14 (reconcile expired memberships восстановлен):** Hourly `reconcile-expired-memberships` фактически не работал: Edge-функция не была задеплоена (404), Vault `reconcile_expired_memberships_cron_secret` не создан, SQL `reconcile_expired_memberships`/`recompute_user_membership` на remote отсутствовали — истёкший `oracle` (с 2026-09-01) оставался платным. Fix (`20260914010000`): `reconcile_expired_memberships(p_limit)` поверх канонического `restore_membership_from_ledger`, invoker с SQL-предпроверкой и общим секретом, функция задеплоена; первый прогон реконсилировал 1 membership. `restore_membership_from_ledger`/`reattach_payment_ledger_for_email` больше не исполняются `anon`/`authenticated` (`20260914011000`).
 
 - **2026-09-14 (cabinet CTA / Modal):** `AccountGateDialog` больше не зовёт `onClose` как sync `beforeOpen` — скрывает Modal и ждёт dismiss, иначе iOS клинит все кнопки «Личный кабинет». Call sites держат диалог смонтированным (`visible={flag}`). См. `account_web`.
 

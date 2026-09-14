@@ -16,6 +16,15 @@ import chakraStatesBaseline from "../_shared/data/chakra_states_baseline.json" w
 
 const BATCH_SIZE = 100;
 const ACTIVE_PRECOMPUTE_DAYS = 5;
+/**
+ * Scheduled mode budget. Supabase Edge limits: 150 s wall clock (Free) / 2 s CPU per request.
+ * Users are leased via `precompute_daily_forecast_candidates` for CLAIM_LEASE_MINUTES, so the
+ * next 10-minute tick retries whatever this run did not finish — never the same user twice.
+ */
+const MAX_USERS_PER_RUN = 40;
+const USER_CONCURRENCY = 4;
+const RUN_TIME_BUDGET_MS = 100_000;
+const CLAIM_LEASE_MINUTES = 8;
 /** Keep in sync with `modules/location/defaultDayContentLocation.ts`. */
 const FALLBACK_LAT = 55.7558;
 const FALLBACK_LON = 37.6173;
@@ -577,7 +586,6 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
 
   const localNow = DateTime.now().setZone(userLocation.timezone);
   if (!localNow.isValid) return { status: "skipped", reason: "invalid_timezone" };
-  if (!force && localNow.hour !== 0) return { status: "skipped", reason: "outside_local_midnight" };
   if (!force && !isActiveForPrecompute(user)) return { status: "skipped", reason: "inactive" };
 
   /** `forecast_date` в БД — календарный день пользователя (IANA `users.tz`), не UTC-полночь. */
@@ -585,6 +593,16 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
   if (!forecastDate) return { status: "skipped", reason: "invalid_date" };
   const locale = normalizeLocale(user.locale);
   const cachedForecast = !force ? await loadFreshForecastCache(db, user.id, forecastDate) : null;
+
+  // Scheduled runs receive only users whose local-date cache is incomplete (SQL RPC
+  // `precompute_daily_forecast_candidates`), so there is no "local midnight" gate here:
+  // the job is "ensure today's cache exists", idempotent, retried every tick until it does.
+  // The re-check below is a cheap guard against a race with the app warming the same day.
+  const catchUp = !force && localNow.hour !== 0;
+  if (!force && cachedForecast) {
+    const cachedMorning = await loadFreshMorningCache(db, user.id, forecastDate, locale, promptConfig.expectedModel);
+    if (cachedMorning) return { status: "skipped", reason: "cache_hit", forecastDate, locale, catchUp };
+  }
 
   const natalProfile = natalProfileFromRow(chart);
   const calibration = await loadActiveCalibration(db, user.id);
@@ -649,6 +667,7 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
         : undefined,
     forecastDate,
     locale,
+    catchUp,
     extraLocales: extraMorning.map((item, index) => ({ locale: extraLocales[index], status: item.status })),
     planetOfTheDay: forecast.planetOfTheDay ?? forecast.planet_of_the_day,
     forecastStatus,
@@ -657,50 +676,124 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
   };
 }
 
+const CHART_SELECT =
+  "*, users!inner(id,tz,lat,lon,last_seen_at,onboarded_at,locale,address_form,membership_tier,trial_expires_at,membership_expires_at)";
+
+/** Scheduled mode: only users whose local-date cache is incomplete (leased for CLAIM_LEASE_MINUTES). */
+async function loadCandidateCharts(db: any): Promise<any[]> {
+  const { data: candidates, error } = await db.rpc("precompute_daily_forecast_candidates", {
+    p_limit: MAX_USERS_PER_RUN,
+    p_claim: true,
+    p_lease_minutes: CLAIM_LEASE_MINUTES,
+    p_active_days: ACTIVE_PRECOMPUTE_DAYS,
+  });
+  if (error) throw error;
+  const ids: string[] = (candidates ?? []).map((row: any) => row.user_id).filter(isUuid);
+  if (!ids.length) return [];
+  const { data: charts, error: chartsError } = await db
+    .from("user_natal_charts")
+    .select(CHART_SELECT)
+    .eq("is_active", true)
+    .in("user_id", ids);
+  if (chartsError) throw chartsError;
+  // Keep RPC priority order (most recently seen first).
+  const byId = new Map<string, any>((charts ?? []).map((chart: any) => [chart.user_id, chart]));
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}
+
+/** Manual mode (`force` / `userId`): legacy full scan of active charts. */
+async function loadAllCharts(db: any, targetUserId: string | null): Promise<any[]> {
+  const charts: any[] = [];
+  let offset = 0;
+  for (;;) {
+    let query = db
+      .from("user_natal_charts")
+      .select(CHART_SELECT)
+      .eq("is_active", true)
+      .order("user_id", { ascending: true })
+      .range(offset, offset + BATCH_SIZE - 1);
+    if (targetUserId) query = query.eq("user_id", targetUserId);
+    const { data, error } = await query;
+    if (error) throw error;
+    const page = data ?? [];
+    charts.push(...page);
+    if (targetUserId || page.length < BATCH_SIZE) break;
+    offset += BATCH_SIZE;
+  }
+  return charts;
+}
+
+/** Bounded-concurrency worker pool with a wall-clock budget; leftovers are retried by the next tick. */
+async function processCharts(
+  db: any,
+  charts: any[],
+  force: boolean,
+  promptConfig: Awaited<ReturnType<typeof loadMorningPromptConfig>>,
+  startedAt: number,
+) {
+  const results: any[] = [];
+  let next = 0;
+  let deferred = 0;
+  const worker = async () => {
+    for (;;) {
+      if (next >= charts.length) return;
+      if (Date.now() - startedAt > RUN_TIME_BUDGET_MS) {
+        deferred += charts.length - next;
+        next = charts.length;
+        return;
+      }
+      const chart = charts[next++];
+      try {
+        results.push({ userId: chart.user_id, ...(await processUser(db, chart, force, promptConfig)) });
+      } catch (error) {
+        console.error("[precompute-daily-forecasts] user failed", chart.user_id, error);
+        results.push({ userId: chart.user_id, status: "error", error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(USER_CONCURRENCY, charts.length) }, worker));
+  return { results, deferred };
+}
+
 Deno.serve(async (req) => {
   if (isOptions(req)) return new Response("ok");
   const unauthorized = assertCronSecret(req);
   if (unauthorized) return unauthorized;
 
+  const startedAt = Date.now();
   try {
     const url = new URL(req.url);
     const force = url.searchParams.get("force") === "true";
+    const verbose = url.searchParams.get("verbose") === "true";
     const targetUserId = url.searchParams.get("userId");
     if (targetUserId && !isUuid(targetUserId)) return json({ error: "Invalid userId" }, { status: 400 });
 
     const db = createServiceClient();
-    const promptConfig = await loadMorningPromptConfig(db);
-    const results = [];
-    let offset = 0;
-    for (;;) {
-      let query = db
-        .from("user_natal_charts")
-        .select("*, users!inner(id,tz,lat,lon,last_seen_at,onboarded_at,locale,address_form,membership_tier,trial_expires_at,membership_expires_at)")
-        .eq("is_active", true)
-        .order("user_id", { ascending: true })
-        .range(offset, offset + BATCH_SIZE - 1);
-      if (targetUserId) query = query.eq("user_id", targetUserId);
-      const { data: charts, error } = await query;
-      if (error) throw error;
-      const page = charts ?? [];
-      for (const chart of page) {
-        try {
-          results.push({ userId: chart.user_id, ...(await processUser(db, chart, force, promptConfig)) });
-        } catch (error) {
-          console.error("[precompute-daily-forecasts] user failed", chart.user_id, error);
-          results.push({ userId: chart.user_id, status: "error", error: error instanceof Error ? error.message : String(error) });
-        }
-      }
-      if (targetUserId || page.length < BATCH_SIZE) break;
-      offset += BATCH_SIZE;
+    const scheduled = !force && !targetUserId;
+    const charts = scheduled ? await loadCandidateCharts(db) : await loadAllCharts(db, targetUserId);
+    if (!charts.length) {
+      return json({ ok: true, mode: scheduled ? "scheduled" : "manual", processed: 0, computedCount: 0, errorCount: 0, deferred: 0 });
     }
 
-    return json({
+    const promptConfig = await loadMorningPromptConfig(db);
+    const { results, deferred } = await processCharts(db, charts, force, promptConfig, startedAt);
+
+    const errors = results.filter((item) => item.status === "error");
+    // Keep the response small: pg_net stores every body in net._http_response for 6h.
+    const summary = {
       ok: true,
+      mode: scheduled ? "scheduled" : "manual",
       processed: results.length,
       computedCount: results.filter((item) => item.status === "computed").length,
-      results,
-    });
+      catchUpComputedCount: results.filter((item) => item.status === "computed" && item.catchUp).length,
+      cacheHitCount: results.filter((item) => item.reason === "cache_hit").length,
+      errorCount: errors.length,
+      deferred,
+      durationMs: Date.now() - startedAt,
+      errors: errors.map((item) => ({ userId: item.userId, error: item.error })),
+    };
+    console.info("[precompute-daily-forecasts]", JSON.stringify(summary));
+    return json(verbose ? { ...summary, results } : summary);
   } catch (error) {
     console.error("[precompute-daily-forecasts]", error);
     return json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });

@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.45
+version: 1.46
 updated: 2026-09-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-09-14 (OTP permits / restore-credential):** `otp_issue_send_permit`, `otp_consume_send_permit`, `otp_check_send_limits` (+ helpers `_otp_*`) закрыты от `anon`/`authenticated` — permit выдаёт только Vercel `otp-gate` (service_role) и потребляет `send-auth-email`; клиентские `otp_check_verify_allowed` / `otp_record_verify_failure` / `set_signin_name_hint` остаются публичными (миграция `20260914011000`). `POST /api/auth/restore-credential/register/verify` на 401 `verification_failed` теперь возвращает `reason` (`challenge_expired` / `challenge_not_found` / `registration_not_verified` …) и пишет `console.warn` — единичные 401 в prod-логах были без причины.
 
 - **2026-09-14 (cabinet CTA after book gate):** `AccountGateDialog` книги и апгрейда на Профиле больше не размонтируется через `{flag ? <Dialog visible/> : null}` — `visible={flag}`, чтобы iOS SFSafari не клинил все кнопки «Личный кабинет». Общий фикс в `account_web`.
 

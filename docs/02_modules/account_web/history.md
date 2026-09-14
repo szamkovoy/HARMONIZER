@@ -1,9 +1,13 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.18
+version: 1.19
 updated: 2026-09-14
 ---
+
+## 2026-09-14 — Realtime на `users` только в окне после кабинета
+
+- Постоянная подписка каждого устройства на UPDATE своей строки `users` имела две цены на Nano: Realtime прогонял **каждый** UPDATE `users` (last_seen/locale/GPS всех пользователей) через фильтры+RLS всех подключённых устройств (при 10k клиентов — 10k проверок на каждую запись), а собственные PATCH приложения эхом возвращались как полный `GET users(*)` (в edge-логах — 2 полных чтения профиля на каждый foreground). Мгновенный подхват нужен ровно в сценарии «оплата в кабинете» (на iOS SFSafariViewController не даёт надёжного AppState `active` при возврате) — поэтому канал теперь открывается на 30 мин от `markCabinetVisit` (`subscribeCabinetVisit`) и при холодном старте со свежим визитом; эхо без смены membership-полей игнорируется. Foreground-refetch, модалки «Уровень изменён»/«Демо завершён», проверка `purchases/last` — без изменений. Publication `supabase_realtime` для `users` **оставлена** (текущие store-версии подписаны постоянно) — снять после того, как старые версии уйдут (open_questions). Требует store-билда.
 
 ## 2026-09-14 — Cabinet present hang / dismiss deadlock
 

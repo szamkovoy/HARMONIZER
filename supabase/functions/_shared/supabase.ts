@@ -18,6 +18,34 @@ export function json(data: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+/**
+ * Supabase API gateway answers `502/503/504 {"message":"Gateway Timeout"}` after ~5s on the
+ * first PostgREST request after an idle gap (keep-alive race gateway↔PostgREST); the request
+ * never reaches Postgres, so a retry succeeds. Idempotent reads (GET/HEAD) are retried up to
+ * twice; writes and POST RPC are never retried. Mirrors `_legacy_web/app/api/_utils/supabase.ts`.
+ */
+const GATEWAY_RETRY_STATUSES = new Set([502, 503, 504]);
+const GATEWAY_RETRY_DELAYS_MS = [300, 800];
+
+export function shouldRetryGatewayResponse(status: number, method: string, attempt: number): boolean {
+  if (attempt >= GATEWAY_RETRY_DELAYS_MS.length) return false;
+  const normalized = method.toUpperCase();
+  if (normalized !== "GET" && normalized !== "HEAD") return false;
+  return GATEWAY_RETRY_STATUSES.has(status);
+}
+
+async function fetchWithGatewayRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  let response = await fetch(input, init);
+  for (let attempt = 0; ; attempt += 1) {
+    if (!shouldRetryGatewayResponse(response.status, method, attempt)) return response;
+    if (init?.signal?.aborted) return response;
+    await new Promise((resolve) => setTimeout(resolve, GATEWAY_RETRY_DELAYS_MS[attempt]));
+    if (init?.signal?.aborted) return response;
+    response = await fetch(input, init);
+  }
+}
+
 export function createServiceClient() {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -30,6 +58,7 @@ export function createServiceClient() {
       persistSession: false,
       autoRefreshToken: false,
     },
+    global: { fetch: fetchWithGatewayRetry },
   });
 }
 

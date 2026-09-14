@@ -215,11 +215,17 @@ async function loadWelcomeCandidates(
   since: string,
   userId?: string,
 ): Promise<WelcomeCandidate[]> {
-  const { data, error } = await db.rpc("email_automation_welcome_candidates", {
-    p_automation_id: automationId,
-    p_since: since,
-    p_user_id: userId ?? null,
-  });
+  // Read-only RPC (STABLE) → GET, so the Supabase gateway-timeout retry applies.
+  // GET serializes `null` as the string "null" → omit p_user_id (SQL default null) instead.
+  const { data, error } = await db.rpc(
+    "email_automation_welcome_candidates",
+    {
+      p_automation_id: automationId,
+      p_since: since,
+      ...(userId ? { p_user_id: userId } : {}),
+    },
+    { get: true },
+  );
   if (error) throw error;
   return (data ?? []) as WelcomeCandidate[];
 }
@@ -918,11 +924,26 @@ async function advanceEnrollment(
     .eq("id", enrollment.id);
 }
 
+/** Prefix failures with the phase so `[api] <stage>: <message>` in Vercel logs is actionable. */
+async function runStage<T>(stage: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error && "message" in error
+          ? String((error as { message: unknown }).message)
+          : String(error);
+    throw new Error(`${stage}: ${message}`, { cause: error });
+  }
+}
+
 export async function runEmailAutomations(db: SupabaseClient) {
-  const welcome = await enrollAccountRegistered(db);
-  const expired = await enrollSubscriptionExpired(db);
-  const inactive = await enrollInactive(db);
-  const due = await processDueAutomationSteps(db);
+  const welcome = await runStage("enroll_welcome", () => enrollAccountRegistered(db));
+  const expired = await runStage("enroll_subscription_expired", () => enrollSubscriptionExpired(db));
+  const inactive = await runStage("enroll_inactive", () => enrollInactive(db));
+  const due = await runStage("process_due_steps", () => processDueAutomationSteps(db));
   return {
     enrolled_welcome: welcome,
     enrolled_subscription_expired: expired,

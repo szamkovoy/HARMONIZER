@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.3
-updated: 2026-09-12
+version: 1.4
+updated: 2026-09-14
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -12,6 +12,10 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-14 (invoker pre-check):** `run_email_automations_every_5m` был крупнейшим источником PostgREST-трафика от Vercel (288 запусков/сутки × ~10 запросов, первый после простоя — 504). Миграция `20260914130000`: SQL-предпроверка в `invoke_run_email_automations` — на не-четвертьчасовых тиках HTTP только при due-enrollment (частичный индекс `idx_email_automation_enrollments_due`). Семантика писем не менялась: due/retry — по-прежнему ≤5 мин, enroller-фазы — каждые 15 мин (их триггеры — дни), welcome — мгновенно по триггеру. Альтернатива «просто `*/15`» отклонена: сдвигала бы retry send с 5 на 15 мин.
+- **2026-09-14 (sync no-op writes):** `pg_stat_statements`: `sync_email_contacts_from_users` — 1305 вызовов (admin users/segment/messaging/campaign send), каждый переписывал все ~15.6k `email_contacts` (`updated_at = now()` безусловно → 12M update, dead tuples, WAL, temp files на Nano). Миграция `20260914120000`: `ON CONFLICT ... DO UPDATE ... WHERE <поле> IS DISTINCT FROM <новое>` — пишутся только реально изменившиеся строки (контрольный вызов: `upserted: 1`). Семантика полей не менялась; `updated_at` теперь бампается только при фактическом изменении.
+- **2026-09-14 (grants hardening):** `sync_email_contacts_from_users`, `sync_email_contact_for_user`, `email_automation_*_candidates/users`, `shift_email_automation_enrollments_after_pause`, `invoke_run_email_automations`, `invoke_email_welcome_for_user`, `invoke_sync_email_suppressions` больше не исполняются `anon`/`authenticated` через `/rest/v1/rpc` — только `postgres` (cron/trigger) и `service_role` (Vercel runner). Миграция `20260914011000`. Инвокеры Vercel-cron берут секрет через общий `_cron_secret()` (`20260914010000`). Cron `/api/cron/email-automations` падал 4/4 на Supabase gateway 504 (первый запрос после простоя): `runEmailAutomations` теперь оборачивает фазы в `runStage` (`enroll_welcome: Gateway Timeout` в логах), `email_automation_welcome_candidates` вызывается через `rpc(..., { get: true })` (функция `STABLE`, `20260914012000`; `p_user_id` опускается вместо `null`), чтения ретраятся до 2 раз.
 
 - **2026-09-12 (pause freezes remaining drip):** Выключение пишет `paused_at`. Включение сдвигает `next_step_at` active enrollments на длительность паузы, затем `activated_at=now`. Новые события за паузу по-прежнему не догоняются. Миграция `20260912102150`.
 

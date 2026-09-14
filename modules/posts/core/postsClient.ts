@@ -183,16 +183,44 @@ export async function fetchLatestPostForLocale(locale: AppContentLocale): Promis
   return page.items[0] ?? null;
 }
 
+/**
+ * Home card memo: `LatestPostBanner` remounts when Home flips loading → ready and
+ * re-runs on every focus, which used to cost 2×(get_posts_feed + user_post_views)
+ * per launch. Same 60 s horizon as the stories warm feed.
+ */
+const LATEST_UNVIEWED_TTL_MS = 60_000;
+let latestUnviewedMemo: {
+  key: string;
+  promise: Promise<PostItem | null>;
+  fetchedAt: number;
+} | null = null;
+
+export function invalidateLatestUnviewedPostMemo(): void {
+  latestUnviewedMemo = null;
+}
+
 /** Newest video for locale that the user has not opened yet (home card). */
 export async function fetchLatestUnviewedPostForLocale(
   locale: AppContentLocale,
   userId: string | null,
 ): Promise<PostItem | null> {
-  const latest = await fetchLatestPostForLocale(locale);
-  if (!latest) return null;
-  if (!userId) return latest;
-  const viewed = await hasViewedPost(userId, latest.id);
-  return viewed ? null : latest;
+  const key = `${locale}:${userId ?? ""}`;
+  const now = Date.now();
+  if (latestUnviewedMemo && latestUnviewedMemo.key === key && now - latestUnviewedMemo.fetchedAt < LATEST_UNVIEWED_TTL_MS) {
+    return latestUnviewedMemo.promise;
+  }
+  const promise = (async () => {
+    const latest = await fetchLatestPostForLocale(locale);
+    if (!latest) return null;
+    if (!userId) return latest;
+    const viewed = await hasViewedPost(userId, latest.id);
+    return viewed ? null : latest;
+  })();
+  latestUnviewedMemo = { key, promise, fetchedAt: now };
+  promise.catch(() => {
+    if (latestUnviewedMemo?.promise === promise) latestUnviewedMemo = null;
+  });
+  return promise;
 }
 
 export async function hasViewedPost(userId: string, postId: string): Promise<boolean> {
@@ -212,6 +240,7 @@ export async function hasViewedPost(userId: string, postId: string): Promise<boo
 }
 
 export async function markPostViewed(userId: string, postId: string): Promise<void> {
+  invalidateLatestUnviewedPostMemo();
   const supabase = getSupabase();
   if (!supabase) return;
   const { error } = await supabase.from("user_post_views").upsert(

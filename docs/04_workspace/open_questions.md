@@ -3,7 +3,7 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.40
+version: 1.41
 updated: 2026-09-14
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -141,6 +141,17 @@ code_refs: []
 **Действие:** оставить как есть до перехода на более быстрые траектории; при таком переходе — накапливать `flickerPhase` в `MandalaSoundProvider` (`phase += 2π·f·dt`) и передавать cumulative phase в шейдер вместо `(syncTime, flickerHz)`, расширив `MandalaSoundVisualSync` (точка риска задокументирована в `bindu/dependencies.md`).
 
 ## `infra`
+
+- **Supabase compute Nano — источник хронических `504 Gateway Timeout` (2026-09-14).**  
+**Контекст:** аудит показал ~40/ч PostgREST 504 через 5 s при idle БД, p99 успешных чтений ~5 s, «Warp server error: Thread killed by timeout manager» в PostgREST-логах; проект на Nano (0.5 GB RAM, разделяемых между Postgres, PostgREST, Realtime, Auth, Storage, pg_net). Код-фиксы (retry-once на чтениях, SQL-предпроверки инвокеров, явные pg_net таймауты) снижают симптом, не причину.  
+**Уточнение 2026-09-14 (edge-логи, `response.origin_time`):** 504 = upstream не ответил за 5 s; при холодном старте приложения (16 параллельных тривиальных запросов) origin-время достигало 6–9 s **при статусе 200** — т.е. пользователи получают не ошибку, а медленный старт; базовая латентность тривиальных запросов 0.3–0.7 s (норма 20–50 ms). Регион/keep-alive не при чём (Edge в eu-west-1 ловил те же 504). После 20260914120000 (delta-only precompute, no-op sync контактов, ретенция cron-лога) фон снижен, но ёмкость инстанса та же.  
+**Решение продукта (2026-09-14): апгрейд compute не планируется** — работаем на Nano, только программные оптимизации. Сделано без билда: JWT-авторизация Vercel-роутов без DB (JWKS), параллельный тёплый путь `daily-forecast` + memory-кэш `prompts`, предпроверка `invoke_run_email_automations`, `VACUUM FULL net._http_response`. Сделано в код клиента (войдёт в следующий store-билд): memo `syncUserLocaleToServer` (PATCH `users` на каждом foreground → 0), Realtime `users` только в окне после кабинета, memo `LatestPostBanner`, окно 30 с `ensureDayPlanPrefetch`.  
+**Осталось (решения за продуктом):**  
+  1. ~~Poll `get_story_feed` каждые 20 с~~ — **закрыто 2026-09-14**: продукт подтвердил, `storyFeedPollDelay` (20 с первые 3 мин, затем 90 с, только в foreground). Войдёт в следующий store-билд.  
+  2. **Снять `users` из publication `supabase_realtime`** после того, как store-версии до этого билда перестанут использоваться (сейчас они подписаны постоянно; снятие сломает им только мгновенный подхват, не работу). Проверка: доля `x_client_info`/версий в edge-логах.  
+  3. Если после билда origin-время тривиальных запросов на старте останется >2 s — вернуться к вопросу compute с цифрами Reports → Database.
+- **История миграций — закрыто 2026-09-14.** Remote `schema_migrations` расходилась с файлами (MCP `apply_migration` писал свои timestamps). Проверено, что все 9 local-only файлов без пары по имени фактически применены (объекты в БД есть), затем `migration repair`: 76 → `applied`, 73 → `reverted`; `db push --dry-run` = up to date. Правило дальше: только `supabase db push` (см. `supabase/README.md`).
+- **Advisor `auth_leaked_password_protection` / `auth_insufficient_mfa_options` (2026-09-14).** Приложение не использует password-логин (email OTP + passkey restore), поэтому оба предупреждения информационные. HIBP-защиту можно включить в Dashboard → Authentication → Providers → Email (Management API из воркспейса недоступен). MFA — продуктовое решение.
 
 - Файлы `docs/tmp_docs/29042026/PATCH_5_RLS_tightening.md` и `PATCH_11_whisper_quality.md` перенесены в `docs/05_archive/migrated/infra/`. В `docs/_audit.md` и в `docs/tmp_docs/29042026/00_OPTIMIZATION_PLAN.md` остаются ссылки на старые пути — обновить при следующем проходе аудита или архивации всей серии `29042026`.
 - **Локальный запуск Supabase CLI не подтверждён в этом workspace**  

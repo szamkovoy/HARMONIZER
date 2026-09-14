@@ -1,13 +1,15 @@
 ---
 id: 02_modules/webinars/history
 title: Webinars History
-version: 3.2
-updated: 2026-07-31
+version: 3.3
+updated: 2026-09-14
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708140000_webinars.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-14 (webinar cron pre-check):** Minutely `invoke_notify_webinar_start` делал HTTP → Edge → PostgREST каждую минуту без due-вебинаров (1440 round-trip/сутки, ~40% с gateway 504). Теперь предпроверка в SQL, `timeout_milliseconds 30s`; Edge вызывается только при due webinar. Миграция `20260914010000`; Edge передеплоена с retry-once на gateway 5xx для чтений.
 
 - **2026-08-10 (admin list infinite scroll):** `GET /api/admin/webinars?limit=&offset=` + подзагрузка в списке админки.
 

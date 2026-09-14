@@ -1,13 +1,17 @@
 ---
 id: 02_modules/author_presence/history
 title: Author Presence History
-version: 1.6
-updated: 2026-07-13
+version: 1.7
+updated: 2026-09-14
 depends_on: [02_modules/subscription/spec, 02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/migrations/20260708130000_posts_comments.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-14 (story poll → адаптивный, подтверждено продуктом):** `StorySessionBootstrap`: 20 с первые 3 мин после запуска/foreground (`FEED_POLL_BURST_WINDOW_MS`), затем 90 с (`FEED_POLL_IDLE_INTERVAL_MS`); `setInterval` заменён цепочкой `setTimeout`, которая не работает в background (Android держал таймеры) и перезапускается с немедленным refresh на `active`. Для сидящего в приложении пользователя фон падает с 3 до ~0.7 RPC/мин; первые минуты после открытия — прежние 20 с. Требует store-билда.
+- **2026-09-14 (LatestPostBanner memo; story poll — не тронут):** Edge-логи холодного старта: `get_posts_feed` ×2 и `user_post_views` ×2 в одну секунду — баннер рендерится в двух ветках Home (loading / ready) и перемонтируется. Fix: 60 s memo в `fetchLatestUnviewedPostForLocale` (сброс в `markPostViewed`), требует store-билда. Отдельно зафиксировано, но **не изменено**: `get_story_feed` опрашивается каждые 20 с всё время, пока приложение в foreground (решение 2026-07-09 «45s→20s»); это 3 RPC/мин на активное устройство — при 10k пользователей доминирующий фон PostgREST. Вынесено в open_questions как product-вопрос (варианты: 20 с первые 2–3 мин после foreground, затем 60–120 с).
+- **2026-09-14 (cleanup-expired-stories задеплоена):** Hourly `cleanup_expired_stories_hourly` получал 404 — Edge-функция не была задеплоена; истёкшие сторис удалял только safety net в `GET /api/admin/stories`. Функция задеплоена, invoker (`20260914010000`) делает SQL-предпроверку наличия истёкших published non-evergreen stories и передаёт `timeout_milliseconds 30s`. Первый прогон удалил 1 story + storage assets.
 
 - **2026-08-02 (stories cold placeholder):** Cold-start без feed — тихий circle (`surfaceElevated` + read stroke) вместо `ActivityIndicator`, чтобы не мелькал chrome после splash.
 - **2026-08-02 (stories ring avatar flash):** При ошибке `get_story_feed` клиент возвращал `[]`, и `StoriesRing` рисовал бренд-аватар поверх уже известных evergreen-сторис. Fix: ошибка fetch → keep warm-cache; UI `peekStoryFeedForUi` (stale-while-revalidate); cold start без cache — quiet placeholder + один retry, бренд-аватар только после settled empty; успешный пустой feed по-прежнему очищает кольцо.

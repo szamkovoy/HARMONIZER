@@ -34,9 +34,37 @@ export function mergeAbortSignals(signals: AbortSignal[]): AbortSignal {
   return controller.signal;
 }
 
+/**
+ * Supabase API gateway answers `502/503/504 {"message":"Gateway Timeout"}` after exactly ~5s
+ * on the first PostgREST request after an idle gap (keep-alive race gateway↔PostgREST,
+ * "Warp server error: Thread killed by timeout manager"; observed 2026-09-14: 25 of 205
+ * requests/h at night). The request never reaches Postgres, so an immediate retry succeeds.
+ * Idempotent reads (GET/HEAD, incl. `rpc(..., { get: true })`) are retried up to
+ * `SUPABASE_GATEWAY_RETRY_DELAYS_MS.length` times; writes and POST RPC are never retried.
+ */
+export const SUPABASE_GATEWAY_RETRY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
+export const SUPABASE_GATEWAY_RETRY_DELAYS_MS: readonly number[] = [300, 800];
+
+function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
+  const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+  return method.toUpperCase();
+}
+
+/** `attempt` = number of attempts already made (0 after the first response). */
+export function shouldRetrySupabaseGatewayResponse(
+  status: number,
+  method: string,
+  attempt: number,
+): boolean {
+  if (attempt >= SUPABASE_GATEWAY_RETRY_DELAYS_MS.length) return false;
+  const normalized = method.toUpperCase();
+  if (normalized !== "GET" && normalized !== "HEAD") return false;
+  return SUPABASE_GATEWAY_RETRY_STATUSES.has(status);
+}
+
 /** sb_* keys are not JWTs — never send them as Authorization: Bearer. */
 function fetchWithoutSbBearer(apiKey: string): typeof fetch {
-  return (input, init) => {
+  return async (input, init) => {
     const headers = new Headers(init?.headers);
     if (isModernSupabaseApiKey(apiKey)) {
       const auth = headers.get("Authorization");
@@ -45,9 +73,20 @@ function fetchWithoutSbBearer(apiKey: string): typeof fetch {
       }
       if (!headers.has("apikey")) headers.set("apikey", apiKey);
     }
-    const timeout = AbortSignal.timeout(SUPABASE_FETCH_TIMEOUT_MS);
-    const signal = init?.signal ? mergeAbortSignals([init.signal, timeout]) : timeout;
-    return fetch(input, { ...init, headers, signal });
+    const method = requestMethod(input, init);
+    const attemptFetch = () => {
+      const timeout = AbortSignal.timeout(SUPABASE_FETCH_TIMEOUT_MS);
+      const signal = init?.signal ? mergeAbortSignals([init.signal, timeout]) : timeout;
+      return fetch(input, { ...init, headers, signal });
+    };
+    let response = await attemptFetch();
+    for (let attempt = 0; ; attempt += 1) {
+      if (!shouldRetrySupabaseGatewayResponse(response.status, method, attempt)) return response;
+      if (init?.signal?.aborted) return response;
+      await new Promise((resolve) => setTimeout(resolve, SUPABASE_GATEWAY_RETRY_DELAYS_MS[attempt]));
+      if (init?.signal?.aborted) return response;
+      response = await attemptFetch();
+    }
   };
 }
 
@@ -155,6 +194,101 @@ function decodeAccessTokenClaims(token: string): AccessTokenClaims | null {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Local JWT signature verification (Supabase asymmetric signing keys, ES256).
+// Removes one PostgREST round trip (`user_roles` probe) per authenticated route —
+// three of them at app launch alone. JWKS is public and served with max-age=600.
+// Any doubt (HS256 legacy token, unknown kid, JWKS unreachable) → fall back to the
+// proven probe path below, so behaviour never gets stricter than before.
+// ---------------------------------------------------------------------------
+const JWKS_TTL_MS = 10 * 60_000;
+const JWKS_FETCH_TIMEOUT_MS = 3_000;
+type JsonWebKey256 = { kid?: string; kty: string; crv?: string; x?: string; y?: string; alg?: string };
+let jwksCache: { keys: Map<string, CryptoKey>; expiresAt: number } | null = null;
+let jwksInFlight: Promise<Map<string, CryptoKey>> | null = null;
+
+function base64UrlToBytes(input: string): Uint8Array<ArrayBuffer> {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+  const buf = Buffer.from(padded, "base64");
+  const out = new Uint8Array(new ArrayBuffer(buf.byteLength));
+  out.set(buf);
+  return out;
+}
+
+function decodeTokenHeader(token: string): { alg?: string; kid?: string } | null {
+  try {
+    const headerPart = token.split(".")[0];
+    if (!headerPart) return null;
+    return JSON.parse(Buffer.from(base64UrlToBytes(headerPart)).toString("utf8")) as { alg?: string; kid?: string };
+  } catch {
+    return null;
+  }
+}
+
+async function loadJwks(): Promise<Map<string, CryptoKey>> {
+  if (jwksCache && jwksCache.expiresAt > Date.now()) return jwksCache.keys;
+  if (jwksInFlight) return jwksInFlight;
+  jwksInFlight = (async () => {
+    const base = requiredEnv("NEXT_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_URL", "SUPABASE_URL").replace(/\/+$/, "");
+    const res = await fetch(`${base}/auth/v1/.well-known/jwks.json`, {
+      signal: AbortSignal.timeout(JWKS_FETCH_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`jwks ${res.status}`);
+    const body = (await res.json()) as { keys?: JsonWebKey256[] };
+    const keys = new Map<string, CryptoKey>();
+    for (const jwk of body.keys ?? []) {
+      if (jwk.kty !== "EC" || jwk.crv !== "P-256" || !jwk.kid) continue;
+      const key = await crypto.subtle.importKey(
+        "jwk",
+        { kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y, ext: true },
+        { name: "ECDSA", namedCurve: "P-256" },
+        false,
+        ["verify"],
+      );
+      keys.set(jwk.kid, key);
+    }
+    jwksCache = { keys, expiresAt: Date.now() + JWKS_TTL_MS };
+    return keys;
+  })().finally(() => {
+    jwksInFlight = null;
+  });
+  return jwksInFlight;
+}
+
+/**
+ * `true` = signature valid, `false` = definitely invalid, `null` = cannot decide locally
+ * (non-ES256 token, unknown kid after refresh, JWKS unavailable).
+ */
+export async function verifyAccessTokenLocally(token: string): Promise<boolean | null> {
+  const header = decodeTokenHeader(token);
+  if (!header || header.alg !== "ES256" || !header.kid) return null;
+  const [h, p, s] = token.split(".");
+  if (!h || !p || !s) return false;
+  try {
+    let keys = await loadJwks();
+    let key = keys.get(header.kid);
+    if (!key && jwksCache) {
+      // Key rotation: refresh once, then give up locally.
+      jwksCache = null;
+      keys = await loadJwks();
+      key = keys.get(header.kid);
+    }
+    if (!key) return null;
+    const signature = base64UrlToBytes(s);
+    if (signature.length !== 64) return false;
+    return await crypto.subtle.verify(
+      { name: "ECDSA", hash: "SHA-256" },
+      key,
+      signature,
+      new TextEncoder().encode(`${h}.${p}`),
+    );
+  } catch {
+    return null;
+  }
+}
+
 function isJwtRejectError(message: string | undefined): boolean {
   const msg = (message ?? "").toLowerCase();
   return (
@@ -203,6 +337,11 @@ export async function requireUser(req: Request): Promise<{ id: string; email: st
   const claims = decodeAccessTokenClaims(token);
   if (!claims) throw unauthorized();
   if (claims.exp != null && claims.exp * 1000 <= Date.now()) throw unauthorized();
+
+  // 0) Local ES256 verification against the project JWKS — no DB round trip at all.
+  const local = await verifyAccessTokenLocally(token);
+  if (local === true) return { id: claims.sub, email: claims.email };
+  if (local === false) throw unauthorized();
 
   // 1) PostgREST: verifies JWT with project secret; no Auth round-trip.
   try {

@@ -73,11 +73,15 @@ export async function loadCachedMorningRecommendation(params: {
   responseLocale?: AppContentLocale;
   requestedLocale?: string | null;
 }): Promise<MorningRecommendationPayload | null> {
-  const scenario = await getScenario("morning_recommendation", params.db);
+  // `users` read does not depend on scenario/prompt — overlap the round trips
+  // (scenario + prompt are usually served from the 60 s memory caches).
+  const [scenario, user] = await Promise.all([
+    getScenario("morning_recommendation", params.db),
+    loadUser(params.db, params.userId),
+  ]);
   if (!scenario?.monologue_prompt_key) return null;
   const prompt = await getActivePrompt(params.db, scenario.monologue_prompt_key);
   const expectedModel = getModelByHint(prompt.model_hint);
-  const user = await loadUser(params.db, params.userId);
   const responseLocale = resolveContentLocale(user.locale, params.responseLocale ?? params.requestedLocale);
   const cached = await checkScenarioCache<Record<string, unknown>>(scenario, params.userId, params.db, responseLocale);
   if (!cached || !isMorningRecommendationCacheValid(cached, expectedModel, responseLocale)) {

@@ -5,6 +5,8 @@
  * Обязанности:
  *   1. Supabase Realtime подписка на собственную строку `users` — UPDATE
  *      (смена membership_tier на сайте) мгновенно триггерит refreshProfile().
+ *      Канал открыт только в окне после визита в Личный кабинет (см. ниже),
+ *      эхо собственных PATCH без смены membership-полей игнорируется.
  *   2. Тихий refetch при возвращении приложения в foreground: сравниваем
  *      membership-поля и дёргаем refreshProfile() только при изменении
  *      (без profileLoading-мигания на каждом переключении приложений).
@@ -22,6 +24,7 @@ import { useModalDismissForBrowser } from "@/modules/account/core/useModalDismis
 import {
   clearCabinetVisit,
   readFreshCabinetVisit,
+  subscribeCabinetVisit,
 } from "@/modules/account/core/openAccountCabinet";
 import { readAccountFlag, writeAccountFlag } from "@/modules/account/core/accountFlagsStore";
 import { fetchLastPurchase } from "@/modules/account/core/purchasesClient";
@@ -34,6 +37,9 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { requireSupabase } from "@/services/supabase";
 import { logRuntimeEvent, logRuntimeTap } from "@/services/runtimeDiagnostics";
+
+/** Окно Realtime-подписки на `users` после ухода в Личный кабинет (вебхук оплаты может запоздать). */
+const REALTIME_WINDOW_MS = 30 * 60 * 1000;
 
 type NoticeState =
   | { kind: "none" }
@@ -61,25 +67,59 @@ export function MembershipEventsBridge() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
-  // ── 1. Realtime: своя строка users ─────────────────────────────────────────
+  // ── 1. Realtime: своя строка users — только в окне после визита в кабинет ──
+  // Постоянная подписка каждого клиента на `users` заставляла Realtime прогонять
+  // каждый UPDATE `users` (last_seen/locale/GPS всех пользователей) через фильтры
+  // и RLS всех подключённых устройств, а собственные PATCH возвращались эхом как
+  // полный refetch профиля. Мгновенный подхват нужен ровно в одном сценарии —
+  // оплата в кабинете, — поэтому канал живёт REALTIME_WINDOW_MS после
+  // `markCabinetVisit` (и при холодном старте, если визит ещё свежий); остальное
+  // покрывает foreground-refetch ниже.
+  const [realtimeUntil, setRealtimeUntil] = useState(0);
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
+    const open = () => setRealtimeUntil(Date.now() + REALTIME_WINDOW_MS);
+    void readFreshCabinetVisit(userId).then((visit) => {
+      if (cancelled || !visit) return;
+      const remaining = visit.ts + REALTIME_WINDOW_MS - Date.now();
+      if (remaining > 0) setRealtimeUntil(visit.ts + REALTIME_WINDOW_MS);
+    });
+    const unsubscribe = subscribeCabinetVisit((visitUserId) => {
+      if (visitUserId === userId) open();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || realtimeUntil <= Date.now()) return;
     const supabase = requireSupabase();
     const channel = supabase
       .channel(`users-membership-${userId}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "users", filter: `id=eq.${userId}` },
-        () => {
+        (payload) => {
+          const next = (payload.new ?? null) as Record<string, unknown> | null;
+          const hasMembership = Boolean(next && "membership_tier" in next);
+          // Эхо собственных PATCH (locale / last_seen / GPS) не меняет тариф — пропускаем.
+          if (hasMembership && membershipFingerprint(next) === membershipFingerprint(profileRef.current)) {
+            return;
+          }
           logRuntimeEvent("membership:realtime_update", { userId });
           void refreshProfile().catch(() => undefined);
         },
       )
       .subscribe();
+    const timer = setTimeout(() => setRealtimeUntil(0), Math.max(0, realtimeUntil - Date.now()));
     return () => {
+      clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
-  }, [refreshProfile, userId]);
+  }, [realtimeUntil, refreshProfile, userId]);
 
   // ── 2. Foreground: тихий refetch membership-полей ──────────────────────────
   useEffect(() => {
