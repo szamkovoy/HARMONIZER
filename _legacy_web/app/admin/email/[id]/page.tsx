@@ -273,7 +273,10 @@ export default function AdminEmailCampaignPage() {
     void load();
   }, [load]);
 
-  async function refreshCount(): Promise<number | null> {
+  async function refreshCount(): Promise<{
+    count: number;
+    copyEmpty: boolean;
+  } | null> {
     setCounting(true);
     setSegmentHint(null);
     try {
@@ -281,6 +284,7 @@ export default function AdminEmailCampaignPage() {
         count: number;
         segment_count?: number;
         skipped_locale_count?: number;
+        copy_empty?: boolean;
         no_audience?: boolean;
       }>("/api/admin/email/segment", {
         method: "POST",
@@ -292,6 +296,7 @@ export default function AdminEmailCampaignPage() {
           html_body_i18n: htmlI18n,
         }),
       });
+      const copyEmpty = result.copy_empty === true;
       setRecipientCount(result.count);
       const skipped = result.skipped_locale_count ?? 0;
       setSkippedLocaleCount(skipped);
@@ -299,12 +304,16 @@ export default function AdminEmailCampaignPage() {
         setSegmentHint(
           "Выберите аудиторию («Вся база» / «Все установившие» / тариф) или укажите фрагмент email.",
         );
+      } else if (copyEmpty) {
+        setSegmentHint(
+          `В сегменте ${result.segment_count ?? result.count}. Письмо пока пустое — это размер сегмента, не те, кому уйдёт. После текста письмо получат только те, у кого заполнен перевод на язык профиля.`,
+        );
       } else if (skipped > 0) {
         setSegmentHint(
           `В сегменте ${result.segment_count ?? result.count + skipped}, из них ${skipped} без перевода на язык профиля — им письмо не уйдёт.`,
         );
       }
-      return result.count;
+      return { count: result.count, copyEmpty };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось посчитать сегмент");
       return null;
@@ -437,16 +446,22 @@ export default function AdminEmailCampaignPage() {
     if (!campaign || readOnly) return;
     setError(null);
     // Fresh count with the same algorithm as send (segment ∩ exact locale).
-    const exactCount = await refreshCount();
-    if (exactCount === null) return;
-    if (exactCount === 0) {
+    const preview = await refreshCount();
+    if (preview === null) return;
+    if (preview.copyEmpty) {
+      setError(
+        "Сначала напишите письмо — пустое письмо никому не уйдёт. Число выше — размер сегмента.",
+      );
+      return;
+    }
+    if (preview.count === 0) {
       setError(
         segmentHint ||
           "Получателей нет — проверьте сегмент и переводы на языки профилей.",
       );
       return;
     }
-    if (!confirm(`Отправить рассылку ${exactCount} получателям?`)) return;
+    if (!confirm(`Отправить рассылку ${preview.count} получателям?`)) return;
     setSending(true);
     try {
       // Persist segment + copy so send uses the same content we just counted.
@@ -851,7 +866,9 @@ export default function AdminEmailCampaignPage() {
               регистрация в системе за сутки. «Не в гармонизаторе» — начал OTP/приложение,
               онбординг не завершён. «Только рассылки» — импорт из Геткурса без входа в
               приложение. «Навигатор» — free без активного демо. Активность ниже — по
-              последнему входу в приложение (Гармонизатор).
+              последнему входу в приложение (Гармонизатор). Даты «в системе» —{" "}
+              <span className="whitespace-nowrap">users.created_at</span> (аккаунт), не
+              онбординг; без даты в сегмент входят и контакты без аккаунта.
             </p>
 
             <div className="grid gap-3 sm:grid-cols-2">

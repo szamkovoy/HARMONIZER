@@ -133,8 +133,24 @@ export async function POST(req: Request, ctx: Ctx) {
     await db.rpc("sync_email_contacts_from_users");
 
     const segment = parseEmailSegmentQuery(campaign.segment_query);
-    const { eligible, skippedLocaleCount: skippedLocale, no_audience } =
+    const { eligible, skippedLocaleCount: skippedLocale, no_audience, copyEmpty } =
       await resolveCampaignRecipients(db, segment, copySource);
+
+    if (copyEmpty) {
+      await db
+        .from("email_campaigns")
+        .update({
+          status: "failed",
+          skipped_locale_count: 0,
+          recipient_count: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      return json(
+        { error: "Письмо пустое — заполните текст и переводы на языки профилей." },
+        { status: 400 },
+      );
+    }
 
     if (no_audience) {
       await db

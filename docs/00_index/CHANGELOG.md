@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.23
+version: 3.26
 updated: 2026-09-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,9 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-14 (577): Wipe/OTP-delete больше не оставляют адрес в рассылке: `email_contacts` CASCADE с `users`; 743 мёртвых контакта без аккаунта удалены. Docs `marketing_email` + `account_web`.
+- 2026-09-14 (576): Admin email segment count was silently capped at PostgREST `max_rows` 1000 — «Вся база» и даты «регистрация в системе» считали не всю `email_contacts`. Paginated fetch + empty-draft no longer flagged as «все без перевода». Docs `marketing_email`.
+- 2026-09-14 (575): Profile language combo on iPhone: English often spun then left the page in RU without the confirm sheet (German in the same session worked). One `LocaleRebuildModal` for probe/confirm/loading; shared AbortController; retry stuck optimistic. Docs `profile` + `i18n`.
 - 2026-09-14 (574): App marketing version **1.2.4** (`app.json` / `package.json`; iOS 1.2.3 train closed after App Store approval). Store codes via EAS autoIncrement.
 - 2026-09-14 (573): Doc-sync `[OFF_SCRIPT_NOTE]`: в `communicator/spec` § очистки стрима добавлены `OFF_SCRIPT_NOTE` / `CANCEL_EVENT` / `SIMULATE_EVENT` в список `MARKER_RE`; в `assistant/spec` таблице `dialogBranchPrompts` — блок OFF-SCRIPT REQUESTS и экспорт `prependOffScriptNote` (основное описание фичи уже в §2 / history / (572)).
 - 2026-09-14 (572): `assistant` — off-script acknowledgement `[OFF_SCRIPT_NOTE: text]` (QA Audrone: вопрос о практике в Day-tab add-flow молча «съеден» finalize). Одно правило в `sharedPreamble` + строка в каждой ветке: модель кладёт одно тёплое предложение на языке ответа в невидимый маркер, видимый ответ продолжает шаг; сервер снимает ноту с первого черновика и `prependOffScriptNote` ставит её первым абзацем поверх любого visible-текста, включая детерминированные финалы. Off-script содержание — не данные шага и не ответ на closure-вопрос; в `noPractice`-flow без ложного обещания практики. Новых веток FSM нет. `markers.ts` (`offScriptNote`), QA-guard `off_script_note`, клиентский `dialogTextCleanup`/`MARKER_RE` — паритет. Live smoke DeepSeek RU/DE (6 кейсов) — ок.

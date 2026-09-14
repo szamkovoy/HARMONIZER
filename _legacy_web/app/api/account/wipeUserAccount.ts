@@ -7,7 +7,8 @@
  * 2) отменить активные email-automation enrollments (цепочки не должны
  *    продолжаться после wipe; повторная регистрация может стартовать заново);
  * 3) снимок buyer_email на payment_contracts / payments (отчёты без user_id);
- * 4) auth.admin.deleteUser — PII каскадом; леджер остаётся (ON DELETE SET NULL).
+ * 4) auth.admin.deleteUser — PII каскадом: `email_contacts` уходит вместе с
+ *    `users` (ON DELETE CASCADE); платёжный леджер остаётся (ON DELETE SET NULL).
  *
  * Новый провайдер: добавить case в cancelProviderSubscription — иначе delete
  * упадёт (fail-closed), чтобы списания не продолжались после wipe.

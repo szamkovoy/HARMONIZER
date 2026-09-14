@@ -1,9 +1,13 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.19
+version: 1.20
 updated: 2026-09-14
 ---
+
+## 2026-09-14 — Wipe удаляет контакт рассылки
+
+- `email_contacts.user_id` больше не `ON DELETE SET NULL`: удаление аккаунта (`wipeUserAccount` / OTP-ghost cleanup) уносит строку рассылки вместе с `users` (CASCADE). Мёртвые контакты без аккаунта вычищены. Платёжный леджер по-прежнему SET NULL.
 
 ## 2026-09-14 — Realtime на `users` только в окне после кабинета
 

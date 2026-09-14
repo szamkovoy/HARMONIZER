@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.19
+version: 1.20
 updated: 2026-09-14
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
@@ -94,7 +94,7 @@ code_refs:
 | `GET /api/account/purchases/book` | Bearer JWT Supabase (приложение) | Ownership книги для ридера: `{ owned, contractId?, purchasedAt? }` (active one_time `tier=book`). Shared helper `bookOwnership.ts` с overview |
 | `GET /api/account/subscription` | Bearer кабинетной сессии | Последний контракт со статусом active/cancelled |
 | `DELETE /api/account/subscription` | Bearer кабинетной сессии | Отмена через `cancelActiveSubscriptionsForUser` (`lavatop` → Lava DELETE; `yookassa` → methods `inactive` + сброс `payment_method_id`) + статус cancelled; доступ до `current_period_end` / `membership_expires_at`. |
-| `DELETE /api/account/delete` | Bearer JWT Supabase (приложение) | Удаление аккаунта через `wipeUserAccount`: (1) email из user JWT (`requireUser`); (2) если `users.store_review_account` — **403** (демо модерации сторов); (3) `cancelActiveSubscriptionsForUser` → `cancelProviderSubscription` (Lava API; ЮKassa — DB-only до рекуррента; unknown provider → fail-closed); (4) `cancelActiveEmailAutomationsForUser` — активные email-цепочки → `cancelled` (повторная регистрация может стартовать welcome заново); (5) снимок `buyer_email`; (6) `auth.admin.deleteUser` — леджер остаётся (`ON DELETE SET NULL`). Ответ `{ deleted: true }`. Тот же wipe — `DELETE /api/admin/users/[id]` (админский wipe store-review не блокирует). |
+| `DELETE /api/account/delete` | Bearer JWT Supabase (приложение) | Удаление аккаунта через `wipeUserAccount`: (1) email из user JWT (`requireUser`); (2) если `users.store_review_account` — **403** (демо модерации сторов); (3) `cancelActiveSubscriptionsForUser` → `cancelProviderSubscription` (Lava API; ЮKassa — DB-only до рекуррента; unknown provider → fail-closed); (4) `cancelActiveEmailAutomationsForUser` — активные email-цепочки → `cancelled` (повторная регистрация может стартовать welcome заново); (5) снимок `buyer_email`; (6) `auth.admin.deleteUser` — леджер остаётся (`ON DELETE SET NULL`); `email_contacts` уходит CASCADE вместе с `users`. Ответ `{ deleted: true }`. Тот же wipe — `DELETE /api/admin/users/[id]` (админский wipe store-review не блокирует). |
 | `POST /api/account/webhooks/lava` | заголовок `X-Api-Key` = `LAVATOP_WEBHOOK_SECRET` | Приём событий Lava (см. §3.1) |
 | `POST /api/account/webhooks/yookassa` | опц. `YOOKASSA_WEBHOOK_SECRET` + всегда GET payment у API | События ЮKassa (см. §3.3) |
 

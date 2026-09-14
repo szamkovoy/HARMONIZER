@@ -528,7 +528,7 @@ export async function enrollInactive(db: SupabaseClient): Promise<number> {
 
 /**
  * Stop all active automation drips for a user about to be wiped.
- * Contact rows survive (user_id → null); without this, due-sends would continue.
+ * `deleteUser` then cascades `email_contacts`; this cancels enrollments first.
  */
 export async function cancelActiveEmailAutomationsForUser(
   db: SupabaseClient,
@@ -717,7 +717,7 @@ export async function processDueAutomationSteps(
       continue;
     }
 
-    // Account wipe leaves the contact but clears user_id — stop drips (no orphan sends).
+    // No linked account (should not happen after wipe CASCADE) — do not send.
     if (!contact.user_id) {
       await db
         .from("email_automation_enrollments")

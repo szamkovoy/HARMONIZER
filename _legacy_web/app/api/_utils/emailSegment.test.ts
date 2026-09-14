@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  fetchAllPostgrestRows,
   hasEmailSegmentAudience,
   normalizeEmailSegmentAudience,
   parseEmailSegmentQuery,
+  POSTGREST_PAGE_SIZE,
 } from "./emailSegment";
 
 describe("emailSegment audience", () => {
@@ -57,5 +59,27 @@ describe("emailSegment audience", () => {
     const q = parseEmailSegmentQuery({ not_in_harmonizer: true });
     expect(q.not_in_harmonizer).toBe(true);
     expect(hasEmailSegmentAudience(q)).toBe(true);
+  });
+});
+
+describe("fetchAllPostgrestRows", () => {
+  it("walks past the 1000-row PostgREST cap", async () => {
+    const pages = [
+      Array.from({ length: POSTGREST_PAGE_SIZE }, (_, i) => i),
+      Array.from({ length: POSTGREST_PAGE_SIZE }, (_, i) => i + POSTGREST_PAGE_SIZE),
+      [2000, 2001, 2002],
+    ];
+    const result = await fetchAllPostgrestRows(async (from) => {
+      const idx = from / POSTGREST_PAGE_SIZE;
+      return pages[idx] ?? [];
+    });
+    expect(result).toHaveLength(2003);
+    expect(result[0]).toBe(0);
+    expect(result[2002]).toBe(2002);
+  });
+
+  it("returns a single short page as-is", async () => {
+    const result = await fetchAllPostgrestRows(async () => [1, 2, 3]);
+    expect(result).toEqual([1, 2, 3]);
   });
 });

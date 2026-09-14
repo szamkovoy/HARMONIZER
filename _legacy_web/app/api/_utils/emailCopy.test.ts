@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveExactEmailCopy } from "./emailCopy";
+import { resolveExactEmailCopy, isEmailCopyEmpty } from "./emailCopy";
 
 describe("resolveExactEmailCopy", () => {
   const source = {
@@ -37,5 +37,29 @@ describe("resolveExactEmailCopy", () => {
         htmlBodyI18n: {},
       }),
     ).toBeNull();
+  });
+});
+
+describe("isEmailCopyEmpty", () => {
+  it("is true for a blank draft (no subject/body in any locale)", () => {
+    expect(
+      isEmailCopyEmpty({
+        subject: "",
+        htmlBody: "",
+        subjectI18n: {},
+        htmlBodyI18n: {},
+      }),
+    ).toBe(true);
+  });
+
+  it("is false when RU copy is authored", () => {
+    expect(
+      isEmailCopyEmpty({
+        subject: "Тема",
+        htmlBody: "<p>Тело</p>",
+        subjectI18n: {},
+        htmlBodyI18n: {},
+      }),
+    ).toBe(false);
   });
 });

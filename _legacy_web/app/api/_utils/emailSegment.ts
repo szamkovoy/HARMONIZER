@@ -1,9 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  isEmailCopyEmpty,
   resolveExactEmailCopy,
   type EmailCopySource,
 } from "./emailCopy";
+
+/**
+ * Hosted PostgREST `max_rows` (and local `supabase/config.toml`) silently cap
+ * a single table select. `.limit(20000)` still returns at most this many rows.
+ */
+export const POSTGREST_PAGE_SIZE = 1000;
 
 const VISIBLE_TIERS = ["free", "oracle", "master"] as const;
 type VisibleTier = (typeof VISIBLE_TIERS)[number];
@@ -193,6 +200,23 @@ export function normalizeEmailSegmentAudience(
   };
 }
 
+/** Walk PostgREST pages so a segment is not truncated at `max_rows` (1000). */
+export async function fetchAllPostgrestRows<T>(
+  loadPage: (from: number, to: number) => Promise<T[]>,
+  pageSize = POSTGREST_PAGE_SIZE,
+): Promise<T[]> {
+  if (pageSize <= 0) return [];
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const page = await loadPage(from, from + pageSize - 1);
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
 /**
  * Resolve contacts matching segment. Countries from the filtered set.
  * Prefer live `users.locale` over stale `email_contacts.locale`.
@@ -222,31 +246,36 @@ export async function resolveEmailSegment(
     query.email_only === true ||
     Boolean(query.membership_tiers?.length);
 
-  let contactQuery = db
-    .from("email_contacts")
-    .select("id, email, locale, country_code, user_id, source, marketing_status, unsubscribe_token")
-    .in("marketing_status", statuses)
-    .limit(20000);
+  let contacts = await fetchAllPostgrestRows<EmailContactRow>(async (from, to) => {
+    let contactQuery = db
+      .from("email_contacts")
+      .select("id, email, locale, country_code, user_id, source, marketing_status, unsubscribe_token")
+      .in("marketing_status", statuses);
 
-  // «Все установившие» / тарифы / демо — только контакты с аккаунтом приложения.
-  if (needsAppUser) {
-    contactQuery = contactQuery.not("user_id", "is", null);
-  }
+    // «Все установившие» / тарифы / демо — только контакты с аккаунтом приложения.
+    if (needsAppUser) {
+      contactQuery = contactQuery.not("user_id", "is", null);
+    }
 
-  // Locale is filtered after merging users.locale (preferred over contact.locale).
-  if (query.country_codes?.length) {
-    contactQuery = contactQuery.in("country_code", query.country_codes);
-  }
-  // Narrow in SQL when possible; always re-filter in memory (PostgREST ilike + wildcards).
-  if (query.email_contains) {
-    const escaped = query.email_contains.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-    contactQuery = contactQuery.ilike("email", `%${escaped}%`);
-  }
+    // Locale is filtered after merging users.locale (preferred over contact.locale).
+    if (query.country_codes?.length) {
+      contactQuery = contactQuery.in("country_code", query.country_codes);
+    }
+    // Narrow in SQL when possible; always re-filter in memory (PostgREST ilike + wildcards).
+    if (query.email_contains) {
+      const escaped = query.email_contains
+        .replace(/\\/g, "\\\\")
+        .replace(/%/g, "\\%")
+        .replace(/_/g, "\\_");
+      contactQuery = contactQuery.ilike("email", `%${escaped}%`);
+    }
 
-  const { data: contactRows, error } = await contactQuery;
-  if (error) throw error;
-
-  let contacts = (contactRows ?? []) as EmailContactRow[];
+    const { data, error } = await contactQuery
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (error) throw error;
+    return (data ?? []) as EmailContactRow[];
+  });
   if (query.email_contains) {
     const needle = query.email_contains;
     contacts = contacts.filter((c) => c.email.toLowerCase().includes(needle));
@@ -314,6 +343,12 @@ export async function resolveEmailSegment(
 
     const u = userMap.get(c.user_id);
     if (!u) {
+      if (query.account_created_on_or_after || query.account_created_on_or_before) {
+        return [];
+      }
+      if (query.onboarded_on_or_after || query.onboarded_on_or_before) {
+        return [];
+      }
       // Orphan link — still OK for all_contacts email search.
       if (query.all_contacts && !needsAppUser) return [c];
       return [];
@@ -410,7 +445,7 @@ export async function resolveEmailSegment(
     return [next];
   });
 
-  // Contacts without users already returned above; apply locale filter for all_contacts orphans.
+  // Contacts without users already returned above; apply locale filter for all_contacts leftovers.
   if (query.locales?.length && query.all_contacts) {
     contacts = contacts.filter((c) =>
       query.locales!.includes((c.locale || "").slice(0, 2).toLowerCase()),
@@ -445,6 +480,7 @@ export async function resolveCampaignRecipients(
   skippedLocaleCount: number;
   countries: string[];
   no_audience?: boolean;
+  copyEmpty?: boolean;
 }> {
   const segment = await resolveEmailSegment(db, query);
   if (segment.no_audience) {
@@ -454,6 +490,16 @@ export async function resolveCampaignRecipients(
       skippedLocaleCount: 0,
       countries: [],
       no_audience: true,
+    };
+  }
+
+  if (isEmailCopyEmpty(copySource)) {
+    return {
+      eligible: [],
+      segmentCount: segment.count,
+      skippedLocaleCount: 0,
+      countries: segment.countries,
+      copyEmpty: true,
     };
   }
 

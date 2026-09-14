@@ -1,7 +1,11 @@
 /**
  * Exact locale copy for marketing emails (same rules as admin push).
  */
-import { asContentLocale, type AppContentLocale } from "./contentLocales";
+import {
+  ALL_CONTENT_LOCALES,
+  asContentLocale,
+  type AppContentLocale,
+} from "./contentLocales";
 import {
   hasExactLocalizedTitle,
   pickExactLocalizedText,
@@ -34,4 +38,9 @@ export function resolveExactEmailCopy(
   const htmlBody = pickExactLocalizedText(locale, source.htmlBody ?? "", source.htmlBodyI18n);
   if (!htmlBody.trim()) return null;
   return { locale, subject, htmlBody };
+}
+
+/** True when no locale has both an authored subject and a non-empty HTML body. */
+export function isEmailCopyEmpty(source: EmailCopySource): boolean {
+  return ALL_CONTENT_LOCALES.every((locale) => resolveExactEmailCopy(locale, source) == null);
 }

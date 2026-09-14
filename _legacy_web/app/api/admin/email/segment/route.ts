@@ -49,9 +49,10 @@ export async function POST(req: Request) {
         htmlBodyI18n: parseStringRecord(body.html_body_i18n),
       });
       return json({
-        count: result.eligible.length,
+        count: result.copyEmpty ? result.segmentCount : result.eligible.length,
         segment_count: result.segmentCount,
         skipped_locale_count: result.skippedLocaleCount,
+        copy_empty: result.copyEmpty === true,
         countries: result.countries,
         no_audience: result.no_audience === true,
       });
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
       count: result.count,
       segment_count: result.count,
       skipped_locale_count: 0,
+      copy_empty: false,
       countries: result.countries,
       no_audience: result.no_audience === true,
     });
