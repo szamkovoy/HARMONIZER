@@ -176,7 +176,7 @@ const PLANNING_RECONCILE_DELAY_MS = HARMONIZER_TEST_MODE ? 1500 : 10 * 60 * 1000
 /** Пузырь пользователя (голос) — якорь ~¼ высоты экрана, место под расшифровку и ответ. */
 const VOICE_USER_SCROLL_VIEW_POSITION = 0.24;
 
-const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):[^\]]*\]|\[\s*(?:PLAN_TOMORROW|PRACTICE_DECLINED)\s*\]/gi;
+const MARKER_RE = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|OFF_SCRIPT_NOTE|MATRIX_CELLS):[^\]]*\]|\[\s*(?:PLAN_TOMORROW|PRACTICE_DECLINED)\s*\]/gi;
 const READY_MARKER_RE = /\[\s*ready_for_recommendation\s*\]/gi;
 const TRAILING_OPEN_MARKER_RE = /\[[A-Z_]+(?::[^\]]*)?$/i;
 /** Catch leftover internal EVENT markers (model typos / incomplete sanitize). */

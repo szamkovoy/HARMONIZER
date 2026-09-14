@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.54
-updated: 2026-09-06
+version: 2.55
+updated: 2026-09-14
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -19,6 +19,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-14 (`OFF_SCRIPT_NOTE` marker parity):** Новый серверный маркер `[OFF_SCRIPT_NOTE: text="…"]` (см. `assistant/history`) добавлен в `INTERNAL_MARKER_NAMES` / `ATTRIBUTED_INTERNAL_MARKER_RE` (`dialogTextCleanup.ts`) и `MARKER_RE` (`Communicator.tsx`). Только паритет с `markers.ts`: сервер буферизует стрим и сам ставит текст ноты первым абзацем, поэтому в `chunk`/`complete` маркер не приходит; клиент лишь защищён от регрессии буферизации. Store-билд не требуется для работы фичи.
 
 - **2026-09-06 (QA journal is server-only):** Daily dialog texts for admin review live in `daily_dialog_archives`. Communicator GET/POST/SSE and `messages.content` are unchanged; `startFreshSession` still starts a new chat. The store build does not read the journal.
 

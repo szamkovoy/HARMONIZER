@@ -295,6 +295,42 @@ export function stripPlanningDayFocusScaffold(text: string | null | undefined): 
   return value;
 }
 
+/** Hard cap for the off-script acknowledgement shown before the visible reply. */
+const OFF_SCRIPT_NOTE_MAX_CHARS = 320;
+
+function normalizeForContainment(value: string): string {
+  return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+/**
+ * Put the model's one-sentence off-script acknowledgement (from
+ * `[OFF_SCRIPT_NOTE]`) in front of whatever the turn is about to show — the
+ * model's own visible text OR a deterministic server-built final (planning
+ * wrap-up, add-flow final, summary clarifier). This is how the assistant stays
+ * human when the user steps outside the FSM script: the request is acknowledged
+ * in one warm line, then the current step continues unchanged.
+ *
+ * Idempotent: skipped when the visible text already contains the note (model
+ * ignored "do not repeat it inline"). Over-long notes are trimmed at a sentence
+ * boundary; a note that is not a full sentence gets terminal punctuation.
+ */
+export function prependOffScriptNote(visibleText: string, note: string | null | undefined): string {
+  const body = (visibleText ?? "").trim();
+  let text = (note ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return body;
+  if (text.length > OFF_SCRIPT_NOTE_MAX_CHARS) {
+    const head = text.slice(0, OFF_SCRIPT_NOTE_MAX_CHARS);
+    const lastStop = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));
+    text = lastStop >= 40 ? head.slice(0, lastStop + 1) : `${head.replace(/[\s,;:—-]+$/u, "")}…`;
+  }
+  text = ensureSentencePunctuation(capitalizeFirstLetter(text));
+  if (!body) return text;
+  const normalizedBody = normalizeForContainment(body);
+  const normalizedNote = normalizeForContainment(text);
+  if (normalizedNote && normalizedBody.includes(normalizedNote)) return body;
+  return `${text}\n\n${body}`;
+}
+
 function fallbackPracticeQuestion(locale: AppContentLocale): string {
   return getDialogScaffoldStrings(locale).fallbackPracticeQuestion;
 }
@@ -634,6 +670,12 @@ function sharedPreamble(ctx: BrainPromptContext): string {
     ctx.lifeSpheresBaseline,
     "",
     "MARKERS: emit invisible markers exactly as specified, using square brackets only — [PLANNED_EVENT: ...], never XML/HTML tags like <PLANNED_EVENT> or </PLANNED_EVENT>. They are parsed by the server and stripped from the visible text. Never use double quotes inside a marker value. Visible text must stay natural language only: no tag names, no attributes like display_order= or spheres=.",
+    "",
+    "OFF-SCRIPT REQUESTS (applies in every branch): this dialog moves through fixed steps — a look back at previously planned events, then planning today's actions, then (in some flows) choosing one practice. Each turn does the job of the CURRENT step only. If the user's message asks for something the current step cannot act on — for example a practice or a recommendation outside the practice step, general advice, a question about yoga / astrology / psychology / the app, or anything that would open a new topic — never ignore it silently and never open that topic. Instead:",
+    `- Put ONE short, warm, human sentence (in ${ctx.languageName}, at most ~2 lines) into the invisible marker [OFF_SCRIPT_NOTE: text="…"]: acknowledge what they asked and say plainly that in this step you are only doing the current step's job, so you cannot do that here (the branch instructions may tell you where it belongs — e.g. that a practice is offered right after the plan). Never turn the note into a question and never give the off-topic answer inside it.`,
+    "- Then, in the visible reply, continue the current step exactly as if the off-script part were not there (ask the step's question, or finalize, etc.). The server shows the note to the user BEFORE your visible reply, so do NOT repeat it in the visible text.",
+    "- The off-script content is NOT data for the current step: never turn the question itself into a [PLANNED_EVENT], a list item or an outcome, and never read it as an answer to your last question. If you had just asked whether to add more or assemble the plan, an off-script message is neither yes nor no — after the note, briefly re-ask that same question (do not finalize yet). If you had asked a debrief question, re-ask it briefly (do not close the event on that basis). Only promise a later step that this flow really has (the branch instructions say which).",
+    "- Do NOT use the note for things you can simply handle inline: the user asking what YOU meant (explain in one plain sentence and re-ask more simply), correcting your misreading, small talk, thanks, greetings, an interrupted/garbled message, or a normal answer to your question. At most one note per turn.",
   ].filter(Boolean).join("\n");
 }
 
@@ -677,6 +719,10 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
     "- For negotiations, contracts, work results, trying to understand the other side, or reaching agreement, usually prefer sphere 3 with chakra 3, 5, or 6 unless the user clearly describes another center.",
     "- For walks, sleep, body recovery, fresh air, relaxation, pleasant rest, or contact with nature, usually prefer sphere 1 or 2 with chakra 1 or 2 unless the user explicitly centers insight/learning (6) or spirituality/faith (7).",
     "- Never emit [CORRECT_RECOMMENDATION] or any day-level planning focus for today or tomorrow. This branch only debriefs past planned events.",
+    input.continuesToPlanning
+      ? "- OFF-SCRIPT here: if the user asks for a practice, for advice, or starts talking about plans for today during this look-back, put ONE sentence into [OFF_SCRIPT_NOTE] saying that right now you are only looking back at what was planned earlier and that today's plan comes right after — then briefly re-ask your question about the CURRENT event (the same one): do not close it and do not move to the next event on that turn."
+      : "- OFF-SCRIPT here: if the user asks for a practice, for advice, or starts talking about new plans during this look-back, put ONE sentence into [OFF_SCRIPT_NOTE] saying that this step is only the look-back at what was planned earlier, so you cannot do that here — then briefly re-ask your question about the CURRENT event (the same one): do not close it and do not move to the next event on that turn.",
+    "- If the user's reply is a question about what YOU meant (they did not understand your question), that is not an answer: do NOT close the event and do NOT emit a marker — explain in one plain sentence and ask again in simpler words. This does not count as a new topic.",
   ];
 
   if (input.isOpening || !input.currentEvent) {
@@ -696,7 +742,7 @@ export function buildSummarizingPrompt(ctx: BrainPromptContext, input: Summarizi
       "THIS TURN:",
       `1) The user's latest message is their answer about the event: "${input.currentEvent.description}" (ref="${input.currentEvent.ref}").`,
       input.clarifyingAlreadyAsked
-        ? "   You already asked your one clarifying question for this event — do NOT ask again; close it now with the information you have."
+        ? "   You already asked your one clarifying question for this event — do NOT ask again; close it now with the information you have. (Only exception: the user is asking what YOU meant — then re-explain and re-ask once more simply, without a marker.)"
         : "   DEFAULT: close the event now with outcome_cells — if the answer already conveys any lived state, it is clear enough. Ask ONE clarifying question (instead of closing) ONLY when the answer is genuinely too thin to read any inner state AND the event happened — and then emit NO marker this turn, do not mention the next event, and briefly say the detail is needed for the life-state matrix.",
       "   - Treat simple first-person feelings as ALREADY sufficient lived state. Examples: 'I liked it', 'it felt intense', 'I felt proud / good about myself', 'it was calm', 'it was emotionally engaging'. Do NOT ask the user to compress such an answer into 'one or two words' — just close the event.",
       `2) When you close the event, emit: [SUMMARIZE_EVENT: ref="${input.currentEvent.ref}" outcome="short factual outcome in ${ctx.languageName}" outcome_cells="sphere:chakra:weight;..."]`,
@@ -830,7 +876,9 @@ export function buildPlanningPrompt(ctx: BrainPromptContext, input: PlanningTurn
       ? "- Write action recommendations as polite suggestions in imperative form, not infinitive commands: «выделите», «задайте», «выберите», not «выделить», «задать», «выбрать». Every recommendation and day-focus sentence must end with punctuation."
       : "- Write action recommendations as suggestions, not terse command labels. Every recommendation and day-focus sentence must end with punctuation.",
     "- Keep the wording simple and natural. No poetic openings, no cosmic metaphors, no repeated paraphrases of the user's sentence.",
-    "- NEVER put yoga/meditation/breathing/asana/practice requests into [PLANNED_EVENT]. Practices belong only to the PRACTICE branch, not the Day tab actions list.",
+    input.noPractice
+      ? "- OFF-SCRIPT in this flow: no practice is offered in this dialog. If the user asks YOU to recommend, choose or explain a practice (meditation / breathing / asanas / yoga), do not do it and never describe any exercise steps: put ONE sentence into [OFF_SCRIPT_NOTE] saying that in this step you only " + (input.noGreeting ? "add actions to today's plan" : "plan the day") + " and cannot pick a practice here" + (input.softPracticeClose ? "" : " — and do NOT promise a practice later in this dialog (there is no practice step here)") + ", then continue the step as usual. But when the user names a practice as something THEY plan to do today (for example yoga in the evening), that is a normal action of the day — save it with [PLANNED_EVENT] like any other."
+      : "- NEVER put yoga/meditation/breathing/asana/practice requests into [PLANNED_EVENT]. Practices belong only to the PRACTICE branch, not the Day tab actions list. OFF-SCRIPT: if the user asks for a practice, or names one as a plan, during planning — put ONE sentence into [OFF_SCRIPT_NOTE] saying that a practice will be offered right after the plan is assembled, and continue planning; do not pick or describe a practice here.",
     "LIFE SPHERES (what each sphere number 1..7 means — use this to tag spheres, NOT chakras):",
     ctx.lifeSpheresBaseline,
     "- Emit, for EACH action, in the order the user mentioned them:",
@@ -898,6 +946,7 @@ export function buildPracticePrompt(ctx: BrainPromptContext, input: PracticeTurn
     "  - Leave id=\"\" so the server selects the concrete practice from the catalog.",
     "  - Visible text on the pick turn: ONLY card_blurb (1-2 sentences why this practice fits today). NEVER write step-by-step instructions (no \"sit comfortably\", \"close your eyes\", breathing counts, etc.). The app shows the practice card separately.",
     "- If the user does not want a practice now, judge that BY MEANING of their reply in any supported language and any wording. Do not look for fixed phrases. Then do NOT emit [PRACTICE_PICK]: write a short, kind closing line and emit the invisible sentinel [PRACTICE_DECLINED]. If they want a practice but kind or duration is unclear, ask ONE short question for kind and/or duration. If the reply is not clearly a pick and not clearly a refusal, ask ONE short question in that same frame (name kind and duration, or skip today). Never re-ask whether they want a practice after they have declined. After that one clarifier, a still-unclear reply is a refusal: close with [PRACTICE_DECLINED].",
+    "- OFF-SCRIPT here: if instead of answering about the practice the user adds or changes plans for the day, asks for advice, or asks something unrelated, put ONE sentence into [OFF_SCRIPT_NOTE] saying that today's plan is already assembled and this step is only about choosing a practice — then handle the practice question as above (one in-frame clarifier, or close with [PRACTICE_DECLINED] if you already asked). A practice mentioned only in passing inside such a message (e.g. plans to breathe later tonight) is NOT a pick.",
     input.postPracticeReply
       ? "- A practice card was already shown. Reply in 1-2 short sentences only: acknowledge the user, gently point them to the practice card, wish a good day/evening. Do NOT reopen planning, do NOT emit [PRACTICE_PICK], do NOT ask new questions."
       : "",

@@ -16,6 +16,7 @@ import {
   buildCatalogReconciliationInstruction,
   catalogDurationRangeForKind,
   catalogKindForDurationMin,
+  extractOffScriptNote,
   parseResponseMarkers,
   sanitizeAssistantText,
   stripLeakedDialogMarkup,
@@ -80,6 +81,7 @@ import {
   buildPlanningAddFinalVisibleText,
   buildPlanningDeclinedReply,
   buildPlanningFinalVisibleText,
+  prependOffScriptNote,
   buildPracticeClarificationFallback,
   extractDayFocusFromVisibleFinalize,
   ensureSentencePunctuation,
@@ -1498,6 +1500,10 @@ export async function POST(req: Request) {
           }
 
           let markers = parseResponseMarkers(fullText);
+          // Off-script acknowledgement from the FIRST draft: hidden repair retries
+          // may replace `fullText` and forget the note — the user's aside must
+          // still be acknowledged, so keep the original as a fallback.
+          const initialOffScriptNote = markers.offScriptNote;
           let sanitizedVisibleText = stripBrainSentinels(sanitizeAssistantText(fullText, resolveResponseLocale(context.user.locale)));
           const userGaveSufficientSummaryState =
             branchForTurn === "summarizing"
@@ -2641,6 +2647,20 @@ export async function POST(req: Request) {
                 "[DIALOG_FSM] Empty visible text persisted after same-model + fallback retries — using deterministic fallback",
                 JSON.stringify({ ...diagBase, stage: "deterministic" }),
               );
+            }
+          }
+          // Off-script acknowledgement: the user asked for something this FSM step
+          // cannot act on (e.g. a practice while adding Day-tab actions). The model
+          // put its one-sentence reaction into [OFF_SCRIPT_NOTE]; show it BEFORE
+          // whatever this turn displays — including deterministic finals that
+          // otherwise discard the model's free text entirely — so the request is
+          // never silently ignored while the step itself continues unchanged.
+          const offScriptNote = extractOffScriptNote(fullText) ?? initialOffScriptNote;
+          if (offScriptNote) {
+            const withNote = prependOffScriptNote(cleanText, offScriptNote);
+            if (withNote !== cleanText) {
+              cleanText = withNote;
+              qaGuards.push("off_script_note");
             }
           }
           // Deterministic safety net: DeepSeek occasionally drops a stray English

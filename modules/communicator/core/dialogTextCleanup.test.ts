@@ -26,6 +26,16 @@ describe("stripInternalDialogMarkers", () => {
 
     expect(stripInternalDialogMarkers(text)).toBe("Sounds like a focused and engaging day.");
   });
+
+  it("removes the off-script acknowledgement marker (server prepends its text itself)", () => {
+    const text = [
+      `[OFF_SCRIPT_NOTE: text="Практику здесь подобрать не могу — на этом шаге мы только добавляем дела."]`,
+      "",
+      "Разговоры с мамой уже в плане. Соберём план?",
+    ].join("\n");
+
+    expect(stripInternalDialogMarkers(text)).toBe("Разговоры с мамой уже в плане. Соберём план?");
+  });
 });
 
 describe("stripDialogScaffoldMarkdown", () => {

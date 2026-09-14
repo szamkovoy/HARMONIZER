@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCatalogReconciliationInstruction,
+  extractOffScriptNote,
   parseResponseMarkers,
   sanitizeAssistantText,
   stripDialogScaffoldMarkdown,
@@ -686,5 +687,29 @@ describe("parseResponseMarkers", () => {
   it("ignores CANCEL_EVENT without a ref", () => {
     const parsed = parseResponseMarkers(`[CANCEL_EVENT: foo="bar"]`);
     expect(parsed.cancelEvents).toHaveLength(0);
+  });
+
+  it.each([
+    ["ru", "Про практику для окна возможностей здесь подсказать не смогу — в этом шаге я только добавляю дела в план."],
+    ["en", "I can't suggest a practice in this step — here I only add actions to today's plan."],
+    ["de", "Eine Praxis kann ich in diesem Schritt nicht vorschlagen — hier ergänze ich nur den Tagesplan."],
+    ["fr", "Je ne peux pas proposer de pratique à cette étape — ici, j'ajoute seulement des actions au plan du jour."],
+    ["es", "En este paso no puedo recomendar una práctica: aquí solo añado acciones al plan de hoy."],
+  ])("extracts OFF_SCRIPT_NOTE (%s) and strips it from the visible text", (_locale, note) => {
+    const raw = `[OFF_SCRIPT_NOTE: text="${note}"]\nЕсть ещё что-то добавить, или соберём план?`;
+    const parsed = parseResponseMarkers(raw);
+    expect(parsed.offScriptNote).toBe(note);
+    expect(extractOffScriptNote(raw)).toBe(note);
+    expect(stripResponseMarkers(raw)).toBe("Есть ещё что-то добавить, или соберём план?");
+    expect(sanitizeAssistantText(raw, "ru")).toBe("Есть ещё что-то добавить, или соберём план?");
+    expect(visibleTextHasLeakedDialogMarkup(stripResponseMarkers(raw))).toBe(false);
+  });
+
+  it("accepts the XML form of OFF_SCRIPT_NOTE and returns null when absent or empty", () => {
+    const xml = `<OFF_SCRIPT_NOTE text="Сначала соберём план, практику предложу сразу после."></OFF_SCRIPT_NOTE>Записал.`;
+    expect(parseResponseMarkers(xml).offScriptNote).toBe("Сначала соберём план, практику предложу сразу после.");
+    expect(stripResponseMarkers(xml)).toBe("Записал.");
+    expect(parseResponseMarkers("Просто текст.").offScriptNote).toBeNull();
+    expect(parseResponseMarkers(`[OFF_SCRIPT_NOTE: text=""] Текст.`).offScriptNote).toBeNull();
   });
 });

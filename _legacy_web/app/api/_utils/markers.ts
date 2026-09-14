@@ -58,6 +58,7 @@ type ParsedMarker = {
     | "PLANNED_EVENT"
     | "SUMMARIZE_EVENT"
     | "CANCEL_EVENT"
+    | "OFF_SCRIPT_NOTE"
     | "MATRIX_CELLS";
   body: string;
   start: number;
@@ -83,6 +84,7 @@ const XML_ATTRIBUTED_MARKER_NAMES = [
   "SUMMARIZE_EVENT",
   "SIMULATE_EVENT",
   "CANCEL_EVENT",
+  "OFF_SCRIPT_NOTE",
   "MATRIX_CELLS",
 ] as const;
 
@@ -203,6 +205,7 @@ function canonicalMarkerName(rawName: string): ParsedMarker["name"] | null {
     || name === "PLANNED_EVENT"
     || name === "SUMMARIZE_EVENT"
     || name === "CANCEL_EVENT"
+    || name === "OFF_SCRIPT_NOTE"
     || name === "MATRIX_CELLS"
   ) {
     return name;
@@ -232,6 +235,9 @@ function xmlBodyFromAttrsAndInner(attrs: string, inner: string, name: ParsedMark
   }
   if (name === "CANCEL_EVENT" && !parsed.ref) {
     return `${attrs} ref="${escapeMarkerAttr(trimmedInner)}"`.trim();
+  }
+  if (name === "OFF_SCRIPT_NOTE" && !parsed.text) {
+    return `${attrs} text="${escapeMarkerAttr(trimmedInner)}"`.trim();
   }
   return attrs.trim();
 }
@@ -283,7 +289,7 @@ function parseXmlStyleMarkers(text: string, baseOffset = 0): ParsedMarker[] {
 function parseBracketMarkers(text: string): ParsedMarker[] {
   const markers: ParsedMarker[] = [];
   // SIMULATE_EVENT is a known LLM typo/alias for SUMMARIZE_EVENT — parse + strip it the same way.
-  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):/gi;
+  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|OFF_SCRIPT_NOTE|MATRIX_CELLS):/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text))) {
     const rawName = match[1]?.toUpperCase();
@@ -336,7 +342,7 @@ function outermostMarkerRanges(markers: ParsedMarker[]): ParsedMarker[] {
 }
 
 function stripIncompleteSquareMarkers(text: string): string {
-  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS):/gi;
+  const pattern = /\[(STATE_PROPOSAL|PRACTICE_PICK|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|OFF_SCRIPT_NOTE|MATRIX_CELLS):/gi;
   const ranges: Array<{ start: number; end: number }> = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text))) {
@@ -376,7 +382,7 @@ export function visibleTextHasLeakedDialogMarkup(text: string): boolean {
   const value = (text ?? "").trim();
   if (!value) return false;
   if (XML_OPEN_OR_CLOSE_RE.test(value)) return true;
-  if (/\[\s*(?:STATE_PROPOSAL|PRACTICE_PICK|PRACTICE_DECLINED|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|MATRIX_CELLS|PLAN_TOMORROW|READY_FOR_RECOMMENDATION|BRANCH_DONE)\b/i.test(value)) {
+  if (/\[\s*(?:STATE_PROPOSAL|PRACTICE_PICK|PRACTICE_DECLINED|CORRECT_RECOMMENDATION|PLANNED_EVENT|SUMMARIZE_EVENT|SIMULATE_EVENT|CANCEL_EVENT|OFF_SCRIPT_NOTE|MATRIX_CELLS|PLAN_TOMORROW|READY_FOR_RECOMMENDATION|BRANCH_DONE)\b/i.test(value)) {
     return true;
   }
   return LEAKED_PROTOCOL_ATTR_RE.test(value) || LEAKED_SPHERES_ATTR_RE.test(value);
@@ -387,7 +393,7 @@ export function stripLeakedDialogMarkup(text: string): string {
   let t = stripIncompleteSquareMarkers(text.replace(/\r\n/g, "\n"));
   t = t.replace(new RegExp(`<\\/\\s*(?:${XML_MARKER_NAME_ALT})\\s*>`, "gi"), "");
   t = t.replace(/\b(?:display_order|short_text|time_norm|outcome_cells|card_blurb|windows_correction|duration_min)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s<>]+)/gi, "");
-  t = t.replace(/\b(?:desc|recommendation|spheres|cells|ref|outcome|id|reason|chakra)\s*=\s*(?:"[^"]*"|'[^']*')/gi, "");
+  t = t.replace(/\b(?:desc|recommendation|spheres|cells|ref|outcome|id|reason|chakra|text)\s*=\s*(?:"[^"]*"|'[^']*')/gi, "");
   t = t.replace(/\bspheres\s*=\s*\d[\d.:;]*/gi, "");
   const xmlOpen = new RegExp(`<\\s*(?:${XML_MARKER_NAME_ALT})\\b`, "gi");
   let match: RegExpExecArray | null;
@@ -421,6 +427,8 @@ export function parseResponseMarkers(text: string): {
   plannedEvents: PlannedEventMarker[];
   summarizeEvents: SummarizeEventMarker[];
   cancelEvents: CancelEventMarker[];
+  /** One short off-script acknowledgement the model wants shown before its visible reply. */
+  offScriptNote: string | null;
   planTomorrow: boolean;
   matrixCells: MatrixCell[];
 } {
@@ -513,9 +521,30 @@ export function parseResponseMarkers(text: string): {
     .filter((item) => item.name === "MATRIX_CELLS")
     .flatMap((marker) => parseCompactCells(marker.body.trim()));
 
+  const offScriptNote = extractOffScriptNote(text, parsedMarkers);
+
   const planTomorrow = /\[\s*PLAN_TOMORROW\s*\]/i.test(text) || /<\s*PLAN_TOMORROW\b/i.test(text);
 
-  return { stateProposals, practicePick, recommendationCorrection, plannedEvents, summarizeEvents, cancelEvents, planTomorrow, matrixCells };
+  return { stateProposals, practicePick, recommendationCorrection, plannedEvents, summarizeEvents, cancelEvents, offScriptNote, planTomorrow, matrixCells };
+}
+
+/**
+ * `[OFF_SCRIPT_NOTE: text="…"]` — the model's one-sentence acknowledgement of a
+ * user request the current FSM step cannot act on (e.g. asking for a practice
+ * while adding Day-tab actions). Only the FIRST note counts; the text is
+ * whitespace-collapsed and cleaned of any nested protocol markup so it is safe
+ * to show verbatim. Returns null when absent or empty.
+ */
+export function extractOffScriptNote(text: string, parsed?: ParsedMarker[]): string | null {
+  const marker = (parsed ?? parseMarkers(text)).find((item) => item.name === "OFF_SCRIPT_NOTE");
+  if (!marker) return null;
+  const attrs = parseMarkerAttributes(marker.body);
+  const raw = (attrs.text ?? marker.body).replace(/^\s*text\s*=\s*/i, "");
+  const note = stripLeakedDialogMarkup(raw)
+    .replace(/^["'«“”»]+|["'«“”»]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return note.length > 0 ? note : null;
 }
 
 export type DebugRawMarker = {

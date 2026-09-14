@@ -13,6 +13,7 @@ import {
   injectPlanningDayFocus,
   polishPlanningMarker,
   prependChakraAttention,
+  prependOffScriptNote,
   replaceSpontaneousEnglishRu,
   stripPlanningDayFocusScaffold,
   type BrainPromptContext,
@@ -166,6 +167,168 @@ describe("injectPlanningDayFocus", () => {
     expect(result).toContain("День ясности: во всём ищите главное за деталями.");
     expect(result).not.toContain("Сегодняшняя энергия");
     expect(result).toContain("1. Прогулка в парке");
+  });
+});
+
+describe("off-script acknowledgement (OFF_SCRIPT_NOTE)", () => {
+  it("shared preamble carries one stable off-script rule in every branch (cache-safe)", () => {
+    const planningInput = {
+      isOpening: false,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 1,
+    };
+    const planning = buildPlanningPrompt(brainCtx, planningInput);
+    const practice = buildPracticePrompt(brainCtx, {
+      isOpening: true,
+      pickImmediately: false,
+      catalogReconciliation: "",
+      postPracticeReply: false,
+    });
+    const summarizing = buildSummarizingPrompt(brainCtx, {
+      isOpening: false,
+      currentEvent: { ref: "evt-1", description: "Прогулка" },
+      nextEvent: null,
+      completedEarlierEvents: [],
+      isLastEvent: true,
+      clarifyingAlreadyAsked: false,
+      healthContext: "",
+      practicesContext: "",
+      summaryWorkingLocalDate: "2026-09-13",
+      currentEventPlannedLocalDate: "2026-09-13",
+      continuesToPlanning: true,
+    });
+    for (const prompt of [planning, practice, summarizing]) {
+      expect(prompt.systemInstruction).toMatch(/OFF-SCRIPT REQUESTS/);
+      expect(prompt.systemInstruction).toMatch(/\[OFF_SCRIPT_NOTE: text="…"\]/);
+      expect(prompt.systemInstruction).toMatch(/do NOT repeat it in the visible text/);
+    }
+    // Byte-identical system instruction across branches — DeepSeek prefix cache stays warm.
+    expect(planning.systemInstruction).toBe(practice.systemInstruction);
+    expect(planning.systemInstruction).toBe(summarizing.systemInstruction);
+    // Another turn of the same flow → still identical.
+    expect(buildPlanningPrompt(brainCtx, { ...planningInput, userSignaledDone: true }).systemInstruction).toBe(
+      planning.systemInstruction,
+    );
+  });
+
+  it.each([
+    ["en", "English"],
+    ["de", "German"],
+    ["pt", "Portuguese"],
+  ])("names the reply language for the note (%s)", (locale, languageName) => {
+    const { systemInstruction } = buildPlanningPrompt(
+      { ...brainCtx, locale: locale as BrainPromptContext["locale"], languageName },
+      { isOpening: true, noPractice: false, noGreeting: false, userSignaledDone: false, planningLocked: false, existingActionCount: 0 },
+    );
+    expect(systemInstruction).toContain(`(in ${languageName}, at most ~2 lines)`);
+  });
+
+  it("add-flow: a practice REQUEST is off-script, a practice named as today's action is a normal PLANNED_EVENT", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: true,
+      noGreeting: true,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 1,
+    });
+    expect(userInstruction).toMatch(/only add actions to today's plan and cannot pick a practice here/);
+    expect(userInstruction).toMatch(/names a practice as something THEY plan to do today[^.]*save it with \[PLANNED_EVENT\]/);
+    expect(userInstruction).not.toMatch(/NEVER put yoga\/meditation/);
+  });
+
+  it("master/trial planning: practice talk is deferred to the practice step, never planned", () => {
+    const { userInstruction } = buildPlanningPrompt(brainCtx, {
+      isOpening: false,
+      noPractice: false,
+      noGreeting: false,
+      userSignaledDone: false,
+      planningLocked: false,
+      existingActionCount: 0,
+    });
+    expect(userInstruction).toMatch(/NEVER put yoga\/meditation/);
+    expect(userInstruction).toMatch(/a practice will be offered right after the plan is assembled/);
+  });
+
+  it("summarizing: off-script note points forward to planning only when planning follows; 'what did you mean' is re-explained, not closed", () => {
+    const base = {
+      isOpening: false,
+      currentEvent: { ref: "evt-1", description: "Сбор вещей" },
+      nextEvent: { description: "Чай не спеша" },
+      completedEarlierEvents: [],
+      isLastEvent: false,
+      clarifyingAlreadyAsked: true,
+      healthContext: "",
+      practicesContext: "",
+      summaryWorkingLocalDate: "2026-09-13",
+      currentEventPlannedLocalDate: "2026-09-13",
+    };
+    const withPlanning = buildSummarizingPrompt(brainCtx, { ...base, continuesToPlanning: true }).userInstruction;
+    const summaryOnly = buildSummarizingPrompt(brainCtx, { ...base, continuesToPlanning: false }).userInstruction;
+    expect(withPlanning).toMatch(/today's plan comes right after/);
+    expect(summaryOnly).not.toMatch(/today's plan comes right after/);
+    expect(summaryOnly).toMatch(/this step is only the look-back/);
+    for (const text of [withPlanning, summaryOnly]) {
+      expect(text).toMatch(/question about what YOU meant/);
+      expect(text).toMatch(/Only exception: the user is asking what YOU meant/);
+    }
+  });
+
+  it("practice branch: day-plan talk is acknowledged, a passing practice mention is not a pick", () => {
+    const { userInstruction } = buildPracticePrompt(brainCtx, {
+      isOpening: true,
+      pickImmediately: false,
+      catalogReconciliation: "",
+      postPracticeReply: false,
+    });
+    expect(userInstruction).toMatch(/today's plan is already assembled and this step is only about choosing a practice/);
+    expect(userInstruction).toMatch(/mentioned only in passing[\s\S]*?is NOT a pick/);
+  });
+});
+
+describe("prependOffScriptNote", () => {
+  const addFinal = buildPlanningAddFinalVisibleText({
+    events: [{ desc: "Поговорить с мамой", recommendation: "Скажите прямо то, что для вас важно.", displayOrder: 1, cells: [], snippets: [], time: null, timeNorm: null }],
+    locale: "ru",
+  });
+
+  it("puts the note before a deterministic add-flow final (the reported dialog)", () => {
+    const note = "Про практику для окна возможностей здесь подсказать не смогу — в этом шаге я только добавляю дела в план на сегодня";
+    const out = prependOffScriptNote(addFinal, note);
+    expect(out.startsWith(`${note}.\n\nХорошо, добавил одно дело в план на сегодня:`)).toBe(true);
+    expect(out).toContain("1. Поговорить с мамой");
+  });
+
+  it.each([
+    ["en", "I can't pick a practice in this step — here I only add actions to today's plan.", "Anything else to add, or shall we put the plan together?"],
+    ["fr", "Je ne peux pas proposer de pratique à cette étape — ici, j'ajoute seulement des actions au plan du jour.", "Autre chose à ajouter, ou on assemble le plan ?"],
+    ["nl", "In deze stap kan ik geen oefening kiezen — hier voeg ik alleen acties aan het dagplan toe.", "Nog iets toevoegen, of stellen we het plan samen?"],
+  ])("prepends as its own paragraph for any locale (%s)", (_locale, note, visible) => {
+    expect(prependOffScriptNote(visible, note)).toBe(`${note}\n\n${visible}`);
+  });
+
+  it("is a no-op without a note and returns just the note when the visible text is empty", () => {
+    expect(prependOffScriptNote(addFinal, null)).toBe(addFinal);
+    expect(prependOffScriptNote(addFinal, "   ")).toBe(addFinal);
+    expect(prependOffScriptNote("", "сначала соберём план")).toBe("Сначала соберём план.");
+  });
+
+  it("does not duplicate a note the model already wrote inline", () => {
+    const visible = "Про практику подскажу сразу после плана.\n\nЕсть ещё что-то добавить, или соберём план?";
+    expect(prependOffScriptNote(visible, "Про практику подскажу сразу после плана")).toBe(visible);
+  });
+
+  it("trims an over-long note at a sentence boundary and normalizes whitespace", () => {
+    const long = `${"Первое предложение про шаг диалога и его границы. ".repeat(7)}Хвост без точки`;
+    const out = prependOffScriptNote("Текст хода.", long);
+    const [noteLine] = out.split("\n\n");
+    expect(noteLine!.length).toBeLessThanOrEqual(330);
+    expect(noteLine!.endsWith(".")).toBe(true);
+    expect(noteLine).not.toContain("Хвост");
+    expect(prependOffScriptNote("Ок.", "  две   строки\n\nв   одну ")).toBe("Две строки в одну.\n\nОк.");
   });
 });
 
