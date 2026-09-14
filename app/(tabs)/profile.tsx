@@ -24,7 +24,6 @@ import { SupportModal } from "@/modules/support";
 import { AppButton } from "@/modules/ui/AppButton";
 import { AppDialog } from "@/modules/ui/AppDialog";
 import { AppText } from "@/modules/ui/AppText";
-import { BlockingStatusToast } from "@/modules/ui/BlockingStatusToast";
 import { ComboBox, ComboBoxDismissOverlay } from "@/modules/ui/ComboBox";
 import { ScreenHeader } from "@/modules/ui/ScreenHeader";
 import { SURFACE_CARD } from "@/modules/ui/surfaceCard";
@@ -32,7 +31,14 @@ import { TabScreenLayout, TabScrollView } from "@/modules/ui/TabScreenLayout";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
 import { useTheme, type PaletteScheme } from "@/modules/ui/theme";
 import { useThemePreference } from "@/modules/ui/themePreference";
+import {
+  isLocalePickAborted,
+  isRedundantLocalePick,
+  isStaleLocaleOp,
+  raceAbortTimeout,
+} from "@/modules/profile/core/localeRebuild";
 import { DEFAULT_PERIOD_DAYS } from "@/modules/profile/core/periodPresets";
+import { LocaleRebuildModal } from "@/modules/profile/ui/LocaleRebuildModal";
 import {
   buildPracticeStatsChartModel,
   practiceStatsLocalWindow,
@@ -115,6 +121,7 @@ export default function ProfileTabRoute() {
   /** Combo shows the picked language immediately; store locale commits after ensure. */
   const [optimisticLocale, setOptimisticLocale] = useState<AppLocale | null>(null);
   const localeEnsureAbortRef = useRef<AbortController | null>(null);
+  const localeOpIdRef = useRef(0);
 
   /** Same keys as Home `useDayContent` (`accessModeForTier` + `access.tier`). */
   const { accessMode: dayAccessMode, accessTier: dayContentAccessTier } = useMemo(
@@ -144,15 +151,28 @@ export default function ProfileTabRoute() {
     [setLocale],
   );
 
+  const abandonLocaleOp = useCallback((opId: number) => {
+    if (localeOpIdRef.current !== opId) return;
+    setOptimisticLocale(null);
+    setLocaleRebuild({ phase: "idle" });
+    setLocaleOpen(false);
+  }, []);
+
   const runLocaleEnsure = useCallback(
     async (params: {
       code: AppLocale;
       previousLocale: AppLocale;
       accessMode: AccessMode;
       forceRefresh: boolean;
+      opId: number;
+      signal: AbortSignal;
     }) => {
       if (!authUser?.id) {
         commitLocale(params.code);
+        return;
+      }
+      if (isStaleLocaleOp(params.opId, localeOpIdRef.current, params.signal)) {
+        abandonLocaleOp(params.opId);
         return;
       }
       setLocaleRebuild({
@@ -161,9 +181,6 @@ export default function ProfileTabRoute() {
         previousLocale: params.previousLocale,
         accessMode: params.accessMode,
       });
-      localeEnsureAbortRef.current?.abort();
-      const controller = new AbortController();
-      localeEnsureAbortRef.current = controller;
       try {
         const ensureOnce = async (forceRefresh: boolean) =>
           ensureLocaleDayContent({
@@ -176,7 +193,7 @@ export default function ProfileTabRoute() {
             birthTime: profile?.birth_time,
             birthPlace: profile?.birth_place,
             forceRefresh,
-            signal: controller.signal,
+            signal: params.signal,
           });
 
         // Phone cache already complete for this locale (e.g. switch back DE→EN) — no LLM.
@@ -196,9 +213,16 @@ export default function ProfileTabRoute() {
           !params.forceRefresh && peekLocaleDayContentComplete(peekArgs)
             ? await ensureOnce(false)
             : null;
+        if (isStaleLocaleOp(params.opId, localeOpIdRef.current, params.signal)) {
+          abandonLocaleOp(params.opId);
+          return;
+        }
         if (!warmed) {
           warmed = await ensureOnce(params.forceRefresh);
-          if (controller.signal.aborted) return;
+          if (isStaleLocaleOp(params.opId, localeOpIdRef.current, params.signal)) {
+            abandonLocaleOp(params.opId);
+            return;
+          }
         }
         if (!peekLocaleDayContentComplete(peekArgs)) {
           // Free: texts may already be in `warmed` while SecureStore peek lags.
@@ -212,13 +236,19 @@ export default function ProfileTabRoute() {
 
         // Hand off to Home before setAppLocale so Navigator paints texts immediately.
         publishLocaleDayContentWarm(warmed);
+        if (isStaleLocaleOp(params.opId, localeOpIdRef.current, params.signal)) {
+          abandonLocaleOp(params.opId);
+          return;
+        }
         commitLocale(params.code);
       } catch (error) {
-        if (controller.signal.aborted) return;
+        if (isStaleLocaleOp(params.opId, localeOpIdRef.current, params.signal)) {
+          abandonLocaleOp(params.opId);
+          return;
+        }
         // Диалог всегда на целевом языке (как toast «Идёт перевод…»); технические
         // EN-сообщения вроде «timed out after 25s» пользователю не показываем.
         void error;
-        setOptimisticLocale(null);
         setLocaleRebuild({
           phase: "error",
           pendingLocale: params.code,
@@ -226,13 +256,10 @@ export default function ProfileTabRoute() {
           accessMode: params.accessMode,
           message: translate(params.code, "profile.language.rebuildError"),
         });
-      } finally {
-        if (localeEnsureAbortRef.current === controller) {
-          localeEnsureAbortRef.current = null;
-        }
       }
     },
     [
+      abandonLocaleOp,
       authUser?.id,
       commitLocale,
       dayContentAccessTier,
@@ -249,10 +276,21 @@ export default function ProfileTabRoute() {
 
   const handleLocalePick = useCallback(
     async (code: AppLocale) => {
-      if (code === (optimisticLocale ?? locale)) {
+      if (
+        isRedundantLocalePick({
+          code,
+          committed: locale,
+          optimistic: optimisticLocale,
+          phase: localeRebuild.phase,
+        })
+      ) {
         setLocaleOpen(false);
         return;
       }
+      const opId = ++localeOpIdRef.current;
+      localeEnsureAbortRef.current?.abort();
+      const controller = new AbortController();
+      localeEnsureAbortRef.current = controller;
       // Show the chosen language in the combo immediately.
       setOptimisticLocale(code);
       setLocaleOpen(false);
@@ -260,9 +298,6 @@ export default function ProfileTabRoute() {
         commitLocale(code);
         return;
       }
-      localeEnsureAbortRef.current?.abort();
-      const controller = new AbortController();
-      localeEnsureAbortRef.current = controller;
       setLocaleRebuild({
         phase: "probing",
         pendingLocale: code,
@@ -270,46 +305,36 @@ export default function ProfileTabRoute() {
         accessMode: dayAccessMode,
       });
       try {
-        const probePromise = probeLocaleDayContentReady({
-          userId: authUser.id,
-          locale: code,
-          accessMode: dayAccessMode,
-          accessTier: dayContentAccessTier,
-          timezone: profile?.tz?.trim() || "UTC",
-          birthDate: profile?.birth_date,
-          birthTime: profile?.birth_time,
-          birthPlace: profile?.birth_place,
-          lat: profile?.lat,
-          lon: profile?.lon,
-        });
-        const probe = await new Promise<Awaited<typeof probePromise>>((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error("locale probe timeout")), LOCALE_PROBE_TIMEOUT_MS);
-          const onAbort = () => {
-            clearTimeout(timer);
-            reject(new Error("aborted"));
-          };
-          controller.signal.addEventListener("abort", onAbort);
-          probePromise.then(
-            (value) => {
-              clearTimeout(timer);
-              controller.signal.removeEventListener("abort", onAbort);
-              resolve(value);
-            },
-            (error) => {
-              clearTimeout(timer);
-              controller.signal.removeEventListener("abort", onAbort);
-              reject(error);
-            },
-          );
-        });
-        if (controller.signal.aborted) return;
+        const probe = await raceAbortTimeout(
+          probeLocaleDayContentReady({
+            userId: authUser.id,
+            locale: code,
+            accessMode: dayAccessMode,
+            accessTier: dayContentAccessTier,
+            timezone: profile?.tz?.trim() || "UTC",
+            birthDate: profile?.birth_date,
+            birthTime: profile?.birth_time,
+            birthPlace: profile?.birth_place,
+            lat: profile?.lat,
+            lon: profile?.lon,
+          }),
+          controller.signal,
+          LOCALE_PROBE_TIMEOUT_MS,
+        );
+        if (isStaleLocaleOp(opId, localeOpIdRef.current, controller.signal)) {
+          abandonLocaleOp(opId);
+          return;
+        }
         if (probe.ready) {
           // Texts exist — still show translating overlay while we warm phone cache.
+          // Reuse the same AbortController; do not abort between probe and ensure.
           await runLocaleEnsure({
             code,
             previousLocale: locale,
             accessMode: probe.accessMode,
             forceRefresh: false,
+            opId,
+            signal: controller.signal,
           });
           return;
         }
@@ -319,26 +344,27 @@ export default function ProfileTabRoute() {
           previousLocale: locale,
           accessMode: probe.accessMode,
         });
-      } catch {
-        if (controller.signal.aborted) return;
+      } catch (error) {
+        if (isLocalePickAborted(error) || isStaleLocaleOp(opId, localeOpIdRef.current, controller.signal)) {
+          abandonLocaleOp(opId);
+          return;
+        }
         setLocaleRebuild({
           phase: "confirm",
           pendingLocale: code,
           previousLocale: locale,
           accessMode: dayAccessMode,
         });
-      } finally {
-        if (localeEnsureAbortRef.current === controller) {
-          localeEnsureAbortRef.current = null;
-        }
       }
     },
     [
+      abandonLocaleOp,
       authUser?.id,
       commitLocale,
       dayAccessMode,
       dayContentAccessTier,
       locale,
+      localeRebuild.phase,
       optimisticLocale,
       profile?.birth_date,
       profile?.birth_place,
@@ -351,6 +377,7 @@ export default function ProfileTabRoute() {
   );
 
   const cancelLocaleRebuild = useCallback(() => {
+    localeOpIdRef.current += 1;
     localeEnsureAbortRef.current?.abort();
     localeEnsureAbortRef.current = null;
     setOptimisticLocale(null);
@@ -360,11 +387,17 @@ export default function ProfileTabRoute() {
 
   const continueLocaleRebuild = useCallback(async () => {
     if (localeRebuild.phase !== "confirm" && localeRebuild.phase !== "error") return;
+    const opId = localeOpIdRef.current;
+    localeEnsureAbortRef.current?.abort();
+    const controller = new AbortController();
+    localeEnsureAbortRef.current = controller;
     await runLocaleEnsure({
       code: localeRebuild.pendingLocale,
       previousLocale: localeRebuild.previousLocale,
       accessMode: localeRebuild.accessMode,
       forceRefresh: true,
+      opId,
+      signal: controller.signal,
     });
   }, [localeRebuild, runLocaleEnsure]);
 
@@ -820,53 +853,36 @@ export default function ProfileTabRoute() {
           <AppButton label={t("support.openButton")} variant="secondary" onPress={() => setSupportOpen(true)} />
         </View>
 
-        <AppDialog
-          visible={localeRebuild.phase === "confirm" || localeRebuild.phase === "error"}
+        <LocaleRebuildModal
+          phase={localeRebuild.phase}
           title={
             localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
               ? translate(localeRebuild.pendingLocale, "profile.language.rebuildTitle")
               : t("profile.language.rebuildTitle")
           }
           message={
-            localeRebuild.phase === "error"
-              ? localeRebuild.message
-              : localeRebuild.phase === "confirm"
-                ? translate(localeRebuild.pendingLocale, "profile.language.rebuildMessage")
-                : t("profile.language.rebuildMessage")
-          }
-          onRequestClose={cancelLocaleRebuild}
-          actions={
-            <>
-              <AppButton
-                label={
-                  localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
-                    ? translate(localeRebuild.pendingLocale, "profile.language.rebuildCancel")
-                    : t("profile.language.rebuildCancel")
-                }
-                variant="secondary"
-                onPress={cancelLocaleRebuild}
-              />
-              <AppButton
-                label={
-                  localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
-                    ? translate(localeRebuild.pendingLocale, "profile.language.rebuildContinue")
-                    : t("profile.language.rebuildContinue")
-                }
-                onPress={() => {
-                  void continueLocaleRebuild();
-                }}
-              />
-            </>
-          }
-        />
-
-        <BlockingStatusToast
-          visible={localeRebuild.phase === "probing" || localeRebuild.phase === "loading"}
-          message={
             localeRebuild.phase === "loading"
               ? translate(localeRebuild.pendingLocale, "profile.language.translating")
-              : ""
+              : localeRebuild.phase === "error"
+                ? localeRebuild.message
+                : localeRebuild.phase === "confirm"
+                  ? translate(localeRebuild.pendingLocale, "profile.language.rebuildMessage")
+                  : ""
           }
+          cancelLabel={
+            localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
+              ? translate(localeRebuild.pendingLocale, "profile.language.rebuildCancel")
+              : t("profile.language.rebuildCancel")
+          }
+          continueLabel={
+            localeRebuild.phase === "confirm" || localeRebuild.phase === "error"
+              ? translate(localeRebuild.pendingLocale, "profile.language.rebuildContinue")
+              : t("profile.language.rebuildContinue")
+          }
+          onCancel={cancelLocaleRebuild}
+          onContinue={() => {
+            void continueLocaleRebuild();
+          }}
         />
 
         {HARMONIZER_TEST_MODE ? (

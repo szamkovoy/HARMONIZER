@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.24
-updated: 2026-09-05
+version: 1.25
+updated: 2026-09-14
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-14 (Profile language Modal):** Селектор языка на iPhone: быстрый probe miss (часто EN) dismiss’ил spinner-Modal и в том же кадре present’ил confirm — iOS глотал диалог, комбо оставался на optimistic, UI на старой локали. Один `LocaleRebuildModal` + shared abort + retry залипшего combo. Поведение store (`setAppLocale` / hydrate) не менялось. См. `profile/history`.
 
 - **2026-09-14 (locale mirror memo):** Edge-логи: `PATCH /rest/v1/users` (locale) на каждом возврате приложения в foreground (`registerPushToken` → `syncUserLocaleToServer`) плюс два на холодном старте; каждый PATCH эхом возвращался через Realtime-подписку `MembershipEventsBridge` как полный `GET users(*)`. Правило «зеркалить всегда» сохранено на уровне вызывающих (оно закрывало «UI уже итальянский, БД русская»), но сам клиент мемоизирует запись по `(userId, locale)` на процесс; hydrate засевает memo, если `users.locale` уже совпадает, и форсит запись, когда профиль показывает расхождение. Требует store-билда.
 - **2026-09-05 (locale sync + hydrate order):** `syncUserLocaleToServer` больше не зовёт `auth.getSession()` (на Android cold start часто пустой/висит → `users.locale` отстаёт, midnight cron греет не тот язык). Bearer — `getSupabaseAccessSession`. `AuthProvider` гидратит locale до Home fetch.

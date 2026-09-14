@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.15
-updated: 2026-09-05
+version: 1.16
+updated: 2026-09-14
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -10,6 +10,8 @@ code_refs:
     modules/auth/bootstrapRecoverSession.ts,
     modules/auth/types.ts,
     app/(tabs)/profile.tsx,
+    modules/profile/core/localeRebuild.ts,
+    modules/profile/ui/LocaleRebuildModal.tsx,
     app/(tabs)/index.tsx,
     modules/home/ui/NatalBirthDataModal.tsx,
     app/onboarding.tsx,
@@ -44,7 +46,7 @@ code_refs:
   Карточка «Учебное пособие» (`BookProfileCard`) после «Мои данные»: `resolveBookAccess` → ридер `/book/[locale]` или `AccountGateDialog` (`gate.body.book`). См. `docs/02_modules/book/`.
 
 - **`i18n` / `life-spheres`**  
-  Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`, `profile.account.*`) + `setLocale` только после probe/confirm; подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
+  Отчёты и chrome профиля: **`useAppLocale().locale`** → `getProfileReportStrings` / `getPeriodPresets`; карточка языка — `useTranslate` (`profile.language.rebuild*`, `profile.account.*`) + `setLocale` только после probe/confirm в одном **`LocaleRebuildModal`** (не пара spinner-Modal + AppDialog: iOS глотает confirm после быстрого probe); подписи сфер в donut — **`localizeLifeSphereLabel`** (`modules/life-spheres/labels.ts`, нативные заголовки для всех 8 `AppContentLocale`).
 
 - **`onboarding` (legal + about)**  
   Внизу `app/(tabs)/profile.tsx` — **`LegalFooter tone="links"`** (`modules/onboarding/wizard/LegalDocuments.tsx`); версия/копирайт + тексты `wizard.legal.*` / `common.appName` / `profile.about.copyrightHolder` из каталога i18n; версия билда — `expo-application` + `expo-constants`.
