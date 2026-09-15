@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.8
+version: 1.9
 updated: 2026-09-15
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-09-15 (mobile zoom-out fonts):** Второй тест в Яндекс.Почте остался мелким: 16px на `<p>` недостаточно, если клиент масштабирует всё письмо. Причина — `width:100%` + padding на одной таблице (контент шире экрана). Fix: padding только на `<td>`; дубль размера через `<font size>`; `!important`; футер 14px. Общий паттерн для Яндекс/Mail.ru/части Android, не только Яндекс.
 - **2026-09-15 (unsub copy + Yandex font):** Страница отписки RU: «Вы отписаны» / «Я больше не буду отправлять вам подобные письма.» (8 локалей). Мелкий текст в приложении Яндекс.Почта: клиент не наследует `font-size` с `<td>`/`<div>` на `<p>` и не резолвит `system-ui`. Fix: Arial + явный 16px на абзацах, `text-size-adjust:100%`.
 - **2026-09-15 (unsubscribe one-click + in-body button):** Канон остаётся `email_contacts.marketing_status=unsubscribed` (не удаляем контакт). Персональный URL `/unsubscribe?t=` (HMAC при `EMAIL_UNSUBSCRIBE_SECRET`); GET — страница на locale контакта, POST — RFC 8058 без confirm. В теле: `{{unsubscribe_url}}` + автопривязка кнопки «Отписаться». List-Unsubscribe уже шёл в Resend/SES; click-tracking не оборачивает unsub. Send-eligible сегмент принудительно `active`.
 - **2026-09-15 (segment count speed):** Превью «Получателей» ~60 с на «Вся база»: каждый Refresh гонял `sync_email_contacts_from_users` + ~15 страниц PostgREST + ~30 чанков `users`. Fix: RPC `email_segment_resolve` (`count`/`list`, `20260915122437`); segment route sync только при `sync: true`; пустой черновик — count-mode без загрузки контактов. Send по-прежнему sync’ит перед resolve.
