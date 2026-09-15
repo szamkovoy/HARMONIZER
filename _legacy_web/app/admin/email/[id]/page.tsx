@@ -9,6 +9,7 @@ import {
   Loader2,
   RefreshCw,
   Save,
+  Square,
   Trash2,
 } from "lucide-react";
 
@@ -32,6 +33,16 @@ import {
 } from "../_lib/blocks";
 import type { ContentLocale } from "../_lib/emailLocales";
 
+type CampaignProgress = {
+  queued: number;
+  accepted: number;
+  failed: number;
+  remaining_estimate: number | null;
+  next_wave_size: number;
+  next_wave_at: string | null;
+  halted: boolean;
+};
+
 type Campaign = {
   id: string;
   status: string;
@@ -42,6 +53,12 @@ type Campaign = {
   html_body_i18n?: Record<string, string> | null;
   blocks_i18n?: unknown;
   segment_query?: Record<string, unknown> | null;
+  warmup_plan?: { sizes?: number[]; hour_msk?: number; repeat_last?: boolean } | null;
+  warmup_wave_index?: number;
+  next_wave_at?: string | null;
+  next_wave_size?: number | null;
+  audience_cap?: number | null;
+  send_halted_at?: string | null;
   recipient_count: number;
   skipped_locale_count: number;
   sent_count: number;
@@ -104,6 +121,7 @@ const SEGMENT_LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as cons
 const STATUS_RU: Record<string, string> = {
   draft: "черновик",
   sending: "отправка…",
+  paused: "пауза",
   sent: "отправлено",
   failed: "ошибка",
 };
@@ -225,6 +243,7 @@ export default function AdminEmailCampaignPage() {
   const router = useRouter();
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [progress, setProgress] = useState<CampaignProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -241,16 +260,21 @@ export default function AdminEmailCampaignPage() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [audienceCap, setAudienceCap] = useState("");
   const [testTo, setTestTo] = useState("");
 
-  const readOnly = campaign?.status === "sent" || campaign?.status === "sending";
+  const sendingNow = campaign?.status === "sending";
+  const finished = campaign?.status === "sent";
+  const readOnly = sendingNow || finished;
 
   const load = useCallback(async () => {
     try {
-      const { campaign: row } = await adminFetch<{ campaign: Campaign }>(
-        `/api/admin/email/campaigns/${id}`,
-      );
+      const { campaign: row, progress: prog } = await adminFetch<{
+        campaign: Campaign;
+        progress?: CampaignProgress;
+      }>(`/api/admin/email/campaigns/${id}`);
       setCampaign(row);
+      setProgress(prog ?? null);
       setName(row.name ?? "");
       setSubject(row.subject ?? "");
       setSubjectI18n((row.subject_i18n as Record<string, string>) ?? {});
@@ -262,6 +286,7 @@ export default function AdminEmailCampaignPage() {
       }
       setBlocksI18n(blocks);
       setSegment(queryToSegment(row.segment_query as Record<string, unknown>));
+      setAudienceCap(row.audience_cap != null ? String(row.audience_cap) : "");
       setRecipientCount(null);
       setError(null);
     } catch (err) {
@@ -272,6 +297,14 @@ export default function AdminEmailCampaignPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (campaign?.status !== "sending") return;
+    const timer = window.setInterval(() => {
+      void load();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [campaign?.status, load]);
 
   async function refreshCount(): Promise<{
     count: number;
@@ -334,6 +367,7 @@ export default function AdminEmailCampaignPage() {
           body: JSON.stringify({
             name: name.trim(),
             segment_query: segmentToQuery(segment),
+            audience_cap: audienceCap.trim() ? Number(audienceCap.trim()) : null,
           }),
         },
       );
@@ -443,9 +477,8 @@ export default function AdminEmailCampaignPage() {
 
   async function sendCampaign(e: FormEvent) {
     e.preventDefault();
-    if (!campaign || readOnly) return;
+    if (!campaign || finished || sendingNow) return;
     setError(null);
-    // Fresh count with the same algorithm as send (segment ∩ exact locale).
     const preview = await refreshCount();
     if (preview === null) return;
     if (preview.copyEmpty) {
@@ -461,10 +494,20 @@ export default function AdminEmailCampaignPage() {
       );
       return;
     }
-    if (!confirm(`Отправить рассылку ${preview.count} получателям?`)) return;
+    const wave =
+      progress?.next_wave_size ||
+      campaign.next_wave_size ||
+      500;
+    const already = progress?.accepted ?? campaign.sent_count ?? 0;
+    if (
+      !confirm(
+        `Отправить следующую волну до ${wave} писем самым свежим из сегмента?\nУже принято Resend: ${already}. Повторно им не уйдёт.`,
+      )
+    ) {
+      return;
+    }
     setSending(true);
     try {
-      // Persist segment + copy so send uses the same content we just counted.
       const { campaign: row } = await adminFetch<{ campaign: Campaign }>(
         `/api/admin/email/campaigns/${id}`,
         {
@@ -472,6 +515,7 @@ export default function AdminEmailCampaignPage() {
           body: JSON.stringify({
             name: name.trim(),
             segment_query: segmentToQuery(segment),
+            audience_cap: audienceCap.trim() ? Number(audienceCap.trim()) : null,
             subject,
             html_body: htmlBody,
             subject_i18n: subjectI18n,
@@ -483,21 +527,39 @@ export default function AdminEmailCampaignPage() {
       setCampaign(row);
       const result = await adminFetch<{
         sent_count: number;
-        skipped_locale_count: number;
-        error_count: number;
+        queued_enqueued?: number;
+        status?: string;
+        timed_out?: boolean;
         campaign: Campaign;
       }>(`/api/admin/email/campaigns/${id}/send`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({ start_wave: true }),
       });
       setCampaign(result.campaign);
       setInfo(
-        `Отправлено: ${result.sent_count}, пропущено (нет языка): ${result.skipped_locale_count}, ошибок: ${result.error_count}`,
+        "Волна запущена. Можно закрыть вкладку — отправка продолжится на сервере. Остановить — кнопка ниже.",
       );
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Отправка не удалась");
+      await load();
     } finally {
       setSending(false);
+    }
+  }
+
+  async function haltCampaign() {
+    if (!campaign || finished) return;
+    setError(null);
+    try {
+      await adminFetch(`/api/admin/email/campaigns/${id}/halt`, {
+        method: "POST",
+        body: "{}",
+      });
+      setInfo("Отправка остановлена. Кому Resend уже принял письмо — повторно не уйдёт.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось остановить");
     }
   }
 
@@ -639,7 +701,9 @@ export default function AdminEmailCampaignPage() {
   const statusLine =
     campaign?.status === "sent" && campaign.sent_at
       ? `${statusLabel} · ${formatAdminDateTime(campaign.sent_at)}`
-      : statusLabel;
+      : campaign?.status === "paused" && campaign.next_wave_at
+        ? `${statusLabel} · следующая волна ${formatAdminDateTime(campaign.next_wave_at)}`
+        : statusLabel;
 
   return (
     <div className="space-y-6">
@@ -699,6 +763,72 @@ export default function AdminEmailCampaignPage() {
         <EmailDeliveryStats counts={campaign} showUnsubscribed />
       ) : null}
 
+      {campaign ? (
+        <section className="space-y-2 rounded-2xl border border-zinc-200 bg-white p-4 text-sm">
+          <h2 className="text-sm font-semibold text-zinc-800">Прогрев волнами</h2>
+          <p className="text-xs text-zinc-500">
+            Очередь: 500 → 500 (завтра 16:00 МСК) → 1000 → 1000 → 2000 → 2000 → далее по 3000
+            каждые 24 часа. Сортировка — последняя активность в приложении или снимок Геткурса.
+            Кому Resend уже принял письмо, повторно не отправим.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                Принято Resend
+              </div>
+              <div className="text-lg font-bold text-zinc-900">
+                {progress?.accepted ?? campaign.sent_count}
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                В очереди
+              </div>
+              <div className="text-lg font-bold text-zinc-900">{progress?.queued ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                Следующая волна
+              </div>
+              <div className="text-lg font-bold text-zinc-900">
+                {progress?.next_wave_size ?? campaign.next_wave_size ?? 500}
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                Осталось в лимите
+              </div>
+              <div className="text-lg font-bold text-zinc-900">
+                {progress?.remaining_estimate ?? "—"}
+              </div>
+            </div>
+          </div>
+          {sendingNow ? (
+            <p className="text-xs text-amber-800">
+              Сейчас идёт отправка. Письмо лучше не править. Можно остановить — уже ушедшие
+              адреса останутся отмеченными.
+            </p>
+          ) : null}
+          {campaign.next_wave_at && campaign.status === "paused" ? (
+            <p className="text-xs text-emerald-800">
+              Следующая волна сама стартует {formatAdminDateTime(campaign.next_wave_at)} (16:00
+              МСК). До этого можно править текст и нажать «Остановить», чтобы отменить автозапуск.
+            </p>
+          ) : null}
+          <label className="block text-xs font-medium text-zinc-500">
+            Потолок аудитории (пусто = вся база по активности)
+            <input
+              className={`${inputCls} mt-1 max-w-xs`}
+              inputMode="numeric"
+              placeholder="например 6000"
+              value={audienceCap}
+              disabled={readOnly}
+              onChange={(e) => setAudienceCap(e.target.value.replace(/[^\d]/g, ""))}
+            />
+          </label>
+        </section>
+      ) : null}
+
       <label className="block text-xs font-medium text-zinc-500">
         Название рассылки
         <input
@@ -725,9 +855,30 @@ export default function AdminEmailCampaignPage() {
         testTo={testTo}
         onTestToChange={setTestTo}
         onSendTest={sendTest}
-        sending={sending}
-        showSendBlock={!readOnly}
-        onBulkSend={!readOnly ? sendCampaign : undefined}
+        sending={sending || sendingNow}
+        showSendBlock={!finished}
+        onBulkSend={!finished && !sendingNow ? sendCampaign : undefined}
+        bulkSendLabel={`Отправить волну (${progress?.next_wave_size ?? campaign?.next_wave_size ?? 500})`}
+        sendExtra={
+          sendingNow ? (
+            <button
+              type="button"
+              onClick={() => void haltCampaign()}
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+            >
+              <Square size={14} />
+              Остановить
+            </button>
+          ) : campaign?.status === "paused" ? (
+            <button
+              type="button"
+              onClick={() => void haltCampaign()}
+              className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              Снять автозапуск
+            </button>
+          ) : null
+        }
         onBeforeOpenEditor={readOnly ? undefined : confirmNameBeforeEdit}
         afterPreview={
           <section className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">

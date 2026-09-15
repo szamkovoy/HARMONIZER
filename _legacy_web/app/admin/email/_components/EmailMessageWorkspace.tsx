@@ -51,6 +51,7 @@ type Props = {
   sendExtra?: ReactNode;
   /** Optional form submit for bulk send. */
   onBulkSend?: (e: FormEvent) => void;
+  bulkSendLabel?: string;
   /** Campaign segment (or step delay) between preview and send. */
   afterPreview?: ReactNode;
   /**
@@ -77,6 +78,7 @@ export function EmailMessageWorkspace({
   showSendBlock = true,
   sendExtra,
   onBulkSend,
+  bulkSendLabel = "Отправить сегменту",
   afterPreview,
   onBeforeOpenEditor,
 }: Props) {
@@ -226,7 +228,7 @@ export function EmailMessageWorkspace({
                 ) : (
                   <Send size={16} />
                 )}
-                Отправить сегменту
+                {bulkSendLabel}
               </button>
             ) : null}
           </div>

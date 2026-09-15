@@ -1,4 +1,6 @@
 import { asContentLocale } from "../../../../_utils/contentLocales";
+import { campaignSendProgress } from "../../../../_utils/emailCampaignSend";
+import { parseAudienceCap, parseWarmupPlan } from "../../../../_utils/emailCampaignWarmup";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -37,7 +39,20 @@ export async function GET(req: Request, ctx: Ctx) {
       .order("created_at", { ascending: false })
       .limit(50);
 
-    return json({ campaign, events: recentEvents ?? [] });
+    const progress = await campaignSendProgress(db, {
+      id: campaign.id as string,
+      status: campaign.status as string,
+      warmup_plan: campaign.warmup_plan,
+      warmup_wave_index: (campaign.warmup_wave_index as number) ?? 0,
+      next_wave_at: (campaign.next_wave_at as string | null) ?? null,
+      next_wave_size: (campaign.next_wave_size as number | null) ?? null,
+      audience_cap: (campaign.audience_cap as number | null) ?? null,
+      send_halted_at: (campaign.send_halted_at as string | null) ?? null,
+      sent_count: Number(campaign.sent_count ?? 0),
+      recipient_count: Number(campaign.recipient_count ?? 0),
+    });
+
+    return json({ campaign, events: recentEvents ?? [], progress });
   } catch (error) {
     return errorResponse(error);
   }
@@ -51,6 +66,9 @@ type PatchPayload = {
   html_body_i18n?: Record<string, string>;
   blocks_i18n?: Record<string, unknown>;
   segment_query?: Record<string, unknown>;
+  warmup_plan?: Record<string, unknown>;
+  audience_cap?: number | null;
+  next_wave_size?: number | null;
 };
 
 export async function PATCH(req: Request, ctx: Ctx) {
@@ -82,6 +100,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     if (payload.segment_query && typeof payload.segment_query === "object") {
       patch.segment_query = payload.segment_query;
+    }
+    if (payload.warmup_plan && typeof payload.warmup_plan === "object") {
+      patch.warmup_plan = parseWarmupPlan(payload.warmup_plan);
+    }
+    if ("audience_cap" in payload) {
+      patch.audience_cap = parseAudienceCap(payload.audience_cap);
+    }
+    if ("next_wave_size" in payload) {
+      const n = Math.floor(Number(payload.next_wave_size));
+      patch.next_wave_size = Number.isFinite(n) && n > 0 ? n : null;
     }
     if (existing.status === "sent") {
       return json(

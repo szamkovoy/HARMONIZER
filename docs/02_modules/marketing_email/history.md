@@ -1,20 +1,21 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.16
+version: 1.17
 updated: 2026-09-15
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
     supabase/migrations/20260724200000_marketing_email.sql,
     supabase/migrations/20260914132243_email_contacts_delete_with_user.sql,
-    supabase/migrations/20260915122437_email_segment_count_rpc.sql,
+    supabase/migrations/20260915184713_email_campaign_waves.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
 
 ## Decision Log
 
+- **2026-09-15 (warmup waves):** Разовая рассылка больше не шлёт 15k за один Vercel-инвок. Волны 500/500/1000/1000/2000/2000/3000, пауза с правкой, halt, cron досылает queued, skip sent/delivered/opened/clicked. Сортировка по активности приложения или снимка Геткурса. Миграция `20260915184713`.
 - **2026-09-15 (footer unwrap):** После фикса масштаба Яндекс iOS резал «отписаться» по слогам из‑за `word-break:break-all` на ссылке. Футер: `white-space:nowrap` на якоре — слово переносится целиком. `break-all` в `<style>` остаётся для длинных URL в теле.
 - **2026-09-15 (Yandex overflow zoom):** После возврата центра — ещё попытка не зумить холст: `text-size-adjust:none`; `word-break`/`overflow-wrap:anywhere`; preheader `max-width:0` (без цепочки `&nbsp;`); `table-layout:fixed`; убран MSO `width=560`. Без `min-width:100%` (сдвигало вправо). Если шрифт в приложении Яндекс iOS снова мелкий — клиент задаёт свой кегль, HTML его не перебивает.
 - **2026-09-15 (center again, stop Yandex font chase):** 24px без !important шрифт в Яндексе не увеличил, но `min-width:100%` + обёртка-div сдвинули карточку вправо. Откат: центрирование через `align=center`, 16px, без min-width/div. Приложение Яндекс iOS свой размер текста HTML-ом не берёт.

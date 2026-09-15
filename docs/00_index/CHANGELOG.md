@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.37
+version: 3.38
 updated: 2026-09-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-15 (589): Marketing campaigns send in warmup waves (pause/edit/halt, skip already-accepted recipients, cron drain). Migration `20260915184713`. Docs `marketing_email`.
 - 2026-09-15 (588): Marketing footer: keep «отписаться» as one word in Yandex iOS (`white-space:nowrap` on the link). Docs `marketing_email`.
 - 2026-09-15 (587): Marketing HTML: stop Yandex fit-to-screen from a wide canvas — word-break, capped preheader, no MSO 560, text-size-adjust none. Docs `marketing_email`.
 - 2026-09-15 (586): Marketing HTML: drop Yandex 24px chase; restore centered 16px column (no min-width/div offset). Docs `marketing_email`.

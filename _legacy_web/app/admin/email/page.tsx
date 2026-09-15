@@ -36,6 +36,7 @@ type CampaignRow = {
 const STATUS_RU: Record<string, string> = {
   draft: "Черновик",
   sending: "Отправка…",
+  paused: "Пауза",
   sent: "Отправлено",
   failed: "Ошибка",
 };
@@ -213,7 +214,7 @@ function EmailCampaignsList() {
         <>
           <ul className={ADMIN_LIST_STACK}>
             {campaigns.map((c) => {
-              const showStats = c.status === "sent" || c.status === "sending";
+              const showStats = c.status === "sent" || c.status === "sending" || c.status === "paused";
               return (
                 <EmailListRow
                   key={c.id}
