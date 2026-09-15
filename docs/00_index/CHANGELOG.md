@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.28
+version: 3.29
 updated: 2026-09-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-15 (580): Unsubscribe page copy «Вы отписаны»; marketing HTML fonts explicit 16px Arial so Yandex Mail app does not shrink body text. Docs `marketing_email`.
 - 2026-09-15 (579): Marketing unsubscribe: personal `/unsubscribe?t=` (HMAC), RFC 8058 POST, `{{unsubscribe_url}}` + auto-bind «Отписаться» in the letter body; send still skips non-active contacts. Docs `marketing_email`.
 - 2026-09-15 (578): Admin email segment count ~60s → SQL RPC `email_segment_resolve` + no sync on preview (sync only on send). Docs `marketing_email`.
 - 2026-09-14 (577): Wipe/OTP-delete больше не оставляют адрес в рассылке: `email_contacts` CASCADE с `users`; 743 мёртвых контакта без аккаунта удалены. Docs `marketing_email` + `account_web`.

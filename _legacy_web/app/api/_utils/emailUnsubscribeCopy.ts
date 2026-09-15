@@ -18,58 +18,50 @@ export type UnsubscribePageCopy = {
 
 const COPY: Record<AppContentLocale, Omit<UnsubscribePageCopy, "lang">> = {
   ru: {
-    successTitle: "Вы отписались",
-    successBody:
-      "Мы больше не будем присылать маркетинговые письма на этот адрес. Доступ к приложению не изменился.",
+    successTitle: "Вы отписаны",
+    successBody: "Я больше не буду отправлять вам подобные письма.",
     invalidTitle: "Ссылка недействительна",
     invalidBody: "Проверьте ссылку из письма или запросите новую.",
   },
   en: {
     successTitle: "You’re unsubscribed",
-    successBody:
-      "We won’t send marketing emails to this address anymore. Your app access is unchanged.",
+    successBody: "I won’t send you emails like this anymore.",
     invalidTitle: "This link isn’t valid",
     invalidBody: "Check the link from the email, or request a new one.",
   },
   de: {
-    successTitle: "Abmeldung bestätigt",
-    successBody:
-      "Wir senden keine Marketing-E-Mails mehr an diese Adresse. Der Zugang zur App bleibt unverändert.",
+    successTitle: "Sie sind abgemeldet",
+    successBody: "Ich werde Ihnen solche E-Mails nicht mehr schicken.",
     invalidTitle: "Link ungültig",
     invalidBody: "Prüfen Sie den Link aus der E-Mail oder fordern Sie einen neuen an.",
   },
   fr: {
-    successTitle: "Désabonnement confirmé",
-    successBody:
-      "Nous n’enverrons plus d’e-mails marketing à cette adresse. L’accès à l’application ne change pas.",
+    successTitle: "Vous êtes désabonné",
+    successBody: "Je ne vous enverrai plus de messages de ce type.",
     invalidTitle: "Lien invalide",
     invalidBody: "Vérifiez le lien du message ou demandez-en un nouveau.",
   },
   it: {
     successTitle: "Iscrizione annullata",
-    successBody:
-      "Non invieremo più email di marketing a questo indirizzo. L’accesso all’app non cambia.",
+    successBody: "Non ti invierò più email di questo tipo.",
     invalidTitle: "Link non valido",
     invalidBody: "Controlla il link nell’email oppure richiedine uno nuovo.",
   },
   es: {
     successTitle: "Baja confirmada",
-    successBody:
-      "Ya no enviaremos correos de marketing a esta dirección. El acceso a la aplicación no cambia.",
+    successBody: "Ya no te enviaré correos como este.",
     invalidTitle: "Enlace no válido",
     invalidBody: "Revisa el enlace del correo o solicita uno nuevo.",
   },
   pt: {
     successTitle: "Inscrição cancelada",
-    successBody:
-      "Não enviaremos mais e-mails de marketing para este endereço. O acesso ao aplicativo não muda.",
+    successBody: "Não enviarei mais e-mails como este.",
     invalidTitle: "Link inválido",
     invalidBody: "Verifique o link do e-mail ou solicite um novo.",
   },
   nl: {
-    successTitle: "Uitgeschreven",
-    successBody:
-      "We sturen geen marketingmails meer naar dit adres. Toegang tot de app blijft hetzelfde.",
+    successTitle: "Je bent uitgeschreven",
+    successBody: "Ik stuur je dit soort e-mails niet meer.",
     invalidTitle: "Ongeldige link",
     invalidBody: "Controleer de link in de e-mail of vraag een nieuwe aan.",
   },

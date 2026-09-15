@@ -11,8 +11,12 @@ import {
 export { MARKETING_EMAIL_MAX_WIDTH_PX } from "./emailChrome";
 
 const BRAND_COLOR = "#0f3d2e";
-const BODY_FONT =
-  "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+/** Email-safe stack. `system-ui` is ignored by Yandex Mail app and falls back to a tiny default. */
+export const MARKETING_EMAIL_BODY_FONT = "Arial,Helvetica,sans-serif";
+const BODY_FONT = MARKETING_EMAIL_BODY_FONT;
+const BODY_FONT_SIZE = "16px";
+const TEXT_SIZE_ADJUST =
+  "-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;text-size-adjust:100%;";
 
 /** Paste this into a button/link href in the admin editor — send substitutes a personal URL. */
 export const UNSUBSCRIBE_URL_PLACEHOLDER = "{{unsubscribe_url}}";
@@ -26,28 +30,42 @@ export type WrapEmailOptions = {
   previewText?: string;
 };
 
+const HEADING_FONT_SIZE: Record<string, string> = {
+  h1: "22px",
+  h2: "22px",
+  h3: "18px",
+  h4: "16px",
+  h5: "16px",
+  h6: "16px",
+};
+
 /**
  * Email clients ignore Tailwind and apply default `<p>` margins (~1em).
- * Normalize so:
- * - soft break (`<br>`) does not add block spacing;
- * - a blank paragraph (Enter on empty line) is exactly one empty line;
- * - consecutive non-empty paragraphs have no extra gap beyond line-height.
+ * Yandex Mail's mobile app also does **not** inherit `font-size` from a parent
+ * `<td>`/`<div>` onto `<p>` — without an explicit px size the body looks tiny.
  */
-export function normalizeEmailBodyHtml(html: string): string {
+export function normalizeEmailBodyHtml(
+  html: string,
+  fallback?: { fontSize?: string; fontFamily?: string },
+): string {
   if (!html.trim()) return html;
+
+  const fallbackSize = fallback?.fontSize ?? BODY_FONT_SIZE;
+  const fallbackFamily = fallback?.fontFamily ?? BODY_FONT;
 
   let out = html;
 
   // Empty paragraphs → one blank line (email-safe spacer).
   out = out.replace(
     /<p(\s[^>]*)?>\s*(?:<br\s*\/?>|&nbsp;|\u00a0|\s)*<\/p>/gi,
-    '<p style="margin:0;padding:0;line-height:1.55;height:1.55em;font-size:inherit;">&nbsp;</p>',
+    `<p style="margin:0;padding:0;line-height:1.55;height:1.55em;font-size:${fallbackSize};font-family:${fallbackFamily};">&nbsp;</p>`,
   );
 
   // Force zero margin on block text tags (merge with existing style=).
   out = out.replace(
     /<(p|h1|h2|h3|h4|h5|h6|li|ul|ol)(\s[^>]*)?>/gi,
     (_full, tag: string, attrs = "") => {
+      const tagName = String(tag).toLowerCase();
       const attrStr = typeof attrs === "string" ? attrs : "";
       if (/height\s*:\s*1\.55em/i.test(attrStr)) {
         return `<${tag}${attrStr}>`;
@@ -55,12 +73,29 @@ export function normalizeEmailBodyHtml(html: string): string {
       const styleMatch = attrStr.match(/\sstyle\s*=\s*"([^"]*)"/i);
       const withoutStyle = attrStr.replace(/\sstyle\s*=\s*"[^"]*"/i, "");
       const prev = styleMatch?.[1] ?? "";
-      const cleaned = prev
+      let cleaned = prev
         .replace(/margin\s*:[^;]*;?/gi, "")
         .replace(/padding\s*:[^;]*;?/gi, "")
         .replace(/;;+/g, ";")
         .trim()
         .replace(/^;|;$/g, "");
+      if (!/font-size\s*:/i.test(cleaned)) {
+        const heading = /^h[1-6]$/.test(tagName);
+        const size = heading
+          ? (fallback?.fontSize ?? HEADING_FONT_SIZE[tagName] ?? BODY_FONT_SIZE)
+          : fallbackSize;
+        cleaned = `${cleaned ? `${cleaned};` : ""}font-size:${size}`;
+      }
+      if (!/line-height\s*:/i.test(cleaned)) {
+        cleaned = `${cleaned ? `${cleaned};` : ""}line-height:1.55`;
+      }
+      if (
+        !/font-family\s*:/i.test(cleaned) &&
+        (tagName === "p" || tagName === "li" || /^h[1-6]$/.test(tagName))
+      ) {
+        cleaned = `${cleaned ? `${cleaned};` : ""}font-family:${fallbackFamily}`;
+      }
+      cleaned = cleaned.replace(/;;+/g, ";").replace(/^;|;$/g, "");
       const next = `margin:0;padding:0;${cleaned ? `${cleaned};` : ""}`;
       return `<${tag}${withoutStyle} style="${next}">`;
     },
@@ -128,22 +163,26 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="x-apple-disable-message-reformatting" />
   <title>Гармонизатор</title>
+  <style type="text/css">
+    html,body,table,td,div,p,a,li{${TEXT_SIZE_ADJUST}}
+  </style>
 </head>
-<body style="margin:0;padding:0;background:#f4f6f5;font-family:${BODY_FONT};color:#1a1a1a;">
+<body style="margin:0;padding:0;background:#f4f6f5;font-family:${BODY_FONT};font-size:${BODY_FONT_SIZE};line-height:1.55;color:#1a1a1a;${TEXT_SIZE_ADJUST}">
   ${preview ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preview}</div>` : ""}
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6f5;padding:24px 12px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6f5;padding:24px 12px;${TEXT_SIZE_ADJUST}">
     <tr>
-      <td align="center">
+      <td align="center" style="font-family:${BODY_FONT};font-size:${BODY_FONT_SIZE};${TEXT_SIZE_ADJUST}">
         <table role="presentation" width="100%" style="max-width:${MARKETING_EMAIL_MAX_WIDTH_PX}px;background:#ffffff;border-radius:12px;overflow:hidden;">
           <tr>
-            <td style="padding:28px;font-size:16px;line-height:1.55;font-family:${BODY_FONT};">
+            <td style="padding:28px;font-size:${BODY_FONT_SIZE};line-height:1.55;font-family:${BODY_FONT};${TEXT_SIZE_ADJUST}">
               ${body}
             </td>
           </tr>
           <tr>
-            <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:12.5px;line-height:1.5;color:#6b7280;text-align:center;">
-              <p style="margin:0;padding:0;font-size:12.5px;line-height:1.5;">
+            <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:12.5px;line-height:1.5;color:#6b7280;text-align:center;${TEXT_SIZE_ADJUST}">
+              <p style="margin:0;padding:0;font-size:12.5px;line-height:1.5;font-family:${BODY_FONT};">
                 Вы получили это письмо, потому что регистрировались в учебном центре Сергея Замкового.
                 Если вы не хотите получать мои письма, вы можете
                 <a href="${escapeHref(opts.unsubscribeUrl)}" style="color:${BRAND_COLOR};text-decoration:underline;">отписаться</a>.

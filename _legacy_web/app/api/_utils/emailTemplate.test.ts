@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import { bindUnsubscribeLinks, normalizeEmailBodyHtml, wrapMarketingEmailHtml, applyEmailPlaceholders } from "./emailTemplate";
 
 describe("normalizeEmailBodyHtml", () => {
-  it("zeros margins on non-empty paragraphs", () => {
+  it("zeros margins and sets an explicit 16px font on paragraphs", () => {
     const out = normalizeEmailBodyHtml("<p>Hello</p><p>World</p>");
-    expect(out).toContain('style="margin:0;padding:0;"');
+    expect(out).toContain("margin:0;padding:0;");
+    expect(out).toContain("font-size:16px");
+    expect(out).toContain("font-family:Arial,Helvetica,sans-serif");
     expect(out).not.toMatch(/margin:\s*1em/i);
   });
 
@@ -31,6 +33,8 @@ describe("wrapMarketingEmailHtml", () => {
     expect(html).toContain("max-width:560px");
     expect(html).toContain("height:1.55em");
     expect(html).toContain("https://example.com/u");
+    expect(html).toContain("-webkit-text-size-adjust:100%");
+    expect(html).toContain("Arial,Helvetica,sans-serif");
   });
 });
 

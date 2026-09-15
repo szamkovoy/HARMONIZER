@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.7
+version: 1.8
 updated: 2026-09-15
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-09-15 (unsub copy + Yandex font):** Страница отписки RU: «Вы отписаны» / «Я больше не буду отправлять вам подобные письма.» (8 локалей). Мелкий текст в приложении Яндекс.Почта: клиент не наследует `font-size` с `<td>`/`<div>` на `<p>` и не резолвит `system-ui`. Fix: Arial + явный 16px на абзацах, `text-size-adjust:100%`.
 - **2026-09-15 (unsubscribe one-click + in-body button):** Канон остаётся `email_contacts.marketing_status=unsubscribed` (не удаляем контакт). Персональный URL `/unsubscribe?t=` (HMAC при `EMAIL_UNSUBSCRIBE_SECRET`); GET — страница на locale контакта, POST — RFC 8058 без confirm. В теле: `{{unsubscribe_url}}` + автопривязка кнопки «Отписаться». List-Unsubscribe уже шёл в Resend/SES; click-tracking не оборачивает unsub. Send-eligible сегмент принудительно `active`.
 - **2026-09-15 (segment count speed):** Превью «Получателей» ~60 с на «Вся база»: каждый Refresh гонял `sync_email_contacts_from_users` + ~15 страниц PostgREST + ~30 чанков `users`. Fix: RPC `email_segment_resolve` (`count`/`list`, `20260915122437`); segment route sync только при `sync: true`; пустой черновик — count-mode без загрузки контактов. Send по-прежнему sync’ит перед resolve.
 - **2026-09-14 (wipe deletes mailing contact):** `email_contacts.user_id` был `ON DELETE SET NULL` — после удаления аккаунта адрес оставался в «Вся база» без `users` (743 таких строк, в основном мусор импорта Геткурса 9.08). Миграция `20260914132243`: удалены контакты без `user_id`; FK → **CASCADE**. Платежи по-прежнему SET NULL. `wipeUserAccount` по-прежнему гасит цепочки до `deleteUser`.

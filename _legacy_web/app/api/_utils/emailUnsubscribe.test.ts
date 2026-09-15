@@ -62,4 +62,10 @@ describe("unsubscribe page copy", () => {
       expect(copy.invalidTitle.trim()).not.toBe("");
     }
   });
+
+  it("uses the short first-person RU confirmation", () => {
+    const copy = getUnsubscribePageCopy("ru");
+    expect(copy.successTitle).toBe("Вы отписаны");
+    expect(copy.successBody).toBe("Я больше не буду отправлять вам подобные письма.");
+  });
 });

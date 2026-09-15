@@ -1,4 +1,5 @@
 import { MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX } from "../../../api/_utils/emailChrome";
+import { normalizeEmailBodyHtml } from "../../../api/_utils/emailTemplate";
 import { sanitizeEmailRichHtml } from "../../../api/_utils/emailRichHtml";
 
 export type BlockAlign = "left" | "center" | "right";
@@ -14,7 +15,8 @@ export type BlockFontSize = "sm" | "md" | "lg" | "xl";
 const CONTENT_INNER_WIDTH_PX = MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX;
 
 const FONT_CSS: Record<BlockFontFamily, string> = {
-  system: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+  // Arial first: Yandex Mail app does not resolve `system-ui` and shrinks body text.
+  system: "Arial,Helvetica,sans-serif",
   arial: "Arial,Helvetica,sans-serif",
   verdana: "Verdana,Geneva,sans-serif",
   georgia: "Georgia,'Times New Roman',serif",
@@ -155,8 +157,11 @@ function blockToHtml(block: EmailBlock): string {
     const family = FONT_CSS[block.fontFamily ?? "system"];
     const size = SIZE_CSS[block.fontSize ?? (block.type === "heading" ? "xl" : "md")];
     const weight = block.type === "heading" ? "font-weight:700;" : "";
-    // Inner <p>/<br> spacing is finalized in wrapMarketingEmailHtml (normalizeEmailBodyHtml).
-    return `<div style="${pad}font-family:${family};font-size:${size};line-height:1.55;${weight}">${block.html || ""}</div>`;
+    const inner = normalizeEmailBodyHtml(block.html || "", {
+      fontSize: size,
+      fontFamily: family,
+    });
+    return `<div style="${pad}font-family:${family};font-size:${size};line-height:1.55;${weight}">${inner}</div>`;
   }
 
   if (block.type === "button") {
@@ -164,7 +169,7 @@ function blockToHtml(block: EmailBlock): string {
     const label = escapeAttr(block.label || "Кнопка");
     const href = escapeAttr(block.href || "#");
     return `<div style="${pad}">
-  <a href="${href}" style="display:inline-block;background:${color};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-family:system-ui,sans-serif;font-size:15px;font-weight:600;">${label}</a>
+  <a href="${href}" style="display:inline-block;background:${color};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;">${label}</a>
 </div>`;
   }
 
