@@ -1,8 +1,9 @@
 /**
- * Bulk CRM import from import/*.xlsx (GetCourse exports).
+ * Bulk CRM import from import/*.{xlsx,csv} (GetCourse exports).
  *
  *   node scripts/crm-import.mjs --file "Удаленные_28.11.2024.xlsx"
  *   node scripts/crm-import.mjs --file "Экспорт_всех_2026-08-08.xlsx" --with-groups
+ *   node scripts/crm-import.mjs --file "user_export_….csv" --new-only
  *   node scripts/crm-import.mjs --all-deleted   # all Удал* without groups
  *   node scripts/crm-import.mjs --dry-run --file "…"
  *
@@ -13,6 +14,7 @@
  *   still set phone + course links; do not reset membership/trial
  * - CRM-only: email_only segment (crm_imported_at, null onboarded/last_seen)
  * - Within merge: freshest «Последняя активность» wins for profile fields
+ * - --new-only: skip emails already in email_contacts / app users (no update)
  *
  * Env: SUPABASE URL + SUPABASE_SERVICE_ROLE_KEY (.env.local)
  */
@@ -51,6 +53,7 @@ loadEnvFile(join(root, "_legacy_web/.env.local"));
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const withGroups = args.includes("--with-groups");
+const newOnly = args.includes("--new-only");
 const allDeleted = args.includes("--all-deleted");
 const fileIdx = args.indexOf("--file");
 const fileArg = fileIdx >= 0 ? args[fileIdx + 1] : null;
@@ -101,6 +104,10 @@ const COUNTRY = {
   финляндия: "FI",
   швеция: "SE",
   норвегия: "NO",
+  словакия: "SK",
+  болгария: "BG",
+  ирландия: "IE",
+  сингапур: "SG",
   великобритания: "GB",
   англия: "GB",
   канада: "CA",
@@ -202,8 +209,14 @@ function isDeletedFileName(name) {
 
 function resolveFiles() {
   const importDir = join(root, "import");
-  const all = readdirSync(importDir).filter((f) => f.endsWith(".xlsx"));
+  const all = readdirSync(importDir).filter(
+    (f) => f.endsWith(".xlsx") || f.endsWith(".csv"),
+  );
   if (fileArg) {
+    if (fileArg.startsWith("/") || fileArg.startsWith("..") || fileArg.includes("/")) {
+      const abs = fileArg.startsWith("/") ? fileArg : join(root, fileArg);
+      return [abs];
+    }
     const hit = all.find((f) => f === fileArg || f.includes(fileArg));
     if (!hit) throw new Error(`File not found in import/: ${fileArg}`);
     return [join(importDir, hit)];
@@ -214,11 +227,48 @@ function resolveFiles() {
       .sort()
       .map((f) => join(importDir, f));
   }
-  throw new Error("Specify --file <name.xlsx> or --all-deleted");
+  throw new Error("Specify --file <name.xlsx|csv> or --all-deleted");
+}
+
+/** Minimal CSV (comma/semicolon) → array-of-arrays; strips UTF-8 BOM. */
+function parseCsvTable(path) {
+  let text = readFileSync(path, "utf8");
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (!lines.length) return [];
+  const delim = lines[0].includes(";") && !lines[0].includes(",") ? ";" : ",";
+  const parseLine = (line) => {
+    const cells = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i + 1] === '"') {
+          cur += '"';
+          i += 1;
+        } else {
+          inQ = !inQ;
+        }
+        continue;
+      }
+      if (ch === delim && !inQ) {
+        cells.push(cur);
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    cells.push(cur);
+    return cells;
+  };
+  return lines.map(parseLine);
 }
 
 function parseFileRows(path, { allowGroups }) {
-  const rows = parseXlsxZip(path);
+  const rows = path.toLowerCase().endsWith(".csv")
+    ? parseCsvTable(path)
+    : parseXlsxZip(path);
   if (rows.length < 2) return [];
   const header = rows[0].map((h) => (h || "").trim());
   const idx = (name, optional = false) => {
@@ -436,6 +486,10 @@ async function createAuthUser(rec) {
 
 async function importOne(rec, emailMap, productByGroup, stats) {
   let userId = emailMap.get(rec.email) || null;
+  if (userId && newOnly) {
+    stats.skippedExisting += 1;
+    return;
+  }
   if (!userId) {
     if (dryRun) {
       stats.wouldCreate += 1;
@@ -568,8 +622,9 @@ async function main() {
     ? await loadGroupProductMap(allGroupIds)
     : new Map();
 
-  const emailMap = dryRun ? new Map() : await loadEmailIdMap();
+  const emailMap = await loadEmailIdMap();
   console.log("auth users cached", emailMap.size);
+  if (newOnly) console.log("mode: new-only (skip emails already in email_contacts)");
 
   const stats = {
     created: 0,
@@ -581,6 +636,7 @@ async function main() {
     courseLinks: 0,
     unknownGroups: 0,
     errors: 0,
+    skippedExisting: 0,
     needResolve: [],
     skipped: [],
   };
