@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveExactEmailCopy, isEmailCopyEmpty } from "./emailCopy";
+import { resolveExactEmailCopy, resolveCampaignEmailCopy, isEmailCopyEmpty, MARKETING_CAMPAIGN_FORCE_COPY_LOCALE } from "./emailCopy";
 
 describe("resolveExactEmailCopy", () => {
   const source = {
@@ -37,6 +37,22 @@ describe("resolveExactEmailCopy", () => {
         htmlBodyI18n: {},
       }),
     ).toBeNull();
+  });
+});
+
+describe("resolveCampaignEmailCopy", () => {
+  const source = {
+    subject: "Тема RU",
+    htmlBody: "<p>Тело RU</p>",
+    subjectI18n: { en: "Subject EN", fr: "Sujet FR" },
+    htmlBodyI18n: { en: "<p>Body EN</p>", fr: "<p>Corps FR</p>" },
+  };
+
+  it("sends RU to every contact while the force-locale stub is on", () => {
+    expect(MARKETING_CAMPAIGN_FORCE_COPY_LOCALE).toBe("ru");
+    expect(resolveCampaignEmailCopy("en", source)?.locale).toBe("ru");
+    expect(resolveCampaignEmailCopy("de", source)?.subject).toBe("Тема RU");
+    expect(resolveCampaignEmailCopy("es", source)?.htmlBody).toContain("Тело RU");
   });
 });
 

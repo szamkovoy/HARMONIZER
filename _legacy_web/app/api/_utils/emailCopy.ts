@@ -23,6 +23,14 @@ export function resolveEmailLocale(contactLocale: string | null | undefined): Ap
 }
 
 /**
+ * Temporary Russian-market stub for one-off campaigns: every contact gets this
+ * locale's authored copy, ignoring `users.locale`.
+ * Set to `null` when per-locale marketing letters go live.
+ * Automations keep exact-match via `resolveExactEmailCopy`.
+ */
+export const MARKETING_CAMPAIGN_FORCE_COPY_LOCALE: AppContentLocale | null = "ru";
+
+/**
  * Exact authored subject + HTML for contact.locale — no EN/RU fallback.
  * Null = skip recipient (count as skipped_locale).
  */
@@ -38,6 +46,17 @@ export function resolveExactEmailCopy(
   const htmlBody = pickExactLocalizedText(locale, source.htmlBody ?? "", source.htmlBodyI18n);
   if (!htmlBody.trim()) return null;
   return { locale, subject, htmlBody };
+}
+
+/** Campaign send/count: force-locale stub, else exact match. */
+export function resolveCampaignEmailCopy(
+  contactLocale: string | null | undefined,
+  source: EmailCopySource,
+): { locale: AppContentLocale; subject: string; htmlBody: string } | null {
+  return resolveExactEmailCopy(
+    MARKETING_CAMPAIGN_FORCE_COPY_LOCALE ?? contactLocale,
+    source,
+  );
 }
 
 /** True when no locale has both an authored subject and a non-empty HTML body. */

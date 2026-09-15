@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
-version: 1.4
+version: 1.5
 updated: 2026-09-15
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
@@ -23,7 +23,7 @@ code_refs:
 
 - **`admin_panel`** — UI `/admin/email*`, `/admin/email/automations/*/steps/*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
 - **`infra`** — Supabase tables/storage, Vercel env (`EMAIL_MARKETING`, `RESEND_ZAMKOVOI_*` / `SES_*`, webhook secrets, `CRON_SECRET`, `EMAIL_PUBLIC_BASE_URL`, `EMAIL_UNSUBSCRIBE_SECRET`), Resend and/or Amazon SES; first-party open/click; pg_cron → email-welcome trigger + email-automations every 5m (pg_net timeout 120s) + **email-campaigns every 5m** (pg_net 300s) + suppressions-sync (Resend-only when profile is Resend).
-- **`i18n`** — 8 content locales; exact copy per contact locale; admin translate (`type=post` reuse for subject/body HTML).
+- **`i18n`** — 8 content locales; automations exact copy per contact locale; campaigns temporarily force RU (`MARKETING_CAMPAIGN_FORCE_COPY_LOCALE`); admin translate (`type=post` reuse for subject/body HTML).
 - **`profile` / auth** — `email_contacts.user_id` → `users`; welcome enroll по первому `onboarded_at` (+ confirmed); trigger на `users.onboarded_at`; `skip_email_automations` / `last_seen_at` / `display_name`.
 - **`account_web`** — `wipeUserAccount` отменяет активные enrollments перед `deleteUser` (`cancelActiveEmailAutomationsForUser`).
 - **`subscription` / payments** — C1 via `payment_contracts` / `payments.paid_until` / `membership_*` (любой paid tier); сегмент «Демо» читает `users.trial_expires_at` (как admin access-now).

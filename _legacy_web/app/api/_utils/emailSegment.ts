@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   isEmailCopyEmpty,
-  resolveExactEmailCopy,
+  resolveCampaignEmailCopy,
   type EmailCopySource,
 } from "./emailCopy";
 
@@ -628,7 +628,7 @@ export async function resolveCampaignRecipients(
   let skippedLocaleCount = 0;
   for (const contact of segment.contacts) {
     if (contact.marketing_status !== "active") continue;
-    const exact = resolveExactEmailCopy(contact.locale, copySource);
+    const exact = resolveCampaignEmailCopy(contact.locale, copySource);
     if (!exact) {
       skippedLocaleCount += 1;
       continue;

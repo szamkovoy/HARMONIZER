@@ -11,7 +11,7 @@ import {
   waveSizeAt,
   type WarmupPlan,
 } from "./emailCampaignWarmup";
-import { resolveExactEmailCopy, type EmailCopySource } from "./emailCopy";
+import { resolveCampaignEmailCopy, type EmailCopySource } from "./emailCopy";
 import {
   newEmailTrackId,
   prepareTrackedMarketingEmailHtml,
@@ -238,7 +238,7 @@ async function sendOneQueued(
     return "skipped";
   }
 
-  const exact = resolveExactEmailCopy(contact.locale || sendRow.locale, copySource);
+  const exact = resolveCampaignEmailCopy(contact.locale || sendRow.locale, copySource);
   if (!exact) {
     await db
       .from("email_campaign_sends")

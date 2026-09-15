@@ -1,7 +1,7 @@
 import { after } from "next/server";
 
 import { parseStringRecord } from "../../../../../_utils/contentLocaleFallback";
-import { resolveExactEmailCopy } from "../../../../../_utils/emailCopy";
+import { resolveCampaignEmailCopy } from "../../../../../_utils/emailCopy";
 import { runCampaignSend } from "../../../../../_utils/emailCampaignSend";
 import {
   newEmailTrackId,
@@ -64,7 +64,7 @@ export async function POST(req: Request, ctx: Ctx) {
         }
       }
 
-      const exact = resolveExactEmailCopy(locale, {
+      const exact = resolveCampaignEmailCopy(locale, {
         subject: (campaign.subject as string) || "",
         htmlBody: (campaign.html_body as string) || "",
         subjectI18n: parseStringRecord(campaign.subject_i18n),
