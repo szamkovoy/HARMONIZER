@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.40
+version: 3.41
 updated: 2026-09-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-15 (592): Named `resolveCampaignEmailCopy` in marketing_email public contract (campaign send/segment wrapper over force-RU stub). Docs `marketing_email`.
 - 2026-09-15 (591): Campaign send temporarily forces Russian copy for every contact (`MARKETING_CAMPAIGN_FORCE_COPY_LOCALE`); automations stay exact-match. Docs `marketing_email`.
 - 2026-09-15 (590): Marketing wave send — card UX/`progress`/`start_wave` + `email_campaigns` wave columns in spec §2–3 (aligned with `20260915184713`). Docs `marketing_email`.
 - 2026-09-15 (589): Marketing campaigns send in warmup waves (pause/edit/halt, skip already-accepted recipients, cron drain). Migration `20260915184713`. Docs `marketing_email`.

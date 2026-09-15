@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.25
+version: 1.26
 updated: 2026-09-15
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
@@ -73,7 +73,7 @@ code_refs:
 - Кампании / сегмент / assets / automations / steps — как ранее
 - `GET /api/admin/email/campaigns?page=&limit=50&user_id=` — пагинация (UI — infinite scroll); `user_id` → кампании с send на контакт пользователя (`email_campaign_sends`)
 - **Locale exact-match (автоцепочки):** `resolveExactEmailCopy` — только авторский перевод на `contact`/`users.locale`, без fallback на EN/RU. Нет перевода → шаг пропускается (`email_automation_sends.status=skipped` + `advanceEnrollment`, drip продолжается). Перед due-send — `sync_email_contacts_from_users` + приоритет `users.locale` (смена языка mid-chain).
-- **Locale рассылок (временная заглушка):** `MARKETING_CAMPAIGN_FORCE_COPY_LOCALE = "ru"` в `emailCopy.ts` — кампания шлёт русскую копию всем, независимо от `users.locale`. Счётчик `skipped_locale` из‑за языка не растёт. Снять: константа → `null` — вернётся exact-match как у цепочек.
+- **Locale рассылок (временная заглушка):** `resolveCampaignEmailCopy` (send / segment / test) + `MARKETING_CAMPAIGN_FORCE_COPY_LOCALE = "ru"` в `emailCopy.ts` — кампания шлёт русскую копию всем, независимо от `users.locale`. Счётчик `skipped_locale` из‑за языка не растёт. Снять: константа → `null` — `resolveCampaignEmailCopy` снова = exact-match как у цепочек.
 - **Подсчёт получателей рассылки:** `POST /api/admin/email/segment` с телом copy → `count` = send-eligible (`resolveCampaignRecipients`); пустое письмо (`isEmailCopyEmpty`) → `copy_empty: true`, `count` = размер сегмента, `skipped_locale_count=0` (не «все без перевода»). UI без «примерно». Разрешение сегмента — SQL RPC `email_segment_resolve` (`p_mode=count|list`, миграция `20260915122437`): один round-trip, join `email_contacts`×`users`, list как jsonb (обход PostgREST `max_rows=1000`). Превью **не** вызывает `sync_email_contacts_from_users` (только `sync: true`); sync остаётся на send / due-runner. Legacy-fallback: `fetchAllPostgrestRows` по 1000, если RPC ещё не задеплоен. Аудитория: `all_contacts` («Вся база» — все `email_contacts`, в т.ч. импорт Геткурса); `all_installed` («Все установившие» — `user_id` после OTP); `include_demo` («Демо» = `trial_expires_at > now()`, как `/admin/users`); `include_new_24h` («Новые 24ч» = `created_at` за сутки); `not_in_harmonizer` (есть `user_id`, `onboarded_at IS NULL`, **не** email-only импорт); `email_only` («Только рассылки» = `crm_imported_at` + нет `onboarded_at`/`last_seen_at`); тарифные чипы (для `free`/«Навигатор» — без активного trial и без email-only). Доп. фильтры UI: `locales` (язык профиля), last_seen days (вход в приложение), даты регистрации в системе / в Гармонизаторе (`account_created_*` требуют связанный `users` ряд — контакты без аккаунта выпадают). `email_contains` без чипов ≡ `all_contacts` + фильтр email.
 - Карточка пользователя: в истории писем — статус send (delivered/opened/clicked/…); у уведомлений — прочитано/нет.
 - **Open/click UX:** `GET /api/email/track/{open,click}` отвечают сразу (GIF / 302), запись события — в `after()`. На send `email-assets` img → `GET /api/email/asset?u=` (edge, Cache-Control 1y); upload `cacheControl=31536000`.
