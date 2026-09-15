@@ -2,18 +2,20 @@
 id: 02_modules/marketing_email/history
 title: Marketing Email History
 version: 1.6
-updated: 2026-09-14
+updated: 2026-09-15
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
     supabase/migrations/20260724200000_marketing_email.sql,
     supabase/migrations/20260914132243_email_contacts_delete_with_user.sql,
+    supabase/migrations/20260915122437_email_segment_count_rpc.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
 
 ## Decision Log
 
+- **2026-09-15 (segment count speed):** Превью «Получателей» ~60 с на «Вся база»: каждый Refresh гонял `sync_email_contacts_from_users` + ~15 страниц PostgREST + ~30 чанков `users`. Fix: RPC `email_segment_resolve` (`count`/`list`, `20260915122437`); segment route sync только при `sync: true`; пустой черновик — count-mode без загрузки контактов. Send по-прежнему sync’ит перед resolve.
 - **2026-09-14 (wipe deletes mailing contact):** `email_contacts.user_id` был `ON DELETE SET NULL` — после удаления аккаунта адрес оставался в «Вся база» без `users` (743 таких строк, в основном мусор импорта Геткурса 9.08). Миграция `20260914132243`: удалены контакты без `user_id`; FK → **CASCADE**. Платежи по-прежнему SET NULL. `wipeUserAccount` по-прежнему гасит цепочки до `deleteUser`.
 - **2026-09-14 (segment count past PostgREST 1000):** `resolveEmailSegment` брал `email_contacts` одним `.limit(20000)`, но hosted/local PostgREST `max_rows=1000` молча отдавал первую тысячу. «Вся база» без фильтров показывала 1000 при ~15.6k active contacts; даты «регистрация в системе» фильтровали уже урезанную страницу. Fix: `fetchAllPostgrestRows` (страницы по 1000, `order by id`). Пустой черновик больше не считает всех `skipped_locale` — `copy_empty`, в UI hint «это размер сегмента».
 - **2026-09-14 (invoker pre-check):** `run_email_automations_every_5m` был крупнейшим источником PostgREST-трафика от Vercel (288 запусков/сутки × ~10 запросов, первый после простоя — 504). Миграция `20260914130000`: SQL-предпроверка в `invoke_run_email_automations` — на не-четвертьчасовых тиках HTTP только при due-enrollment (частичный индекс `idx_email_automation_enrollments_due`). Семантика писем не менялась: due/retry — по-прежнему ≤5 мин, enroller-фазы — каждые 15 мин (их триггеры — дни), welcome — мгновенно по триггеру. Альтернатива «просто `*/15`» отклонена: сдвигала бы retry send с 5 на 15 мин.

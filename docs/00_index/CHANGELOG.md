@@ -1,14 +1,15 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.26
-updated: 2026-09-14
+version: 3.27
+updated: 2026-09-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-09-15 (578): Admin email segment count ~60s → SQL RPC `email_segment_resolve` + no sync on preview (sync only on send). Docs `marketing_email`.
 - 2026-09-14 (577): Wipe/OTP-delete больше не оставляют адрес в рассылке: `email_contacts` CASCADE с `users`; 743 мёртвых контакта без аккаунта удалены. Docs `marketing_email` + `account_web`.
 - 2026-09-14 (576): Admin email segment count was silently capped at PostgREST `max_rows` 1000 — «Вся база» и даты «регистрация в системе» считали не всю `email_contacts`. Paginated fetch + empty-draft no longer flagged as «все без перевода». Docs `marketing_email`.
 - 2026-09-14 (575): Profile language combo on iPhone: English often spun then left the page in RU without the confirm sheet (German in the same session worked). One `LocaleRebuildModal` for probe/confirm/loading; shared AbortController; retry stuck optimistic. Docs `profile` + `i18n`.

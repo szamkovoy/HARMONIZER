@@ -217,26 +217,132 @@ export async function fetchAllPostgrestRows<T>(
   return rows;
 }
 
-/**
- * Resolve contacts matching segment. Countries from the filtered set.
- * Prefer live `users.locale` over stale `email_contacts.locale`.
- */
-export async function resolveEmailSegment(
-  db: SupabaseClient,
-  query: EmailSegmentQuery,
-): Promise<{
+/** Payload for `email_segment_resolve` (mirrors parseEmailSegmentQuery fields). */
+export function segmentQueryToRpcPayload(query: EmailSegmentQuery): Record<string, unknown> {
+  return {
+    all_contacts: query.all_contacts === true,
+    all_installed: query.all_installed === true,
+    include_demo: query.include_demo === true,
+    include_new_24h: query.include_new_24h === true,
+    not_in_harmonizer: query.not_in_harmonizer === true,
+    email_only: query.email_only === true,
+    membership_tiers: query.membership_tiers ?? [],
+    marketing_statuses: query.marketing_statuses?.length
+      ? query.marketing_statuses
+      : ["active"],
+    locales: query.locales ?? [],
+    country_codes: query.country_codes ?? [],
+    email_contains: query.email_contains ?? null,
+    last_seen_within_days: query.last_seen_within_days ?? null,
+    last_seen_older_than_days: query.last_seen_older_than_days ?? null,
+    account_created_on_or_after: query.account_created_on_or_after ?? null,
+    account_created_on_or_before: query.account_created_on_or_before ?? null,
+    onboarded_on_or_after: query.onboarded_on_or_after ?? null,
+    onboarded_on_or_before: query.onboarded_on_or_before ?? null,
+  };
+}
+
+type EmailSegmentResolveResult = {
   contacts: EmailContactRow[];
   countries: string[];
   count: number;
   no_audience?: boolean;
-}> {
-  const statuses = query.marketing_statuses?.length
-    ? query.marketing_statuses
-    : ["active"];
+};
+
+function parseRpcSegmentResult(
+  raw: unknown,
+  mode: "count" | "list",
+): EmailSegmentResolveResult | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  const count = typeof row.count === "number" ? row.count : Number(row.count);
+  if (!Number.isFinite(count)) return null;
+  const countries = Array.isArray(row.countries)
+    ? row.countries.filter((c): c is string => typeof c === "string")
+    : [];
+  const noAudience = row.no_audience === true;
+  if (mode === "count" || noAudience) {
+    return {
+      contacts: [],
+      countries,
+      count: noAudience ? 0 : count,
+      no_audience: noAudience || undefined,
+    };
+  }
+  const contactsRaw = Array.isArray(row.contacts) ? row.contacts : [];
+  const contacts: EmailContactRow[] = [];
+  for (const item of contactsRaw) {
+    if (!item || typeof item !== "object") continue;
+    const c = item as Record<string, unknown>;
+    if (typeof c.id !== "string" || typeof c.email !== "string") continue;
+    contacts.push({
+      id: c.id,
+      email: c.email,
+      locale: typeof c.locale === "string" ? c.locale : "ru",
+      country_code: typeof c.country_code === "string" ? c.country_code : null,
+      user_id: typeof c.user_id === "string" ? c.user_id : null,
+      source: typeof c.source === "string" ? c.source : "app",
+      marketing_status:
+        typeof c.marketing_status === "string" ? c.marketing_status : "active",
+      unsubscribe_token:
+        typeof c.unsubscribe_token === "string" ? c.unsubscribe_token : null,
+    });
+  }
+  return { contacts, countries, count };
+}
+
+/**
+ * Resolve contacts matching segment. Countries from the filtered set.
+ * Prefer live `users.locale` over stale `email_contacts.locale`.
+ * Fast path: SQL RPC `email_segment_resolve` (one round-trip; list as jsonb).
+ * Fallback: paginated PostgREST if the RPC migration is not applied yet.
+ */
+export async function resolveEmailSegment(
+  db: SupabaseClient,
+  query: EmailSegmentQuery,
+  options?: { mode?: "count" | "list" },
+): Promise<EmailSegmentResolveResult> {
+  const mode = options?.mode ?? "list";
 
   if (!hasEmailSegmentAudience(query)) {
     return { contacts: [], countries: [], count: 0, no_audience: true };
   }
+
+  const { data, error } = await db.rpc("email_segment_resolve", {
+    p_query: segmentQueryToRpcPayload(query),
+    p_mode: mode,
+  });
+  if (!error) {
+    const parsed = parseRpcSegmentResult(data, mode);
+    if (parsed) return parsed;
+  } else {
+    const msg = error.message ?? "";
+    const missingFn =
+      /email_segment_resolve/i.test(msg) &&
+      (/could not find/i.test(msg) || /PGRST202/i.test(msg) || /42883/.test(msg));
+    if (!missingFn) throw error;
+  }
+
+  if (mode === "count") {
+    const legacy = await resolveEmailSegmentLegacy(db, query);
+    return {
+      contacts: [],
+      countries: legacy.countries,
+      count: legacy.count,
+      no_audience: legacy.no_audience,
+    };
+  }
+  return resolveEmailSegmentLegacy(db, query);
+}
+
+/** Paginated PostgREST resolve — slow on large bases; RPC fallback only. */
+async function resolveEmailSegmentLegacy(
+  db: SupabaseClient,
+  query: EmailSegmentQuery,
+): Promise<EmailSegmentResolveResult> {
+  const statuses = query.marketing_statuses?.length
+    ? query.marketing_statuses
+    : ["active"];
 
   const needsAppUser =
     query.all_installed === true ||
@@ -469,6 +575,7 @@ export type CampaignRecipientRow = {
 
 /**
  * Same eligibility as campaign send: segment ∩ exact authored locale copy.
+ * Empty copy → count-only segment resolve (no contact payload).
  */
 export async function resolveCampaignRecipients(
   db: SupabaseClient,
@@ -482,8 +589,7 @@ export async function resolveCampaignRecipients(
   no_audience?: boolean;
   copyEmpty?: boolean;
 }> {
-  const segment = await resolveEmailSegment(db, query);
-  if (segment.no_audience) {
+  if (!hasEmailSegmentAudience(query)) {
     return {
       eligible: [],
       segmentCount: 0,
@@ -494,12 +600,25 @@ export async function resolveCampaignRecipients(
   }
 
   if (isEmailCopyEmpty(copySource)) {
+    const segment = await resolveEmailSegment(db, query, { mode: "count" });
     return {
       eligible: [],
       segmentCount: segment.count,
       skippedLocaleCount: 0,
       countries: segment.countries,
       copyEmpty: true,
+      no_audience: segment.no_audience,
+    };
+  }
+
+  const segment = await resolveEmailSegment(db, query, { mode: "list" });
+  if (segment.no_audience) {
+    return {
+      eligible: [],
+      segmentCount: 0,
+      skippedLocaleCount: 0,
+      countries: [],
+      no_audience: true,
     };
   }
 

@@ -11,6 +11,10 @@ export const maxDuration = 60;
 
 type SegmentBody = {
   query?: unknown;
+  /**
+   * Opt-in: run `sync_email_contacts_from_users` before count.
+   * Default false — preview must stay fast; send path syncs itself.
+   */
   sync?: boolean;
   /** When set with campaign copy fields — count = who would actually receive (exact locale). */
   subject?: string;
@@ -21,15 +25,16 @@ type SegmentBody = {
 
 /**
  * Preview recipient count (+ countries).
- * With campaign copy in body: `count` = send-eligible (same rules as POST …/send).
- * Auto-syncs app users → email_contacts first.
+ * With campaign copy in body: `count` = send-eligible (`resolveCampaignRecipients`);
+ * empty letter → `copy_empty`, `count` = segment size via SQL RPC count mode.
+ * Does not sync contacts unless `sync: true` (send route syncs before resolve).
  */
 export async function POST(req: Request) {
   try {
     await requireAdmin(req);
     const body = (await req.json()) as SegmentBody;
     const db = createServiceSupabase();
-    if (body.sync !== false) {
+    if (body.sync === true) {
       const { error: syncError } = await db.rpc("sync_email_contacts_from_users");
       if (syncError) throw syncError;
     }
@@ -58,7 +63,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const result = await resolveEmailSegment(db, query);
+    const result = await resolveEmailSegment(db, query, { mode: "count" });
     return json({
       count: result.count,
       segment_count: result.count,

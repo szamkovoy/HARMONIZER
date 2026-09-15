@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
-version: 1.2
-updated: 2026-09-12
+version: 1.3
+updated: 2026-09-15
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -10,9 +10,11 @@ code_refs:
     _legacy_web/app/api/_utils/emailAutomationRunner.ts,
     _legacy_web/app/api/_utils/emailDeliverability.ts,
     _legacy_web/app/api/_utils/resendMarketingApi.ts,
+    _legacy_web/app/api/_utils/emailSegment.ts,
     supabase/migrations/20260724200000_marketing_email.sql,
     supabase/migrations/20260727150000_email_automations_b2_c1_c2.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
+    supabase/migrations/20260915122437_email_segment_count_rpc.sql,
   ]
 ---
 
