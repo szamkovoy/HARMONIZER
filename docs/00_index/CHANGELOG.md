@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.30
+version: 3.37
 updated: 2026-09-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,13 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-15 (588): Marketing footer: keep «отписаться» as one word in Yandex iOS (`white-space:nowrap` on the link). Docs `marketing_email`.
+- 2026-09-15 (587): Marketing HTML: stop Yandex fit-to-screen from a wide canvas — word-break, capped preheader, no MSO 560, text-size-adjust none. Docs `marketing_email`.
+- 2026-09-15 (586): Marketing HTML: drop Yandex 24px chase; restore centered 16px column (no min-width/div offset). Docs `marketing_email`.
+- 2026-09-15 (585): Marketing HTML: Yandex fit-to-screen — inline 24px without !important, media-query reset to 16px so admin preview still wraps. Docs `marketing_email`.
+- 2026-09-15 (584): Revert 24px email-font hack that overflowed admin preview; restore 16px fluid-hybrid chrome. Docs `marketing_email`.
+- 2026-09-15 (583): Marketing HTML: Yandex iOS scale-to-fit — inline 24px + media-query reset to 16px for Apple Mail/Gmail. Docs `marketing_email`.
+- 2026-09-15 (582): Marketing HTML: Yandex Mail app restyles `<p>` — send converts body copy to `td`+`<font>`+inline-block span at 16px. Docs `marketing_email`.
 - 2026-09-15 (581): Marketing HTML: stop mobile clients zooming the letter out (padding off 100% tables) and duplicate body font via `<font size>`. Docs `marketing_email`.
 - 2026-09-15 (580): Unsubscribe page copy «Вы отписаны»; marketing HTML fonts explicit 16px Arial so Yandex Mail app does not shrink body text. Docs `marketing_email`.
 - 2026-09-15 (579): Marketing unsubscribe: personal `/unsubscribe?t=` (HMAC), RFC 8058 POST, `{{unsubscribe_url}}` + auto-bind «Отписаться» in the letter body; send still skips non-active contacts. Docs `marketing_email`.

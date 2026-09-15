@@ -15,8 +15,10 @@ const BRAND_COLOR = "#0f3d2e";
 export const MARKETING_EMAIL_BODY_FONT = "Arial,Helvetica,sans-serif";
 const BODY_FONT = MARKETING_EMAIL_BODY_FONT;
 const BODY_FONT_SIZE = "16px";
+const BODY_LINE_HEIGHT = "24px";
 const TEXT_SIZE_ADJUST =
-  "-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;text-size-adjust:100%;";
+  "-webkit-text-size-adjust:none;-ms-text-size-adjust:none;text-size-adjust:none;";
+const WORD_BREAK = "word-break:break-word;overflow-wrap:anywhere;";
 
 /** Paste this into a button/link href in the admin editor — send substitutes a personal URL. */
 export const UNSUBSCRIBE_URL_PLACEHOLDER = "{{unsubscribe_url}}";
@@ -92,7 +94,7 @@ export function normalizeEmailBodyHtml(
         );
       }
       if (!/line-height\s*:/i.test(cleaned)) {
-        cleaned = `${cleaned ? `${cleaned};` : ""}line-height:1.55`;
+        cleaned = `${cleaned ? `${cleaned};` : ""}line-height:${BODY_LINE_HEIGHT}`;
       }
       if (
         !/font-family\s*:/i.test(cleaned) &&
@@ -101,7 +103,7 @@ export function normalizeEmailBodyHtml(
         cleaned = `${cleaned ? `${cleaned};` : ""}font-family:${fallbackFamily}`;
       }
       cleaned = cleaned.replace(/;;+/g, ";").replace(/^;|;$/g, "");
-      const next = `margin:0;padding:0;${cleaned ? `${cleaned};` : ""}`;
+      const next = `margin:0;padding:0;${WORD_BREAK}${cleaned ? `${cleaned};` : ""}`;
       return `<${tag}${withoutStyle} style="${next}">`;
     },
   );
@@ -116,24 +118,20 @@ function htmlFontSizeAttr(px: string): "3" | "4" | "5" {
   return "3";
 }
 
-/**
- * Duplicate CSS font-size with a `<font size>` wrapper. Yandex / Mail.ru / some
- * Android apps ignore CSS on `<p>` but still honor the HTML font tag.
- */
+/** Duplicate CSS px onto `<font>` inside the existing `<p>` — do not nest extra wrappers. */
 export function wrapEmailTextWithFontTag(
   html: string,
   fallbackPx: string = BODY_FONT_SIZE,
 ): string {
+  const fallback = fallbackPx.replace(/px$/i, "");
   return html.replace(
     /<(p|h1|h2|h3|h4|h5|h6|li)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi,
     (full, tag: string, attrs: string | undefined, inner: string) => {
-      if (/<font\b/i.test(inner) || /<span\b[^>]*font-size/i.test(inner)) return full;
+      if (/<font\b/i.test(inner)) return full;
       const attrStr = attrs ?? "";
       const sizeMatch = attrStr.match(/font-size\s*:\s*(\d+)px/i);
-      const px = sizeMatch?.[1] ?? fallbackPx.replace(/px$/i, "");
-      const attrSize = htmlFontSizeAttr(`${px}px`);
-      const innerStyle = `font-size:${px}px;line-height:1.55;font-family:${BODY_FONT};`;
-      return `<${tag}${attrStr}><font face="${BODY_FONT}" size="${attrSize}" color="#1a1a1a" style="${innerStyle}"><span style="${innerStyle}color:#1a1a1a;">${inner}</span></font></${tag}>`;
+      const px = sizeMatch?.[1] ?? fallback;
+      return `<${tag}${attrStr}><font face="${BODY_FONT}" size="${htmlFontSizeAttr(`${px}px`)}" style="font-size:${px}px;line-height:${BODY_LINE_HEIGHT};font-family:${BODY_FONT};">${inner}</font></${tag}>`;
     },
   );
 }
@@ -195,50 +193,46 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
     ),
   );
   const cellFont =
-    `font-family:${BODY_FONT};font-size:${BODY_FONT_SIZE};line-height:1.55;${TEXT_SIZE_ADJUST}`;
+    `font-family:${BODY_FONT};font-size:${BODY_FONT_SIZE};line-height:${BODY_LINE_HEIGHT};${TEXT_SIZE_ADJUST}${WORD_BREAK}`;
+  const preheader = preview
+    ? `<div style="display:none;max-height:0;max-width:0;overflow:hidden;font-size:1px;line-height:1px;color:#f4f6f5;opacity:0;mso-hide:all;">${preview}</div>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="x-apple-disable-message-reformatting" />
   <meta name="format-detection" content="telephone=no" />
   <title>Гармонизатор</title>
   <style type="text/css">
-    html,body{margin:0;padding:0;width:100% !important;${TEXT_SIZE_ADJUST}}
-    body,table,td,div,p,a,li,span,font{${TEXT_SIZE_ADJUST}font-family:${BODY_FONT};}
-    img{max-width:100% !important;height:auto !important;}
+    html,body{margin:0;padding:0;width:100%;${TEXT_SIZE_ADJUST}}
+    body,table,td,p,a,li{${TEXT_SIZE_ADJUST}font-family:${BODY_FONT};${WORD_BREAK}}
+    img{max-width:100%;height:auto;}
+    a{word-break:break-all;}
   </style>
 </head>
 <body style="margin:0;padding:0;width:100%;background:#f4f6f5;${cellFont}color:#1a1a1a;">
-  ${preview ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preview}</div>` : ""}
-  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;table-layout:fixed;background:#f4f6f5;${TEXT_SIZE_ADJUST}">
+  ${preheader}
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;background:#f4f6f5;">
     <tr>
       <td align="center" style="padding:24px 12px;${cellFont}">
-        <!--[if mso]>
-        <table role="presentation" width="${MARKETING_EMAIL_MAX_WIDTH_PX}" border="0" cellspacing="0" cellpadding="0"><tr><td>
-        <![endif]-->
-        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;max-width:${MARKETING_EMAIL_MAX_WIDTH_PX}px;background:#ffffff;border-radius:12px;overflow:hidden;">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;max-width:${MARKETING_EMAIL_MAX_WIDTH_PX}px;table-layout:fixed;background:#ffffff;border-radius:12px;">
           <tr>
-            <td style="padding:28px;${cellFont}">
-              <font face="${BODY_FONT}" size="3" color="#1a1a1a" style="font-size:${BODY_FONT_SIZE};line-height:1.55;font-family:${BODY_FONT};">
-                ${body}
-              </font>
+            <td style="padding:28px;${cellFont}color:#1a1a1a;">
+              ${body}
             </td>
           </tr>
           <tr>
-            <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:14px;line-height:1.5;color:#6b7280;text-align:center;${TEXT_SIZE_ADJUST}">
-              <p style="margin:0;padding:0;font-size:14px !important;line-height:1.5;font-family:${BODY_FONT};color:#6b7280;">
-                <font face="${BODY_FONT}" size="2" color="#6b7280" style="font-size:14px;line-height:1.5;font-family:${BODY_FONT};">
+            <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:14px;line-height:21px;color:#6b7280;text-align:center;${WORD_BREAK}">
+              <p style="margin:0;padding:0;font-family:${BODY_FONT};font-size:14px;line-height:21px;color:#6b7280;${WORD_BREAK}">
                 Вы получили это письмо, потому что регистрировались в учебном центре Сергея Замкового.
                 Если вы не хотите получать мои письма, вы можете
-                <a href="${escapeHref(opts.unsubscribeUrl)}" style="color:${BRAND_COLOR};text-decoration:underline;font-size:14px;">отписаться</a>.
-                </font>
+                <a href="${escapeHref(opts.unsubscribeUrl)}" style="color:${BRAND_COLOR};text-decoration:underline;font-size:14px;white-space:nowrap;word-break:keep-all;overflow-wrap:normal;">отписаться</a>.
               </p>
             </td>
           </tr>
         </table>
-        <!--[if mso]></td></tr></table><![endif]-->
       </td>
     </tr>
   </table>

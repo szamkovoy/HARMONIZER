@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.9
+version: 1.16
 updated: 2026-09-15
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -15,6 +15,13 @@ code_refs:
 
 ## Decision Log
 
+- **2026-09-15 (footer unwrap):** После фикса масштаба Яндекс iOS резал «отписаться» по слогам из‑за `word-break:break-all` на ссылке. Футер: `white-space:nowrap` на якоре — слово переносится целиком. `break-all` в `<style>` остаётся для длинных URL в теле.
+- **2026-09-15 (Yandex overflow zoom):** После возврата центра — ещё попытка не зумить холст: `text-size-adjust:none`; `word-break`/`overflow-wrap:anywhere`; preheader `max-width:0` (без цепочки `&nbsp;`); `table-layout:fixed`; убран MSO `width=560`. Без `min-width:100%` (сдвигало вправо). Если шрифт в приложении Яндекс iOS снова мелкий — клиент задаёт свой кегль, HTML его не перебивает.
+- **2026-09-15 (center again, stop Yandex font chase):** 24px без !important шрифт в Яндексе не увеличил, но `min-width:100%` + обёртка-div сдвинули карточку вправо. Откат: центрирование через `align=center`, 16px, без min-width/div. Приложение Яндекс iOS свой размер текста HTML-ом не берёт.
+- **2026-09-15 (24px without !important):** Рекомендации fluid-hybrid (viewport, 100%+max-width, инлайн px) в приложении Яндекса не сработали — оно зумит холст и игнорирует MQ. Предыдущий 24px был с `!important` и ломал превью. Теперь: инлайн 24px без !important + MQ `.email-fs-16` → 16px в Chrome/Apple Mail; Яндекс без MQ должен показать 24px. Абзацы остаются `<p>` (перенос в админке).
+- **2026-09-15 (revert 24px, restore preview):** 24px `!important` + `inline-block` раздули админ-превью (текст не переносился) и не увеличили Яндекс (inline !important не сбрасывается MQ). Откат к 16px/24px line-height, fluid-hybrid (`width:100%` + `max-width:560` на div+table, viewport 1.0, padding на td). `<font>` остаётся внутри `<p>`, без вложенных таблиц на абзац.
+- **2026-09-15 (Yandex scale-to-fit):** Четвёртый тест после `td`+`<font>` остался мелким — клиент не перетирает теги, а масштабирует всю 560px-канву на ширину телефона. Fix: inline-размер ×1.5 (16→24px) + `@media (max-width:9999px)` сброс на 16px для клиентов с MQ. Apple Mail/админ-превью остаются 16px.
+- **2026-09-15 (Yandex restyles p):** Третий тест в приложении Яндекс.Почты снова мелкий: CSS/`<font>` внутри `<p>` клиент перетирает (кнопка «Отписаться» на `<a>` при этом нормальная). Fix: на send `<p>`/`<h*>` → `table>td` + `<font size="4">` + `span display:inline-block` с `16px !important`. Нужен деплой Vercel — git push сам HTML в ящике не меняет.
 - **2026-09-15 (mobile zoom-out fonts):** Второй тест в Яндекс.Почте остался мелким: 16px на `<p>` недостаточно, если клиент масштабирует всё письмо. Причина — `width:100%` + padding на одной таблице (контент шире экрана). Fix: padding только на `<td>`; дубль размера через `<font size>`; `!important`; футер 14px. Общий паттерн для Яндекс/Mail.ru/части Android, не только Яндекс.
 - **2026-09-15 (unsub copy + Yandex font):** Страница отписки RU: «Вы отписаны» / «Я больше не буду отправлять вам подобные письма.» (8 локалей). Мелкий текст в приложении Яндекс.Почта: клиент не наследует `font-size` с `<td>`/`<div>` на `<p>` и не резолвит `system-ui`. Fix: Arial + явный 16px на абзацах, `text-size-adjust:100%`.
 - **2026-09-15 (unsubscribe one-click + in-body button):** Канон остаётся `email_contacts.marketing_status=unsubscribed` (не удаляем контакт). Персональный URL `/unsubscribe?t=` (HMAC при `EMAIL_UNSUBSCRIBE_SECRET`); GET — страница на locale контакта, POST — RFC 8058 без confirm. В теле: `{{unsubscribe_url}}` + автопривязка кнопки «Отписаться». List-Unsubscribe уже шёл в Resend/SES; click-tracking не оборачивает unsub. Send-eligible сегмент принудительно `active`.

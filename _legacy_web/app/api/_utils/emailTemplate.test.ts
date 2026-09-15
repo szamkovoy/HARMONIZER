@@ -25,31 +25,41 @@ describe("normalizeEmailBodyHtml", () => {
 });
 
 describe("wrapEmailTextWithFontTag", () => {
-  it("duplicates CSS size onto font + span so clients that ignore p still render 16px", () => {
+  it("keeps paragraphs and duplicates 16px onto a font tag", () => {
     const out = wrapEmailTextWithFontTag(
       '<p style="margin:0;font-size:16px !important;font-family:Arial,Helvetica,sans-serif;">Hello</p>',
     );
+    expect(out).toMatch(/<p[\s>]/i);
     expect(out).toContain('size="3"');
-    expect(out).toContain("<span style=\"font-size:16px;");
+    expect(out).toContain("font-size:16px");
     expect(out).toContain("Hello");
   });
 });
 
 describe("wrapMarketingEmailHtml", () => {
-  it("uses 560px column and normalized body", () => {
+  it("centers a 560px column with 16px body and does not inflate the canvas", () => {
     const html = wrapMarketingEmailHtml({
       bodyHtml: "<p>Hi</p><p><br></p><p>There</p>",
-      unsubscribeUrl: "https://example.com/u",
+      unsubscribeUrl: "https://example.com/u/unsubscribe?t=verylongtoken",
+      previewText: "Как не утонуть в информационных потоках",
     });
     expect(html).toContain("max-width:560px");
-    expect(html).toContain("height:1.55em");
-    expect(html).toContain("https://example.com/u");
-    expect(html).toContain("-webkit-text-size-adjust:100%");
-    expect(html).toContain("Arial,Helvetica,sans-serif");
-    expect(html).toContain("font-size:16px !important");
-    expect(html).toContain('<font face="Arial,Helvetica,sans-serif" size="3"');
-    expect(html).toMatch(/<td align="center" style="padding:24px 12px;/);
-    expect(html).not.toMatch(/width:100%;background:#f4f6f5;padding:24px 12px/);
+    expect(html).toContain("table-layout:fixed");
+    expect(html).toContain("word-break:break-word");
+    expect(html).toContain("overflow-wrap:anywhere");
+    expect(html).toContain("-webkit-text-size-adjust:none");
+    expect(html).toContain("max-width:0");
+    expect(html).not.toContain("<!--[if mso]>");
+    expect(html).not.toContain("min-width:100%");
+    expect(html).toContain('align="center"');
+    expect(html).toContain("font-size:16px");
+    expect(html).not.toContain("font-size:24px");
+    expect(html).toMatch(
+      /<a href="https:\/\/example\.com\/u\/unsubscribe\?t=verylongtoken"[^>]*white-space:nowrap/,
+    );
+    expect(html).not.toMatch(
+      /<a href="https:\/\/example\.com\/u\/unsubscribe\?t=verylongtoken"[^>]*word-break:break-all/,
+    );
   });
 });
 
