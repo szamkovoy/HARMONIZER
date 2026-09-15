@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeEmailBodyHtml, wrapMarketingEmailHtml } from "./emailTemplate";
+import { bindUnsubscribeLinks, normalizeEmailBodyHtml, wrapMarketingEmailHtml, applyEmailPlaceholders } from "./emailTemplate";
 
 describe("normalizeEmailBodyHtml", () => {
   it("zeros margins on non-empty paragraphs", () => {
@@ -31,5 +31,41 @@ describe("wrapMarketingEmailHtml", () => {
     expect(html).toContain("max-width:560px");
     expect(html).toContain("height:1.55em");
     expect(html).toContain("https://example.com/u");
+  });
+});
+
+describe("bindUnsubscribeLinks", () => {
+  it("replaces {{unsubscribe_url}} and Отписаться buttons", () => {
+    const url = "https://zamkovoi.yoga/unsubscribe?t=abc";
+    const html = bindUnsubscribeLinks(
+      `<p><a href="{{unsubscribe_url}}">link</a></p>
+       <a href="https://" style="color:#fff">Отписаться</a>
+       <a href="https://example.com/course">Перейти</a>`,
+      url,
+    );
+    expect(html).toContain(`href="${url}"`);
+    expect(html).toContain("Отписаться");
+    expect(html).toContain("https://example.com/course");
+    expect(html.match(new RegExp(url.replace(/[?]/g, "\\?"), "g"))?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not rewrite ordinary CTAs", () => {
+    const html = bindUnsubscribeLinks(
+      `<a href="https://zamkovoi.yoga/cabinet">Личный кабинет</a>`,
+      "https://zamkovoi.yoga/unsubscribe?t=abc",
+    );
+    expect(html).toContain("https://zamkovoi.yoga/cabinet");
+    expect(html).not.toContain("/unsubscribe?t=abc");
+  });
+});
+
+describe("applyEmailPlaceholders", () => {
+  it("fills name and unsubscribe url", () => {
+    const out = applyEmailPlaceholders("Здравствуйте, {{name}}! {{unsubscribe_url}}", {
+      name: "Анна",
+      unsubscribeUrl: "https://zamkovoi.yoga/unsubscribe?t=x",
+    });
+    expect(out).toContain("Анна");
+    expect(out).toContain("https://zamkovoi.yoga/unsubscribe?t=x");
   });
 });

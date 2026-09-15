@@ -490,8 +490,8 @@ function BlockSettingsModal({
               />
               <p className="text-[11px] text-zinc-400">
                 Enter — новый абзац без лишнего зазора; пустая строка (два Enter) — пустая строка в
-                письме; Shift+Enter — перенос без абзаца. Плейсхолдер {"{{name}}"} подставится при
-                отправке.
+                письме; Shift+Enter — перенос без абзаца. Плейсхолдеры {"{{name}}"} и{" "}
+                {"{{unsubscribe_url}}"} подставятся при отправке.
               </p>
             </>
           )}
@@ -562,8 +562,22 @@ function BlockSettingsModal({
                   className={`${inputCls} mt-1`}
                   value={block.href}
                   onChange={(e) => onChange({ href: e.target.value } as Partial<EmailBlock>)}
+                  placeholder="{{unsubscribe_url}}"
                 />
               </label>
+              <p className="text-xs text-zinc-500">
+                Для отписки вставьте{" "}
+                <button
+                  type="button"
+                  className="font-mono text-emerald-700 hover:underline"
+                  onClick={() => onChange({ href: "{{unsubscribe_url}}" } as Partial<EmailBlock>)}
+                >
+                  {"{{unsubscribe_url}}"}
+                </button>
+                {" "}
+                — при отправке подставится персональная ссылка. Кнопка с надписью «Отписаться» тоже
+                привяжется сама.
+              </p>
               <label className="block text-xs text-zinc-500">
                 Цвет кнопки
                 <input
@@ -662,6 +676,17 @@ function RichToolbar({
         }}
       >
         {"{{name}}"}
+      </button>
+      <button
+        type="button"
+        className="rounded px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-white"
+        title="Ссылка отписки"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          document.execCommand("createLink", false, "{{unsubscribe_url}}");
+        }}
+      >
+        {"{{unsubscribe_url}}"}
       </button>
     </div>
   );

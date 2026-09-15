@@ -1,11 +1,11 @@
 import {
   handleMarketingUnsubscribeGet,
   handleMarketingUnsubscribePost,
-} from "../../api/_utils/emailUnsubscribe";
+} from "../api/_utils/emailUnsubscribe";
 
 export const runtime = "nodejs";
 
-/** Public marketing opt-out — does not affect app login or membership. */
+/** Canonical public unsubscribe URL: /unsubscribe?t=… */
 export async function GET(req: Request) {
   return handleMarketingUnsubscribeGet(req);
 }

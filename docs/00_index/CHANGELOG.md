@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.27
+version: 3.28
 updated: 2026-09-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-15 (579): Marketing unsubscribe: personal `/unsubscribe?t=` (HMAC), RFC 8058 POST, `{{unsubscribe_url}}` + auto-bind «Отписаться» in the letter body; send still skips non-active contacts. Docs `marketing_email`.
 - 2026-09-15 (578): Admin email segment count ~60s → SQL RPC `email_segment_resolve` + no sync on preview (sync only on send). Docs `marketing_email`.
 - 2026-09-14 (577): Wipe/OTP-delete больше не оставляют адрес в рассылке: `email_contacts` CASCADE с `users`; 743 мёртвых контакта без аккаунта удалены. Docs `marketing_email` + `account_web`.
 - 2026-09-14 (576): Admin email segment count was silently capped at PostgREST `max_rows` 1000 — «Вся база» и даты «регистрация в системе» считали не всю `email_contacts`. Paginated fetch + empty-draft no longer flagged as «все без перевода». Docs `marketing_email`.

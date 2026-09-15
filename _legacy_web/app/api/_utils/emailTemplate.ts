@@ -14,6 +14,12 @@ const BRAND_COLOR = "#0f3d2e";
 const BODY_FONT =
   "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
 
+/** Paste this into a button/link href in the admin editor — send substitutes a personal URL. */
+export const UNSUBSCRIBE_URL_PLACEHOLDER = "{{unsubscribe_url}}";
+
+const UNSUBSCRIBE_LABEL_RE =
+  /отпис|unsubscri|abmelden|abbestell|désabon|desabon|désinscri|desinscri|disiscriv|darse\s+de\s+baja|cancelar\s+suscrip|desuscri|descadastr|cancelar\s+inscri[cç]|uitschrijv|afmelden/i;
+
 export type WrapEmailOptions = {
   bodyHtml: string;
   unsubscribeUrl: string;
@@ -63,9 +69,60 @@ export function normalizeEmailBodyHtml(html: string): string {
   return out;
 }
 
+function escapeHref(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function hrefLooksLikeUnsubscribePlaceholder(href: string): boolean {
+  const h = href.trim();
+  if (!h) return false;
+  if (/\{\{\s*unsubscribe(_url)?\s*\}\}/i.test(h)) return true;
+  if (/\/unsubscribe(\/email)?(\?|$|\/)/i.test(h)) return true;
+  if (/\/api\/unsubscribe(\?|$|\/)/i.test(h)) return true;
+  return false;
+}
+
+function setAnchorHref(attrs: string, href: string): string {
+  const escaped = escapeHref(href);
+  if (/\bhref\s*=/i.test(attrs)) {
+    return attrs.replace(
+      /\bhref\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/i,
+      `href="${escaped}"`,
+    );
+  }
+  return ` href="${escaped}"${attrs}`;
+}
+
+/**
+ * Personalize in-body unsubscribe controls:
+ * `{{unsubscribe_url}}` / `{{unsubscribe}}`, and any `<a>` whose label is
+ * «Отписаться» / Unsubscribe / … (so the admin button works without a special href).
+ */
+export function bindUnsubscribeLinks(html: string, unsubscribeUrl: string): string {
+  if (!unsubscribeUrl) return html;
+  let out = html
+    .replace(/\{\{\s*unsubscribe_url\s*\}\}/gi, unsubscribeUrl)
+    .replace(/\{\{\s*unsubscribe\s*\}\}/gi, unsubscribeUrl);
+
+  out = out.replace(/<a\b([^>]*?)>([\s\S]*?)<\/a>/gi, (full, attrs: string, inner: string) => {
+    const hrefMatch = attrs.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const href = (hrefMatch?.[2] ?? hrefMatch?.[3] ?? hrefMatch?.[4] ?? "").trim();
+    const label = inner.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
+    const byLabel = UNSUBSCRIBE_LABEL_RE.test(label);
+    const byHref = hrefLooksLikeUnsubscribePlaceholder(href);
+    if (!byLabel && !byHref) return full;
+    if (href === unsubscribeUrl || href === escapeHref(unsubscribeUrl)) return full;
+    return `<a${setAnchorHref(attrs, unsubscribeUrl)}>${inner}</a>`;
+  });
+  return out;
+}
+
 export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
   const preview = (opts.previewText ?? "").replace(/</g, "&lt;").slice(0, 140);
-  const body = normalizeEmailBodyHtml(opts.bodyHtml.trim() || "<p style=\"margin:0;padding:0;\"></p>");
+  const body = bindUnsubscribeLinks(
+    normalizeEmailBodyHtml(opts.bodyHtml.trim() || "<p style=\"margin:0;padding:0;\"></p>"),
+    opts.unsubscribeUrl,
+  );
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -89,7 +146,7 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
               <p style="margin:0;padding:0;font-size:12.5px;line-height:1.5;">
                 Вы получили это письмо, потому что регистрировались в учебном центре Сергея Замкового.
                 Если вы не хотите получать мои письма, вы можете
-                <a href="${opts.unsubscribeUrl}" style="color:${BRAND_COLOR};text-decoration:underline;">отписаться</a>.
+                <a href="${escapeHref(opts.unsubscribeUrl)}" style="color:${BRAND_COLOR};text-decoration:underline;">отписаться</a>.
               </p>
             </td>
           </tr>
@@ -101,16 +158,20 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
 </html>`;
 }
 
-/** Replace {{name}} / {{display_name}} in subject + HTML. Empty name drops leading comma/space. */
+/** Replace {{name}} / {{display_name}} / {{unsubscribe_url}} in subject + HTML. Empty name drops leading comma/space. */
 export function applyEmailPlaceholders(
   text: string,
-  vars: { name?: string | null },
+  vars: { name?: string | null; unsubscribeUrl?: string | null },
 ): string {
   const raw = (vars.name ?? "").trim();
   const name = raw || "";
   let out = text
     .replace(/\{\{\s*display_name\s*\}\}/gi, name)
     .replace(/\{\{\s*name\s*\}\}/gi, name);
+  const unsub = (vars.unsubscribeUrl ?? "").trim();
+  if (unsub) {
+    out = bindUnsubscribeLinks(out, unsub);
+  }
   // "Здравствуйте, !" → "Здравствуйте!"
   out = out.replace(/,\s*!/g, "!");
   out = out.replace(/,\s*,/g, ",");

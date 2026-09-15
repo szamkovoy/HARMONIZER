@@ -5,6 +5,7 @@ import {
   prepareTrackedMarketingEmailHtml,
   registerEmailTrackKey,
 } from "../../../../../../../_utils/emailFirstPartyTracking";
+import { applyEmailPlaceholders } from "../../../../../../../_utils/emailTemplate";
 import {
   buildSignedUnsubscribeUrl,
   generateUnsubscribeToken,
@@ -90,16 +91,28 @@ export async function POST(req: Request, ctx: Ctx) {
     }
 
     const unsubscribeUrl = buildSignedUnsubscribeUrl(unsubToken);
+    let displayName = "";
+    if (contact?.user_id) {
+      const { data: u } = await db
+        .from("users")
+        .select("display_name")
+        .eq("id", contact.user_id)
+        .maybeSingle();
+      displayName = (u?.display_name ?? "").trim();
+    }
+    const name = displayName || testTo.split("@")[0] || "";
+    const subject = applyEmailPlaceholders(exact.subject, { name, unsubscribeUrl });
+    const bodyHtml = applyEmailPlaceholders(exact.htmlBody, { name, unsubscribeUrl });
     const trackId = newEmailTrackId();
     const html = await prepareTrackedMarketingEmailHtml({
-      bodyHtml: exact.htmlBody,
+      bodyHtml,
       unsubscribeUrl,
-      previewText: exact.subject,
+      previewText: subject,
       trackId,
     });
     const result = await sendMarketingEmail({
       to: testTo,
-      subject: exact.subject,
+      subject,
       html,
       text: htmlToPlaintext(html),
       unsubscribeUrl,

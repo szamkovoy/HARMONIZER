@@ -786,8 +786,6 @@ export async function processDueAutomationSteps(
     }
 
     const name = nameFromContact(displayName, contact.email);
-    const subject = applyEmailPlaceholders(copy.subject, { name });
-    const bodyHtml = applyEmailPlaceholders(copy.htmlBody, { name });
 
     let token = contact.unsubscribe_token;
     if (!token) {
@@ -798,6 +796,8 @@ export async function processDueAutomationSteps(
         .eq("id", contact.id);
     }
     const unsubscribeUrl = buildSignedUnsubscribeUrl(token);
+    const subject = applyEmailPlaceholders(copy.subject, { name, unsubscribeUrl });
+    const bodyHtml = applyEmailPlaceholders(copy.htmlBody, { name, unsubscribeUrl });
     const trackId = newEmailTrackId();
     const html = await prepareTrackedMarketingEmailHtml({
       bodyHtml,

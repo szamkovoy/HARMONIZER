@@ -599,8 +599,10 @@ export async function resolveCampaignRecipients(
     };
   }
 
+  const sendQuery: EmailSegmentQuery = { ...query, marketing_statuses: ["active"] };
+
   if (isEmailCopyEmpty(copySource)) {
-    const segment = await resolveEmailSegment(db, query, { mode: "count" });
+    const segment = await resolveEmailSegment(db, sendQuery, { mode: "count" });
     return {
       eligible: [],
       segmentCount: segment.count,
@@ -611,7 +613,7 @@ export async function resolveCampaignRecipients(
     };
   }
 
-  const segment = await resolveEmailSegment(db, query, { mode: "list" });
+  const segment = await resolveEmailSegment(db, sendQuery, { mode: "list" });
   if (segment.no_audience) {
     return {
       eligible: [],
@@ -625,6 +627,7 @@ export async function resolveCampaignRecipients(
   const eligible: CampaignRecipientRow[] = [];
   let skippedLocaleCount = 0;
   for (const contact of segment.contacts) {
+    if (contact.marketing_status !== "active") continue;
     const exact = resolveExactEmailCopy(contact.locale, copySource);
     if (!exact) {
       skippedLocaleCount += 1;

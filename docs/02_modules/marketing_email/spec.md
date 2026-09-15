@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.13
+version: 1.14
 updated: 2026-09-15
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
@@ -31,10 +31,14 @@ code_refs:
     _legacy_web/app/api/_utils/emailAutomationRunner.ts,
     _legacy_web/app/api/_utils/emailDeliverability.ts,
     _legacy_web/app/api/_utils/resendMarketingApi.ts,
+    _legacy_web/app/api/_utils/emailUnsubscribe.ts,
+    _legacy_web/app/api/_utils/emailUnsubscribeCopy.ts,
     _legacy_web/app/api/_utils/emailTemplate.ts,
     _legacy_web/app/api/_utils/emailRichHtml.ts,
     scripts/email-optimize-stored-html.mjs,
+    _legacy_web/app/unsubscribe/route.ts,
     _legacy_web/app/unsubscribe/email/route.ts,
+    _legacy_web/app/api/unsubscribe/route.ts,
     supabase/migrations/20260724200000_marketing_email.sql,
     supabase/migrations/20260914132243_email_contacts_delete_with_user.sql,
     supabase/migrations/20260912120000_email_automation_welcome_realtime.sql,
@@ -74,6 +78,7 @@ code_refs:
 - Общий UI-фундамент: `EmailListRow`, `EmailDeliveryStats`, `EmailMessageWorkspace`; названия/копии — `emailNaming` (`emailListTitle`, `emailCopyName`) для рассылок и шагов. Письмо цепочки: `name` в GET steps; «Копировать» → `POST …/steps/[stepId]/copy` → редирект на копию (`… (копия)`); delay; `POST …/send` `{test_to}`. «Редактировать»: если название изменено и не сохранено — confirm «Новое название будет сохранено» → save → редактор (рассылка и шаг цепочки).
 - Сегмент JSON дополнительно: `account_created_on_or_after|before` (`users.created_at`), `onboarded_on_or_after|before` (`users.onboarded_at`) — границы включительно (≥ / ≤)
 - From display name: RU «Сергей Замковой», иначе «Sergei Zamkovoi» (`marketingSenderName`, как OTP); footer unsubscribe 12.5px; block fonts web-safe (system/arial/verdana/georgia/times); блоки: heading/text/image/button (legacy `logo` → `image` при parse)
+- **Отписка (публично, без логина):** персональный токен на `email_contacts.unsubscribe_token` (24 байта hex). URL `EMAIL_PUBLIC_BASE_URL/unsubscribe?t=` HMAC-подписывается, если задан `EMAIL_UNSUBSCRIBE_SECRET`. Алиасы: `/unsubscribe/email`, `/api/unsubscribe`; query `t` или `token`. GET — сразу `marketing_status=unsubscribed` (запись не удаляется) + страница «Вы отписались» на языке контакта (8 локалей); POST — RFC 8058 One-Click (`List-Unsubscribe=One-Click`), ответ `200 OK` без подтверждения в браузере. Цепочки `active` → `cancelled`. В теле письма: `{{unsubscribe_url}}` и кнопки с надписью «Отписаться»/Unsubscribe/… привязываются к персональной ссылке при send; клик по отписке **не** идёт в first-party click tracking. Send (Resend и SES) всегда шлёт `List-Unsubscribe` + `List-Unsubscribe-Post`. Выборка получателей кампании всегда только `marketing_status=active` (отписавшиеся / bounce / spam-complaint не получают писем).
 - Preview (`EmailInlinePreview`) = iframe с тем же `wrapMarketingEmailHtml` (колонка 560px), что уходит в Resend. Высота iframe = высота контента (collapse → measure outer table); не сохраняет высоту от предыдущего/длинного письма. `normalizeEmailBodyHtml`: у `<p>` margin 0; пустой абзац = одна пустая строка; `<br>` без доп. интервала. **Save:** `sanitizeEmailRichHtml` / `sanitizeEmailBlocks` чистят paste-bloat (class, Apple/Word font longhands) в `blocks_i18n` + `html_body` — preview ≈ send. Новое изображение по умолчанию `240px`, не `100%`. У `<img>` — integer `width`/`height` (из `naturalWidth`/`naturalHeight` блока или probe при `prepareMarketingEmailHtml` на send).
 - Список `/admin/email/automations`: в карточке цепочки шаги показывают **`name`** (`emailListTitle`), не тему.
 - `GET /api/admin/email/deliverability?days=7|30|90` — KPI, series, recent problems (с `user_id` / `display_name`), Resend suppressions, статус tracking домена; KPI bounce подписан «Не доставлено»
@@ -104,7 +109,7 @@ code_refs:
 | bounced Transient (прочее) | bounce counter, **no** suppress |
 | complained / Complaint | `complained_count` + local complained |
 
-**Публично:** unsubscribe · webhook.
+**Публично:** unsubscribe (`GET|POST /unsubscribe`, `/unsubscribe/email`, `/api/unsubscribe`) · webhook.
 
 ## 3. Данные
 

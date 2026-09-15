@@ -131,9 +131,9 @@ export async function POST(req: Request, ctx: Ctx) {
           .eq("id", contact.id);
       }
       const name = (user?.display_name ?? "").trim() || email.split("@")[0] || "";
-      const subject = applyEmailPlaceholders(exact.subject, { name });
-      const bodyHtml = applyEmailPlaceholders(exact.htmlBody, { name });
       const unsubscribeUrl = buildSignedUnsubscribeUrl(token);
+      const subject = applyEmailPlaceholders(exact.subject, { name, unsubscribeUrl });
+      const bodyHtml = applyEmailPlaceholders(exact.htmlBody, { name, unsubscribeUrl });
       const trackId = newEmailTrackId();
       const html = await prepareTrackedMarketingEmailHtml({
         bodyHtml,

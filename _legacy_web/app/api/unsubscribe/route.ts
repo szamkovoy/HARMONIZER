@@ -1,16 +1,15 @@
 import {
   handleMarketingUnsubscribeGet,
   handleMarketingUnsubscribePost,
-} from "../../api/_utils/emailUnsubscribe";
+} from "../_utils/emailUnsubscribe";
 
 export const runtime = "nodejs";
 
-/** Public marketing opt-out — does not affect app login or membership. */
+/** Alias of /unsubscribe — same token, GET page + RFC 8058 POST. */
 export async function GET(req: Request) {
   return handleMarketingUnsubscribeGet(req);
 }
 
-/** List-Unsubscribe=One-Click (RFC 8058). */
 export async function POST(req: Request) {
   return handleMarketingUnsubscribePost(req);
 }

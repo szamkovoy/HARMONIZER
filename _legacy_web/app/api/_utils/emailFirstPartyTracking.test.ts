@@ -13,12 +13,16 @@ describe("injectFirstPartyEmailTracking", () => {
     const html = `<!DOCTYPE html><html><body>
 <a href="https://example.com/a">A</a>
 <a href="https://zamkovoi.yoga/unsubscribe/email?t=x">U</a>
+<a href="https://zamkovoi.yoga/unsubscribe?t=y">U2</a>
+<a href="https://zamkovoi.yoga/api/unsubscribe?token=z">U3</a>
 </body></html>`;
     const out = injectFirstPartyEmailTracking(html, "11111111-1111-4111-8111-111111111111");
     expect(out).toContain("/api/email/track/open?t=");
     expect(out).toContain("/api/email/track/click?t=");
     expect(out).toContain(encodeURIComponent("https://example.com/a"));
     expect(out).toContain("/unsubscribe/email?t=x");
+    expect(out).toContain("/unsubscribe?t=y");
+    expect(out).toContain("/api/unsubscribe?token=z");
     expect(out).not.toMatch(
       /track\/click[^"]*unsubscribe/i,
     );

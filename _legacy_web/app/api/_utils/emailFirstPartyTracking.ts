@@ -63,7 +63,8 @@ export function parseEmailTrackToken(raw: string | null): string | null {
 function isSkippableHref(url: string): boolean {
   const u = url.trim();
   if (!/^https?:\/\//i.test(u)) return true;
-  if (/\/unsubscribe\/email/i.test(u)) return true;
+  if (/\/unsubscribe(\/email)?(\?|$|\/)/i.test(u)) return true;
+  if (/\/api\/unsubscribe(\?|$|\/)/i.test(u)) return true;
   if (/\/api\/email\/track\//i.test(u)) return true;
   if (u.startsWith("mailto:") || u.startsWith("#")) return true;
   return false;
