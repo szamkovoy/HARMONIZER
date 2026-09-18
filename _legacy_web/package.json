@@ -6,7 +6,13 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node ./node_modules/ffmpeg-static/install.js"
+  },
+  "allowScripts": {
+    "ffmpeg-static@5.3.0": true,
+    "sharp@0.35.3": true,
+    "@sentry/cli@2.58.6": true
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.787.0",

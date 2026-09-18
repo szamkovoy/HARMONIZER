@@ -1,14 +1,17 @@
-import { constants as fsConstants } from "node:fs";
-import { accessSync, existsSync } from "node:fs";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createServiceSupabase } from "../../_utils/supabase";
 
-/** Signed Storage uploads hit the Supabase global limit (often 50 MiB). Larger raw files go via chunked API. */
+/**
+ * Chunked story uploads cannot use instance-local `/tmp` on Vercel: each
+ * `upload-chunk` / `process` request may hit a different serverless isolate.
+ * Chunks live in shared Supabase Storage under `tmp/stories/sessions/*`
+ * (each object ≪ 50 MiB global limit). After `process`, the session folder
+ * is deleted; only the ffmpeg/sharp output remains.
+ */
 export const STORY_DIRECT_STORAGE_UPLOAD_MAX_BYTES = 45 * 1024 * 1024;
 export const STORY_UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
 
-const SESSION_DIR = join(tmpdir(), "harmonizer-story-upload");
+const BUCKET = "story-media";
+const SESSION_PREFIX = "tmp/stories/sessions";
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type StoryUploadSessionMeta = {
@@ -25,8 +28,25 @@ export function assertStoryUploadSessionId(sessionId: string): string {
   return trimmed;
 }
 
-function sessionPath(sessionId: string): string {
-  return join(SESSION_DIR, assertStoryUploadSessionId(sessionId));
+function sessionBase(sessionId: string): string {
+  return `${SESSION_PREFIX}/${assertStoryUploadSessionId(sessionId)}`;
+}
+
+function metaObjectPath(sessionId: string): string {
+  return `${sessionBase(sessionId)}/meta.json`;
+}
+
+function chunkObjectPath(sessionId: string, index: number): string {
+  return `${sessionBase(sessionId)}/chunk-${String(index).padStart(4, "0")}`;
+}
+
+async function uploadSessionObject(path: string, body: Buffer | string, contentType: string): Promise<void> {
+  const storage = createServiceSupabase().storage.from(BUCKET);
+  const { error } = await storage.upload(path, body, {
+    contentType,
+    upsert: true,
+  });
+  if (error) throw error;
 }
 
 export async function writeStoryUploadChunk(
@@ -47,13 +67,11 @@ export async function writeStoryUploadChunk(
     throw new Error("Некорректный размер файла");
   }
 
-  const dir = sessionPath(sessionId);
-  await mkdir(dir, { recursive: true });
-
-  const metaPath = join(dir, "meta.json");
+  // Bucket `story-media` only allows image/video MIME types — use the source
+  // media contentType for meta + chunk objects (body is still JSON / raw bytes).
   if (chunkIndex === 0) {
     const meta: StoryUploadSessionMeta = { content_type: contentType, chunk_total: chunkTotal, bytes };
-    await writeFile(metaPath, JSON.stringify(meta));
+    await uploadSessionObject(metaObjectPath(sessionId), JSON.stringify(meta), contentType);
   } else {
     const meta = await readStoryUploadSessionMeta(sessionId);
     if (meta.chunk_total !== chunkTotal || meta.bytes !== bytes || meta.content_type !== contentType) {
@@ -61,15 +79,16 @@ export async function writeStoryUploadChunk(
     }
   }
 
-  await writeFile(join(dir, `chunk-${String(chunkIndex).padStart(4, "0")}`), chunk);
+  await uploadSessionObject(chunkObjectPath(sessionId, chunkIndex), chunk, contentType);
 }
 
 export async function readStoryUploadSessionMeta(sessionId: string): Promise<StoryUploadSessionMeta> {
-  const metaPath = join(sessionPath(sessionId), "meta.json");
-  if (!existsSync(metaPath)) {
+  const storage = createServiceSupabase().storage.from(BUCKET);
+  const { data, error } = await storage.download(metaObjectPath(sessionId));
+  if (error || !data) {
     throw new Error("Сессия загрузки не найдена или ещё не инициализирована");
   }
-  const raw = JSON.parse(await readFile(metaPath, "utf8")) as StoryUploadSessionMeta;
+  const raw = JSON.parse(await data.text()) as StoryUploadSessionMeta;
   if (!raw.content_type || !raw.chunk_total || !raw.bytes) {
     throw new Error("Повреждённые метаданные сессии загрузки");
   }
@@ -77,16 +96,16 @@ export async function readStoryUploadSessionMeta(sessionId: string): Promise<Sto
 }
 
 export async function assembleStoryUploadSession(sessionId: string): Promise<{ buffer: Buffer; contentType: string }> {
-  const dir = sessionPath(sessionId);
   const meta = await readStoryUploadSessionMeta(sessionId);
+  const storage = createServiceSupabase().storage.from(BUCKET);
   const parts: Buffer[] = [];
 
   for (let index = 0; index < meta.chunk_total; index += 1) {
-    const partPath = join(dir, `chunk-${String(index).padStart(4, "0")}`);
-    if (!existsSync(partPath)) {
+    const { data, error } = await storage.download(chunkObjectPath(sessionId, index));
+    if (error || !data) {
       throw new Error(`Не хватает части загрузки ${index + 1} из ${meta.chunk_total}`);
     }
-    parts.push(await readFile(partPath));
+    parts.push(Buffer.from(await data.arrayBuffer()));
   }
 
   const buffer = Buffer.concat(parts);
@@ -98,24 +117,19 @@ export async function assembleStoryUploadSession(sessionId: string): Promise<{ b
 }
 
 export async function removeStoryUploadSession(sessionId: string): Promise<void> {
-  const dir = sessionPath(sessionId);
-  if (!existsSync(dir)) return;
-  await rm(dir, { recursive: true, force: true });
-}
-
-export async function listStoryUploadSessions(): Promise<string[]> {
-  if (!existsSync(SESSION_DIR)) return [];
-  const entries = await readdir(SESSION_DIR, { withFileTypes: true });
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-}
-
-export function storyUploadSessionDirExists(sessionId: string): boolean {
-  const dir = sessionPath(sessionId);
-  if (!existsSync(dir)) return false;
-  try {
-    accessSync(dir, fsConstants.R_OK | fsConstants.W_OK);
-    return true;
-  } catch {
-    return false;
+  const id = assertStoryUploadSessionId(sessionId);
+  const storage = createServiceSupabase().storage.from(BUCKET);
+  const folder = sessionBase(id);
+  const { data: listed, error: listError } = await storage.list(folder, { limit: 1000 });
+  if (listError) {
+    // Missing folder is fine (already cleaned or never created).
+    return;
   }
+  const paths = (listed ?? [])
+    .map((entry) => entry.name)
+    .filter((name) => typeof name === "string" && name.length > 0)
+    .map((name) => `${folder}/${name}`);
+  if (paths.length === 0) return;
+  const { error } = await storage.remove(paths);
+  if (error) throw error;
 }

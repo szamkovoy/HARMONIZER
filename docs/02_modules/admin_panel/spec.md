@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.16
-updated: 2026-09-12
+version: 1.17
+updated: 2026-09-18
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -117,7 +117,7 @@ code_refs:
 - UI `/admin/prompts` (список ключей) и `/admin/prompts/[key]` (версии, редактор шаблона, playground с автозаготовкой `{{переменных}}` — значения из `prompts.variables`, если заданы; рядом с «Прогнать» — id модели). В т.ч. `affirmation_generate` / `affirmation_refinement` / `breath_practice_interpretation` (живой шаблон `POST …/practice-interpretation`; playground seed `{{outcome}}` с `seriesInsights`).
 - Временный Prompt Studio (`/api/ai/prompt-studio` + `middleware.ts` + WordPress-страница) выведен из эксплуатации: роут и middleware удалены, функциональность покрыта этим разделом. `PROMPT_STUDIO_TOKEN` в Vercel больше не нужен.
 
-**Загрузки:** `POST /api/admin/uploads` `{bucket: 'story-media'|'post-covers', contentType}` → signed upload URL (браузер грузит напрямую в Storage, мимо лимита тела Vercel). Для stories raw upload: файлы ≤45 MiB — signed URL в `tmp/stories/*`; **>45 MiB** — chunked `POST /api/admin/stories/upload-chunk`, сборка в `process` (обход Supabase Free global limit 50 MiB без Pro). После загрузки — `POST /api/admin/stories/process`. На Free-тарифе `supabase config push` **не** поднимет global limit выше 50 MiB (402); chunked path — штатный.
+**Загрузки:** `POST /api/admin/uploads` `{bucket: 'story-media'|'post-covers', contentType}` → signed upload URL (браузер грузит напрямую в Storage, мимо лимита тела Vercel). Для stories raw upload: файлы ≤45 MiB — signed URL в `tmp/stories/*`; **>45 MiB и до 100 MiB** — chunked `POST /api/admin/stories/upload-chunk`, сборка в `process` (обход Supabase Free global limit 50 MiB без Pro). После загрузки — `POST /api/admin/stories/process`. На Free-тарифе `supabase config push` **не** поднимет global limit выше 50 MiB (402); chunked path — штатный.
 - **Клиент админки** (`app/admin/_lib/`): `getBrowserSupabase()` — anon-клиент только для аутентификации (email/password, сессия в localStorage); `adminFetch(path, init)` — fetch к `/api/admin/*` с Bearer текущей сессии. Данные админка получает **только через API** (service role на сервере), не прямыми запросами к БД.
 
 **Списки (канон UI):** одна карточка на запись (`AdminListCard` / `rounded-2xl border … gap-3`), не строки внутри одного `divide-y` блока. Так устроены сторис, видео, вебинары, уведомления, рассылки, письма цепочек, поддержка, пользователи, платежи. **Infinite scroll** (sentinel + `useAdminInfiniteScroll`): пользователи, платежи, поддержка, вебинары, уведомления, рассылки; видео — cursor (`before_created_at`/`before_id`). Сторис / промпты / каталог — без (малый объём). Где безопасно — корзина в правой части карточки + confirm (уведомления, рассылки, видео, вебинары, шаги цепочки, сторис; платежи/пользователи с списка — нет).
@@ -152,4 +152,4 @@ code_refs:
 - Geo (`country_code`/`city`) появляется только после раскатки клиента с persist reverse-geocode; исторической ретроспективы нет — `meta.partial` содержит `geo`, пока срез пуст.
 - LLM load/top-tokens зависят от событий `dialog_turn` / `llm_prompt_size` (пишутся из communicator dialog после успешного insert хода). Пока логов мало — `meta.partial` включает `top_tokens_sparse`; карточки не притворяются нулевой истиной без оговорки.
 - Пороги алертов захардкожены в `/api/admin/dashboard` (`TOKEN_ALERT_THRESHOLD_24H=80000`, `LLM_ERROR_ALERT_THRESHOLD_24H=15`); UI настроек порогов пока нет.
-- Stories media pipeline рассчитан на короткий контент: фото до 30 МБ, raw video до 120 МБ и до 90 секунд. Ограничения enforced уже на upload/process-роутах, чтобы `ffmpeg` укладывался в serverless runtime.
+- Stories media pipeline рассчитан на короткий контент: фото до 30 МБ, raw video до **100 МБ** и до **45 секунд**. Ограничения enforced уже на upload/process-роутах, чтобы `ffmpeg` укладывался в serverless runtime.

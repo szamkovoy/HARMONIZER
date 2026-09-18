@@ -1,15 +1,27 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
+<<<<<<< HEAD
 version: 3.41
 updated: 2026-09-15
+=======
+version: 3.44
+updated: 2026-09-18
+>>>>>>> dd923e0 (Raise story video upload to 100MB with reliable Vercel processing.)
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+<<<<<<< HEAD
 - 2026-09-15 (592): Named `resolveCampaignEmailCopy` in marketing_email public contract (campaign send/segment wrapper over force-RU stub). Docs `marketing_email`.
+=======
+- 2026-09-18 (595): Vercel stories process: ensure `ffmpeg-static` install + NFT include (`allowScripts`/`postinstall`/`outputFileTracingIncludes`). Docs `author_presence` + `infra`.
+- 2026-09-18 (594): Story chunked session objects use source media MIME (bucket rejects `application/json`). Docs `author_presence`.
+- 2026-09-18 (593): Story chunked upload sessions stored in Supabase Storage (not Vercel `/tmp`) so `process` finds parts across serverless isolates. Docs `author_presence` + `admin_panel`.
+- 2026-09-18 (592): Admin stories: raw video upload limit 45→100 МБ; chunked path restored for >45 MiB (Supabase ~50 MiB). Playback pipeline unchanged. Docs `author_presence` + `admin_panel`.
+>>>>>>> dd923e0 (Raise story video upload to 100MB with reliable Vercel processing.)
 - 2026-09-15 (591): Campaign send temporarily forces Russian copy for every contact (`MARKETING_CAMPAIGN_FORCE_COPY_LOCALE`); automations stay exact-match. Docs `marketing_email`.
 - 2026-09-15 (590): Marketing wave send — card UX/`progress`/`start_wave` + `email_campaigns` wave columns in spec §2–3 (aligned with `20260915184713`). Docs `marketing_email`.
 - 2026-09-15 (589): Marketing campaigns send in warmup waves (pause/edit/halt, skip already-accepted recipients, cron drain). Migration `20260915184713`. Docs `marketing_email`.

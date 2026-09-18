@@ -189,17 +189,21 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
 
       setBusy("Обрабатываю сторис…");
 
-      await adminFetch("/api/admin/stories/process", {
-        method: "POST",
-        body: JSON.stringify({
-          ...storyProcessUploadBody(uploadRef),
-          caption: caption.trim(),
-          caption_translations: Object.keys(finalTranslations).length > 0 ? finalTranslations : undefined,
-          publish_at: publishNow ? null : new Date(publishAt).toISOString(),
-          is_evergreen: evergreen,
-          is_published: true,
-        }),
-      });
+      await adminFetch(
+        "/api/admin/stories/process",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...storyProcessUploadBody(uploadRef),
+            caption: caption.trim(),
+            caption_translations: Object.keys(finalTranslations).length > 0 ? finalTranslations : undefined,
+            publish_at: publishNow ? null : new Date(publishAt).toISOString(),
+            is_evergreen: evergreen,
+            is_published: true,
+          }),
+        },
+        { timeoutMs: 180_000 },
+      );
 
       pickFile(null);
       if (fileInput.current) fileInput.current.value = "";
@@ -310,7 +314,7 @@ function CreateStoryForm({ onCreated }: { onCreated: () => Promise<void> }) {
           ) : null}
 
           <p className="text-xs text-zinc-500">
-            Фото автоматически кропаются под 9:16 и получают миниатюру. Видео перекодируются в mp4, получают poster и tiny-thumb. Лимиты: фото до 30 МБ, видео до 45 МБ сырого файла и до 45 секунд (iPhone 1080p ≈ 30 с, iPhone 4K ≈ 20 с).
+            Фото автоматически кропаются под 9:16 и получают миниатюру. Видео перекодируются в mp4, получают poster и tiny-thumb. Лимиты: фото до 30 МБ, видео до 100 МБ сырого файла и до 45 секунд (iPhone 4K часто 40–90 МБ за ~45 с — это нормально, сервер сожмёт).
           </p>
 
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -384,13 +388,17 @@ function EditStoryModal({ story, onClose, onSaved }: { story: StoryRow; onClose:
         const uploadRef = await uploadStoryRawFile(file, setBusy);
 
         setBusy("Обрабатываю медиа…");
-        await adminFetch("/api/admin/stories/process", {
-          method: "POST",
-          body: JSON.stringify({
-            ...storyProcessUploadBody(uploadRef),
-            update_id: story.id,
-          }),
-        });
+        await adminFetch(
+          "/api/admin/stories/process",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              ...storyProcessUploadBody(uploadRef),
+              update_id: story.id,
+            }),
+          },
+          { timeoutMs: 180_000 },
+        );
       }
 
       setBusy("Сохраняю…");

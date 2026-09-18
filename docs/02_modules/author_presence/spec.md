@@ -1,8 +1,8 @@
 ---
 id: 02_modules/author_presence/spec
 title: Author Presence Spec
-version: 3.9
-updated: 2026-07-14
+version: 3.10
+updated: 2026-09-18
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -71,8 +71,8 @@ code_refs:
 - `GET /api/admin/stories` — список сторис для админки (≤200). Перед чтением роут opportunistically запускает cleanup истёкших published non-evergreen stories, поэтому такие элементы после срока жизни удаляются из `stories` и обычно уже не доходят до списка как статус `Истекла`. Создание теперь split на `POST /api/admin/uploads` → `POST /api/admin/stories/process`: raw-файл грузится во временный `story-media/tmp/stories/*`, затем server-side pipeline (`sharp` / `ffmpeg`) генерирует финальный `image_url` или `video_url`, `cover_url` для видео и `thumbnail_url` для кольца, после чего пишет строку в `stories`. Для видео pipeline теперь жёстко нормализует клип под stories playback: `1080x1920` crop, `H.264 High`, `AAC 128 kbps`, `30 fps`, `-movflags +faststart`, poster `cover_url` тоже в `1080x1920` и берётся с самого начала ролика, чтобы не расходиться с первым живым кадром MP4; runtime не доверяет сырому `ffprobe.path`, а пересобирает абсолютный путь к бинарнику от `ffprobe-static/package.json`, чтобы dev/Vercel bundling не ломали spawn. Payload нормализуется `storyPayload.ts`: **`expires_at = publish_at + 24h` по умолчанию**, `caption` → `{text, translations?}`, `kind: 'image'|'video'`.
 - `PATCH/DELETE /api/admin/stories/[id]` — частичное обновление (публикация/снятие, подпись + `caption_translations`, сроки, `order_hint`) / удаление строки **вместе с файлами** в `story-media`, включая `thumbnail_url`. При обновлении `caption_translations` выполняется read-merge с текущим caption.
 - `POST /api/admin/stories/process` — принимает опциональный `update_id`: если передан, процессинг обновляет медиафайлы существующей сторис (удаляет старые assets) вместо создания новой. Также принимает `caption_translations` для записи переводов при создании.
-- `POST /api/admin/uploads` — signed upload URL в бакет `story-media` (`createSignedUploadUrl`, service role); для сторис принимает также `folder` и `bytes`. Файлы **≤45 MiB** браузер грузит напрямую в Storage (`uploadToSignedUrl`). **>45 MiB** — chunked upload на `POST /api/admin/stories/upload-chunk` (обход глобального лимита Supabase Storage ~50 MiB), сборка на сервере в `process`. Ответ uploads: `{path, token, publicUrl}`.
-- `POST /api/admin/stories/upload-chunk` — multipart `{session_id, chunk_index, chunk_total, content_type, bytes, chunk}`; пишет части во временную server-side сессию (`/tmp/harmonizer-story-upload/*`).
+- `POST /api/admin/uploads` — signed upload URL в бакет `story-media` (`createSignedUploadUrl`, service role); для сторис принимает также `folder` и `bytes`. Файлы **≤45 MiB** браузер грузит напрямую в Storage (`uploadToSignedUrl`). **>45 MiB и до 100 MiB** — chunked upload на `POST /api/admin/stories/upload-chunk` (обход глобального лимита Supabase Storage ~50 MiB), сборка на сервере в `process`. Ответ uploads: `{path, token, publicUrl}`.
+- `POST /api/admin/stories/upload-chunk` — multipart `{session_id, chunk_index, chunk_total, content_type, bytes, chunk}`; пишет части в **shared** Storage `story-media/tmp/stories/sessions/<uuid>/*` (не в `/tmp` инстанса Vercel — иначе `process` на другом isolate не видит сессию). Сборка — в `process`.
 - `POST /api/admin/stories/process` — принимает `upload_path` (legacy direct Storage tmp) **или** `upload_session_id` (chunked upload); далее `sharp`/`ffmpeg` pipeline.
 - `POST /api/admin/stories/cleanup` — батчевый idempotent cleanup истёкших published stories: удаляет DB rows и связанные `image_url` / `video_url` / `cover_url` / `thumbnail_url` из `story-media`. Тот же helper используется opportunistically в `GET /api/admin/stories`, а часовой cron invoke удаляет хвосты без участия админки.
 - `POST /api/admin/translate` — `{type:'story'|'post', …}`. Для `post`: `AI_MODEL_PREMIUM` (`source_locale` + `source_title`/`source_body`; `fill_locales` — только пустые); перевод чанками по 3 локали (`maxDuration` 180, per-call timeout 90s). Источник на клиенте: **активная вкладка** (если заполнена), иначе RU → EN → остальные. С **RU** — fill всех пустых не-RU; с **не-RU** (в т.ч. EN) — fill пустых **кроме RU** (сервер тоже отбрасывает `ru`). Клиент: `adminFetch` timeout 180s; после ответа копирует обложку источника на заполняемые вкладки без своей обложки.
@@ -105,6 +105,6 @@ UI-строки — ключи `stories.*` и `posts.*` (+`tabs.posts` = «Ви�
 ## 5. Известные ограничения
 
 - Клиент по-прежнему получает только один progressive MP4-variant на сторис; HLS/ABR ladder, quality switching и отдельный low-bitrate preview-video пока не реализованы.
-- Server-side video pipeline ограничен короткими сторис: raw video до 120 МБ и до 90 секунд. На выходе клиент получает только один MP4-variant (`1080x1920`, `H.264`, `AAC`, `30 fps`, maxrate `~7 Mbps`) + один poster `cover_url`; adaptive preview/full ladders и auto-splitting длинных роликов на несколько stories пока не реализованы.
+- Server-side video pipeline ограничен короткими сторис: raw video до **100 МБ** и до **45 секунд**. На выходе клиент получает только один MP4-variant (`1080x1920`, `H.264`, `AAC`, `30 fps`, maxrate `~7 Mbps`) + один poster `cover_url`; adaptive preview/full ladders и auto-splitting длинных роликов на несколько stories пока не реализованы. Размер исходника не влияет на playback: после `process` оригинал удаляется, в приложении играет только нормализованный файл.
 - `announcements` (+RPC) остаются нетронутыми — кандидат на депрекацию (см. `open_questions.md`).
 - Отдельного `FeatureKey` нет: сторис видны на всех тарифах.

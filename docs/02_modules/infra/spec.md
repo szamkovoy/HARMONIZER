@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.23
-updated: 2026-09-14
+version: 1.24
+updated: 2026-09-18
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
@@ -18,7 +18,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 **Next.js (`_legacy_web/`)**
 
 - `RootLayout` (`_legacy_web/app/layout.tsx`) — HTML-оболочка API-сервиса: `metadata` (title, `manifest`, иконки, `appleWebApp`), `viewport` (theme-color, масштаб), `lang="en"` для документа.
-- `nextConfig` (`_legacy_web/next.config.ts`) — `outputFileTracingRoot` указывает на корень `_legacy_web`; экспорт обёрнут в `withSentryConfig` (орг/проект Sentry, `tunnelRoute: "/monitoring"`, `disableLogger`, `widenClientFileUpload`).
+- `nextConfig` (`_legacy_web/next.config.ts`) — `outputFileTracingRoot` указывает на корень `_legacy_web`; `serverExternalPackages` + `outputFileTracingIncludes` для `ffmpeg-static`/`ffprobe-static` на `/api/admin/stories/process` (иначе NFT не кладёт бинарники в serverless); экспорт обёрнут в `withSentryConfig` (орг/проект Sentry, `tunnelRoute: "/monitoring"`, `disableLogger`, `widenClientFileUpload`).
+- `_legacy_web/package.json` — Node-зависимости backend shell. Для stories media pipeline: `sharp`, `ffmpeg-static`, `ffprobe-static`. Runtime: `mediaPipeline.ts` валидирует absolute path к бинарнику от package dir перед `spawn`. На Vercel npm может пропускать dependency install scripts без `allowScripts` — в `package.json` зафиксированы `allowScripts` для `ffmpeg-static`/`sharp`/`@sentry/cli` и `postinstall` → `ffmpeg-static/install.js`. `vercel.json` поднимает memory `process`-роута до 2048 МБ (лимит Hobby).
 - `register()` (`_legacy_web/instrumentation.ts`) — при `NEXT_RUNTIME === "nodejs"` импортирует `logTestModeStartupWarning` из `app/api/_utils/testMode.ts` (однократный `console.warn` при `TEST_MODE_FAST_INTERVALS=1`), затем подгружает `sentry.server.config`.
 - `Sentry.init` (`_legacy_web/sentry.server.config.ts`) — серверный SDK: `dsn` из `SENTRY_DSN`, `enabled` при наличии DSN, `environment` из `VERCEL_ENV` / `NODE_ENV`, `tracesSampleRate` из `SENTRY_TRACES_SAMPLE_RATE` (дефолт `0.05`); `beforeSend` отбрасывает `failed to pipe response` и связанные с expected LLM-unavailable артефакты SSE.
 - `onRequestError` — экспорт `Sentry.captureRequestError` из `instrumentation.ts` для Next error boundary.
@@ -44,8 +45,6 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - `supabase/README.md` — операционный контракт папки: структура `migrations/`, `functions/`, `seed.sql`, требования к `.env.local` для CLI, команды `link` / `db push`, cron-функции (`auto-calibrate`, `precompute-daily-forecasts`, `precompute-global-recommendations`, `cleanup-expired-proposals`, `cleanup-expired-stories`, `reconcile-expired-memberships`), правило «не править старые миграции — только новые файлы».
 - `supabase/config.toml` — локальные флаги edge-функций; для cron-style вызовов `verify_jwt = false` фиксируется и для `precompute-global-recommendations` / cleanup / reconcile memberships.
 - `DEPLOY.md` — чеклист серверного/edge-деплоя, включая список функций, секрет `CRON_SECRET` и рекомендуемые расписания.
-- `_legacy_web/package.json` — Node-зависимости backend shell. Для stories media pipeline сюда добавлены `sharp`, `ffmpeg-static` и `ffprobe-static`, потому что image crop/transcode/poster/thumb generation выполняются в серверном runtime, а не в браузере. Важный runtime-инвариант: не полагаться на сырые `exports.path` этих пакетов в bundled Next route; `mediaPipeline.ts` валидирует absolute path к бинарнику от package dir перед `spawn`.
-
 **PWA-остаток**
 
 - `_legacy_web/public/manifest.json` + ссылки из `layout` — ярлык/installability для web-shell; продуктовый клиент — Expo (см. `pwa.md`).

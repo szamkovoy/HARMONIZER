@@ -14,7 +14,8 @@ export const STORY_IMAGE_OUTPUT = { width: 1080, height: 1920, quality: 82 } as 
 export const STORY_THUMB_SIZE = 160;
 export const STORY_VIDEO_COVER_OUTPUT = { width: 1080, height: 1920, quality: 82 } as const;
 export const STORY_IMAGE_MAX_BYTES = 30 * 1024 * 1024;
-export const STORY_VIDEO_MAX_BYTES = 45 * 1024 * 1024;
+/** Raw iPhone 4K can exceed 45 MiB; output after ffmpeg stays ~phone-sized. */
+export const STORY_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 export const STORY_VIDEO_MAX_DURATION_SEC = 45;
 export const STORY_VIDEO_TARGET_FPS = 30;
 export const STORY_VIDEO_TARGET_MAXRATE = "7000k";
@@ -72,6 +73,17 @@ function resolvePackageBinary(packageName: string, relativePathParts: string[], 
         return "";
       }
     })(),
+    // ffmpeg-static ships the binary next to package.json after install.js
+    packageName === "ffmpeg-static"
+      ? (() => {
+          try {
+            const pkgJsonPath = requireForRuntime.resolve("ffmpeg-static/package.json");
+            return join(dirname(pkgJsonPath), process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
+          } catch {
+            return "";
+          }
+        })()
+      : "",
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -84,7 +96,9 @@ function resolvePackageBinary(packageName: string, relativePathParts: string[], 
     }
   }
 
-  throw new Error(`${name} binary is unavailable`);
+  throw new Error(
+    `${name} binary is unavailable (checked: ${candidates.join(", ") || "none"}). Re-deploy after ffmpeg-static install scripts run.`,
+  );
 }
 
 function storySourceKindFromMime(contentType: string): StorySourceKind {
@@ -107,7 +121,7 @@ export function validateStoryUploadPath(path: string): string {
 export function assertStoryUploadSize(kind: StorySourceKind, bytes: number): void {
   const limit = kind === "image" ? STORY_IMAGE_MAX_BYTES : STORY_VIDEO_MAX_BYTES;
   if (bytes > limit) {
-    const humanLimit = kind === "image" ? "30 МБ" : "45 МБ";
+    const humanLimit = kind === "image" ? "30 МБ" : "100 МБ";
     throw new Error(`Файл слишком большой для сторис. Лимит: ${humanLimit}.`);
   }
 }
