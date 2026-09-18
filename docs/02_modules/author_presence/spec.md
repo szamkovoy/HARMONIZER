@@ -1,7 +1,7 @@
 ---
 id: 02_modules/author_presence/spec
 title: Author Presence Spec
-version: 3.10
+version: 3.11
 updated: 2026-09-18
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
@@ -72,7 +72,7 @@ code_refs:
 - `PATCH/DELETE /api/admin/stories/[id]` — частичное обновление (публикация/снятие, подпись + `caption_translations`, сроки, `order_hint`) / удаление строки **вместе с файлами** в `story-media`, включая `thumbnail_url`. При обновлении `caption_translations` выполняется read-merge с текущим caption.
 - `POST /api/admin/stories/process` — принимает опциональный `update_id`: если передан, процессинг обновляет медиафайлы существующей сторис (удаляет старые assets) вместо создания новой. Также принимает `caption_translations` для записи переводов при создании.
 - `POST /api/admin/uploads` — signed upload URL в бакет `story-media` (`createSignedUploadUrl`, service role); для сторис принимает также `folder` и `bytes`. Файлы **≤45 MiB** браузер грузит напрямую в Storage (`uploadToSignedUrl`). **>45 MiB и до 100 MiB** — chunked upload на `POST /api/admin/stories/upload-chunk` (обход глобального лимита Supabase Storage ~50 MiB), сборка на сервере в `process`. Ответ uploads: `{path, token, publicUrl}`.
-- `POST /api/admin/stories/upload-chunk` — multipart `{session_id, chunk_index, chunk_total, content_type, bytes, chunk}`; пишет части в **shared** Storage `story-media/tmp/stories/sessions/<uuid>/*` (не в `/tmp` инстанса Vercel — иначе `process` на другом isolate не видит сессию). Сборка — в `process`.
+- `POST /api/admin/stories/upload-chunk` — multipart `{session_id, chunk_index, chunk_total, content_type, bytes, chunk}`; пишет части в **shared** Storage `story-media/tmp/stories/sessions/<uuid>/*` (не в `/tmp` инстанса Vercel — иначе `process` на другом isolate не видит сессию). Meta + chunk objects загружаются с MIME исходного медиа (бакет `story-media` не принимает `application/json`). Сборка — в `process`.
 - `POST /api/admin/stories/process` — принимает `upload_path` (legacy direct Storage tmp) **или** `upload_session_id` (chunked upload); далее `sharp`/`ffmpeg` pipeline.
 - `POST /api/admin/stories/cleanup` — батчевый idempotent cleanup истёкших published stories: удаляет DB rows и связанные `image_url` / `video_url` / `cover_url` / `thumbnail_url` из `story-media`. Тот же helper используется opportunistically в `GET /api/admin/stories`, а часовой cron invoke удаляет хвосты без участия админки.
 - `POST /api/admin/translate` — `{type:'story'|'post', …}`. Для `post`: `AI_MODEL_PREMIUM` (`source_locale` + `source_title`/`source_body`; `fill_locales` — только пустые); перевод чанками по 3 локали (`maxDuration` 180, per-call timeout 90s). Источник на клиенте: **активная вкладка** (если заполнена), иначе RU → EN → остальные. С **RU** — fill всех пустых не-RU; с **не-RU** (в т.ч. EN) — fill пустых **кроме RU** (сервер тоже отбрасывает `ru`). Клиент: `adminFetch` timeout 180s; после ответа копирует обложку источника на заполняемые вкладки без своей обложки.

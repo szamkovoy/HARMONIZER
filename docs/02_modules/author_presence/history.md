@@ -1,7 +1,7 @@
 ---
 id: 02_modules/author_presence/history
 title: Author Presence History
-version: 1.8
+version: 1.9
 updated: 2026-09-18
 depends_on: [02_modules/subscription/spec, 02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/migrations/20260708130000_posts_comments.sql]
@@ -9,7 +9,7 @@ code_refs: [supabase/migrations/20260708120000_stories_storage.sql, supabase/mig
 
 ## Decision Log
 
-- **2026-09-18 (ffmpeg on Vercel):** `ffmpeg binary is unavailable` after chunked upload: npm на Vercel пропускал `ffmpeg-static` install script (`allowScripts`), бинарник не скачивался и/или не попадал в NFT-бандл. Фикс: `allowScripts` + `postinstall` → `ffmpeg-static/install.js`; `outputFileTracingIncludes` + `serverExternalPackages`; `vercel.json` memory 2048 для `process` (Hobby).
+- **2026-09-18 (ffmpeg on Vercel):** `ffmpeg binary is unavailable` after chunked upload: npm на Vercel пропускал `ffmpeg-static` install script (`allowScripts`), бинарник не скачивался и/или не попадал в NFT-бандл. Фикс: `allowScripts` + `postinstall` → `ffmpeg-static/install.js`; `outputFileTracingIncludes` + `serverExternalPackages`; `vercel.json` `maxDuration: 120` для `stories/process`.
 - **2026-09-18 (chunked session MIME):** После переноса сессии в Storage upload падал с `mime type application/json is not supported` — бакет `story-media` принимает только image/video. Meta + chunk objects пишутся с MIME исходного медиа (тело meta по-прежнему JSON).
 - **2026-09-18 (chunked session → Storage):** Ошибка «Сессия загрузки не найдена» после успешной загрузки 21 части: чанки писались в instance-local `/tmp` на Vercel, а `process` попадал на другой isolate. Фикс: сессия chunked upload хранится в `story-media/tmp/stories/sessions/<uuid>/` (shared Storage); после `process` папка удаляется. Playback/ffmpeg без изменений.
 - **2026-09-18 (story video raw ≤100 МБ):** Лимит сырого видео поднят с 45 → **100 МБ** (`STORY_VIDEO_MAX_BYTES`); длительность по-прежнему **45 с**. Клиент снова шлёт файлы >45 MiB chunked (`upload-chunk` → `process` с `upload_session_id`) из‑за глобального лимита Supabase ~50 MiB; ≤45 MiB — прямой signed upload. **Playback не меняется:** ffmpeg по-прежнему отдаёт один нормализованный `1080x1920` H.264 + poster/thumb, raw после `process` удаляется. Таймаут `process` в админке — 180 с.

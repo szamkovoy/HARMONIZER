@@ -1,7 +1,7 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.24
+version: 1.25
 updated: 2026-09-18
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
@@ -19,7 +19,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 - `RootLayout` (`_legacy_web/app/layout.tsx`) — HTML-оболочка API-сервиса: `metadata` (title, `manifest`, иконки, `appleWebApp`), `viewport` (theme-color, масштаб), `lang="en"` для документа.
 - `nextConfig` (`_legacy_web/next.config.ts`) — `outputFileTracingRoot` указывает на корень `_legacy_web`; `serverExternalPackages` + `outputFileTracingIncludes` для `ffmpeg-static`/`ffprobe-static` на `/api/admin/stories/process` (иначе NFT не кладёт бинарники в serverless); экспорт обёрнут в `withSentryConfig` (орг/проект Sentry, `tunnelRoute: "/monitoring"`, `disableLogger`, `widenClientFileUpload`).
-- `_legacy_web/package.json` — Node-зависимости backend shell. Для stories media pipeline: `sharp`, `ffmpeg-static`, `ffprobe-static`. Runtime: `mediaPipeline.ts` валидирует absolute path к бинарнику от package dir перед `spawn`. На Vercel npm может пропускать dependency install scripts без `allowScripts` — в `package.json` зафиксированы `allowScripts` для `ffmpeg-static`/`sharp`/`@sentry/cli` и `postinstall` → `ffmpeg-static/install.js`. `vercel.json` поднимает memory `process`-роута до 2048 МБ (лимит Hobby).
+- `_legacy_web/package.json` — Node-зависимости backend shell. Для stories media pipeline: `sharp`, `ffmpeg-static`, `ffprobe-static`. Runtime: `mediaPipeline.ts` валидирует absolute path к бинарнику от package dir перед `spawn` (в т.ч. кандидат `ffmpeg-static/ffmpeg` рядом с `package.json`). На Vercel npm может пропускать dependency install scripts без `allowScripts` — в `package.json` зафиксированы `allowScripts` для `ffmpeg-static`/`sharp`/`@sentry/cli` и `postinstall` → `ffmpeg-static/install.js`. `_legacy_web/vercel.json` задаёт `maxDuration: 120` для `app/api/admin/stories/process/route.ts`.
 - `register()` (`_legacy_web/instrumentation.ts`) — при `NEXT_RUNTIME === "nodejs"` импортирует `logTestModeStartupWarning` из `app/api/_utils/testMode.ts` (однократный `console.warn` при `TEST_MODE_FAST_INTERVALS=1`), затем подгружает `sentry.server.config`.
 - `Sentry.init` (`_legacy_web/sentry.server.config.ts`) — серверный SDK: `dsn` из `SENTRY_DSN`, `enabled` при наличии DSN, `environment` из `VERCEL_ENV` / `NODE_ENV`, `tracesSampleRate` из `SENTRY_TRACES_SAMPLE_RATE` (дефолт `0.05`); `beforeSend` отбрасывает `failed to pipe response` и связанные с expected LLM-unavailable артефакты SSE.
 - `onRequestError` — экспорт `Sentry.captureRequestError` из `instrumentation.ts` для Next error boundary.
@@ -67,7 +67,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 | Область | Параметр | Где задаётся |
 | --- | --- | --- |
-| Next.js / Vercel duration | `export const maxDuration` on long routes: dialog **300**, daily-forecast / monologue / greeting / recommendation-text / practice-interpretation / calibration extract **120**, transcribe / day / natal **60**. Missing export → platform default ~10–15s (`Gateway Timeout`). | route files under `_legacy_web/app/api/` |
+| Next.js / Vercel duration | `export const maxDuration` on long routes: dialog **300**, daily-forecast / monologue / greeting / recommendation-text / practice-interpretation / calibration extract **120**, transcribe / day / natal **60**. Stories `process` — **120** via `_legacy_web/vercel.json`. Missing export → platform default ~10–15s (`Gateway Timeout`). | route files under `_legacy_web/app/api/`; `vercel.json` |
 | Server Sentry | `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE`, `VERCEL_ENV` | Vercel env + `sentry.server.config.ts` |
 | Клиент Sentry (RN) | `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_APP_ENV`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Expo env + `sentry.client.config.ts` |
 | Next bundle tracing | `outputFileTracingRoot` | `_legacy_web/next.config.ts` |
