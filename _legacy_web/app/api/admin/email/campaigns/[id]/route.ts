@@ -1,6 +1,6 @@
 import { asContentLocale } from "../../../../_utils/contentLocales";
 import { campaignSendProgress } from "../../../../_utils/emailCampaignSend";
-import { parseAudienceCap, parseWarmupPlan } from "../../../../_utils/emailCampaignWarmup";
+import { parseAudienceCap, parseWarmupPlan, serializeWarmupPlan } from "../../../../_utils/emailCampaignWarmup";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -80,7 +80,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     const { data: existing, error: loadError } = await db
       .from("email_campaigns")
-      .select("status")
+      .select("status, warmup_plan")
       .eq("id", id)
       .maybeSingle();
     if (loadError) throw loadError;
@@ -102,7 +102,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
       patch.segment_query = payload.segment_query;
     }
     if (payload.warmup_plan && typeof payload.warmup_plan === "object") {
-      patch.warmup_plan = parseWarmupPlan(payload.warmup_plan);
+      const parsed = parseWarmupPlan(payload.warmup_plan);
+      if (parsed.wave_base_sent == null) {
+        parsed.wave_base_sent = parseWarmupPlan(existing.warmup_plan).wave_base_sent;
+      }
+      patch.warmup_plan = serializeWarmupPlan(parsed);
     }
     if ("audience_cap" in payload) {
       patch.audience_cap = parseAudienceCap(payload.audience_cap);

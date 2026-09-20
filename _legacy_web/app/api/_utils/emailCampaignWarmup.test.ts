@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   activityMs,
+  currentWaveNeed,
   nextMskHour,
   parseAudienceCap,
   parseWarmupPlan,
@@ -40,5 +41,30 @@ describe("emailCampaignWarmup", () => {
     expect(parseAudienceCap(null)).toBeNull();
     expect(parseAudienceCap(6000)).toBe(6000);
     expect(parseAudienceCap(0)).toBeNull();
+  });
+
+  it("keeps a wave open until quota is filled", () => {
+    const plan = parseWarmupPlan({
+      sizes: DEFAULT_WARMUP_SIZES,
+      wave_base_sent: 3422,
+    });
+    expect(
+      currentWaveNeed({
+        sentCount: 4432,
+        queuedCount: 0,
+        nextWaveSize: 2000,
+        waveIndex: 5,
+        plan,
+      }).need,
+    ).toBe(990);
+    expect(
+      currentWaveNeed({
+        sentCount: 3422,
+        queuedCount: 2000,
+        nextWaveSize: 2000,
+        waveIndex: 5,
+        plan,
+      }).need,
+    ).toBe(0);
   });
 });

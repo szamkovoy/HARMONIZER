@@ -1,14 +1,15 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.45
-updated: 2026-09-18
+version: 3.46
+updated: 2026-09-20
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-09-20 (598): Marketing warmup waves no longer close early after a Vercel timeout mid-enqueue; batch queue + `wave_base_sent` quota. Docs `marketing_email`.
 - 2026-09-18 (597): Stories `process` on Vercel: `vercel.json` sets `maxDuration` 120 (not memory 2048); resolved CHANGELOG merge conflict. Docs `infra` + `author_presence`.
 - 2026-09-18 (596): Vercel stories process: ensure `ffmpeg-static` install + NFT include (`allowScripts`/`postinstall`/`outputFileTracingIncludes`). Docs `author_presence` + `infra`.
 - 2026-09-18 (595): Story chunked session objects use source media MIME (bucket rejects `application/json`). Docs `author_presence`.

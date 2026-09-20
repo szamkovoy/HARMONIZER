@@ -3,9 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseStringRecord } from "./contentLocaleFallback";
 import {
   activityMs,
+  currentWaveNeed,
   nextMskHour,
   parseAudienceCap,
   parseWarmupPlan,
+  serializeWarmupPlan,
   SUCCESS_OR_ACCEPTED_STATUSES,
   TERMINAL_SEND_STATUSES,
   waveSizeAt,
@@ -216,12 +218,16 @@ async function isHalted(db: SupabaseClient, campaignId: string): Promise<boolean
   return Boolean(data?.send_halted_at);
 }
 
+function isProviderRateLimited(detail: string): boolean {
+  return /\bHTTP 429\b/i.test(detail) || /rate.?limit/i.test(detail);
+}
+
 async function sendOneQueued(
   db: SupabaseClient,
   campaign: CampaignRow,
   copySource: EmailCopySource,
   sendRow: SendRow,
-): Promise<"sent" | "failed" | "skipped"> {
+): Promise<"sent" | "failed" | "skipped" | "rate_limited"> {
   const { data: contact, error: contactError } = await db
     .from("email_contacts")
     .select(
@@ -314,6 +320,10 @@ async function sendOneQueued(
     return "sent";
   }
 
+  if (isProviderRateLimited(result.detail)) {
+    return "rate_limited";
+  }
+
   await db
     .from("email_campaign_sends")
     .update({
@@ -329,27 +339,23 @@ async function enqueueWave(
   campaignId: string,
   slice: CampaignRecipientRow[],
 ): Promise<number> {
+  const CHUNK = 200;
   let n = 0;
-  for (const row of slice) {
-    const { data: existing } = await db
-      .from("email_campaign_sends")
-      .select("status")
-      .eq("campaign_id", campaignId)
-      .eq("contact_id", row.contact.id)
-      .maybeSingle();
-    if (existing && SKIP_AGAIN.has(existing.status as string)) continue;
-    const { error } = await db.from("email_campaign_sends").upsert(
-      {
-        campaign_id: campaignId,
-        contact_id: row.contact.id,
-        locale: row.locale,
-        status: "queued",
-        error_detail: null,
-      },
-      { onConflict: "campaign_id,contact_id" },
-    );
-    if (error) continue;
-    n += 1;
+  for (let i = 0; i < slice.length; i += CHUNK) {
+    const chunk = slice.slice(i, i + CHUNK);
+    const rows = chunk.map((row) => ({
+      campaign_id: campaignId,
+      contact_id: row.contact.id,
+      locale: row.locale,
+      status: "queued" as const,
+      error_detail: null,
+    }));
+    const { error } = await db.from("email_campaign_sends").upsert(rows, {
+      onConflict: "campaign_id,contact_id",
+      ignoreDuplicates: true,
+    });
+    if (error) throw error;
+    n += rows.length;
   }
   return n;
 }
@@ -413,6 +419,7 @@ async function finishWaveOrCampaign(
   const pick = await pickWaveRecipients(db, campaign, copySource);
   const plan = parseWarmupPlan(campaign.warmup_plan);
   const now = new Date();
+  const latest = (await loadCampaign(db, campaign.id)) ?? campaign;
   if (pick.remaining.length === 0) {
     await db
       .from("email_campaigns")
@@ -424,13 +431,17 @@ async function finishWaveOrCampaign(
         send_lease_until: null,
         recipient_count: pick.eligibleTotal,
         skipped_locale_count: pick.skippedLocale,
-        sent_at: campaign.sent_at ?? now.toISOString(),
+        sent_at: latest.sent_at ?? now.toISOString(),
+        warmup_plan: serializeWarmupPlan({
+          ...plan,
+          wave_base_sent: latest.sent_count,
+        }),
         updated_at: now.toISOString(),
       })
       .eq("id", campaign.id);
     return "sent";
   }
-  const sched = scheduleAfterWave(campaign, plan, now);
+  const sched = scheduleAfterWave(latest, plan, now);
   await db
     .from("email_campaigns")
     .update({
@@ -439,7 +450,11 @@ async function finishWaveOrCampaign(
       send_lease_until: null,
       recipient_count: pick.eligibleTotal,
       skipped_locale_count: pick.skippedLocale,
-      sent_at: campaign.sent_at ?? now.toISOString(),
+      sent_at: latest.sent_at ?? now.toISOString(),
+      warmup_plan: serializeWarmupPlan({
+        ...plan,
+        wave_base_sent: latest.sent_count,
+      }),
       ...sched,
       updated_at: now.toISOString(),
     })
@@ -466,6 +481,10 @@ async function drainQueued(
     if (queued.length === 0) break;
     const row = queued[0]!;
     const result = await sendOneQueued(db, campaign, copySource, row);
+    if (result === "rate_limited") {
+      timedOut = true;
+      break;
+    }
     if (result === "sent") sent += 1;
     else if (result === "failed") failed += 1;
     await bumpCounts(
@@ -597,9 +616,21 @@ export async function runCampaignSend(
 
     const copySource = copySourceFromCampaign(campaign);
     const queuedNow = await loadQueued(db, campaignId);
+    const plan = parseWarmupPlan(campaign.warmup_plan);
+    const progress = currentWaveNeed({
+      sentCount: campaign.sent_count,
+      queuedCount: queuedNow.length,
+      nextWaveSize: campaign.next_wave_size,
+      waveIndex: campaign.warmup_wave_index ?? 0,
+      plan,
+    });
+    const shouldFill = progress.need > 0 && (opts.startWave || queuedNow.length === 0);
+    let exhausted = false;
 
-    if (opts.startWave && queuedNow.length === 0) {
-      await db.rpc("sync_email_contacts_from_users");
+    if (shouldFill) {
+      if (opts.startWave && queuedNow.length === 0 && progress.acceptedThisWave === 0) {
+        await db.rpc("sync_email_contacts_from_users");
+      }
       const pick = await pickWaveRecipients(db, campaign, copySource);
       if (pick.copyEmpty) {
         await db
@@ -641,13 +672,9 @@ export async function runCampaignSend(
           detail: "Сегмент без аудитории.",
         };
       }
-      const plan = parseWarmupPlan(campaign.warmup_plan);
-      const size =
-        campaign.next_wave_size && campaign.next_wave_size > 0
-          ? campaign.next_wave_size
-          : waveSizeAt(campaign.warmup_wave_index ?? 0, plan);
-      const slice = pick.remaining.slice(0, size);
-      if (slice.length === 0) {
+      exhausted = pick.remaining.length === 0;
+      const slice = pick.remaining.slice(0, progress.need);
+      if (slice.length === 0 && queuedNow.length === 0) {
         const fin = await finishWaveOrCampaign(db, campaign, copySource);
         return {
           campaign_id: campaignId,
@@ -659,7 +686,9 @@ export async function runCampaignSend(
           timed_out: false,
         };
       }
-      enqueued = await enqueueWave(db, campaignId, slice);
+      if (slice.length > 0) {
+        enqueued = await enqueueWave(db, campaignId, slice);
+      }
       await db
         .from("email_campaigns")
         .update({
@@ -705,7 +734,15 @@ export async function runCampaignSend(
     }
 
     const leftover = await loadQueued(db, campaignId);
-    if (leftover.length > 0 || drain.timedOut) {
+    campaign = (await loadCampaign(db, campaignId)) ?? campaign;
+    const after = currentWaveNeed({
+      sentCount: campaign.sent_count,
+      queuedCount: leftover.length,
+      nextWaveSize: campaign.next_wave_size,
+      waveIndex: campaign.warmup_wave_index ?? 0,
+      plan: parseWarmupPlan(campaign.warmup_plan),
+    });
+    if (leftover.length > 0 || drain.timedOut || (!exhausted && after.need > 0)) {
       await db
         .from("email_campaigns")
         .update({
@@ -717,22 +754,21 @@ export async function runCampaignSend(
       return {
         campaign_id: campaignId,
         status: "sending",
-        sent_count: campaign.sent_count + drain.sent,
-        error_count: campaign.error_count + drain.failed,
+        sent_count: campaign.sent_count,
+        error_count: campaign.error_count,
         queued_enqueued: enqueued,
         halted: false,
         timed_out: true,
       };
     }
 
-    campaign = (await loadCampaign(db, campaignId)) ?? campaign;
     const fin = await finishWaveOrCampaign(db, campaign, copySource);
     const latest = await loadCampaign(db, campaignId);
     return {
       campaign_id: campaignId,
       status: fin,
-      sent_count: latest?.sent_count ?? campaign.sent_count + drain.sent,
-      error_count: latest?.error_count ?? campaign.error_count + drain.failed,
+      sent_count: latest?.sent_count ?? campaign.sent_count,
+      error_count: latest?.error_count ?? campaign.error_count,
       queued_enqueued: enqueued,
       halted: false,
       timed_out: false,

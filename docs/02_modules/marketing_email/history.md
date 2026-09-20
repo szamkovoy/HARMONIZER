@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.18
-updated: 2026-09-15
+version: 1.19
+updated: 2026-09-20
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -15,6 +15,7 @@ code_refs:
 
 ## Decision Log
 
+- **2026-09-20 (incomplete warmup wave):** Волны 1000/2000 закрывались после ~650–1020 писем: очередь набиралась по одному контакту, Vercel 300s обрывал инвок, cron видел остаток queued и считал волну завершённой. Не лимит Resend (failed=0). Fix: batch upsert 200, `wave_base_sent`, не закрывать волну пока квота не набрана; 429 оставляет queued.
 - **2026-09-15 (campaign force RU):** Пока маркетинг только на RU, рассылки шлют русскую копию всем 10 не-RU контактам (`en`×9, `de`×1). Константа `MARKETING_CAMPAIGN_FORCE_COPY_LOCALE`; цепочки без изменений. Снять, когда пойдут письма на другие языки.
 - **2026-09-15 (warmup waves):** Разовая рассылка больше не шлёт 15k за один Vercel-инвок. Волны 500/500/1000/1000/2000/2000/3000, пауза с правкой, halt, cron досылает queued, skip sent/delivered/opened/clicked. Сортировка по активности приложения или снимка Геткурса. Миграция `20260915184713`.
 - **2026-09-15 (footer unwrap):** После фикса масштаба Яндекс iOS резал «отписаться» по слогам из‑за `word-break:break-all` на ссылке. Футер: `white-space:nowrap` на якоре — слово переносится целиком. `break-all` в `<style>` остаётся для длинных URL в теле.

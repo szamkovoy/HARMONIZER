@@ -6,6 +6,8 @@ export type WarmupPlan = {
   sizes: number[];
   repeat_last: boolean;
   hour_msk: number;
+  /** `sent_count` when the current wave started. Incomplete waves must not increment index. */
+  wave_base_sent?: number;
 };
 
 export const TERMINAL_SEND_STATUSES = [
@@ -34,6 +36,7 @@ export function parseWarmupPlan(raw: unknown): WarmupPlan {
         .filter((n) => Number.isFinite(n) && n > 0)
     : [];
   const hour = Math.floor(Number(o.hour_msk));
+  const base = Math.floor(Number(o.wave_base_sent));
   return {
     sizes: sizes.length ? sizes : [...DEFAULT_WARMUP_SIZES],
     repeat_last: o.repeat_last !== false,
@@ -41,7 +44,35 @@ export function parseWarmupPlan(raw: unknown): WarmupPlan {
       Number.isFinite(hour) && hour >= 0 && hour <= 23
         ? hour
         : DEFAULT_WARMUP_HOUR_MSK,
+    wave_base_sent: Number.isFinite(base) && base >= 0 ? base : undefined,
   };
+}
+
+export function serializeWarmupPlan(plan: WarmupPlan): Record<string, unknown> {
+  return {
+    sizes: plan.sizes,
+    repeat_last: plan.repeat_last,
+    hour_msk: plan.hour_msk,
+    ...(plan.wave_base_sent != null ? { wave_base_sent: plan.wave_base_sent } : {}),
+  };
+}
+
+/** How many more contacts this wave still needs queued or accepted. */
+export function currentWaveNeed(opts: {
+  sentCount: number;
+  queuedCount: number;
+  nextWaveSize: number | null;
+  waveIndex: number;
+  plan: WarmupPlan;
+}): { quota: number; acceptedThisWave: number; need: number } {
+  const quota =
+    opts.nextWaveSize && opts.nextWaveSize > 0
+      ? opts.nextWaveSize
+      : waveSizeAt(opts.waveIndex, opts.plan);
+  const base = opts.plan.wave_base_sent ?? 0;
+  const acceptedThisWave = Math.max(0, opts.sentCount - base);
+  const need = Math.max(0, quota - acceptedThisWave - opts.queuedCount);
+  return { quota, acceptedThisWave, need };
 }
 
 export function waveSizeAt(index: number, plan: WarmupPlan): number {
