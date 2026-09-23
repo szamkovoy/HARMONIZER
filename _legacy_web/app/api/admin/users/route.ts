@@ -473,10 +473,10 @@ export async function POST(req: Request) {
     if (contactId) {
       const { data: row } = await db
         .from("users")
-        .select("crm_imported_at, onboarded_at, last_seen_at")
+        .select("crm_imported_at, onboarded_at, last_seen_at, app_first_open_at")
         .eq("id", contactId)
         .maybeSingle();
-      const isLive = Boolean(row?.onboarded_at || row?.last_seen_at);
+      const isLive = Boolean(row?.onboarded_at || row?.last_seen_at || row?.app_first_open_at);
       const alreadyCrm = Boolean(row?.crm_imported_at);
       if (isLive || alreadyCrm) {
         return json(
@@ -521,10 +521,10 @@ export async function POST(req: Request) {
       }
       const { data: row } = await db
         .from("users")
-        .select("crm_imported_at, onboarded_at, last_seen_at")
+        .select("crm_imported_at, onboarded_at, last_seen_at, app_first_open_at")
         .eq("id", userId)
         .maybeSingle();
-      if (row?.onboarded_at || row?.last_seen_at || row?.crm_imported_at) {
+      if (row?.onboarded_at || row?.last_seen_at || row?.app_first_open_at || row?.crm_imported_at) {
         return json(
           {
             error: "Пользователь с таким email уже есть в базе",

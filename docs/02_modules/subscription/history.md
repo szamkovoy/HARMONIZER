@@ -1,13 +1,15 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.12
-updated: 2026-09-14
+version: 1.13
+updated: 2026-09-24
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
 
 ## Decision Log
+
+- **2026-09-24 (демо с первого входа, не с импорта):** Импорт Геткурса создавал auth-пользователя и сразу обнулял `trial_expires_at`, поэтому установка приложения оставляла человека на «Навигаторе». Миграция `20260924010000`: `users.app_first_open_at`; первый `last_sign_in_at` (и запасной первый `last_seen_at`) ставит сутки демо, только если человек ещё не входил в Гармонизатор и нет активного платного плана. Уже вошедшие помечены `app_first_open_at` без выдачи демо; не вошедшие импортированные не трогаются. Активная оплата обнуляет живой trial. `getEffectiveAccess` отдаёт оплаченный тариф поверх демо. Клиент не может переписать `trial_expires_at` / `app_first_open_at`.
 
 - **2026-09-14 (reconcile expired memberships восстановлен):** Hourly `reconcile-expired-memberships` фактически не работал: Edge-функция не была задеплоена (404), Vault `reconcile_expired_memberships_cron_secret` не создан, SQL `reconcile_expired_memberships`/`recompute_user_membership` на remote отсутствовали — истёкший `oracle` (с 2026-09-01) оставался платным. Fix (`20260914010000`): `reconcile_expired_memberships(p_limit)` поверх канонического `restore_membership_from_ledger`, invoker с SQL-предпроверкой и общим секретом, функция задеплоена; первый прогон реконсилировал 1 membership. `restore_membership_from_ledger`/`reattach_payment_ledger_for_email` больше не исполняются `anon`/`authenticated` (`20260914011000`).
 

@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-24 (599): First Harmonizer sign-in starts the 1-day demo for mailing-import rows that have never opened the app. Already-installed users and not-yet-installed imports are left unchanged. An active paid plan replaces a running demo. Migrations `20260924010000`, `20260924013000`. Docs `subscription` + `profile`.
 - 2026-09-20 (598): Marketing warmup waves no longer close early after a Vercel timeout mid-enqueue; batch queue + `wave_base_sent` quota. Docs `marketing_email`.
 - 2026-09-18 (597): Stories `process` on Vercel: `vercel.json` sets `maxDuration` 120 (not memory 2048); resolved CHANGELOG merge conflict. Docs `infra` + `author_presence`.
 - 2026-09-18 (596): Vercel stories process: ensure `ffmpeg-static` install + NFT include (`allowScripts`/`postinstall`/`outputFileTracingIncludes`). Docs `author_presence` + `infra`.

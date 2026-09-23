@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.47
-updated: 2026-09-14
+version: 1.48
+updated: 2026-09-24
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/localeRebuild.ts, modules/profile/ui/LocaleRebuildModal.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-09-24 (демо на первом входе):** Суточный trial для импортированной почтовой строки стартует на первом sign-in, не в момент импорта. Уже вошедшие и ещё не вошедшие задним числом не меняются. Детали — `subscription` / `20260924010000_trial_on_first_sign_in.sql`.
 
 - **2026-09-14 (locale combo / iOS Modal):** QA iPhone: выбор English часто крутил спиннер, комбо переключался, страница оставалась на RU, confirm не появлялся; German в той же сессии работал. Причина: probe miss по EN обычно быстрее → spinner-`Modal` (`BlockingStatusToast`) dismiss + `AppDialog` present в одном кадре, iOS глотает второй Modal; плюс `runLocaleEnsure` abort’ил probe-controller на hit; повторный тап по тому же языку при optimistic≠store был no-op. Fix: один `LocaleRebuildModal` на probe/confirm/loading/error; общий AbortController probe→ensure; generation id; retry залипшего optimistic. Палитра без этой гонки (commit сразу). Тесты `localeRebuild.test.ts` (RU + 7 target locales на retry).
 

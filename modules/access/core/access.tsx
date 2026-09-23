@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 
 import type { FeatureKey } from "./features";
 import { FEATURE_REQUIRED_TIER, TIER_FEATURES } from "./features";
-import { baseTierFromRow, hasActiveTrial, type MembershipRow } from "./paidAccess";
+import { baseTierFromRow, hasActiveTrial, paidTierFromRow, type MembershipRow } from "./paidAccess";
 import type { ProductTier } from "./tiers";
 import { TIER_LABELS, tierAtLeast } from "./tiers";
 import { HARMONIZER_TEST_MODE } from "@/modules/ui/testMode";
@@ -34,6 +34,18 @@ export function getEffectiveAccess(profile: ProfileAccess, devOverride: ProductT
       isTrial: false,
       source: "dev_override",
       devOverride,
+    };
+  }
+
+  // Оплаченный тариф сменяет ещё идущее демо: в профиле остаётся купленный план.
+  const paid = paidTierFromRow(profile);
+  if (paid) {
+    return {
+      tier: paid,
+      label: TIER_LABELS[paid],
+      isTrial: false,
+      source: "profile",
+      devOverride: null,
     };
   }
 

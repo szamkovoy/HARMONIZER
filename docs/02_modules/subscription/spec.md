@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.10
-updated: 2026-09-14
+version: 1.11
+updated: 2026-09-24
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -61,7 +61,7 @@ code_refs:
 
 ## 3. Внутренняя архитектура
 
-- **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт набор фич «Мастера», **кроме** вебинаров). Иначе базовый тариф из **`baseTierFromRow`** (`modules/access/core/paidAccess.ts`): значения `oracle` / `practitioner` / `master` из БД проходят как есть при непустом сроке (`membership_expires_at` NULL или в будущем); истёкший грант → `free`; legacy **`premium` маппится в `oracle`**; остальное — `free`.
+- **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если есть **активный оплаченный** тариф (`paidTierFromRow`), он и есть эффективный уровень — ещё идущее демо при этом не действует. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт набор фич «Мастера», **кроме** вебинаров). Иначе базовый тариф из **`baseTierFromRow`** (`modules/access/core/paidAccess.ts`): значения `oracle` / `practitioner` / `master` из БД проходят как есть при непустом сроке (`membership_expires_at` NULL или в будущем); истёкший грант → `free`; legacy **`premium` маппится в `oracle`**; остальное — `free`.
 - **`modules/access/core/paidAccess.ts`** — единственный источник правила платного доступа по сырым полям `users` (`paidTierFromRow`, `hasActiveTrial`, `hasEffectivePremium`, `baseTierFromRow`, `accessModeFromRow`). Используется клиентом (`access.tsx`, `useDayContent`, `Communicator`) и сервером (`userModelTier.ts`, `global-content`) — vendored-копия для Vercel синхронизируется `scripts/sync-vercel-server-modules.mjs`; Edge-функция `precompute-daily-forecasts` держит зеркало (Deno bundler не резолвит `modules/`).
 - **`canUseFeature(tier, key)`** — включение ключа в `TIER_FEATURES[tier]` (список на тариф).
 - **`canUseFeatureForAccess(access, key)`** — то же с учётом trial: при `access.isTrial` ключ **`webinar_community` всегда false** (paywall как у «Навигатора»; кабинет / разовая оплата). `AccessProvider.canUseFeature` делегирует сюда.
@@ -84,12 +84,12 @@ code_refs:
 - **Ключ `affirmations`** — виджет на Практиках + overlay в дыхании; Master; soft gate `gate.body.affirmation` (см. `affirmations` module).
 - **Каталог тарифов** — единственная точка: `modules/access/core/tiers.ts` (id, порядок, `PAID_PRODUCT_TIERS`, `VISIBLE_*`, `TIER_LABELS` / `TIER_LABELS_RU`) + матрица фич в `features.ts`. Смена названий/числа тарифов в будущем правится здесь (и в SQL CHECK / `restore_membership_from_ledger`).
 - **Порядок тарифов** — `TIER_ORDER` / `tierAtLeast` в `modules/access/core/tiers.ts`.
-- **Схема БД** — `supabase/migrations/20260501193000_free_tier_global_content.sql` (`membership_tier`, `trial_expires_at`) + `supabase/migrations/20260708010000_admin_panel_tier_foundation.sql`: constraint расширен до `check in ('free','oracle','practitioner','master')` (данные `premium` нормализованы в `oracle`), добавлен `membership_expires_at timestamptz` (истечение ручного гранта/оплаты; NULL = бессрочно; истёкший грант = `free`). Пересчёт из леджера: hourly Edge `reconcile-expired-memberships` → SQL `reconcile_expired_memberships(p_limit)` → `restore_membership_from_ledger` (payments + payment_contracts; `20260914010000_cron_invokers_hardening.sql`, заменяет `recompute_user_membership` из `20260710023000`, которого на remote не было). **Trial = 1 сутки** уровня «Мастер» с `20260714210000_trial_one_day.sql` (default колонки + триггер `handle_new_auth_user`, который также пишет `locale` из user_metadata email-OTP регистрации).
+- **Схема БД** — `supabase/migrations/20260501193000_free_tier_global_content.sql` (`membership_tier`, `trial_expires_at`) + `supabase/migrations/20260708010000_admin_panel_tier_foundation.sql`: constraint расширен до `check in ('free','oracle','practitioner','master')` (данные `premium` нормализованы в `oracle`), добавлен `membership_expires_at timestamptz` (истечение ручного гранта/оплаты; NULL = бессрочно; истёкший грант = `free`). Пересчёт из леджера: hourly Edge `reconcile-expired-memberships` → SQL `reconcile_expired_memberships(p_limit)` → `restore_membership_from_ledger` (payments + payment_contracts; `20260914010000_cron_invokers_hardening.sql`, заменяет `recompute_user_membership` из `20260710023000`, которого на remote не было). **Trial = 1 сутки** уровня «Мастер». Новый OTP-аккаунт получает его в `handle_new_auth_user` (`20260714210000_trial_one_day.sql`). Импортированная почтовая строка (`trial_expires_at` пуст, `app_first_open_at` пуст) получает те же сутки в момент **первого** `auth.users.last_sign_in_at` (`20260924010000_trial_on_first_sign_in.sql`); повторный вход и уже открывавшие приложение (`app_first_open_at` / `onboarded_at` / `last_seen_at`) демо не получают. Активный оплаченный план очищает ещё не истёкший trial. Клиент не может сам записать `trial_expires_at` / `app_first_open_at`.
 
 ## 5. Известные ограничения и инварианты
 
 - **БД и клиент согласованы (с 2026-07-08):** constraint в БД хранит те же четыре `ProductTier`, что и клиент; правило платного доступа централизовано в `paidAccess.ts`. Осталось одно намеренное зеркало — Edge-функция `precompute-daily-forecasts` (Deno не резолвит `modules/`); при изменении правила синхронизировать вручную. Правило выбора активного платежа для записи в `users` дублируется в TS (`membershipFromPayments.ts`) и SQL (`restore_membership_from_ledger`) — при смене `TIER_ORDER` синхронизировать оба.
-- **Trial → эффективный `master` без вебинаров:** активный trial в `getEffectiveAccess` даёт ключи как у `master`, **кроме** `webinar_community` (`canUseFeatureForAccess`); в БД обычно `membership_tier=free` до истечения `trial_expires_at`.
+- **Trial → эффективный `master` без вебинаров, пока нет оплаченного плана:** активный trial в `getEffectiveAccess` даёт ключи как у `master`, **кроме** `webinar_community` (`canUseFeatureForAccess`). Активный `oracle` / `master` (срок пуст или в будущем) перекрывает trial. В БД у демо обычно `membership_tier=free` до истечения `trial_expires_at`; оплата обнуляет ещё живой trial.
 - **Dev override** хранится только в памяти процесса; на сервер и в Supabase не пишется.
 - **`webinar_community`** и часть ключей заложены в матрицу для будущего UX; фактическое ветвление UI по ним может быть неполным (см. план ниже).
 

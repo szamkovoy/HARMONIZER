@@ -527,13 +527,13 @@ async function importOne(rec, emailMap, productByGroup, stats) {
   const { data: existing, error: exErr } = await db
     .from("users")
     .select(
-      "birth_date, onboarded_at, last_seen_at, display_name, last_name, phone, city, country_code, getcourse_last_activity_at, membership_tier, trial_expires_at, crm_imported_at",
+      "birth_date, onboarded_at, last_seen_at, app_first_open_at, display_name, last_name, phone, city, country_code, getcourse_last_activity_at, membership_tier, trial_expires_at, crm_imported_at",
     )
     .eq("id", userId)
     .maybeSingle();
   if (exErr) throw exErr;
 
-  const isLive = Boolean(existing?.onboarded_at || existing?.last_seen_at);
+  const isLive = Boolean(existing?.onboarded_at || existing?.last_seen_at || existing?.app_first_open_at);
   const patch = {
     crm_imported_at: existing?.crm_imported_at || new Date().toISOString(),
   };

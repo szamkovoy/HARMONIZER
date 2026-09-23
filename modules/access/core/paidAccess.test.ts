@@ -19,6 +19,8 @@ describe("paidAccess", () => {
     ["master", FUTURE, null, "master", "premium"], // грант ещё действует
     ["master", PAST, null, null, "free"], // грант истёк → free
     ["master", PAST, FUTURE, null, "trial"], // истёкший грант, но активный trial
+    ["oracle", FUTURE, FUTURE, "oracle", "premium"], // оплата во время демо сменяет демо
+    ["master", FUTURE, FUTURE, "master", "premium"],
     ["MASTER ", null, null, "master", "premium"], // нормализация регистра/пробелов
     ["unknown", null, null, null, "free"],
     [null, null, null, null, "free"],

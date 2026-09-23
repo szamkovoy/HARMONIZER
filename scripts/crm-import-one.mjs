@@ -282,7 +282,7 @@ async function main() {
 
   const { data: existing } = await db
     .from("users")
-    .select("birth_date, onboarded_at, last_seen_at, admin_note")
+    .select("birth_date, onboarded_at, last_seen_at, app_first_open_at, admin_note")
     .eq("id", userId)
     .maybeSingle();
 
@@ -294,14 +294,15 @@ async function main() {
     city,
     crm_imported_at: new Date().toISOString(),
     getcourse_last_activity_at: crmActivity || null,
-    trial_expires_at: null,
     membership_tier: "free",
   };
+  const alreadyInApp = Boolean(existing?.onboarded_at || existing?.last_seen_at || existing?.app_first_open_at);
+  if (!alreadyInApp) patch.trial_expires_at = null;
   if (createdAt) patch.created_at = createdAt;
   if (birthDate && !existing?.birth_date) patch.birth_date = birthDate;
 
   // CRM-only: keep funnel empty so UI shows «Только рассылки»
-  if (!existing?.onboarded_at && !existing?.last_seen_at) {
+  if (!alreadyInApp) {
     patch.last_seen_at = null;
     patch.onboarded_at = null;
   }
