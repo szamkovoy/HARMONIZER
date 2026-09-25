@@ -1,13 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.8
-updated: 2026-09-18
+version: 1.9
+updated: 2026-09-24
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-24 (CRM POST live = app_first_open_at):** `POST /api/admin/users` считает пользователя уже в Гармонизаторе при `app_first_open_at` (не только `onboarded_at` / `last_seen_at`) → 409; согласовано с демо-на-первом-входе (`subscription`).
 
 - **2026-09-18 (chunked session Storage):** Chunked story upload sessions moved from Vercel `/tmp` to `story-media/tmp/stories/sessions/*` so `process` works across isolates.
 - **2026-09-18 (story video ≤100 МБ):** Админский upload сторис: сырое видео до 100 МБ; >45 MiB снова идёт chunked через `/api/admin/stories/upload-chunk` (Supabase Free global ~50 MiB). Код: `storyUpload.ts`, `mediaPipeline.ts`, UI `/admin/stories`. Хранение/playback приложения не менялись.

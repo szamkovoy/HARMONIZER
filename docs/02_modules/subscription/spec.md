@@ -1,7 +1,7 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.11
+version: 1.12
 updated: 2026-09-24
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
@@ -31,6 +31,8 @@ code_refs:
     supabase/migrations/20260501193000_free_tier_global_content.sql,
     supabase/migrations/20260708010000_admin_panel_tier_foundation.sql,
     supabase/migrations/20260714210000_trial_one_day.sql,
+    supabase/migrations/20260924010000_trial_on_first_sign_in.sql,
+    supabase/migrations/20260924013000_trial_write_flag_reset.sql,
   ]
 ---
 
