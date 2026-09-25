@@ -74,6 +74,9 @@ code_refs:
 - **`infra`**  
   Hourly Edge `reconcile-expired-memberships` + SQL `recompute_user_membership` / `reconcile_expired_memberships` поддерживают актуальность `users.membership_*` после истечения `membership_expires_at` без интерактивного захода в админку.
 
+- **`marketing_email`**  
+  Волна с `access_window_hours` на время окна пишет `users.trial_expires_at` (уже вошедший «Навигатор») или временный `membership_tier=master` («Наставник») и откатывает снимок из `email_campaign_access_grants`. Не вошедших в приложение не помечает.
+
 ## 3. Контрактные точки риска
 
 - **Единая точка правила платного доступа:** `modules/access/core/paidAccess.ts` (клиент + сервер через vendored-копию `scripts/sync-vercel-server-modules.mjs`). Намеренное зеркало осталось только в Edge `precompute-daily-forecasts` (`hasPersonalForecastAccess`) — при изменении правила синхронизировать вручную. Ответы `global-content` несут `has_premium_access` для клиента.

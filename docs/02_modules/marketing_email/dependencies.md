@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
-version: 1.5
-updated: 2026-09-15
+version: 1.6
+updated: 2026-09-24
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -26,7 +26,7 @@ code_refs:
 - **`i18n`** — 8 content locales; automations exact copy per contact locale; campaigns temporarily force RU (`MARKETING_CAMPAIGN_FORCE_COPY_LOCALE`); admin translate (`type=post` reuse for subject/body HTML).
 - **`profile` / auth** — `email_contacts.user_id` → `users`; welcome enroll по первому `onboarded_at` (+ confirmed); trigger на `users.onboarded_at`; `skip_email_automations` / `last_seen_at` / `display_name`.
 - **`account_web`** — `wipeUserAccount` отменяет активные enrollments перед `deleteUser` (`cancelActiveEmailAutomationsForUser`).
-- **`subscription` / payments** — C1 via `payment_contracts` / `payments.paid_until` / `membership_*` (любой paid tier); сегмент «Демо» читает `users.trial_expires_at` (как admin access-now).
+- **`subscription` / payments** — C1 via `payment_contracts` / `payments.paid_until` / `membership_*` (любой paid tier); сегмент «Демо» читает `users.trial_expires_at` (как admin access-now). Волна с `access_window_hours` пишет `users.trial_expires_at` или временный `membership_tier=master` и читает `payment_contracts`/`payments`, чтобы не затереть покупку «Мастера» при откате.
 - **`notifications`** — user-card push через `segment=user:<id>`.
 
 ## 2. От него зависят

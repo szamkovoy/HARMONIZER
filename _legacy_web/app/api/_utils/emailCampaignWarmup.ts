@@ -8,6 +8,14 @@ export type WarmupPlan = {
   hour_msk: number;
   /** `sent_count` when the current wave started. Incomplete waves must not increment index. */
   wave_base_sent?: number;
+  /** First start splits the remaining audience into two equal waves. */
+  split_half?: boolean;
+  /** Hours of demo (Навигатор) or temporary Мастер (Наставник) applied to the wave slice. */
+  access_window_hours?: number;
+  /** Drop paid Мастер whose term is longer than the temporary window. */
+  exclude_long_term_master?: boolean;
+  /** Exact UTC instant for the following wave. Consumed once. */
+  pinned_next_wave_at?: string;
 };
 
 export const TERMINAL_SEND_STATUSES = [
@@ -37,6 +45,9 @@ export function parseWarmupPlan(raw: unknown): WarmupPlan {
     : [];
   const hour = Math.floor(Number(o.hour_msk));
   const base = Math.floor(Number(o.wave_base_sent));
+  const windowHours = Math.floor(Number(o.access_window_hours));
+  const pinned =
+    typeof o.pinned_next_wave_at === "string" ? Date.parse(o.pinned_next_wave_at) : NaN;
   return {
     sizes: sizes.length ? sizes : [...DEFAULT_WARMUP_SIZES],
     repeat_last: o.repeat_last !== false,
@@ -45,6 +56,15 @@ export function parseWarmupPlan(raw: unknown): WarmupPlan {
         ? hour
         : DEFAULT_WARMUP_HOUR_MSK,
     wave_base_sent: Number.isFinite(base) && base >= 0 ? base : undefined,
+    split_half: o.split_half === true,
+    access_window_hours:
+      Number.isFinite(windowHours) && windowHours > 0 && windowHours <= 168
+        ? windowHours
+        : undefined,
+    exclude_long_term_master: o.exclude_long_term_master === true,
+    pinned_next_wave_at: Number.isFinite(pinned)
+      ? new Date(pinned).toISOString()
+      : undefined,
   };
 }
 
@@ -54,6 +74,12 @@ export function serializeWarmupPlan(plan: WarmupPlan): Record<string, unknown> {
     repeat_last: plan.repeat_last,
     hour_msk: plan.hour_msk,
     ...(plan.wave_base_sent != null ? { wave_base_sent: plan.wave_base_sent } : {}),
+    ...(plan.split_half ? { split_half: true } : {}),
+    ...(plan.access_window_hours != null
+      ? { access_window_hours: plan.access_window_hours }
+      : {}),
+    ...(plan.exclude_long_term_master ? { exclude_long_term_master: true } : {}),
+    ...(plan.pinned_next_wave_at ? { pinned_next_wave_at: plan.pinned_next_wave_at } : {}),
   };
 }
 

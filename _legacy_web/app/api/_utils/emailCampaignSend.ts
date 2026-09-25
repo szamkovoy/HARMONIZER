@@ -31,6 +31,12 @@ import {
   generateUnsubscribeToken,
 } from "./emailUnsubscribe";
 import { htmlToPlaintext, sendMarketingEmail, sleep } from "./marketingMail";
+import {
+  applyCampaignAccessWindow,
+  isLongTermMaster,
+  revertDueMasterGrants,
+  type MailUserAccess,
+} from "./emailCampaignAccessWindow";
 
 export const CAMPAIGN_SEND_DEADLINE_MS = 250_000;
 export const CAMPAIGN_SEND_GAP_MS = 500;
@@ -187,6 +193,16 @@ export async function pickWaveRecipients(
     .filter((id): id is string => Boolean(id));
   const activity = await loadActivityMs(db, userIds);
   let ranked = sortByActivity(resolved.eligible, activity);
+  const plan = parseWarmupPlan(campaign.warmup_plan);
+  if (plan.exclude_long_term_master || (plan.access_window_hours ?? 0) > 0) {
+    const access = await loadMailAccess(db, userIds);
+    const nowMs = Date.now();
+    ranked = ranked.filter((row) => {
+      const user = row.contact.user_id ? access.get(row.contact.user_id) : undefined;
+      if (!user) return true;
+      return !isLongTermMaster(user, nowMs);
+    });
+  }
   const cap = parseAudienceCap(campaign.audience_cap);
   if (cap != null) ranked = ranked.slice(0, cap);
 
@@ -402,13 +418,55 @@ function scheduleAfterWave(
   campaign: CampaignRow,
   plan: WarmupPlan,
   now: Date,
-): { next_wave_at: string; next_wave_size: number; warmup_wave_index: number } {
+): {
+  next_wave_at: string;
+  next_wave_size: number;
+  warmup_wave_index: number;
+  consumedPin: boolean;
+} {
   const nextIndex = Number(campaign.warmup_wave_index ?? 0) + 1;
+  const pinnedMs = plan.pinned_next_wave_at ? Date.parse(plan.pinned_next_wave_at) : NaN;
+  const consumedPin = Number.isFinite(pinnedMs);
+  const nextAt = consumedPin
+    ? pinnedMs > now.getTime()
+      ? new Date(pinnedMs)
+      : now
+    : nextMskHour(now, plan.hour_msk);
   return {
     warmup_wave_index: nextIndex,
     next_wave_size: waveSizeAt(nextIndex, plan),
-    next_wave_at: nextMskHour(now, plan.hour_msk).toISOString(),
+    next_wave_at: nextAt.toISOString(),
+    consumedPin,
   };
+}
+
+async function loadMailAccess(
+  db: SupabaseClient,
+  userIds: string[],
+): Promise<Map<string, MailUserAccess>> {
+  const out = new Map<string, MailUserAccess>();
+  const CHUNK = 200;
+  for (let i = 0; i < userIds.length; i += CHUNK) {
+    const chunk = userIds.slice(i, i + CHUNK);
+    const { data, error } = await db
+      .from("users")
+      .select(
+        "id, membership_tier, membership_expires_at, trial_expires_at, app_first_open_at, last_seen_at, onboarded_at",
+      )
+      .in("id", chunk);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      out.set(row.id as string, {
+        membership_tier: (row.membership_tier as string | null) ?? null,
+        membership_expires_at: (row.membership_expires_at as string | null) ?? null,
+        trial_expires_at: (row.trial_expires_at as string | null) ?? null,
+        app_first_open_at: (row.app_first_open_at as string | null) ?? null,
+        last_seen_at: (row.last_seen_at as string | null) ?? null,
+        onboarded_at: (row.onboarded_at as string | null) ?? null,
+      });
+    }
+  }
+  return out;
 }
 
 async function finishWaveOrCampaign(
@@ -442,6 +500,7 @@ async function finishWaveOrCampaign(
     return "sent";
   }
   const sched = scheduleAfterWave(latest, plan, now);
+  const { consumedPin, ...waveSched } = sched;
   await db
     .from("email_campaigns")
     .update({
@@ -454,8 +513,9 @@ async function finishWaveOrCampaign(
       warmup_plan: serializeWarmupPlan({
         ...plan,
         wave_base_sent: latest.sent_count,
+        pinned_next_wave_at: consumedPin ? undefined : plan.pinned_next_wave_at,
       }),
-      ...sched,
+      ...waveSched,
       updated_at: now.toISOString(),
     })
     .eq("id", campaign.id);
@@ -673,7 +733,38 @@ export async function runCampaignSend(
         };
       }
       exhausted = pick.remaining.length === 0;
-      const slice = pick.remaining.slice(0, progress.need);
+      let wavePlan = plan;
+      let waveSize = campaign.next_wave_size;
+      if (
+        wavePlan.split_half &&
+        (campaign.warmup_wave_index ?? 0) === 0 &&
+        !(waveSize && waveSize > 0)
+      ) {
+        const half = Math.ceil(pick.remaining.length / 2);
+        const rest = Math.max(0, pick.remaining.length - half);
+        wavePlan = {
+          ...wavePlan,
+          sizes: [Math.max(half, 1), Math.max(rest, 1)],
+          repeat_last: false,
+        };
+        waveSize = half;
+        await db
+          .from("email_campaigns")
+          .update({
+            next_wave_size: half,
+            warmup_plan: serializeWarmupPlan(wavePlan),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", campaignId);
+      }
+      const fillNeed = currentWaveNeed({
+        sentCount: campaign.sent_count,
+        queuedCount: queuedNow.length,
+        nextWaveSize: waveSize,
+        waveIndex: campaign.warmup_wave_index ?? 0,
+        plan: wavePlan,
+      }).need;
+      const slice = pick.remaining.slice(0, fillNeed);
       if (slice.length === 0 && queuedNow.length === 0) {
         const fin = await finishWaveOrCampaign(db, campaign, copySource);
         return {
@@ -687,6 +778,17 @@ export async function runCampaignSend(
         };
       }
       if (slice.length > 0) {
+        const windowHours = wavePlan.access_window_hours ?? 0;
+        if (windowHours > 0) {
+          await applyCampaignAccessWindow(
+            db,
+            campaignId,
+            slice
+              .map((row) => row.contact.user_id)
+              .filter((id): id is string => Boolean(id)),
+            windowHours,
+          );
+        }
         enqueued = await enqueueWave(db, campaignId, slice);
       }
       await db
@@ -803,6 +905,7 @@ export async function haltCampaignSend(
 export async function runDueCampaignSends(
   db: SupabaseClient,
 ): Promise<{ ran: RunCampaignSendResult[] }> {
+  await revertDueMasterGrants(db);
   const nowIso = new Date().toISOString();
   const { data: sending, error: sendingError } = await db
     .from("email_campaigns")
