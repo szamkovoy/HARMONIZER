@@ -2,7 +2,7 @@
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
 version: 1.20
-updated: 2026-09-14
+updated: 2026-09-25
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -168,7 +168,7 @@ else                                →  fail-closed
 - Vercel env (Lava): `ACCOUNT_CABINET_SECRET`, `ACCOUNT_CABINET_ALLOWED_ORIGIN` (default `https://zamkovoi.yoga`), `LAVATOP_API_KEY`, `LAVATOP_WEBHOOK_SECRET`, `LAVATOP_TARIFF_2_ID`, `LAVATOP_TARIFF_3_ID`. Опционально: `LAVA_GATEWAY_FEE_RATE`, `YANDEX_GATEWAY_FEE_RATE`.
 - Vercel env (шлюзы): `PAYMENT_LAVATOP_ENABLED`, `PAYMENT_LAVATOP_REGION=INT`, `PAYMENT_YOOKASSA_ENABLED`, `PAYMENT_YOOKASSA_REGION=RU`, `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `YOOKASSA_RETURN_URL`, опц. `YOOKASSA_WEBHOOK_SECRET`. Удалены: `YOOKASSA_ENABLED`, `PAYMENT_GATEWAY_FOR_RUB`, `YOOKASSA_RECURRING_ENABLED`.
 - Приложение: `EXPO_PUBLIC_ACCOUNT_CABINET_URL` (default `https://zamkovoi.yoga/cabinet/`); OTT URL передаёт `currency` + `country`.
-- Страница: константа `API_BASE` в `web_cabinet/cabinet/index.html` (origin Vercel); оферта — `{API_BASE}/cabinet/offer/{lang}.json`.
+- Страница: константа `API_BASE` в `web_cabinet/cabinet/index.html` — `https://harmonizer.zamkovoi.yoga` (не `*.vercel.app`: домен блокируется в РФ). На хостинге это `/www/zamkovoi.yoga/cabinet/index.html`. Оферта — `{API_BASE}/cabinet/offer/{lang}.json`. CORS по-прежнему смотрит на origin страницы (`ACCOUNT_CABINET_ALLOWED_ORIGIN`, `https://zamkovoi.yoga`), не на API host.
 - Kill-switch: `update app_config set value='false' where key='account_links_enabled'` перед отправкой сборки на ревью; `'true'` после прохождения. Без релиза приложения (кэш клиента — до 5 минут). Ключ `account_links_enabled` читается и анонимом (политика `20260719000000`), остальные ключи `app_config` — только для authenticated/админов.
 
 ## 5. Комплаенс-политика текстов (инвариант)

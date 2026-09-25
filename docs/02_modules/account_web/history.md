@@ -2,8 +2,12 @@
 id: 02_modules/account_web/history
 title: Account Web History
 version: 1.20
-updated: 2026-09-14
+updated: 2026-09-25
 ---
+
+## 2026-09-25 — Кабинет ходит на свой домен API
+
+- `API_BASE` в `web_cabinet/cabinet/index.html` — `https://harmonizer.zamkovoi.yoga`. `*.vercel.app` блокируется в РФ, и личный кабинет с телефона не доходил до оплаты и сессии. На хостинге тот же адрес уже в `/www/zamkovoi.yoga/cabinet/index.html`.
 
 ## 2026-09-14 — Wipe удаляет контакт рассылки
 

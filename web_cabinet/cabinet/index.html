@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://harmonizer-ten.vercel.app" />
+  <link rel="preconnect" href="https://harmonizer.zamkovoi.yoga" />
   <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
   <!--
     HARMONIZER — Личный кабинет (standalone HTML для хостинга / ISPManager).
@@ -177,7 +177,7 @@
     if (country && !/^[A-Z]{2}$/.test(country)) country = "";
     var ott = params.get("ott");
     var paidReturn = params.get("paid") === "1";
-    var API_BASE = "https://harmonizer-ten.vercel.app";
+    var API_BASE = "https://harmonizer.zamkovoi.yoga";
     try {
       var clean = new URL(window.location.href);
       clean.searchParams.delete("ott");
@@ -505,7 +505,7 @@
       tiers:{free:"Navigator",oracle:"Mentor",master:"Meester"},
       tierDesc:{oracle:["Persoonlijke aanbevelingen voor de huidige dag.","AI-assistent om je plannen voor de dag te bespreken.","Rapporten over je psychologische kenmerken."],master:["Visuele meditatie om snel van staat te wisselen.","7 soorten ademhalingsoefeningen met biofeedback.","187 videolessen over asana's, 20 tot 70 minuten.","Wekelijkse groepsconsulten (webinars)."]}
     };
-  var API_BASE = "https://harmonizer-ten.vercel.app";
+  var API_BASE = "https://harmonizer.zamkovoi.yoga";
     var OFFER_LINKS = {"ru": "Договор оферты", "en": "Offer Agreement", "de": "Öffentliches Angebot", "fr": "Contrat d'offre publique", "it": "Contratto di offerta al pubblico", "es": "Contrato de oferta pública", "pt": "Oferta Pública", "nl": "Aanbiedingsovereenkomst"};
         var BOOK_URL = "https://zamkovoi.yoga/book";
     var BOOK_VIMEO = {

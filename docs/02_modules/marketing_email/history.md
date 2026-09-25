@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.19
-updated: 2026-09-20
+version: 1.20
+updated: 2026-09-24
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -12,6 +12,10 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-09-25 — Ссылки в письмах на своём домене
+
+- `EMAIL_PUBLIC_BASE_URL` в проде — `https://harmonizer.zamkovoi.yoga`. Трекинг, отписка и картинки больше не ведут на `harmonizer-ten.vercel.app` (блокировка `*.vercel.app` в РФ). Уже отправленные письма сохраняют старый хост. Cron и вебхуки провайдеров остаются на алиасе Vercel.
 
 ## Decision Log
 

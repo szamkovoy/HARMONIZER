@@ -1,14 +1,18 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.46
-updated: 2026-09-20
+version: 3.47
+updated: 2026-09-25
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-09-25 (603): Public `harmonizer.zamkovoi.yoga` now resolves to the REG.RU host and is reverse-proxied by PHP (`deploy/reg-ru-harmonizer-proxy.php`) to pinned Vercel addresses. Let's Encrypt cert until 2026-12-24. Cron and payment webhooks stay on `harmonizer-ten.vercel.app`. Docs `DEPLOY.md`.
+- 2026-09-25 (602): Russia API path is a nginx proxy on the REG.RU host for `harmonizer.zamkovoi.yoga`, not a direct Vercel anycast address. Snippet `deploy/reg-ru-harmonizer-proxy.conf`. Cron and payment webhooks stay on `harmonizer-ten.vercel.app`. Docs `DEPLOY.md`.
+- 2026-09-25 (601): Public API and email/cabinet links use `https://harmonizer.zamkovoi.yoga` so Russia is not stuck on blocked `*.vercel.app`. Server cron and webhooks stay on the `harmonizer-ten.vercel.app` alias. Docs `communicator`, `account_web`, `marketing_email`, `DEPLOY.md`.
+- 2026-09-24 (600): Doc-sync follow-up for trial-on-first-sign-in: admin `POST /users` 409 live-check includes `app_first_open_at`; subscription dependencies/code_refs list the new migrations. Docs `admin_panel` + `subscription`.
 - 2026-09-24 (599): First Harmonizer sign-in starts the 1-day demo for mailing-import rows that have never opened the app. Already-installed users and not-yet-installed imports are left unchanged. An active paid plan replaces a running demo. Migrations `20260924010000`, `20260924013000`. Docs `subscription` + `profile`.
 - 2026-09-20 (598): Marketing warmup waves no longer close early after a Vercel timeout mid-enqueue; batch queue + `wave_base_sent` quota. Docs `marketing_email`.
 - 2026-09-18 (597): Stories `process` on Vercel: `vercel.json` sets `maxDuration` 120 (not memory 2048); resolved CHANGELOG merge conflict. Docs `infra` + `author_presence`.

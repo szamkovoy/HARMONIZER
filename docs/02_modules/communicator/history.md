@@ -2,7 +2,7 @@
 id: 02_modules/communicator/history
 title: Communicator History
 version: 2.55
-updated: 2026-09-14
+updated: 2026-09-25
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -17,6 +17,11 @@ code_refs:
     services/communicator-client.ts,
   ]
 ---
+
+## 2026-09-25 — Публичный API на своём домене
+
+- Прод-значение `EXPO_PUBLIC_COMMUNICATOR_API_URL` — `https://harmonizer.zamkovoi.yoga`. `*.vercel.app` блокируется в РФ, поэтому установленное приложение продолжит ходить на старый хост, пока не выйдет новая сборка. Серверные кроны остаются на алиасе `harmonizer-ten.vercel.app`.
+- Это же имя с 2026-09-25 смотрит на хостинг REG.RU (`31.31.196.134`), а PHP-прокси на сайте дотягивается до Vercel по адресам, с которых рукопожатие TLS проходит. Браузер в РФ больше не должен попадать в зависший anycast. Сборка стора по-прежнему нужна, чтобы уже установленное приложение перестало звать `harmonizer-ten.vercel.app`.
 
 ## Decision Log
 

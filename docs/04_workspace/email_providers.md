@@ -178,7 +178,7 @@ Easy DKIM (three CNAMEs) + Custom MAIL FROM `sesmail.zamkovoi.yoga` — see hist
 | `RESEND_MARKETING_WEBHOOK_SECRET` | Vercel | Resend Svix / Bearer |
 | `SEND_EMAIL_HOOK_SECRET` | Supabase | Auth hook HMAC |
 | `MAIL_FROM_EMAIL` / `MAIL_MARKETING_FROM_EMAIL` | optional From overrides |
-| `EMAIL_PUBLIC_BASE_URL` / `EMAIL_UNSUBSCRIBE_SECRET` / `EMAIL_TRACKING_SECRET` | Vercel | track + unsubscribe |
+| `EMAIL_PUBLIC_BASE_URL` / `EMAIL_UNSUBSCRIBE_SECRET` / `EMAIL_TRACKING_SECRET` | Vercel | track + unsubscribe. Prod base is `https://harmonizer.zamkovoi.yoga` (not `*.vercel.app`) |
 
 ## 8. History note (2026-07-17 trap)
 

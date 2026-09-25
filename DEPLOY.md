@@ -7,7 +7,7 @@ Required secrets for deployed functions:
 - `SUPABASE_URL` - Supabase project URL.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for cron/server-side writes.
 - `CRON_SECRET` - shared secret required by scheduled functions. Send it as `Authorization: Bearer <secret>` or `x-cron-secret`.
-- `HARMONIZER_APP_URL` (or `VERCEL_APP_URL`) - origin of the deployed `_legacy_web` backend (no `/api` suffix). Used by Edge `precompute-global-recommendations` to call `POST /api/ai/global-content/warm` for LLM + `text_i18n` after structural upsert. Same value as `EXPO_PUBLIC_COMMUNICATOR_API_URL` in production.
+- `HARMONIZER_APP_URL` (or `VERCEL_APP_URL`) - origin of the deployed `_legacy_web` backend (no `/api` suffix). Used by Edge `precompute-global-recommendations` to call `POST /api/ai/global-content/warm` for LLM + `text_i18n` after structural upsert. Server-to-server value stays `https://harmonizer-ten.vercel.app` (Supabase and payment providers are outside the RU block). Phones, browsers, and email links use `https://harmonizer.zamkovoi.yoga` instead — `*.vercel.app` is blocked in Russia. The `vercel.app` name must keep serving the deployment (alias), not 307-redirect to the custom domain: redirects drop webhook and cron POSTs.
 - `GEMINI_API_KEY` - Gemini key for `auto-calibrate` LLM digest. If absent, `auto-calibrate` falls back to heuristic digest.
 
 Functions to deploy:
@@ -29,6 +29,22 @@ Recommended schedules (canonical = `pg_cron` via migrations; self-healed by `ens
 - optional (not in ensure registry yet): `auto-calibrate` `0 3 * * *`, `cleanup-expired-proposals` `0 4 * * 0`
 
 After DB restore / project move: run `select public.ensure_harmonizer_cron_jobs();` and confirm Vault secrets (`precompute_global_cron_secret`, cleanup/reconcile secrets) still match Edge `CRON_SECRET`.
+
+## Russia proxy (REG.RU)
+
+Phones and browsers must not open Vercel anycast addresses. Some of them accept TCP and then stall the TLS handshake, so a page can sit for a minute and a button never becomes clickable. `vercel.com` is a different address and stays fast.
+
+`harmonizer.zamkovoi.yoga` stays the public name. Since 2026-09-25 its DNS is `A 31.31.196.134` and `AAAA 2a00:f940:2:2:1:1:0:147` (REG.RU shared hosting, Moscow, site docroot `/www/harmonizer.zamkovoi.yoga`). Shared hosting cannot `proxy_pass`, so the site runs the PHP reverse proxy in `deploy/reg-ru-harmonizer-proxy.php` (Apache + PHP 8.2). It connects to pinned Vercel addresses that complete TLS from this network (`64.29.17.1`, `216.198.79.1`, `64.29.17.195`, `216.198.79.195`) with SNI `harmonizer-ten.vercel.app`. A healthy response carries `X-Harmonizer-Proxy: reg.ru`.
+
+The certificate is Let's Encrypt, name in the panel `harmonizer.zamkovoi.yoga_le`, valid until 2026-12-24. It was issued by DNS-01, so the panel will not renew it by itself. `/.well-known/acme-challenge/` is excluded from the proxy rewrite so a later HTTP-01 renewal can land on this vhost. Renew before 24 Dec 2026.
+
+Do not point YooKassa, SES, Resend, or Supabase cron at this proxy. Those callers stay on `https://harmonizer-ten.vercel.app`. Leave that name attached in the Vercel project and do not turn the 307 redirect back on.
+
+`deploy/reg-ru-harmonizer-proxy.conf` is a nginx snippet for a VPS only. It is not installed here.
+
+Rollback: restore CNAME `harmonizer` → `30e747ace3367cc1.vercel-dns-017.com.` and delete the A/AAAA. The Vercel certificate for this name is still on the project.
+
+Store builds wait until a phone in Russia opens `https://harmonizer.zamkovoi.yoga/admin/login` in a few seconds without VPN. Some resolvers keep the old CNAME for up to an hour after the switch (TTL was 3600). The origin string in EAS is already `https://harmonizer.zamkovoi.yoga`.
 
 ## Next.js Backend (`_legacy_web`)
 
@@ -130,7 +146,7 @@ Required EAS **production** (and usually **preview**) client vars:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- `EXPO_PUBLIC_COMMUNICATOR_API_URL` — Vercel origin, no `/api` suffix
+- `EXPO_PUBLIC_COMMUNICATOR_API_URL` — public API origin, no `/api` suffix. Production value is `https://harmonizer.zamkovoi.yoga` (not `*.vercel.app`, which is blocked in Russia). Baked in at build time: a new store binary is required after changing it.
 - `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` — Android maps
 - `GOOGLE_SERVICES_JSON` — EAS file secret for FCM (+ Firebase App Check on Android)
 - `GOOGLE_SERVICES_PLIST` — EAS file secret for iOS Firebase App Check (`GoogleService-Info.plist`)

@@ -47,7 +47,8 @@ Prod (целевой режим): оба шлюза `ENABLED=true`, Lava `REGION
 ## Webhook ЮKassa
 
 `https://harmonizer-ten.vercel.app/api/account/webhooks/yookassa`  
-События: `payment.succeeded`, `payment.canceled`.
+События: `payment.succeeded`, `payment.canceled`.  
+Этот URL не переносим на `harmonizer.zamkovoi.yoga`: ЮKassa вызывает его со своих серверов, не из РФ. Алиас `vercel.app` должен отдавать API, а не редирект (POST вебхука редирект ломает).
 
 В кабинете ЮKassa → HTTP-уведомления этот URL **обязан** быть включён (для **текущего** shopId). Без вебхука return `?paid=1` показывает «Спасибо», но контракт остаётся `pending`.
 
