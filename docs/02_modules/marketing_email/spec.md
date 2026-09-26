@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.28
-updated: 2026-09-24
+version: 1.29
+updated: 2026-09-25
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -22,6 +22,7 @@ code_refs:
     _legacy_web/app/api/cron/email-campaigns/route.ts,
     _legacy_web/app/api/_utils/emailCampaignSend.ts,
     _legacy_web/app/api/_utils/emailCampaignWarmup.ts,
+    _legacy_web/app/api/_utils/emailCampaignAccessWindow.ts,
     _legacy_web/app/api/admin/email/campaigns/[id]/halt/route.ts,
     _legacy_web/app/api/cron/email-suppressions-sync/route.ts,
     supabase/migrations/20260727180000_email_suppressions_sync_cron.sql,
@@ -57,6 +58,7 @@ code_refs:
     _legacy_web/app/api/_utils/emailFirstPartyTracking.ts,
     docs/04_workspace/email_providers.md,
     supabase/migrations/20260915184713_email_campaign_waves.sql,
+    supabase/migrations/20260924201000_email_campaign_access_grants.sql,
   ]
 ---
 
@@ -125,6 +127,8 @@ code_refs:
 Tables as in B2 + indexes on `email_events(created_at)`, `(event_type, created_at)`.
 
 `email_campaigns` (`20260915184713`): status CHECK включает `paused`; колонки `warmup_plan`, `warmup_wave_index`, `next_wave_at`, `next_wave_size`, `audience_cap`, `send_halted_at`, `send_lease_until`; индексы due (`sending`/`paused`) и `email_campaign_sends` queued; RPC `try_lock_email_campaign_send` / `unlock_email_campaign_send` (service_role); cron job `run_email_campaigns_every_5m` → `invoke_run_email_campaigns`.
+
+`email_campaign_access_grants` (`20260924201000`): PK `(campaign_id, user_id)`; `kind` ∈ `trial`|`master`; снимок `previous_tier` / `previous_expires_at` / `previous_trial_expires_at`; `revert_at` / `reverted_at`; RLS off для anon/authenticated, только `service_role`. Индекс due на `revert_at` где `kind=master` и `reverted_at IS NULL`. `invoke_run_email_campaigns` также due, если пора откатить master-гранты (cron → `revertDueMasterGrants` перед send).
 
 ## 4. Roadmap
 

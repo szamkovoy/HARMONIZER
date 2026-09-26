@@ -1,14 +1,15 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.20
-updated: 2026-09-24
+version: 1.21
+updated: 2026-09-25
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
     supabase/migrations/20260724200000_marketing_email.sql,
     supabase/migrations/20260914132243_email_contacts_delete_with_user.sql,
     supabase/migrations/20260915184713_email_campaign_waves.sql,
+    supabase/migrations/20260924201000_email_campaign_access_grants.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
