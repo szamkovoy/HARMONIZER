@@ -38,11 +38,11 @@ Phones and browsers must not open Vercel anycast addresses. Some of them accept 
 
 The certificate is Let's Encrypt, name in the panel `harmonizer.zamkovoi.yoga_le`, valid until 2026-12-24. It was issued by DNS-01, so the panel will not renew it by itself. `/.well-known/acme-challenge/` is excluded from the proxy rewrite so a later HTTP-01 renewal can land on this vhost. Renew before 24 Dec 2026.
 
-Do not point YooKassa, SES, Resend, or Supabase cron at this proxy. Those callers stay on `https://harmonizer-ten.vercel.app`. Leave that name attached in the Vercel project and do not turn the 307 redirect back on.
+Do not point YooKassa, SES, Resend, or Supabase cron at this proxy. Those callers stay on `https://harmonizer-ten.vercel.app`. That alias stays attached in the Vercel project and must not 307-redirect. The custom name is not attached there: DNS does not point at Vercel, so the dashboard marks it invalid and emails about it. Removing `harmonizer.zamkovoi.yoga` from the project stops the mail. Do not add it back, and do not point its DNS at the Vercel CNAME.
 
 `deploy/reg-ru-harmonizer-proxy.conf` is a nginx snippet for a VPS only. It is not installed here.
 
-Rollback: restore CNAME `harmonizer` → `30e747ace3367cc1.vercel-dns-017.com.` and delete the A/AAAA. The Vercel certificate for this name is still on the project.
+Rollback: in the Vercel project add `harmonizer.zamkovoi.yoga` again and wait until it has a certificate, then restore CNAME `harmonizer` → `30e747ace3367cc1.vercel-dns-017.com.` and delete the A/AAAA. Until that certificate exists, do not switch DNS back.
 
 Store builds wait until a phone in Russia opens `https://harmonizer.zamkovoi.yoga/admin/login` in a few seconds without VPN. Some resolvers keep the old CNAME for up to an hour after the switch (TTL was 3600). The origin string in EAS is already `https://harmonizer.zamkovoi.yoga`.
 

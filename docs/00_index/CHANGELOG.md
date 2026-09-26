@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-26 (605): `harmonizer.zamkovoi.yoga` is no longer attached in the Vercel project, so the misconfigured-domain mail stops. Public DNS stays on the REG.RU proxy. Docs `DEPLOY.md`.
 - 2026-09-25 (604): Campaign wave can open a 30h demo for installed Navigators and a temporary Master for Mentors, without touching people who have not opened the app. Docs `marketing_email` + `subscription`. Migration `20260924201000`.
 - 2026-09-25 (603): Public `harmonizer.zamkovoi.yoga` now resolves to the REG.RU host and is reverse-proxied by PHP (`deploy/reg-ru-harmonizer-proxy.php`) to pinned Vercel addresses. Let's Encrypt cert until 2026-12-24. Cron and payment webhooks stay on `harmonizer-ten.vercel.app`. Docs `DEPLOY.md`.
 - 2026-09-25 (602): Russia API path is a nginx proxy on the REG.RU host for `harmonizer.zamkovoi.yoga`, not a direct Vercel anycast address. Snippet `deploy/reg-ru-harmonizer-proxy.conf`. Cron and payment webhooks stay on `harmonizer-ten.vercel.app`. Docs `DEPLOY.md`.
