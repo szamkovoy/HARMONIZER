@@ -1,6 +1,7 @@
 import { put } from "@vercel/blob";
 
 import { imageFromUploadBody } from "../../../_utils/emailImageUpload";
+import { getEmailPublicBaseUrl } from "../../../_utils/marketingMail";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -8,6 +9,12 @@ export const maxDuration = 60;
 
 const YEAR_SECONDS = 31_536_000;
 const MAX_BYTES = 3 * 1024 * 1024;
+
+/** Public letter URL. The blob host itself does not open in Russia. */
+function publicEmailImageUrl(blobUrl: string): string {
+  const path = blobUrl.replace(/^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i, "");
+  return `${getEmailPublicBaseUrl()}/email-cdn/${path}`;
+}
 
 function extForMime(mime: string): string {
   if (mime.includes("png")) return "png";
@@ -73,14 +80,15 @@ export async function POST(req: Request) {
       addRandomSuffix: false,
     });
 
+    const publicUrl = publicEmailImageUrl(blob.url);
     const db = createServiceSupabase();
     const { error: insertError } = await db.from("email_assets").insert({
       path,
-      public_url: blob.url,
+      public_url: publicUrl,
     });
     if (insertError) throw insertError;
 
-    return json({ path, public_url: blob.url });
+    return json({ path, public_url: publicUrl });
   } catch (error) {
     return errorResponse(error);
   }

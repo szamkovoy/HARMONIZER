@@ -17,6 +17,7 @@ import {
   createEmptyBlock,
   enrichImageBlockDimensions,
   FONT_FAMILY_OPTIONS,
+  emailImagePreviewSrc,
   loadImageNaturalSize,
   newBlockId,
   sanitizeEmailBlocks,
@@ -323,7 +324,7 @@ function BlockPreview({ block, onOpen }: { block: EmailBlock; onOpen: () => void
       {block.src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={block.src}
+          src={emailImagePreviewSrc(block.src)}
           alt={block.alt || ""}
           className="mx-auto max-h-48 max-w-full object-contain"
         />
@@ -501,7 +502,11 @@ function BlockSettingsModal({
             <>
               {block.src ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={block.src} alt={block.alt} className="mx-auto max-h-40 object-contain" />
+                <img
+                  src={emailImagePreviewSrc(block.src)}
+                  alt={block.alt}
+                  className="mx-auto max-h-40 object-contain"
+                />
               ) : null}
               <label className="block text-xs text-zinc-500">
                 Файл {uploading ? "(загрузка…)" : ""}

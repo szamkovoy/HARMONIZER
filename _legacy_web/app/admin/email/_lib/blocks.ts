@@ -14,6 +14,14 @@ export type BlockFontSize = "sm" | "md" | "lg" | "xl";
 
 const CONTENT_INNER_WIDTH_PX = MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX;
 
+/** Same file as the Blob URL, via the yoga host. The blob host does not open in Russia. */
+export function emailImagePreviewSrc(src: string): string {
+  return src.replace(
+    /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i,
+    "/email-cdn/",
+  );
+}
+
 const FONT_CSS: Record<BlockFontFamily, string> = {
   // Arial first: Yandex Mail app does not resolve `system-ui` and shrinks body text.
   system: "Arial,Helvetica,sans-serif",

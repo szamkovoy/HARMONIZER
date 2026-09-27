@@ -105,13 +105,18 @@ export async function prepareTrackedMarketingEmailHtml(
 }
 
 /**
- * Point legacy Supabase email-assets images at `/api/email/asset`.
- * Blob CDN URLs (`*.blob.vercel-storage.com`) are already cacheable and stay as-is.
- * Direct Supabase public URLs often serve Cache-Control: no-cache.
+ * Blob files stay on the CDN, but the URL in the letter is the public yoga host.
+ * `*.blob.vercel-storage.com` does not open in Russia, same as `*.vercel.app`.
+ * `/email-cdn` is a Vercel rewrite, not a function. Legacy Supabase URLs still
+ * go through `/api/email/asset`.
  */
 export function rewriteEmailAssetUrlsForCache(html: string, publicBase: string): string {
   const base = publicBase.replace(/\/$/, "");
-  return html.replace(
+  const viaCdn = html.replace(
+    /https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/([^"'\\\s>]+)/gi,
+    (_url, path: string) => `${base}/email-cdn/${path}`,
+  );
+  return viaCdn.replace(
     /https:\/\/[a-z0-9]+\.supabase\.co\/storage\/v1\/object\/public\/email-assets\/[^"'\\\s>]+/gi,
     (url) => `${base}/api/email/asset?u=${encodeURIComponent(url)}`,
   );

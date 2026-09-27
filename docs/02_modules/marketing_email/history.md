@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.25
+version: 1.26
 updated: 2026-09-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -13,6 +13,10 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-09-27 — Картинка письма открывается с домена yoga
+
+- Загрузка в Blob прошла, но превью в админке пустое: браузер в РФ не открывает `*.public.blob.vercel-storage.com`, а у незагруженного `<img>` высота 0. Публичная ссылка теперь `harmonizer.zamkovoi.yoga/email-cdn/…`, rewrite в `vercel.json` отдаёт файл с Blob без функции.
 
 ## 2026-09-27 — Загрузка картинки переживает multipart без boundary
 

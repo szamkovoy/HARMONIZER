@@ -59,10 +59,13 @@ describe("injectFirstPartyEmailTracking", () => {
     expect(out).toContain(encodeURIComponent(src));
   });
 
-  it("leaves Vercel Blob CDN urls untouched", () => {
+  it("points Blob files at the public /email-cdn path", () => {
     const src = "https://abc123.public.blob.vercel-storage.com/email-assets/campaigns/x.jpg";
-    const out = rewriteEmailAssetUrlsForCache(`<img src="${src}" />`, "https://harmonizer-ten.vercel.app");
-    expect(out).toContain(src);
+    const out = rewriteEmailAssetUrlsForCache(`<img src="${src}" />`, "https://harmonizer.zamkovoi.yoga");
+    expect(out).toContain(
+      "https://harmonizer.zamkovoi.yoga/email-cdn/email-assets/campaigns/x.jpg",
+    );
+    expect(out).not.toContain("blob.vercel-storage.com");
     expect(out).not.toContain("/api/email/asset");
   });
 });
