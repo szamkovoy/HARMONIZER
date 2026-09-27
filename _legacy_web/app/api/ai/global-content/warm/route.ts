@@ -1,7 +1,7 @@
 import { after } from "next/server";
 
-import { cronSecretDenied } from "../../_utils/emailCronIdle";
-import { expectedModelFromHint, globalContentNeedsRefresh } from "../../_utils/globalContentFresh";
+import { cronSecretDenied } from "../../../_utils/emailCronIdle";
+import { expectedModelFromHint, globalContentNeedsRefresh } from "../../../_utils/globalContentFresh";
 
 export const runtime = "nodejs";
 /** Up to 3 dates × (LLM + i18n). Loaded only when a date is actually stale. */
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         ? body.dates.map((d) => String(d).trim()).filter(Boolean)
         : [isoDate(addDays(now, -1)), isoDate(now), isoDate(addDays(now, 1))];
 
-    const { createServiceSupabase } = await import("../../_utils/supabase");
+    const { createServiceSupabase } = await import("../../../_utils/supabase");
     const db = createServiceSupabase();
     const [{ data: promptRow, error: promptError }, { data: rows, error: rowsError }] = await Promise.all([
       db
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         getExpectedGlobalDailyContentModel,
         globalContentNeedsRefresh: needsRefresh,
         writeStructuralGlobalRow,
-      } = await import("../../_utils/ensureGlobalDailyContent");
+      } = await import("../../../_utils/ensureGlobalDailyContent");
       const expectedModel = await getExpectedGlobalDailyContentModel(db);
       for (const date of dates) {
         try {
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
 
     return Response.json({ ok: true, accepted: dates, mode: "background" });
   } catch (error) {
-    const { errorResponse } = await import("../../_utils/supabase");
+    const { errorResponse } = await import("../../../_utils/supabase");
     return errorResponse(error);
   }
 }
