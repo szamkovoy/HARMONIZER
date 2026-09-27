@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { blocksToHtml, type EmailBlock } from "./blocks";
+import { blocksToHtml, imageWidthFromNatural, type EmailBlock } from "./blocks";
 
 describe("blocksToHtml image dimensions", () => {
   it("emits integer width/height so clients can reserve space", () => {
@@ -25,5 +25,12 @@ describe("blocksToHtml image dimensions", () => {
     expect(html).toContain("display:inline-block");
     expect(html).toContain("text-align:center");
     expect(html).not.toContain('width="240px"');
+  });
+
+  it("fills the letter column when the file is at least as wide as the column", () => {
+    expect(imageWidthFromNatural(530)).toBe("100%");
+    expect(imageWidthFromNatural(504)).toBe("100%");
+    expect(imageWidthFromNatural(320)).toBe("320px");
+    expect(imageWidthFromNatural(undefined)).toBeUndefined();
   });
 });

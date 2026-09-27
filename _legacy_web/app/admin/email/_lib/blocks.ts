@@ -14,6 +14,17 @@ export type BlockFontSize = "sm" | "md" | "lg" | "xl";
 
 const CONTENT_INNER_WIDTH_PX = MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX;
 
+/**
+ * Width to store after upload. A file at least as wide as the letter column
+ * fills that column (100%). A narrower file keeps its own pixel width.
+ * 240px remains only when the file size could not be read.
+ */
+export function imageWidthFromNatural(naturalWidth: number | undefined): string | undefined {
+  if (!naturalWidth || naturalWidth <= 0) return undefined;
+  if (naturalWidth >= CONTENT_INNER_WIDTH_PX) return "100%";
+  return `${Math.round(naturalWidth)}px`;
+}
+
 /** Same file as the Blob URL, via the yoga host. The blob host does not open in Russia. */
 export function emailImagePreviewSrc(src: string): string {
   return src.replace(

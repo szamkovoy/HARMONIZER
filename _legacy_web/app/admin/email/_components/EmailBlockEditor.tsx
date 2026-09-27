@@ -18,6 +18,7 @@ import {
   enrichImageBlockDimensions,
   FONT_FAMILY_OPTIONS,
   emailImagePreviewSrc,
+  imageWidthFromNatural,
   loadImageNaturalSize,
   newBlockId,
   sanitizeEmailBlocks,
@@ -381,11 +382,13 @@ function BlockSettingsModal({
         } finally {
           URL.revokeObjectURL(objectUrl);
         }
+        const fitted = imageWidthFromNatural(naturalWidth);
         onChange({
           src: data.public_url,
           ...(naturalWidth && naturalHeight
             ? { naturalWidth, naturalHeight }
             : {}),
+          ...(fitted ? { width: fitted } : {}),
         } as Partial<EmailBlock>);
       } else {
         setUploadError("Сервер не вернул ссылку на файл");
@@ -457,7 +460,7 @@ function BlockSettingsModal({
                 </label>
               </div>
               <div
-                className="email-richtext min-h-[140px] rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 [&_h1]:m-0 [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0 [&_p]:p-0"
+                className="email-richtext min-h-[140px] rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 [&_h1]:m-0 [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0 [&_p]:p-0 [&_a]:text-emerald-800 [&_a]:underline"
                 style={{
                   fontFamily:
                     block.fontFamily === "georgia"

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.26
+version: 1.27
 updated: 2026-09-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -13,6 +13,10 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-09-27 — Широкая картинка снова на всю колонку, ссылка видна в редакторе
+
+- Тестовое письмо ушло с `width:240px`: это запасное значение нового блока, не размер файла 530px. Если файл не уже внутренней колонки (504px), ширина становится `100%`. Ссылка в contentEditable была в HTML, но без подчёркивания, поэтому в редакторе её не было видно.
 
 ## 2026-09-27 — Картинка письма открывается с домена yoga
 
