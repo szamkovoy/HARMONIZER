@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob";
 
+import { imageFromUploadBody } from "../../../_utils/emailImageUpload";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -15,60 +16,30 @@ function extForMime(mime: string): string {
   return "jpg";
 }
 
-function sniffImageMime(bytes: Buffer): string | null {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
-  if (
-    bytes.length >= 8 &&
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47
-  ) {
-    return "image/png";
-  }
-  const head = bytes.length >= 6 ? bytes.toString("ascii", 0, 6) : "";
-  if (head === "GIF87a" || head === "GIF89a") return "image/gif";
-  if (
-    bytes.length >= 12 &&
-    bytes.toString("ascii", 0, 4) === "RIFF" &&
-    bytes.toString("ascii", 8, 12) === "WEBP"
-  ) {
-    return "image/webp";
-  }
-  return null;
-}
-
 /**
- * Prefer a raw `image/*` body. Multipart through harmonizer.zamkovoi.yoga loses
- * its boundary (`no boundary found in multipart body`) and never reaches storage.
+ * Raw `image/*` is the normal path. An already-open admin tab still sends
+ * multipart; the yoga proxy drops the boundary, so parse the body ourselves.
  */
 async function readImageUpload(req: Request): Promise<{ bytes: Buffer; mime: string }> {
-  const contentType = (req.headers.get("content-type") ?? "").toLowerCase();
-  if (contentType.includes("multipart/form-data")) {
-    let form: FormData;
-    try {
-      form = await req.formData();
-    } catch {
-      throw json(
-        { error: "Файл не дошёл. Обновите страницу админки и загрузите изображение ещё раз." },
-        { status: 400 },
-      );
-    }
-    const file = form.get("file");
-    if (!(file instanceof File)) {
-      throw json({ error: "Ожидается file" }, { status: 400 });
-    }
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const mime = file.type.startsWith("image/") ? file.type : sniffImageMime(bytes);
-    if (!mime) throw json({ error: "Только изображения" }, { status: 400 });
-    return { bytes, mime };
+  const contentType = req.headers.get("content-type") ?? "";
+  const raw = Buffer.from(await req.arrayBuffer());
+  const image = imageFromUploadBody(raw, contentType);
+  if (!image) {
+    console.error("[email-assets] unreadable upload", {
+      bytes: raw.length,
+      contentType: contentType.slice(0, 160),
+    });
+    throw json(
+      {
+        error:
+          raw.length === 0
+            ? "Файл не дошёл. Обновите страницу админки полностью и загрузите изображение ещё раз."
+            : "Не удалось прочитать файл. Сохраните его как JPEG до 3 МБ и загрузите снова.",
+      },
+      { status: 400 },
+    );
   }
-
-  const bytes = Buffer.from(await req.arrayBuffer());
-  const headerMime = contentType.split(";")[0]?.trim() || "";
-  const mime = headerMime.startsWith("image/") ? headerMime : sniffImageMime(bytes);
-  if (!mime) throw json({ error: "Только изображения" }, { status: 400 });
-  return { bytes, mime };
+  return image;
 }
 
 /**

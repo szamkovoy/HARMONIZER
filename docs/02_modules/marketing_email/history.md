@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.24
+version: 1.25
 updated: 2026-09-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -13,6 +13,10 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-09-27 — Загрузка картинки переживает multipart без boundary
+
+- Уже открытая вкладка админки всё ещё шлёт FormData. Прокси yoga убирает boundary из заголовка, поэтому `formData()` падал с «Файл не дошёл». `imageFromUploadBody` читает сырое тело и достаёт файл по первой строке `--boundary`.
 
 ## 2026-09-27 — Пиксель выключен до окна 24 октября, картинки не через multipart
 

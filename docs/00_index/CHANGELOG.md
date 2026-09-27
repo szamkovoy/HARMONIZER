@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.53
+version: 3.54
 updated: 2026-09-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-27 (611): Email image upload reads a multipart body even when the yoga proxy strips the boundary, so an already-open admin tab can still save the file. Docs `marketing_email`.
 - 2026-09-27 (610): Open pixel is off via `DISABLE_EMAIL_OPEN_TRACKING` until the 24 Sep CPU spike leaves the 30-day window (~24 Oct). Clicks stay. Email image upload sends a raw image body because the yoga proxy drops the multipart boundary. Docs `marketing_email`.
 - 2026-09-27 (609): New marketing images upload to Vercel Blob CDN; open pixel is Edge + one RPC; idle email crons and fresh global-content warm skip the heavy stacks; script keeps 10 Vercel deployments. Docs `marketing_email`, `daily_forecast`, `infra`.
 - 2026-09-27 (608): Equinox campaign closed as `sent`; the unsent second-half queue is `skipped` and will not send. Access-window grants already expired. Docs `marketing_email`.
