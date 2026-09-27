@@ -1,23 +1,22 @@
 import { after } from "next/server";
 
-import {
-  parseEmailTrackToken,
-  recordFirstPartyTrackEvent,
-  trackingPixelResponse,
-} from "../../../_utils/emailFirstPartyTracking";
-import { createServiceSupabase } from "../../../_utils/supabase";
+import { parseEmailTrackTokenEdge, recordEmailOpen, trackingPixelResponse } from "../../../_utils/emailOpenTrack";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
 
-/** 1×1 open pixel — return GIF first, record in background. */
+/**
+ * 1×1 open pixel. The GIF is returned before any database work.
+ * Recording is one PostgREST RPC (`record_first_party_email_open`).
+ */
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const trackId = parseEmailTrackToken(url.searchParams.get("t"));
-  if (trackId) {
+  const token = new URL(req.url).searchParams.get("t");
+  if (token) {
     after(async () => {
       try {
-        const db = createServiceSupabase();
-        await recordFirstPartyTrackEvent(db, { trackId, kind: "opened" });
+        const trackId = await parseEmailTrackTokenEdge(token);
+        if (!trackId) return;
+        await recordEmailOpen(trackId);
       } catch {
         /* never break the pixel */
       }

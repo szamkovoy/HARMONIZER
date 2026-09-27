@@ -17,9 +17,8 @@ function allowedSupabaseHost(): string | null {
 }
 
 /**
- * Cacheable proxy for marketing email images.
- * Supabase public URLs often respond with Cache-Control: no-cache; mail clients
- * then re-download on every open. We re-serve with a long max-age from the edge.
+ * Legacy proxy for letters already sent with a Supabase email-assets URL.
+ * New uploads use a public Vercel Blob URL and do not come through here.
  */
 export async function GET(req: Request) {
   const raw = new URL(req.url).searchParams.get("u")?.trim() ?? "";

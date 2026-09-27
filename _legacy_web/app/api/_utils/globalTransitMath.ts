@@ -20,8 +20,11 @@ import vsop87Bmars from "astronomia/data/vsop87Bmars";
 import vsop87Bjupiter from "astronomia/data/vsop87Bjupiter";
 import vsop87Bsaturn from "astronomia/data/vsop87Bsaturn";
 
+import { GLOBAL_MATH_SCHEMA_VERSION } from "./globalMathSchema";
+
+export { GLOBAL_MATH_SCHEMA_VERSION, isGlobalMathLevelCurrent } from "./globalMathSchema";
+
 export const PLANETS_7 = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"] as const;
-export const GLOBAL_MATH_SCHEMA_VERSION = 2;
 
 const RAD_TO_DEG = 180 / Math.PI;
 
@@ -346,26 +349,6 @@ export function computeGlobalDailyForecast(forecastDate: string) {
     top_petals: topPetals,
     planet_scores: planetScores,
   };
-}
-
-export function isGlobalMathLevelCurrent(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  const structured = (value as { structured?: unknown }).structured;
-  if (!structured || typeof structured !== "object") return false;
-  const payload = structured as {
-    schema_version?: unknown;
-    chart_mode?: unknown;
-    planet_positions?: unknown;
-    main_aspects?: unknown;
-    planet_scores?: unknown;
-  };
-  return (
-    payload.schema_version === GLOBAL_MATH_SCHEMA_VERSION
-    && payload.chart_mode === "transit_only"
-    && Boolean(payload.planet_positions && typeof payload.planet_positions === "object")
-    && Array.isArray(payload.main_aspects)
-    && Array.isArray(payload.planet_scores)
-  );
 }
 
 export function buildGlobalMathLevel(

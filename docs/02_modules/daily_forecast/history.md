@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.51
-updated: 2026-09-14
+version: 2.52
+updated: 2026-09-27
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -23,6 +23,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-09-27:** `POST /api/ai/global-content/warm` при свежих датах отвечает `{ skipped: "fresh" }` и не импортирует Gemini/эфемериды. Предикат свежести вынесен в `globalContentFresh.ts`.
 
 - **2026-09-14 (Тёплый путь `daily-forecast` без апгрейда compute):** На cache-hit роут делал 6 последовательных PostgREST round-trip (`user_roles` probe → `user_daily_forecasts` → `scenarios` → `prompts` → `users` → `scenario_cache`); на Nano каждый 0.3–0.7 s → первый paint Home ждал ~3 s даже при полном кэше. Fix: JWT проверяется локально (infra), `cachedForecast` ∥ `loadCachedMorningRecommendation`, внутри — `getScenario` ∥ `loadUser`, `getActivePrompt` с 60 s memory-кэшем. Ответ и его форма не менялись; текущие store-версии приложения работают без изменений.
 - **2026-09-14 (Precompute → delta-only job, масштаб 10k):** Вопрос продукта: catch-up каждый час — не лишняя ли нагрузка, и что надёжнее при 10 000 платных. Разбор: часовой полный скан наталов (`range` по 100) при 10k = 100 страниц × 24 раза/сутки плюс 2 чтения кэша на пользователя — доминирующая стоимость; вариант «один запуск в полночь + retry при ошибке» ненадёжен (падение без ошибки по wall-clock/CPU, пользователи, ставшие paid днём, смена tz). Решение — SQL-выборка **только тех, кому нужно** + аренда: миграция `20260914120000` (`daily_precompute_claims`, `_precompute_local_date`, RPC `precompute_daily_forecast_candidates`, инвокер с peek-предпроверкой, job `precompute_daily_forecasts_every_10m`). Edge: `MAX_USERS_PER_RUN=40`, `USER_CONCURRENCY=4`, `RUN_TIME_BUDGET_MS=100 s`, lease 8 мин; хвост → следующий тик; компактный ответ (полный `results` только `?verbose=true`). При полном кэше тик = один SELECT, Edge не вызывается. Контрольный тест: `cache_valid_until` тестового пользователя переведён в прошлое → RPC вернул 1 кандидата (`needs_forecast`), инвокер вызвал Edge, `computedCount: 1` за 1.4 s, morning — cache_hit, кандидатов после — 0. Free-тариф проверен отдельно: `global_daily_content` пишется на завтра заранее (строка 14.09 создана 13.09 03:00 UTC, 15.09 — 14.09 00:00 UTC), клиент читает таблицу напрямую — сбоя, аналогичного paid, там нет. Также в `services/dayPlanPrefetch.ts` — окно 30 с против тройного `/api/day` на холодном старте (tabs mount + Home `ready`/`stale_ready`); каждый GET `/api/day` пишет (purge + expire offers), поэтому дубли были видны как 3 цепочки `DELETE planned_events → PATCH day_practice_offers → GET` за 13 с.

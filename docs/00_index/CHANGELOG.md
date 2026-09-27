@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.51
+version: 3.53
 updated: 2026-09-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-27 (610): Open pixel is off via `DISABLE_EMAIL_OPEN_TRACKING` until the 24 Sep CPU spike leaves the 30-day window (~24 Oct). Clicks stay. Email image upload sends a raw image body because the yoga proxy drops the multipart boundary. Docs `marketing_email`.
+- 2026-09-27 (609): New marketing images upload to Vercel Blob CDN; open pixel is Edge + one RPC; idle email crons and fresh global-content warm skip the heavy stacks; script keeps 10 Vercel deployments. Docs `marketing_email`, `daily_forecast`, `infra`.
 - 2026-09-27 (608): Equinox campaign closed as `sent`; the unsent second-half queue is `skipped` and will not send. Access-window grants already expired. Docs `marketing_email`.
 - 2026-09-26 (607): OTP mail temporarily via Resend (`EMAIL_OTP=RESEND_ZAMKOVOI_YOGA`) while Amazon SES is suspended. Same From `sergei@zamkovoi.yoga`; DNS and SES secrets unchanged. Revert: `EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA`. Docs `email_providers` + `profile`.
 - 2026-09-26 (606): `harmonizer.zamkovoi.yoga` is no longer attached in the Vercel project, so the misconfigured-domain mail stops. Public DNS stays on the REG.RU proxy. Docs `DEPLOY.md`.

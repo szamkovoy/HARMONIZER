@@ -46,6 +46,17 @@ Rollback: in the Vercel project add `harmonizer.zamkovoi.yoga` again and wait un
 
 Store builds wait until a phone in Russia opens `https://harmonizer.zamkovoi.yoga/admin/login` in a few seconds without VPN. Some resolvers keep the old CNAME for up to an hour after the switch (TTL was 3600). The origin string in EAS is already `https://harmonizer.zamkovoi.yoga`.
 
+## Vercel deployment retention
+
+Hobby functions storage is 10 GB. Each production deployment is about 130 MB. `scripts/prune-vercel-deployments.mjs` keeps the 10 newest deployments and never deletes the newest READY production deployment.
+
+```bash
+VERCEL_TOKEN=... node scripts/prune-vercel-deployments.mjs
+VERCEL_PRUNE_DRY_RUN=1 VERCEL_TOKEN=... node scripts/prune-vercel-deployments.mjs
+```
+
+GitHub Action `.github/workflows/prune-vercel-deployments.yml` runs daily. Add repository secret `VERCEL_TOKEN` (Vercel account token that can delete deployments). `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` are optional; the script defaults to team `szamkovoys-projects` and project `harmonizer`.
+
 ## Next.js Backend (`_legacy_web`)
 
 Required Vercel environment variables:
@@ -54,6 +65,8 @@ Required Vercel environment variables:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key for JWT validation.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
 - `CRON_SECRET` - shared secret required by scheduled functions and by `POST /api/ai/global-content/warm`.
+- `BLOB_READ_WRITE_TOKEN` - read-write token of the public Blob store `harmonizer-email` (fra1). Required by `POST /api/admin/email/assets`. Connected to Production, Preview, and Development. New letter images are served from this CDN; `/api/email/asset` remains for letters already sent.
+- `DISABLE_EMAIL_OPEN_TRACKING=true` - new letters have no open-tracking image. Click redirects stay. Set on Production, Preview, and Development until about 2026-10-24 (the 24 Sep 2026 Fluid CPU spike leaves the 30-day Hobby window). Turn the pixel back on: set this to `false` or delete it, then deploy once. The switch in code is `emailOpenTrackingDisabled()` in `_legacy_web/app/api/_utils/emailFirstPartyTracking.ts`.
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
 - `AI_MODEL_STANDARD` - concrete Gemini model for `standard` prompt/scenario tier.
 - `AI_MODEL_PREMIUM` - concrete Gemini model for `premium` prompt/scenario tier.

@@ -1,15 +1,10 @@
 import { after } from "next/server";
 
-import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
-import {
-  ensureGlobalDailyContentRow,
-  getExpectedGlobalDailyContentModel,
-  globalContentNeedsRefresh,
-  writeStructuralGlobalRow,
-} from "../../../_utils/ensureGlobalDailyContent";
+import { cronSecretDenied } from "../../_utils/emailCronIdle";
+import { expectedModelFromHint, globalContentNeedsRefresh } from "../../_utils/globalContentFresh";
 
 export const runtime = "nodejs";
-/** Up to 3 dates × (LLM + i18n). */
+/** Up to 3 dates × (LLM + i18n). Loaded only when a date is actually stale. */
 export const maxDuration = 300;
 
 function isoDate(date: Date): string {
@@ -22,25 +17,15 @@ function addDays(date: Date, days: number): Date {
   return result;
 }
 
-function assertCronSecret(req: Request): Response | null {
-  const expected = process.env.CRON_SECRET?.trim();
-  if (!expected) {
-    return json({ error: "CRON_SECRET is required" }, { status: 500 });
-  }
-  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const header = req.headers.get("x-cron-secret");
-  if (bearer === expected || header === expected) return null;
-  return json({ error: "Unauthorized" }, { status: 401 });
-}
+type FreshRow = Record<string, unknown> & { forecast_date_utc?: string };
 
 /**
- * Cron/Node warm for free-tier `global_daily_content`:
- * ensures real LLM RU texts + text_i18n for the requested UTC dates.
- * Called by Edge `precompute-global-recommendations` after structural upsert.
+ * Cron/Node warm for free-tier `global_daily_content`.
+ * Fresh dates return immediately and do not import the LLM stack.
  */
 export async function POST(req: Request) {
-  const unauthorized = assertCronSecret(req);
-  if (unauthorized) return unauthorized;
+  const denied = cronSecretDenied(req);
+  if (denied) return denied;
 
   try {
     const body = (await req.json().catch(() => ({}))) as { dates?: string[] };
@@ -50,9 +35,44 @@ export async function POST(req: Request) {
         ? body.dates.map((d) => String(d).trim()).filter(Boolean)
         : [isoDate(addDays(now, -1)), isoDate(now), isoDate(addDays(now, 1))];
 
-    // Acknowledge immediately so Edge cron is not killed mid-LLM. Work continues via `after()`.
+    const { createServiceSupabase } = await import("../../_utils/supabase");
+    const db = createServiceSupabase();
+    const [{ data: promptRow, error: promptError }, { data: rows, error: rowsError }] = await Promise.all([
+      db
+        .from("prompts")
+        .select("model_hint")
+        .eq("prompt_key", "global_morning_recommendation")
+        .eq("is_active", true)
+        .maybeSingle(),
+      db
+        .from("global_daily_content")
+        .select("forecast_date_utc, llm_model, slogan, short_text, long_explanation, math_level")
+        .in("forecast_date_utc", dates),
+    ]);
+    if (promptError) throw promptError;
+    if (rowsError) throw rowsError;
+
+    const expected = expectedModelFromHint(
+      (promptRow as { model_hint?: string | null } | null)?.model_hint,
+    );
+    const byDate = new Map(
+      ((rows ?? []) as FreshRow[]).map((row) => [String(row.forecast_date_utc), row]),
+    );
+    const allFresh = Boolean(expected) && dates.every((date) => {
+      const row = byDate.get(date);
+      return Boolean(row) && !globalContentNeedsRefresh(row, expected as string);
+    });
+    if (allFresh) {
+      return Response.json({ ok: true, skipped: "fresh", dates });
+    }
+
     after(async () => {
-      const db = createServiceSupabase();
+      const {
+        ensureGlobalDailyContentRow,
+        getExpectedGlobalDailyContentModel,
+        globalContentNeedsRefresh: needsRefresh,
+        writeStructuralGlobalRow,
+      } = await import("../../_utils/ensureGlobalDailyContent");
       const expectedModel = await getExpectedGlobalDailyContentModel(db);
       for (const date of dates) {
         try {
@@ -68,7 +88,7 @@ export async function POST(req: Request) {
           }
 
           const row = existing as Record<string, unknown> | null;
-          if (row && !globalContentNeedsRefresh(row, expectedModel)) {
+          if (row && !needsRefresh(row, expectedModel)) {
             console.info("[global-content/warm] fresh", date);
             continue;
           }
@@ -81,8 +101,9 @@ export async function POST(req: Request) {
       }
     });
 
-    return json({ ok: true, accepted: dates, mode: "background" });
+    return Response.json({ ok: true, accepted: dates, mode: "background" });
   } catch (error) {
+    const { errorResponse } = await import("../../_utils/supabase");
     return errorResponse(error);
   }
 }

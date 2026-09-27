@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.26
-updated: 2026-09-26
+version: 1.27
+updated: 2026-09-27
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-27 (deployment retention):** `scripts/prune-vercel-deployments.mjs` и GitHub Action `prune-vercel-deployments` оставляют 10 последних деплоев `harmonizer` и не удаляют самый новый production READY. Нужен секрет `VERCEL_TOKEN`.
 
 - **2026-09-26 (OTP secret → Resend yoga):** Supabase `EMAIL_OTP=RESEND_ZAMKOVOI_YOGA` while the Amazon SES account is suspended. `SES_*`, `MAIL_FROM_EMAIL=sergei@zamkovoi.yoga`, and `RESEND_ZAMKOVOI_YOGA_API_KEY` stay. Revert is the same secret set back to `AMAZON_ZAMKOVOI_YOGA`. Ops checklist: `docs/04_workspace/email_providers.md`.
 

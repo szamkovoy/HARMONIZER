@@ -1,0 +1,26 @@
+name: Prune Vercel deployments
+
+on:
+  schedule:
+    # Once a day. A busy day of deploys stays well under the 10 GB functions cap.
+    - cron: "20 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prune:
+    name: Keep the 10 newest deployments
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete older deployments
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_KEEP_DEPLOYMENTS: "10"
+        run: node scripts/prune-vercel-deployments.mjs

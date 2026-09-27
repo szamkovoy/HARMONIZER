@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.22
+version: 1.24
 updated: 2026-09-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -13,6 +13,14 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-09-27 — Пиксель выключен до окна 24 октября, картинки не через multipart
+
+- `DISABLE_EMAIL_OPEN_TRACKING=true`: новые письма без `<img>` открытия, клики остаются. Включить обратно — снять переменную и один деплой (`emailOpenTrackingDisabled` в `emailFirstPartyTracking.ts`). Загрузка картинки в админке шлёт сырой `image/*`: прокси yoga отдавал multipart без boundary (`Failed to parse body as FormData` / `no boundary found in multipart body`).
+
+## 2026-09-27 — Картинки писем на Blob, пиксель на Edge
+
+- Новые картинки рассылок грузятся в публичный Vercel Blob и в письмо попадает прямой CDN URL. `GET /api/email/asset` не удалён: старые письма со ссылкой на Supabase по-прежнему через него. Пиксель открытия — Edge runtime, GIF сразу, запись одним RPC `record_first_party_email_open`. Пустые тики campaign/automation cron отвечают `skipped: idle` и не поднимают раннер. Хранить на Vercel не больше 10 деплоев: `scripts/prune-vercel-deployments.mjs` и workflow `prune-vercel-deployments`.
 
 ## 2026-09-27 — Равноденствие закрыто
 

@@ -96,6 +96,10 @@ foreach (UPSTREAM_IPS as $ip) {
         CURLOPT_SSL_VERIFYHOST => 2,
     ];
     if ($method !== 'GET' && $method !== 'HEAD') {
+        // Raw bodies (JSON, image/*) arrive intact. multipart/form-data does not:
+        // this curl call drops the boundary, and Vercel returns
+        // "no boundary found in multipart body". Email images are sent as a
+        // raw image body for that reason. Do not switch them back to FormData.
         $options[CURLOPT_POSTFIELDS] = $body ?? '';
     }
     curl_setopt_array($ch, $options);

@@ -14,6 +14,22 @@ const PIXEL_GIF = Buffer.from(
   "base64",
 );
 
+/**
+ * Open pixel switch. Off while the 24 Sep 2026 Fluid Active CPU spike is still
+ * inside the Hobby 30-day window (about 24 Oct 2026).
+ *
+ * New letters omit the open `<img>` when `DISABLE_EMAIL_OPEN_TRACKING` is
+ * `1`, `true`, `yes`, or `on`. Click redirects stay.
+ *
+ * Turn the pixel back on: set that env to `false` or delete it on Production,
+ * Preview, and Development, then deploy once. This comment is the switch —
+ * do not search chat history.
+ */
+export function emailOpenTrackingDisabled(): boolean {
+  const raw = (process.env.DISABLE_EMAIL_OPEN_TRACKING ?? "").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
 function trackingSecret(): string {
   return (
     process.env.EMAIL_TRACKING_SECRET?.trim() ||
@@ -89,7 +105,8 @@ export async function prepareTrackedMarketingEmailHtml(
 }
 
 /**
- * Point email-assets images at our edge proxy (long Cache-Control).
+ * Point legacy Supabase email-assets images at `/api/email/asset`.
+ * Blob CDN URLs (`*.blob.vercel-storage.com`) are already cacheable and stay as-is.
  * Direct Supabase public URLs often serve Cache-Control: no-cache.
  */
 export function rewriteEmailAssetUrlsForCache(html: string, publicBase: string): string {
@@ -100,7 +117,7 @@ export function rewriteEmailAssetUrlsForCache(html: string, publicBase: string):
   );
 }
 
-/** Inject open pixel + wrap http(s) links. Call before Resend send. */
+/** Wrap http(s) links. The open pixel is added only when tracking is enabled. */
 export function injectFirstPartyEmailTracking(
   html: string,
   trackId: string,
@@ -120,6 +137,8 @@ export function injectFirstPartyEmailTracking(
       return `href=${quote}${tracked}${quote}`;
     },
   );
+
+  if (emailOpenTrackingDisabled()) return out;
 
   if (/<\/body>/i.test(out)) {
     out = out.replace(/<\/body>/i, `${pixel}</body>`);

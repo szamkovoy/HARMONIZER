@@ -13,6 +13,7 @@ Operational scripts for the HARMONIZER repo.
 | `android-fcm-setup.mjs` | Validate `google-services.json` + `fcm-service-account.json` for Android Expo/FCM push. |
 | `upload-fcm-to-eas.mjs` | Upload FCM V1 service account to EAS and assign to `com.zamkovoi.harmonizer` (needs `eas login`). |
 | `sync-vercel-server-modules.mjs` | Copy minimal server i18n slice into `_legacy_web/modules/` before Vercel deploy. |
+| `prune-vercel-deployments.mjs` | Keep the 10 newest Vercel deployments (`VERCEL_TOKEN`). |
 
 ## i18n translation sync gate
 

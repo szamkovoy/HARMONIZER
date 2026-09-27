@@ -352,13 +352,14 @@ function BlockSettingsModal({
     setUploading(true);
     setUploadError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      // Same auth/refresh path as the rest of admin — raw fetch skipped token refresh
-      // and surfaced bare "Unauthorized" via alert(), leaving Save stuck on a hung refresh.
+      // Raw image body, not multipart. The REG.RU proxy strips the multipart
+      // boundary, and Vercel then throws "no boundary found in multipart body".
       const data = await adminFetch<{ public_url?: string }>("/api/admin/email/assets", {
         method: "POST",
-        body: form,
+        body: file,
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+        },
       });
       if (data.public_url) {
         let naturalWidth: number | undefined;

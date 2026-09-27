@@ -151,6 +151,9 @@ export async function adminFetch<T>(
     typeof opts?.timeoutMs === "number" && opts.timeoutMs > 0 ? opts.timeoutMs : FETCH_TIMEOUT_MS;
 
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  // File/Blob carries its own Content-Type. Forcing JSON here broke image upload
+  // through the yoga proxy, which cannot forward multipart boundaries.
+  const isRawBody = typeof Blob !== "undefined" && init?.body instanceof Blob;
   const hasBody = init?.body != null && init.body !== "";
 
   async function doFetch(accessToken: string) {
@@ -158,7 +161,7 @@ export async function adminFetch<T>(
       Authorization: `Bearer ${accessToken}`,
     };
     // Не ставим Content-Type на bodyless DELETE/GET — ломает часть прокси и провоцирует лишний preflight.
-    if (!isFormData && hasBody) {
+    if (!isFormData && !isRawBody && hasBody) {
       headers["Content-Type"] = "application/json";
     }
     const controller = new AbortController();
