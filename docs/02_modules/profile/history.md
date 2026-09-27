@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.48
-updated: 2026-09-24
+version: 1.49
+updated: 2026-09-26
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/localeRebuild.ts, modules/profile/ui/LocaleRebuildModal.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-09-26 (OTP → Resend yoga, временно):** Amazon SES account suspended. Supabase `EMAIL_OTP=RESEND_ZAMKOVOI_YOGA`. From остаётся `sergei@zamkovoi.yoga` (`MAIL_FROM_EMAIL`). DNS не менялся: Resend DKIM + `send` verified, Amazon `sesmail` оставлен. `SES_*` и `RESEND_ZAMKOVOI_YOGA_API_KEY` не снимать. Маркетинг не трогать (`EMAIL_MARKETING=RESEND_ZAMKOVOI_RU`). Возврат после разблокировки SES: `EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA` + deploy `send-auth-email`. Не переключать OTP на `RESEND_ZAMKOVOI_RU`.
 
 - **2026-09-24 (демо на первом входе):** Суточный trial для импортированной почтовой строки стартует на первом sign-in, не в момент импорта. Уже вошедшие и ещё не вошедшие задним числом не меняются. Детали — `subscription` / `20260924010000_trial_on_first_sign_in.sql`.
 

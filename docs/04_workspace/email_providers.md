@@ -1,8 +1,8 @@
 ---
 id: 04_workspace/email_providers
 title: Email providers — OTP vs marketing (Resend ↔ Amazon)
-version: 2.1
-updated: 2026-08-04
+version: 2.2
+updated: 2026-09-26
 depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec, 02_modules/marketing_email/spec]
 code_refs:
   [
@@ -46,12 +46,26 @@ Both `EMAIL_OTP` and `EMAIL_MARKETING` accept **exactly one** of:
 
 Display names stay locale-driven (RU «Сергей Замковой» / else «Sergei Zamkovoi»). Optional overrides: `MAIL_FROM_EMAIL`, `MAIL_MARKETING_FROM_EMAIL`.
 
-### Active production defaults (2026-07-30)
+### Active production (2026-09-26) — temporary OTP on Resend
+
+Amazon SES account is suspended. OTP stays on `sergei@zamkovoi.yoga` via Resend.
+DNS was not changed: Resend DKIM + `send` are verified; Amazon `sesmail` records stay in place.
+`MAIL_FROM_EMAIL=sergei@zamkovoi.yoga` stays. SES secrets stay. Marketing stays on Resend `.ru`.
+Do not point OTP at `RESEND_ZAMKOVOI_RU` — that key is not on the edge function, and `MAIL_FROM_EMAIL` would still force the yoga address.
 
 ```bash
-EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA          # Supabase secrets
+EMAIL_OTP=RESEND_ZAMKOVOI_YOGA          # Supabase secrets (temporary)
 EMAIL_MARKETING=RESEND_ZAMKOVOI_RU      # Vercel (+ _legacy_web/.env.local)
 ```
+
+When Amazon unsuspends the account, revert OTP only:
+
+```bash
+npx supabase secrets set EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA
+npx supabase functions deploy send-auth-email
+```
+
+Do not unset `RESEND_ZAMKOVOI_YOGA_API_KEY`, `MAIL_FROM_EMAIL`, or `SES_*`. Do not edit DNS for this revert.
 
 Later (when SES identity + events for `.ru` are ready):
 
@@ -65,19 +79,19 @@ If `EMAIL_OTP` is unset: `AUTH_EMAIL_PROVIDER=ses|amazon|amazon_ses` → `AMAZON
 
 ## 3. Flip commands
 
-### OTP → Amazon (current)
+### OTP → Amazon (revert after unsuspend)
 
 ```bash
 npx supabase secrets set EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA
-# SES_* must already be present
+# SES_* and MAIL_FROM_EMAIL=sergei@zamkovoi.yoga must already be present
 npx supabase functions deploy send-auth-email
 ```
 
-### OTP back to Resend yoga
+### OTP → Resend yoga (active since 2026-09-26)
 
 ```bash
 npx supabase secrets set EMAIL_OTP=RESEND_ZAMKOVOI_YOGA
-npx supabase secrets set RESEND_ZAMKOVOI_YOGA_API_KEY=<key>
+# RESEND_ZAMKOVOI_YOGA_API_KEY must already be present; do not change MAIL_FROM_EMAIL
 npx supabase functions deploy send-auth-email
 ```
 
@@ -91,11 +105,11 @@ npx vercel env add EMAIL_MARKETING production   # value: RESEND_ZAMKOVOI_RU
 
 ### SES configuration sets (OTP ≠ marketing)
 
-Keep **two** sets when both channels use Amazon (today OTP only):
+Keep **two** sets when both channels use Amazon. OTP is temporarily on Resend (2026-09-26); leave `harmonizer-otp` in place for the revert:
 
 | Set | Used by | Env | Notes |
 | --- | --- | --- | --- |
-| `harmonizer-otp` | Edge OTP (active) | Supabase `SES_OTP_CONFIGURATION_SET` | Reputation metrics optional (CloudWatch cost). No custom redirect / SES Subscription Management. |
+| `harmonizer-otp` | Edge OTP when `EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA` | Supabase `SES_OTP_CONFIGURATION_SET` | Reputation metrics optional (CloudWatch cost). No custom redirect / SES Subscription Management. Leave set during the Resend pause. |
 | `harmonizer-marketing` | Vercel marketing (prepared; transport still Resend until flip) | Vercel `SES_CONFIGURATION_SET` | Reputation metrics optional. Event destination → SNS → `/api/webhooks/ses-marketing` before flip. Unsubscribe = **our** headers only. |
 | `my-first-configuration-set` | unused legacy | — | Safe to leave or delete later; code does not reference it. |
 

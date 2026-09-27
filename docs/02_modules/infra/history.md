@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.25
-updated: 2026-09-18
+version: 1.26
+updated: 2026-09-26
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-09-26 (OTP secret → Resend yoga):** Supabase `EMAIL_OTP=RESEND_ZAMKOVOI_YOGA` while the Amazon SES account is suspended. `SES_*`, `MAIL_FROM_EMAIL=sergei@zamkovoi.yoga`, and `RESEND_ZAMKOVOI_YOGA_API_KEY` stay. Revert is the same secret set back to `AMAZON_ZAMKOVOI_YOGA`. Ops checklist: `docs/04_workspace/email_providers.md`.
 
 - **2026-09-18 (ffmpeg-static on Vercel):** Prod `ffmpeg binary is unavailable` на stories `process`: Vercel npm пропускал install script `ffmpeg-static` (нет `allowScripts`) → бинарник не скачивался; плюс NFT не включал native files. Fix в `_legacy_web`: `allowScripts` + `postinstall` install.js, `outputFileTracingIncludes`/`serverExternalPackages`, `vercel.json` `maxDuration: 120` для `stories/process`.
 - **2026-09-14 (Nano без апгрейда: авторизация без DB, cron-предпроверки, vacuum):** Продукт: апгрейд compute не планируется, всё должно работать на Nano. (1) `requireUser` проверяет подпись JWT локально по JWKS проекта (ES256, `crypto.subtle`, кэш 10 мин; HS256/недоступный JWKS → прежний probe `user_roles`, семантика 401/503 не изменилась). Убирает по одному PostgREST-запросу с каждого авторизованного роута — на старте приложения их было три (`day`, `daily-forecast`, `ott`/`purchases`). Контроль: поддельный ES256-токен с реальным `kid` → 401 без обращения к БД. (2) `invoke_run_email_automations` (`20260914130000`): между четвертьчасовыми тиками HTTP в Vercel только при due-enrollment (частичный индекс по `next_step_at where status='active'`) — было 288 запусков/сутки × ~10 PostgREST-запросов, каждый первый после простоя ловил 504; SLA due-шагов и retry (5 мин) сохранён, enroller-фазы идут каждые 15 мин, welcome — по триггеру мгновенно. (3) `VACUUM FULL net._http_response`: 76 MB на 87 строк → 96 kB. (4) `getActivePrompt` получил 60 s memory-кэш по образцу `getScenario`; `loadCachedMorningRecommendation` читает `users` параллельно со scenario; `daily-forecast` на cache-hit читает `user_daily_forecasts` и morning-кэш параллельно — тёплый путь ~2 последовательных round-trip вместо ~6. Не трогали: 20-секундный poll `get_story_feed` (осознанное решение 2026-07-09, вынесено в open_questions с расчётом нагрузки).

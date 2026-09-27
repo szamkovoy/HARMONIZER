@@ -1,14 +1,16 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.49
-updated: 2026-09-26
+version: 3.51
+updated: 2026-09-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-09-27 (608): Equinox campaign closed as `sent`; the unsent second-half queue is `skipped` and will not send. Access-window grants already expired. Docs `marketing_email`.
+- 2026-09-26 (607): OTP mail temporarily via Resend (`EMAIL_OTP=RESEND_ZAMKOVOI_YOGA`) while Amazon SES is suspended. Same From `sergei@zamkovoi.yoga`; DNS and SES secrets unchanged. Revert: `EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA`. Docs `email_providers` + `profile`.
 - 2026-09-26 (606): `harmonizer.zamkovoi.yoga` is no longer attached in the Vercel project, so the misconfigured-domain mail stops. Public DNS stays on the REG.RU proxy. Docs `DEPLOY.md`.
 - 2026-09-25 (605): Doc-sync: `email_campaign_access_grants` in marketing_email §3 + code_refs; MAP parity `subscription`↔`marketing_email` for wave access window.
 - 2026-09-25 (604): Campaign wave can open a 30h demo for installed Navigators and a temporary Master for Mentors, without touching people who have not opened the app. Docs `marketing_email` + `subscription`. Migration `20260924201000`.

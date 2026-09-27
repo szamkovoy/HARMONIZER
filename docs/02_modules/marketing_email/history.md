@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.21
-updated: 2026-09-25
+version: 1.22
+updated: 2026-09-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -13,6 +13,10 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-09-27 — Равноденствие закрыто
+
+- Кампания «А вот и осеннее равноденствие» переведена в `sent`. Вторая половина была остановлена: 2888 писем в очереди помечены `skipped` (`campaign_closed`) и больше не уйдут. Окно доступа на этой кампании уже снято: 74 демо истекли сами (снова «Навигатор»), 4 «Наставника» возвращены cron’ом к прежнему сроку `oracle`.
 
 ## 2026-09-25 — Ссылки в письмах на своём домене
 
