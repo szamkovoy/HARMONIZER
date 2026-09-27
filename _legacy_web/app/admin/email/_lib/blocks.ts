@@ -14,17 +14,6 @@ export type BlockFontSize = "sm" | "md" | "lg" | "xl";
 
 const CONTENT_INNER_WIDTH_PX = MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX;
 
-/**
- * Width to store after upload. A file at least as wide as the letter column
- * fills that column (100%). A narrower file keeps its own pixel width.
- * 240px remains only when the file size could not be read.
- */
-export function imageWidthFromNatural(naturalWidth: number | undefined): string | undefined {
-  if (!naturalWidth || naturalWidth <= 0) return undefined;
-  if (naturalWidth >= CONTENT_INNER_WIDTH_PX) return "100%";
-  return `${Math.round(naturalWidth)}px`;
-}
-
 /** Same file as the Blob URL, via the yoga host. The blob host does not open in Russia. */
 export function emailImagePreviewSrc(src: string): string {
   return src.replace(
@@ -119,8 +108,7 @@ export function createEmptyBlock(type: EmailBlock["type"]): EmailBlock {
         src: "",
         alt: "",
         href: "",
-        // Prefer explicit px for logos; 100% fills the 560px column and looks huge in clients.
-        width: "240px",
+        width: "100%",
         align: "center",
         marginTop: 0,
         marginBottom: 12,
@@ -195,7 +183,7 @@ function blockToHtml(block: EmailBlock): string {
   if (!block.src) return "";
   const src = escapeAttr(block.src);
   const alt = escapeAttr(block.alt || "");
-  const widthRaw = (block.width || "240px").trim();
+  const widthRaw = (block.width || "100%").trim();
   const widthIsPercent = widthRaw === "100%";
   const widthPx = widthIsPercent
     ? CONTENT_INNER_WIDTH_PX
@@ -306,7 +294,7 @@ function normalizeBlock(value: unknown): EmailBlock | null {
       src: typeof raw.src === "string" ? raw.src : "",
       alt: typeof raw.alt === "string" ? raw.alt : "",
       href: typeof raw.href === "string" ? raw.href : "",
-      width: typeof raw.width === "string" ? raw.width : "240px",
+      width: typeof raw.width === "string" ? raw.width : "100%",
       align:
         raw.align === "left" || raw.align === "center" || raw.align === "right"
           ? raw.align

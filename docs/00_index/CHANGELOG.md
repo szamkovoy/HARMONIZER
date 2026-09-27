@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.56
+version: 3.57
 updated: 2026-09-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-09-27 (614): New letter images default to width 100%. Docs `marketing_email`.
 - 2026-09-27 (613): A letter image at least as wide as the column is inserted at 100%, and links are underlined in the block editor. Docs `marketing_email`.
 - 2026-09-27 (612): Letter images are addressed on `harmonizer.zamkovoi.yoga/email-cdn` because the Blob host does not open in Russia. The path is a Vercel rewrite, not a function. Docs `marketing_email`.
 - 2026-09-27 (611): Email image upload reads a multipart body even when the yoga proxy strips the boundary, so an already-open admin tab can still save the file. Docs `marketing_email`.

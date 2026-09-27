@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.27
+version: 1.28
 updated: 2026-09-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -13,6 +13,10 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-09-27 — Ширина новой картинки по умолчанию 100%
+
+- Пустой блок и загрузка ставят `width: 100%`, а не 240px и не ширину файла в пикселях.
 
 ## 2026-09-27 — Широкая картинка снова на всю колонку, ссылка видна в редакторе
 

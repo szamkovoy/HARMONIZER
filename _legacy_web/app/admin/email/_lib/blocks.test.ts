@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { blocksToHtml, imageWidthFromNatural, type EmailBlock } from "./blocks";
+import { blocksToHtml, createEmptyBlock, type EmailBlock } from "./blocks";
 
 describe("blocksToHtml image dimensions", () => {
   it("emits integer width/height so clients can reserve space", () => {
@@ -27,10 +27,9 @@ describe("blocksToHtml image dimensions", () => {
     expect(html).not.toContain('width="240px"');
   });
 
-  it("fills the letter column when the file is at least as wide as the column", () => {
-    expect(imageWidthFromNatural(530)).toBe("100%");
-    expect(imageWidthFromNatural(504)).toBe("100%");
-    expect(imageWidthFromNatural(320)).toBe("320px");
-    expect(imageWidthFromNatural(undefined)).toBeUndefined();
+  it("starts a new image at full column width", () => {
+    const block = createEmptyBlock("image");
+    expect(block.type).toBe("image");
+    if (block.type === "image") expect(block.width).toBe("100%");
   });
 });

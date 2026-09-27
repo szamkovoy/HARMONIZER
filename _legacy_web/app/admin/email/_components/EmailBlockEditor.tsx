@@ -18,7 +18,6 @@ import {
   enrichImageBlockDimensions,
   FONT_FAMILY_OPTIONS,
   emailImagePreviewSrc,
-  imageWidthFromNatural,
   loadImageNaturalSize,
   newBlockId,
   sanitizeEmailBlocks,
@@ -382,13 +381,12 @@ function BlockSettingsModal({
         } finally {
           URL.revokeObjectURL(objectUrl);
         }
-        const fitted = imageWidthFromNatural(naturalWidth);
         onChange({
           src: data.public_url,
+          width: "100%",
           ...(naturalWidth && naturalHeight
             ? { naturalWidth, naturalHeight }
             : {}),
-          ...(fitted ? { width: fitted } : {}),
         } as Partial<EmailBlock>);
       } else {
         setUploadError("Сервер не вернул ссылку на файл");
