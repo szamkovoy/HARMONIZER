@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.28
-updated: 2026-09-27
+version: 1.29
+updated: 2026-10-04
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -13,6 +13,11 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-10-04 — Пиксель открытий снова в новых письмах; адрес теста чистится
+
+- `DISABLE_EMAIL_OPEN_TRACKING=false`: новые письма снова содержат пиксель открытий. Клики и раньше учитывались. Включено на оплаченном месяце Pro, чтобы видеть открытия и цену пикселя в CPU.
+- Тестовый и боевой адрес перед отправкой нормализуется (`normalizeMarketingRecipient`). Resend отвечал 422 `non-ASCII characters`, если в `to` попадали невидимый символ, `Имя <email>` или кириллическая буква-двойник.
 
 ## 2026-09-27 — Ширина новой картинки по умолчанию 100%
 

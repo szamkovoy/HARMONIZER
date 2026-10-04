@@ -15,15 +15,13 @@ const PIXEL_GIF = Buffer.from(
 );
 
 /**
- * Open pixel switch. Off while the 24 Sep 2026 Fluid Active CPU spike is still
- * inside the Hobby 30-day window (about 24 Oct 2026).
+ * Open pixel switch. New letters omit the open `<img>` when
+ * `DISABLE_EMAIL_OPEN_TRACKING` is `1`, `true`, `yes`, or `on`.
+ * Click redirects stay either way.
  *
- * New letters omit the open `<img>` when `DISABLE_EMAIL_OPEN_TRACKING` is
- * `1`, `true`, `yes`, or `on`. Click redirects stay.
- *
- * Turn the pixel back on: set that env to `false` or delete it on Production,
- * Preview, and Development, then deploy once. This comment is the switch —
- * do not search chat history.
+ * Turn the pixel off or on by setting that env on Production, Preview, and
+ * Development, then deploy once. `false` or an empty value inserts the pixel.
+ * This comment is the switch — do not search chat history.
  */
 export function emailOpenTrackingDisabled(): boolean {
   const raw = (process.env.DISABLE_EMAIL_OPEN_TRACKING ?? "").trim().toLowerCase();

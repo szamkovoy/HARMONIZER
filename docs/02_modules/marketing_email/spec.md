@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.36
-updated: 2026-09-27
+version: 1.37
+updated: 2026-10-04
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -97,7 +97,8 @@ code_refs:
 - `POST /api/admin/email/deliverability` — `{action:"suppress"|"unsuppress", email?}`
 - UI: `/admin/email/deliverability` (метрики + просмотр Resend list; без sync на GET); цифры статусов подписки (>0) → `/admin/email/contacts?status=`
 - `GET /api/admin/email/contacts?status=` — список контактов по `marketing_status` (до 200)
-- **Open/click:** редирект `GET /api/email/track/click` всегда (Resend tracking на `.ru` недоступен). Пиксель `GET /api/email/track/open` (Edge + RPC) вставляется в HTML только когда `DISABLE_EMAIL_OPEN_TRACKING` не включён. Ключи в `email_tracking_keys`. Bounce/complaint — webhook провайдера (Resend и/или SES).
+- **Open/click:** редирект `GET /api/email/track/click` всегда (Resend tracking на `.ru` недоступен). Пиксель `GET /api/email/track/open` (Edge + RPC) вставляется в HTML, когда `DISABLE_EMAIL_OPEN_TRACKING` не равен `1`/`true`/`yes`/`on`. Ключи в `email_tracking_keys`. Bounce/complaint — webhook провайдера (Resend и/или SES).
+- **Адрес получателя:** `normalizeMarketingRecipient` перед Resend/SES. Убирает невидимые символы, берёт адрес из `Имя <email>` и заменяет кириллические двойники латинских букв. Адрес, который после этого всё ещё не латинский, не уходит провайдеру: админка получает короткое сообщение, а не сырой HTTP 422.
 - **Пустой cron:** `POST /api/cron/email-campaigns` и `POST /api/cron/email-automations` до загрузки раннера отвечают `{ skipped: "idle" }`, если нет волны, отката master-гранта или (вне тиков :00/:15/:30/:45) due-enrollment. Раннер подключается динамическим `import()` только когда работа есть.
 - Cron daily `20 5 * * *` → `invoke_sync_email_suppressions` → `/api/cron/email-suppressions-sync` — Resend suppressions → `email_contacts` **только если** `EMAIL_MARKETING` = Resend; иначе skip. Жёсткий отказ/спам — сразу через webhook.
 

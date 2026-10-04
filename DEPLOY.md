@@ -66,7 +66,7 @@ Required Vercel environment variables:
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
 - `CRON_SECRET` - shared secret required by scheduled functions and by `POST /api/ai/global-content/warm`.
 - `BLOB_READ_WRITE_TOKEN` - read-write token of the public Blob store `harmonizer-email` (fra1). Required by `POST /api/admin/email/assets`. Connected to Production, Preview, and Development. New letter images are served from this CDN; `/api/email/asset` remains for letters already sent.
-- `DISABLE_EMAIL_OPEN_TRACKING=true` - new letters have no open-tracking image. Click redirects stay. Set on Production, Preview, and Development until about 2026-10-24 (the 24 Sep 2026 Fluid CPU spike leaves the 30-day Hobby window). Turn the pixel back on: set this to `false` or delete it, then deploy once. The switch in code is `emailOpenTrackingDisabled()` in `_legacy_web/app/api/_utils/emailFirstPartyTracking.ts`.
+- `DISABLE_EMAIL_OPEN_TRACKING=false` - new letters include the open-tracking image. Click redirects stay either way. Set to `true` to omit the pixel again, then deploy once. The switch in code is `emailOpenTrackingDisabled()` in `_legacy_web/app/api/_utils/emailFirstPartyTracking.ts`.
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
 - `AI_MODEL_STANDARD` - concrete Gemini model for `standard` prompt/scenario tier.
 - `AI_MODEL_PREMIUM` - concrete Gemini model for `premium` prompt/scenario tier.

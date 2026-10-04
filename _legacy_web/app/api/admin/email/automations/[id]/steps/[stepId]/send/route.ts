@@ -12,6 +12,7 @@ import {
 } from "../../../../../../../_utils/emailUnsubscribe";
 import {
   htmlToPlaintext,
+  normalizeMarketingRecipient,
   sendMarketingEmail,
 } from "../../../../../../../_utils/marketingMail";
 import {
@@ -37,10 +38,12 @@ export async function POST(req: Request, ctx: Ctx) {
     await requireAdmin(req);
     const { id: automationId, stepId } = await ctx.params;
     const body = (await req.json().catch(() => ({}))) as SendBody;
-    const testTo = body.test_to?.trim().toLowerCase() || null;
-    if (!testTo) {
+    if (!body.test_to?.trim()) {
       return json({ error: "Укажите test_to" }, { status: 400 });
     }
+    const parsedTo = normalizeMarketingRecipient(body.test_to);
+    if (!parsedTo.ok) return json({ error: parsedTo.detail }, { status: 400 });
+    const testTo = parsedTo.email;
 
     const db = createServiceSupabase();
     const { data: step, error: stepError } = await db

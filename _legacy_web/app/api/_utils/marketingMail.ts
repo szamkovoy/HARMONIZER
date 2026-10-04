@@ -23,6 +23,55 @@ export type MarketingSendResult =
   | { ok: true; resendId: string }
   | { ok: false; detail: string };
 
+/**
+ * Letters that look Latin but are Cyrillic. A Russian keyboard or a paste
+ * often drops one of these into an otherwise ASCII address, and Resend
+ * rejects the whole `to` with "non-ASCII characters".
+ */
+const CYRILLIC_HOMOGLYPH: Record<string, string> = {
+  а: "a",
+  е: "e",
+  о: "o",
+  р: "p",
+  с: "c",
+  у: "y",
+  х: "x",
+  к: "k",
+  м: "m",
+  т: "t",
+  і: "i",
+  ї: "i",
+  ј: "j",
+  ѕ: "s",
+  һ: "h",
+};
+
+const MARKETING_EMAIL_RE = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/;
+
+/**
+ * Recipient for Resend/SES. Strips invisible characters, takes the address
+ * out of `Name <email>`, and folds Cyrillic lookalikes to Latin.
+ * A real non-Latin address (IDN) is refused with a short admin message
+ * instead of a raw provider 422.
+ */
+export function normalizeMarketingRecipient(
+  raw: string,
+): { ok: true; email: string } | { ok: false; detail: string } {
+  let s = raw.normalize("NFKC");
+  s = s.replace(/[\u200B-\u200D\uFEFF\u2060\u00AD]/g, "");
+  s = s.trim().toLowerCase();
+  const angled = s.match(/<([^<>]+)>/);
+  if (angled?.[1]) s = angled[1].trim();
+  s = s.replace(/\s+/g, "");
+  s = [...s].map((ch) => CYRILLIC_HOMOGLYPH[ch] ?? ch).join("");
+  if (MARKETING_EMAIL_RE.test(s)) return { ok: true, email: s };
+  return {
+    ok: false,
+    detail:
+      "Адрес содержит символ не из латиницы. Введите его ещё раз латиницей, например name@yandex.ru",
+  };
+}
+
 /** Same rule as Auth OTP: RU Cyrillic name, otherwise Latin. */
 export function marketingSenderName(locale?: string | null): string {
   const loc = (locale ?? "ru").trim().toLowerCase().slice(0, 2);
@@ -144,6 +193,10 @@ async function sendViaResend(
 export async function sendMarketingEmail(
   input: MarketingSendInput,
 ): Promise<MarketingSendResult> {
+  const recipient = normalizeMarketingRecipient(input.to);
+  if (!recipient.ok) return recipient;
+  input = { ...input, to: recipient.email };
+
   const profile = getMarketingTransportProfile();
   const { fromEmail, fromName } = getMarketingFrom(input.locale);
 

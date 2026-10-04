@@ -1,14 +1,16 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.57
-updated: 2026-09-27
+version: 3.59
+updated: 2026-10-04
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-10-04 (616): Open pixel is back on new letters (`DISABLE_EMAIL_OPEN_TRACKING=false`). Test and live recipients are normalized before Resend so a lookalike letter does not 422. Docs `marketing_email`.
+- 2026-09-30 (615): Cabinet page loads Yandex.Metrika 39862855 after session boot (async + idle). Docs `account_web`.
 - 2026-09-27 (614): New letter images default to width 100%. Docs `marketing_email`.
 - 2026-09-27 (613): A letter image at least as wide as the column is inserted at 100%, and links are underlined in the block editor. Docs `marketing_email`.
 - 2026-09-27 (612): Letter images are addressed on `harmonizer.zamkovoi.yoga/email-cdn` because the Blob host does not open in Russia. The path is a Vercel rewrite, not a function. Docs `marketing_email`.

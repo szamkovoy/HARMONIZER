@@ -10,7 +10,11 @@ import {
 } from "../../../../../_utils/emailFirstPartyTracking";
 import { applyEmailPlaceholders } from "../../../../../_utils/emailTemplate";
 import { buildSignedUnsubscribeUrl, generateUnsubscribeToken } from "../../../../../_utils/emailUnsubscribe";
-import { htmlToPlaintext, sendMarketingEmail } from "../../../../../_utils/marketingMail";
+import {
+  htmlToPlaintext,
+  normalizeMarketingRecipient,
+  sendMarketingEmail,
+} from "../../../../../_utils/marketingMail";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -33,7 +37,12 @@ export async function POST(req: Request, ctx: Ctx) {
     await requireAdmin(req);
     const { id } = await ctx.params;
     const body = (await req.json().catch(() => ({}))) as SendBody;
-    const testTo = body.test_to?.trim().toLowerCase() || null;
+    let testTo: string | null = null;
+    if (body.test_to?.trim()) {
+      const parsed = normalizeMarketingRecipient(body.test_to);
+      if (!parsed.ok) return json({ error: parsed.detail }, { status: 400 });
+      testTo = parsed.email;
+    }
 
     const db = createServiceSupabase();
     const { data: campaign, error: loadError } = await db
