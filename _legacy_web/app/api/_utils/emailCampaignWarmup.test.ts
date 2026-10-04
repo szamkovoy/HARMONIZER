@@ -11,14 +11,11 @@ import {
 } from "./emailCampaignWarmup";
 
 describe("emailCampaignWarmup", () => {
-  it("parses default sizes and repeats the last wave", () => {
+  it("parses one continuous send larger than the list", () => {
     const plan = parseWarmupPlan(null);
     expect(plan.sizes).toEqual(DEFAULT_WARMUP_SIZES);
-    expect(waveSizeAt(0, plan)).toBe(500);
-    expect(waveSizeAt(1, plan)).toBe(500);
-    expect(waveSizeAt(2, plan)).toBe(1000);
-    expect(waveSizeAt(6, plan)).toBe(3000);
-    expect(waveSizeAt(9, plan)).toBe(3000);
+    expect(waveSizeAt(0, plan)).toBe(1_000_000);
+    expect(waveSizeAt(3, plan)).toBe(1_000_000);
   });
 
   it("picks the next 16:00 Europe/Moscow at least 12 hours away", () => {

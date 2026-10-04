@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.60
+version: 3.61
 updated: 2026-10-04
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-04 (618): A new campaign sends the whole audience in one queue instead of the 500/1000/3000 daily ladder. Docs `marketing_email`.
 - 2026-10-04 (617): Open/click UX and infra env wording match pixel-on (`DISABLE_EMAIL_OPEN_TRACKING=false`). Docs `marketing_email`.
 - 2026-10-04 (616): Open pixel is back on new letters (`DISABLE_EMAIL_OPEN_TRACKING=false`). Test and live recipients are normalized before Resend so a lookalike letter does not 422. Docs `marketing_email`.
 - 2026-09-30 (615): Cabinet page loads Yandex.Metrika 39862855 after session boot (async + idle). Docs `account_web`.

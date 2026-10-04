@@ -1,5 +1,9 @@
-/** Default first-broadcast warmup: 500, 500, 1000, 1000, 2000, 2000, then 3000/day. */
-export const DEFAULT_WARMUP_SIZES = [500, 500, 1000, 1000, 2000, 2000, 3000];
+/**
+ * One continuous send for the whole audience. Larger than the list, so the
+ * 5-minute cron keeps draining until nobody is left. A campaign that already
+ * stored the old 500/1000/3000 ladder still follows that stored plan.
+ */
+export const DEFAULT_WARMUP_SIZES = [1_000_000];
 export const DEFAULT_WARMUP_HOUR_MSK = 16;
 
 export type WarmupPlan = {

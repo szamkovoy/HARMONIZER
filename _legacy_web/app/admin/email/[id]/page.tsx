@@ -494,14 +494,10 @@ export default function AdminEmailCampaignPage() {
       );
       return;
     }
-    const wave =
-      progress?.next_wave_size ||
-      campaign.next_wave_size ||
-      500;
     const already = progress?.accepted ?? campaign.sent_count ?? 0;
     if (
       !confirm(
-        `Отправить следующую волну до ${wave} писем самым свежим из сегмента?\nУже принято Resend: ${already}. Повторно им не уйдёт.`,
+        `Отправить письмо всем получателям сегмента (${preview.count})?\nУже принято Resend: ${already}. Повторно им не уйдёт.\nПисьма идут по очереди, на всю базу уходит несколько часов.`,
       )
     ) {
       return;
@@ -537,7 +533,7 @@ export default function AdminEmailCampaignPage() {
       });
       setCampaign(result.campaign);
       setInfo(
-        "Волна запущена. Можно закрыть вкладку — отправка продолжится на сервере. Остановить — кнопка ниже.",
+        "Отправка запущена. Можно закрыть вкладку — очередь продолжится сама. Остановить — кнопка ниже.",
       );
       await load();
     } catch (err) {
@@ -765,13 +761,13 @@ export default function AdminEmailCampaignPage() {
 
       {campaign ? (
         <section className="space-y-2 rounded-2xl border border-zinc-200 bg-white p-4 text-sm">
-          <h2 className="text-sm font-semibold text-zinc-800">Прогрев волнами</h2>
+          <h2 className="text-sm font-semibold text-zinc-800">Отправка</h2>
           <p className="text-xs text-zinc-500">
-            Очередь: 500 → 500 (завтра 16:00 МСК) → 1000 → 1000 → 2000 → 2000 → далее по 3000
-            каждые 24 часа. Сортировка — последняя активность в приложении или снимок Геткурса.
-            Кому Resend уже принял письмо, повторно не отправим.
+            Письма уходят по одному, без дневных порций. На всю базу это несколько часов:
+            сервер сам продолжает очередь. Сортировка — последняя активность в приложении
+            или снимок Геткурса. Кому письмо уже принято, повторно не уйдёт.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-3">
             <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
                 Принято Resend
@@ -788,15 +784,7 @@ export default function AdminEmailCampaignPage() {
             </div>
             <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-                Следующая волна
-              </div>
-              <div className="text-lg font-bold text-zinc-900">
-                {progress?.next_wave_size ?? campaign.next_wave_size ?? 500}
-              </div>
-            </div>
-            <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-                Осталось в лимите
+                Ещё не отправлено
               </div>
               <div className="text-lg font-bold text-zinc-900">
                 {progress?.remaining_estimate ?? "—"}
@@ -858,7 +846,7 @@ export default function AdminEmailCampaignPage() {
         sending={sending || sendingNow}
         showSendBlock={!finished}
         onBulkSend={!finished && !sendingNow ? sendCampaign : undefined}
-        bulkSendLabel={`Отправить волну (${progress?.next_wave_size ?? campaign?.next_wave_size ?? 500})`}
+        bulkSendLabel="Отправить всем"
         sendExtra={
           sendingNow ? (
             <button

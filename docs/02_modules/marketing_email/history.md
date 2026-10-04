@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.29
+version: 1.30
 updated: 2026-10-04
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -13,6 +13,10 @@ code_refs:
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
   ]
 ---
+
+## 2026-10-04 — Рассылка уходит всей аудитории без дневных порций
+
+- Новое письмо больше не стартует с волны 500. Очередь идёт, пока не кончатся получатели: один запуск до 300 с, дальше cron каждые 5 минут, пауза 500 мс между письмами. Старая лестница остаётся только у кампании, где она уже записана в `warmup_plan`.
 
 ## 2026-10-04 — Пиксель открытий снова в новых письмах; адрес теста чистится
 
