@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.59
+version: 3.60
 updated: 2026-10-04
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-04 (617): Open/click UX and infra env wording match pixel-on (`DISABLE_EMAIL_OPEN_TRACKING=false`). Docs `marketing_email`.
 - 2026-10-04 (616): Open pixel is back on new letters (`DISABLE_EMAIL_OPEN_TRACKING=false`). Test and live recipients are normalized before Resend so a lookalike letter does not 422. Docs `marketing_email`.
 - 2026-09-30 (615): Cabinet page loads Yandex.Metrika 39862855 after session boot (async + idle). Docs `account_web`.
 - 2026-09-27 (614): New letter images default to width 100%. Docs `marketing_email`.
