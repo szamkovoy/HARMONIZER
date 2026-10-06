@@ -12,17 +12,22 @@ import {
   Alert,
   Animated,
   AppState,
+  Dimensions,
   InteractionManager,
+  Keyboard,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
+  type KeyboardEvent,
 } from "react-native";
 import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flash-list";
@@ -72,6 +77,12 @@ import {
   shouldDiscardMicOnAppState,
   type MicCaptureMode,
 } from "@/modules/communicator/core/micGesture";
+import {
+  composerKeyboardPad,
+  resolveKeyboardTop,
+  transcriptInputMaxHeight,
+  transcriptReviewViewport,
+} from "@/modules/communicator/core/keyboardOverlap";
 import { isSpuriousTranscription } from "@/modules/communicator/core/transcriptionGuard";
 import { getCommunicatorStrings, type CommunicatorLocale } from "@/modules/communicator/i18n/communicator";
 import { getTranscribeLocale, useAppLocale } from "@/modules/i18n";
@@ -729,6 +740,84 @@ export function Communicator({
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
   const [pendingTranscriptConfidence, setPendingTranscriptConfidence] = useState<number | undefined>(undefined);
   const [pendingTranscriptLocale, setPendingTranscriptLocale] = useState<string | undefined>(undefined);
+  /**
+   * Android Modal + edge-to-edge: `adjustResize` often does not shrink the
+   * dialog window, so the IME covers the transcript field (worse with large
+   * fonts). Pad only the measured overlap; 0 when the window already resized.
+   * iOS stays on KeyboardAvoidingView.
+   */
+  const composerRef = useRef<View>(null);
+  const reviewScrollRef = useRef<ScrollView>(null);
+  const androidKeyboardPadRef = useRef(0);
+  const [androidKeyboardPad, setAndroidKeyboardPad] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const { fontScale } = useWindowDimensions();
+
+  const applyAndroidKeyboardPad = useCallback((next: number) => {
+    if (next === androidKeyboardPadRef.current) return;
+    androidKeyboardPadRef.current = next;
+    setAndroidKeyboardPad(next);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const onShow = (event: KeyboardEvent) => {
+      const screenY = event.endCoordinates?.screenY ?? 0;
+      const keyboardHeight = event.endCoordinates?.height ?? 0;
+      const measureAndPad = (attempt: number) => {
+        composerRef.current?.measureInWindow((_x, y, _width, height) => {
+          if (!Keyboard.isVisible()) return;
+          const viewBottom = y + height;
+          if (viewBottom <= 0 && attempt < 2) {
+            requestAnimationFrame(() => measureAndPad(attempt + 1));
+            return;
+          }
+          const keyboardTop = resolveKeyboardTop(
+            screenY,
+            keyboardHeight,
+            viewBottom,
+            Dimensions.get("window").height,
+          );
+          applyAndroidKeyboardPad(composerKeyboardPad(viewBottom, keyboardTop));
+        });
+      };
+      measureAndPad(0);
+    };
+    const onHide = () => applyAndroidKeyboardPad(0);
+
+    const showSub = Keyboard.addListener("keyboardDidShow", onShow);
+    const hideSub = Keyboard.addListener("keyboardDidHide", onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [applyAndroidKeyboardPad]);
+
+  const revealTranscriptField = useCallback(() => {
+    if (androidKeyboardPadRef.current <= 0) return;
+    reviewScrollRef.current?.scrollToEnd({ animated: false });
+  }, []);
+
+  useEffect(() => {
+    if (androidKeyboardPad <= 0 || pendingTranscript == null) return;
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const reveal = () => {
+      if (!cancelled) revealTranscriptField();
+    };
+    const outer = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        reveal();
+        retry = setTimeout(reveal, 48);
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outer);
+      if (retry) clearTimeout(retry);
+    };
+  }, [androidKeyboardPad, pendingTranscript, revealTranscriptField]);
   /** Инкремент для привязки скролла к голосовому пузырю после добавления/замены текста */
   const [voiceAnchorTick, setVoiceAnchorTick] = useState(0);
   /** После голоса не дёргаем авто-якорь к строке стрима ассистента — окно остаётся на месте */
@@ -2794,9 +2883,87 @@ export function Communicator({
     });
   }, [activeConversationId, entrySource, messages, strings.locale, triggerMeta, useCase]);
 
+  const reviewViewport = transcriptReviewViewport(
+    composerHeight,
+    androidKeyboardPad,
+    MIC_FOOTER_EDGE_PAD * 2,
+  );
+  const reviewInputMaxHeight = transcriptInputMaxHeight(reviewViewport, fontScale);
+  const transcriptReviewFields = (
+    <>
+      <AppText variant="buttonLabel">{strings.transcriptionReviewTitle}</AppText>
+      <AppText variant="technicalCaption" tone="muted">
+        {strings.transcriptionReviewHint(pendingTranscriptConfidence)}
+      </AppText>
+      <TextInput
+        value={pendingTranscript ?? ""}
+        onChangeText={setPendingTranscript}
+        onFocus={revealTranscriptField}
+        onContentSizeChange={revealTranscriptField}
+        placeholder={strings.textPlaceholder}
+        placeholderTextColor={theme.colors.textFaint}
+        editable={!streamBusy}
+        multiline
+        scrollEnabled
+        maxLength={8000}
+        style={[
+          styles.transcriptReviewInput,
+          {
+            color: theme.colors.textPrimary,
+            borderColor,
+            backgroundColor: theme.colors.surface,
+            fontSize: theme.typography.screenHint.fontSize,
+            lineHeight: theme.typography.screenHint.lineHeight,
+            fontWeight: theme.typography.screenHint.fontWeight,
+            fontFamily: theme.typography.screenHint.fontFamily,
+            minHeight: Math.min(72, reviewInputMaxHeight),
+            maxHeight: reviewInputMaxHeight,
+          },
+        ]}
+      />
+      <View style={styles.transcriptReviewActions}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={streamBusy}
+          onPress={cancelTranscriptReview}
+          style={[styles.reviewSecondaryBtn, streamBusy && styles.sendBtnDisabled]}
+        >
+          <AppText variant="buttonLabel" tone="muted">{strings.transcriptionReviewCancel}</AppText>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={streamBusy || !pendingTranscript?.trim()}
+          onPress={() => void sendReviewedTranscript()}
+          style={[
+            styles.reviewPrimaryBtn,
+            { backgroundColor: theme.colors.buttonPrimaryBg },
+            (streamBusy || !pendingTranscript?.trim()) && styles.sendBtnDisabled,
+          ]}
+        >
+          <AppText variant="buttonLabel" tone="accentOn">{strings.transcriptionReviewSend}</AppText>
+        </Pressable>
+      </View>
+    </>
+  );
+
   return (
+    <View
+      ref={composerRef}
+      collapsable={false}
+      onLayout={(event) => {
+        const next = Math.round(event.nativeEvent.layout.height);
+        setComposerHeight((prev) => (prev === next ? prev : next));
+      }}
+      style={[
+        styles.root,
+        {
+          backgroundColor: theme.colors.screenBg,
+          paddingBottom: androidKeyboardPad,
+        },
+      ]}
+    >
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: theme.colors.screenBg }]}
+      style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={insets.bottom + 8}
     >
@@ -2833,7 +3000,7 @@ export function Communicator({
         style={{
           backgroundColor: footerBg,
           paddingTop: MIC_FOOTER_EDGE_PAD,
-          paddingBottom: MIC_FOOTER_EDGE_PAD + insets.bottom,
+          paddingBottom: MIC_FOOTER_EDGE_PAD + (androidKeyboardPad > 0 ? 0 : insets.bottom),
           paddingLeft: Math.max(12, insets.left),
           paddingRight: Math.max(12, insets.right),
         }}
@@ -2850,63 +3017,41 @@ export function Communicator({
           </View>
         ) : null}
         {pendingTranscript != null ? (
-          <View
-            style={[
-              styles.transcriptReview,
-              {
-                borderColor,
-                backgroundColor: theme.colors.surfaceElevated,
-              },
-            ]}
-          >
-            <AppText variant="buttonLabel">{strings.transcriptionReviewTitle}</AppText>
-            <AppText variant="technicalCaption" tone="muted">
-              {strings.transcriptionReviewHint(pendingTranscriptConfidence)}
-            </AppText>
-            <TextInput
-              value={pendingTranscript}
-              onChangeText={setPendingTranscript}
-              placeholder={strings.textPlaceholder}
-              placeholderTextColor={theme.colors.textFaint}
-              editable={!streamBusy}
-              multiline
-              maxLength={8000}
+          Platform.OS === "android" ? (
+            <ScrollView
+              ref={reviewScrollRef}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              scrollEnabled={reviewViewport > 0}
+              showsVerticalScrollIndicator={false}
               style={[
-                styles.transcriptReviewInput,
+                styles.transcriptReviewScroll,
+                reviewViewport > 0 ? { maxHeight: reviewViewport, flexShrink: 1 } : null,
+              ]}
+              contentContainerStyle={[
+                styles.transcriptReview,
                 {
-                  color: theme.colors.textPrimary,
                   borderColor,
-                  backgroundColor: theme.colors.surface,
-                  fontSize: theme.typography.screenHint.fontSize,
-                  lineHeight: theme.typography.screenHint.lineHeight,
-                  fontWeight: theme.typography.screenHint.fontWeight,
-                  fontFamily: theme.typography.screenHint.fontFamily,
+                  backgroundColor: theme.colors.surfaceElevated,
+                  alignSelf: "stretch",
                 },
               ]}
-            />
-            <View style={styles.transcriptReviewActions}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={streamBusy}
-                onPress={cancelTranscriptReview}
-                style={[styles.reviewSecondaryBtn, streamBusy && styles.sendBtnDisabled]}
-              >
-                <AppText variant="buttonLabel" tone="muted">{strings.transcriptionReviewCancel}</AppText>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={streamBusy || !pendingTranscript.trim()}
-                onPress={() => void sendReviewedTranscript()}
-                style={[
-                  styles.reviewPrimaryBtn,
-                  { backgroundColor: theme.colors.buttonPrimaryBg },
-                  (streamBusy || !pendingTranscript.trim()) && styles.sendBtnDisabled,
-                ]}
-              >
-                <AppText variant="buttonLabel" tone="accentOn">{strings.transcriptionReviewSend}</AppText>
-              </Pressable>
+            >
+              {transcriptReviewFields}
+            </ScrollView>
+          ) : (
+            <View
+              style={[
+                styles.transcriptReview,
+                {
+                  borderColor,
+                  backgroundColor: theme.colors.surfaceElevated,
+                },
+              ]}
+            >
+              {transcriptReviewFields}
             </View>
-          </View>
+          )
         ) : (
         <View style={styles.footerRow}>
           {uiMode === "VOICE" ? (
@@ -3016,6 +3161,7 @@ export function Communicator({
         )}
       </View>
     </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -3049,6 +3195,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
+  },
+  transcriptReviewScroll: {
+    alignSelf: "center",
+    flexGrow: 0,
+    flexShrink: 0,
+    maxWidth: 560,
+    width: "100%",
   },
   transcriptReview: {
     borderWidth: StyleSheet.hairlineWidth,

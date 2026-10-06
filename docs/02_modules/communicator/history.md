@@ -1,8 +1,8 @@
 ---
 id: 02_modules/communicator/history
 title: Communicator History
-version: 2.55
-updated: 2026-09-25
+version: 2.56
+updated: 2026-10-06
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec]
 code_refs:
   [
@@ -17,6 +17,10 @@ code_refs:
     services/communicator-client.ts,
   ]
 ---
+
+## 2026-10-06 — Поле правки транскрипта над клавиатурой (Android)
+
+- На телефонах с крупным шрифтом и небольшим экраном IME в модалке ассистента накрывала поле «Проверь распознавание»: `edge-to-edge` + `Modal` не отдают `adjustResize`, а `KeyboardAvoidingView` на Android был выключен. Теперь низ окна поднимается на измеренное перекрытие клавиатуры (0, если окно уже сжато), карточка при нехватке места скроллится к полю. iOS-путь не менялся.
 
 ## 2026-09-25 — Публичный API на своём домене
 

@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.65
+version: 3.66
 updated: 2026-10-06
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-06 (623): Android assistant transcript review stays above the IME on small screens with large fonts (measured keyboard overlap; iOS KeyboardAvoidingView unchanged). Docs `communicator`.
 - 2026-10-06 (622): Doc-sync: `createServiceSupabase({ fetchTimeoutMs })` in infra public contract; marketing_email code_refs + batch migration `20261006020000`.
 - 2026-10-06 (621): Campaigns send in batches of 100 via Resend batch API with a DB-latency brake (skip tick, auto-pause after 3 slow ticks); webhooks apply via one RPC; sent/delivered events no longer stored (email_events 114→4 MB). Docs `marketing_email` + `infra`.
 - 2026-10-05 (620): A database stall on unsubscribe no longer renders as an invalid link: one retry, then a try-again page in 8 locales. Docs `marketing_email`.
