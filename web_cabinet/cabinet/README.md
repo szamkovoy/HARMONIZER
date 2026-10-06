@@ -12,6 +12,7 @@
 ## Назначение
 
 Мост app → оплата (Consumption-Only): OTT → кабинетная сессия → overview / checkout.  
-API: `API_BASE` в `index.html` (Vercel). Оферта: `{API}/cabinet/offer/{lang}.json`.
+API: `API_BASE` в `index.html` (Vercel). Оферта: `{API}/cabinet/offer/{lang}.json`.  
+Визиты: Яндекс.Метрика `39862855` в `index.html` (async после boot).
 
 Подробнее: `docs/02_modules/account_web/`.
