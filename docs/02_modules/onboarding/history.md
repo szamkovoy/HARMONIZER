@@ -1,14 +1,16 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.14
-updated: 2026-10-05
+version: 1.15
+updated: 2026-10-06
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
 
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-10-06 (Android «Нет соединения» после билда с retry шлюза):** Клиентский `AbortSignal.timeout(12_000)` в `otpGate.ts` на RN 0.81 падает сразу: полифилл из пакета `abort-controller` не имеет static `timeout()`. Ошибка ловилась как `network` → «Нет соединения с сервером», хотя Vercel отвечал за ~2 с. Фикс: `AbortController` + `setTimeout`. Нужен новый Android/iOS билд.
 
 - **2026-10-05 (OTP gate 504 и пропавшее письмо):** Пять `POST /api/auth/otp-gate` 16:14–16:33 UTC умерли ровно на `maxDuration` 15 с: PostgREST на Nano не отвечал (schema cache / statement timeout), fetch-таймаут шлюза был 20 с, поэтому Vercel убивал изолят голым 504 до `otp_issue_send_permit` — в журнале попытки нет. App Check и `set_signin_name_hint` больше не могут отменить отправку: проверка Google ≤2.5 с и при выключенном enforce не блокирует; ошибка hint только в лог. Permit: 6 с и один retry. Клиент шлюза тоже повторяет один раз.
 

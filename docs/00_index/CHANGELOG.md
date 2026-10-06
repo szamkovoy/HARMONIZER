@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.67
+version: 3.68
 updated: 2026-10-06
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-06 (625): OTP gate client no longer calls `AbortSignal.timeout` (missing on RN 0.81) — that threw and showed «Нет соединения с сервером» on a fresh Android build. Docs `onboarding`.
 - 2026-10-06 (624): App marketing version **1.2.6** (`app.json` / `package.json`; store codes via EAS autoIncrement).
 - 2026-10-06 (623): Android assistant transcript review stays above the IME on small screens with large fonts (measured keyboard overlap; iOS KeyboardAvoidingView unchanged). Docs `communicator`.
 - 2026-10-06 (622): Doc-sync: `createServiceSupabase({ fetchTimeoutMs })` in infra public contract; marketing_email code_refs + batch migration `20261006020000`.

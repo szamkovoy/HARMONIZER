@@ -47,6 +47,20 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * RN 0.81 still polyfills AbortSignal from the old `abort-controller` package,
+ * which has no static `timeout()`. Node/Vercel have it; the phone does not —
+ * calling it throws and the UI shows «Нет соединения с сервером».
+ */
+function abortSignalAfter(ms: number): { signal: AbortSignal; clear: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timer),
+  };
+}
+
 function isRetryableGateFailure(status: number, code: string): boolean {
   if (status === 502 || status === 503 || status === 504) return true;
   return code === "server_error";
@@ -70,16 +84,19 @@ export async function requestOtpSendPermit(email: string): Promise<void> {
   for (let attempt = 0; attempt < GATE_ATTEMPTS; attempt++) {
     if (attempt > 0) await sleep(GATE_RETRY_DELAY_MS);
     let res: Response;
+    const timeout = abortSignalAfter(GATE_TIMEOUT_MS);
     try {
       res = await fetch(`${origin}/api/auth/otp-gate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body,
-        signal: AbortSignal.timeout(GATE_TIMEOUT_MS),
+        signal: timeout.signal,
       });
     } catch {
       lastError = new OtpGateError("network");
       continue;
+    } finally {
+      timeout.clear();
     }
 
     let data: GateResponse = {};
