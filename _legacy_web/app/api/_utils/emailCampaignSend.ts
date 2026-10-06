@@ -9,15 +9,11 @@ import {
   parseWarmupPlan,
   serializeWarmupPlan,
   SUCCESS_OR_ACCEPTED_STATUSES,
-  TERMINAL_SEND_STATUSES,
   waveSizeAt,
   type WarmupPlan,
 } from "./emailCampaignWarmup";
 import { resolveCampaignEmailCopy, type EmailCopySource } from "./emailCopy";
-import {
-  newEmailTrackId,
-  prepareTrackedMarketingEmailHtml,
-} from "./emailFirstPartyTracking";
+import { prepareTrackedMarketingEmailHtml } from "./emailFirstPartyTracking";
 import {
   fetchAllPostgrestRows,
   parseEmailSegmentQuery,
@@ -178,8 +174,6 @@ function sortByActivity(
   });
 }
 
-const SKIP_AGAIN = new Set<string>(TERMINAL_SEND_STATUSES);
-
 export async function pickWaveRecipients(
   db: SupabaseClient,
   campaign: CampaignRow,
@@ -233,10 +227,9 @@ export async function pickWaveRecipients(
   const statuses = await loadSendStatuses(db, campaign.id);
   const remaining = ranked.filter((row) => {
     const st = statuses.get(row.contact.id);
-    if (!st) return true;
-    if (st === "failed") return true;
-    if (st === "queued") return false;
-    return !SKIP_AGAIN.has(st);
+    // Any existing row (incl. failed) is done for wave picking: enqueueWave ignores
+    // duplicates, so counting it as remaining re-resolves the segment every tick forever.
+    return !st;
   });
 
   return {
@@ -361,7 +354,8 @@ async function sendOneBatch(
     const unsubscribeUrl = buildSignedUnsubscribeUrl(row.unsubscribe_token);
     const subject = applyEmailPlaceholders(exact.subject, { name, unsubscribeUrl });
     const bodyHtml = applyEmailPlaceholders(exact.htmlBody, { name, unsubscribeUrl });
-    const trackId = newEmailTrackId();
+    // Stable across stale-batch retries so Resend Idempotency-Key sees the same body.
+    const trackId = row.send_id;
     const html = await prepareTrackedMarketingEmailHtml({
       bodyHtml,
       unsubscribeUrl,
@@ -387,6 +381,25 @@ async function sendOneBatch(
       // Leave rows in 'sending'; claim_email_campaign_batch retries them with the same key.
       if (results.length) await finalizeBatch(db, campaign.id, results);
       return { claimed: rows.length, sent: 0, failed: 0, rateLimited: false, unknown: true };
+    }
+    if (
+      !batch.ok &&
+      /invalid_idempotent_request|idempotency key has been used/i.test(batch.detail)
+    ) {
+      // Original POST already reached Resend; a retry with a different pixel URL
+      // cannot fetch the ids. Count as sent so we never double-send this batch.
+      console.warn("[email-campaign-send] idempotent replay", campaign.id, batchKey);
+      for (const { row, locale, trackId } of itemRow) {
+        results.push({
+          send_id: row.send_id,
+          status: "sent",
+          locale,
+          track_id: trackId,
+          error_detail: "resend_idempotent_replay",
+        });
+      }
+      const fin = await finalizeBatch(db, campaign.id, results);
+      return { claimed: rows.length, sent: fin.sent, failed: fin.failed, rateLimited: false, unknown: false };
     }
     if (!batch.ok) {
       for (const { row } of itemRow) {
@@ -429,12 +442,12 @@ async function enqueueWave(
       status: "queued" as const,
       error_detail: null,
     }));
-    const { error } = await db.from("email_campaign_sends").upsert(rows, {
-      onConflict: "campaign_id,contact_id",
-      ignoreDuplicates: true,
-    });
+    const { data, error } = await db
+      .from("email_campaign_sends")
+      .upsert(rows, { onConflict: "campaign_id,contact_id", ignoreDuplicates: true })
+      .select("id");
     if (error) throw error;
-    n += rows.length;
+    n += data?.length ?? 0;
   }
   return n;
 }
@@ -823,6 +836,7 @@ export async function runCampaignSend(
           );
         }
         enqueued = await enqueueWave(db, campaignId, slice);
+        if (enqueued === 0 && queuedNow === 0) exhausted = true;
       }
       await db
         .from("email_campaigns")

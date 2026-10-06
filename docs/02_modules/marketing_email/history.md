@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.32
+version: 1.34
 updated: 2026-10-06
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -12,8 +12,21 @@ code_refs:
     supabase/migrations/20260924201000_email_campaign_access_grants.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
     supabase/migrations/20261006020000_email_campaign_batch_send.sql,
+    supabase/migrations/20261006101500_claim_batch_pgcrypto.sql,
+    supabase/migrations/20261006102000_finalize_batch_safeupdate.sql,
   ]
 ---
+
+## 2026-10-06 — Пустая очередь больше не крутит пересчёт сегмента
+
+- **Что было.** Очередь кампании «От соматики к собственной религии» опустела в 11:55 UTC, но статус остался `sending`. `pickWaveRecipients` считал 5 `failed` «оставшимися», `enqueueWave` вставлял их с `ignoreDuplicates` (то есть ничего), а код считал вставленными все строки. Кампания не закрывалась. Каждый 5-минутный тик повторял полный проход: `email_segment_resolve` (~1.5–4 s, ~17k контактов в jsonb), ~15 страниц `email_campaign_sends`, ~25 чанков `users`, upsert. С 11:55 до 14:46 было 35 тиков (35 вызовов RPC сегмента в `pg_stat_statements`). Это выполнялось на Nano, где ~500 MB уже лежало в swap, а committed memory (~1.6 GB) превышала commit limit. Отсюда пики IOwait до 85 %. В 14:46 инстанс замер целиком (`infra/history.md`).
+- **Фикс.** Любая существующая строка (вкл. `failed`) для набора волны — «готово». `enqueueWave` считает реально вставленные строки (`.select("id")`). Если вставлено 0 и очередь пуста — `exhausted`, кампания закрывается. Ручной повтор `failed` — как раньше, из карточки пользователя. Задеплоено (dpl `harmonizer-rdpinbciv`).
+
+## 2026-10-06 — Досылка: pgcrypto, safeupdate, стабильный pixel id
+
+- Первый тик досылки упал: `claim_email_campaign_batch` вызывал `gen_random_bytes` при `search_path=public` (`20261006101500`).
+- Следующий тик взял 2×100 строк, Resend принял пачки, а `finalize` умер на `DELETE FROM _batch_results` — расширение **safeupdate** требует WHERE (`20261006102000`). Повтор с тем же Idempotency-Key получил HTTP 409, потому что в HTML каждый раз новый `trackId`. Письма у провайдера уже были; строки сначала стали `failed`, затем зачтены как `sent`.
+- Клиент: `track_id = send_id`; 409 `invalid_idempotent_request` считается sent, не failed.
 
 ## 2026-10-06 — Рассылка пачками по 100, тормоз по здоровью базы, `email_events` без sent/delivered
 

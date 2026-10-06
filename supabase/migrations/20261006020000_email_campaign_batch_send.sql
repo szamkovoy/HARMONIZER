@@ -180,7 +180,7 @@ begin
     error_detail text,
     track_id uuid
   ) on commit drop;
-  delete from _batch_results;
+  delete from _batch_results where true;
 
   insert into _batch_results
   select
