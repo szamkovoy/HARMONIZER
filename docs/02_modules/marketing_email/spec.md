@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.42
+version: 1.43
 updated: 2026-10-06
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
@@ -60,6 +60,8 @@ code_refs:
     supabase/migrations/20260915184713_email_campaign_waves.sql,
     supabase/migrations/20260924201000_email_campaign_access_grants.sql,
     supabase/migrations/20261006020000_email_campaign_batch_send.sql,
+    supabase/migrations/20261006101500_claim_batch_pgcrypto.sql,
+    supabase/migrations/20261006102000_finalize_batch_safeupdate.sql,
   ]
 ---
 
@@ -132,7 +134,7 @@ Tables as in B2 + indexes on `email_events(created_at)`, `(event_type, created_a
 
 **`email_events` — только значимые события (с 2026-10-06).** `email.sent` и `email.delivered` строк не создают: статус письма живёт в `email_campaign_sends.status` (дедуп по рангу `queued<sent<delivered<opened<clicked<bounced/complained/failed`). Для bounce / complaint / failed / delayed / opened / clicked хранится компактный `payload` `{type, created_at, data:{to:[1 адрес], bounce{type,subType,message}, failed{reason}, suppressed, click{link}, complaint}}` вместо сырого вебхука (~830 Б → ~150 Б). Исторические sent/delivered удалены миграцией (75 600 строк, 114 МБ → 4 МБ; база 227 → 120 МБ). Отчёт deliverability берёт sent/delivered из `email_campaign_sends` (+ `email_automation_sends`, у которых известно только «sent») по `created_at`, остальные ряды — из `email_events`.
 
-`email_campaign_sends` (`20261006020000`): status CHECK + `sending`; колонки `batch_key uuid`, `claimed_at`; индекс `(campaign_id, status)` вместо `(campaign_id)`. `email_campaigns`: `send_slow_strikes int`, `send_halt_reason text`; autovacuum агрессивнее (кампании: порог 50 строк, fillfactor 70; контакты 2 %/200; sends 2 %/500). RPC (service_role): `claim_email_campaign_batch(p_campaign_id, p_limit, p_stale_minutes)` → строки + email/locale/token/статус контакта/display_name; `finalize_email_campaign_batch(p_campaign_id, p_results jsonb)` → `(sent, failed, skipped)`; `apply_email_campaign_delivery(p_resend_id, p_event_type, p_send_status, p_counter, p_record_event, p_detail, p_suppress_status, p_touch)` → jsonb `{send_id, contact_id, campaign_id, duplicate}` или `null`, если id не письмо кампании (вебхук тогда идёт по пути автоматизаций).
+`email_campaign_sends` (`20261006020000`): status CHECK + `sending`; колонки `batch_key uuid`, `claimed_at`; индекс `(campaign_id, status)` вместо `(campaign_id)`. `email_campaigns`: `send_slow_strikes int`, `send_halt_reason text`; autovacuum агрессивнее (кампании: порог 50 строк, fillfactor 70; контакты 2 %/200; sends 2 %/500). RPC (service_role): `claim_email_campaign_batch(p_campaign_id, p_limit, p_stale_minutes)` → строки + email/locale/token/статус контакта/display_name; `finalize_email_campaign_batch(p_campaign_id, p_results jsonb)` → `(sent, failed, skipped)`; `apply_email_campaign_delivery(p_resend_id, p_event_type, p_send_status, p_counter, p_record_event, p_detail, p_suppress_status, p_touch)` → jsonb `{send_id, contact_id, campaign_id, duplicate}` или `null`, если id не письмо кампании (вебхук тогда идёт по пути автоматизаций). Тела `claim`/`finalize` переопределены: `20261006101500` (`search_path = public, extensions` для `gen_random_bytes`), `20261006102000` (`DELETE FROM _batch_results WHERE true` под safeupdate); исходный `20261006020000` тоже правит finalize на `WHERE true`.
 
 `email_campaigns` (`20260915184713`): status CHECK включает `paused`; колонки `warmup_plan`, `warmup_wave_index`, `next_wave_at`, `next_wave_size`, `audience_cap`, `send_halted_at`, `send_lease_until`; индексы due (`sending`/`paused`) и `email_campaign_sends` queued; RPC `try_lock_email_campaign_send` / `unlock_email_campaign_send` (service_role); cron job `run_email_campaigns_every_5m` → `invoke_run_email_campaigns`.
 

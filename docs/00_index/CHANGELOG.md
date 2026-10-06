@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.69
+version: 3.70
 updated: 2026-10-06
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-06 (628): Doc-sync push: code_refs + §3 для follow-up RPC-миграций `20261006101500` / `20261006102000` (pgcrypto claim, safeupdate finalize). Docs `marketing_email`, MAP.
 - 2026-10-06 (627): Затор Nano №3 (14:46–15:20 UTC): кампания с пустой очередью висела в `sending` и каждые 5 мин пересчитывала сегмент (5 `failed` считались «оставшимися», upsert их игнорировал); на Nano в swap это довело инстанс до остановки. Фикс в `emailCampaignSend.ts` (задеплоено): существующие строки не попадают в набор, 0 вставленных при пустой очереди = кампания закрывается. Docs `marketing_email`, `infra`, open_questions.
 - 2026-10-06 (626): Campaign batch RPCs: pgcrypto on claim, safeupdate-safe finalize, stable send_id pixel, Resend 409 replay counted as sent. Docs `marketing_email`.
 - 2026-10-06 (625): OTP gate client no longer calls `AbortSignal.timeout` (missing on RN 0.81) — that threw and showed «Нет соединения с сервером» on a fresh Android build. Docs `onboarding`.
