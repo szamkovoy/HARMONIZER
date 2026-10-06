@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/dependencies
 title: Infra Dependencies
-version: 1.8
-updated: 2026-09-14
+version: 1.9
+updated: 2026-10-06
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
@@ -44,7 +44,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 ## 3. Контрактные точки риска
 
 - **Сигнатура и поведение `reportRouteError`** — все вызовы из API-роутов завязаны на shape `RouteErrorContext` (`endpoint`, `stage`, `userId`, `payload`); изменение тегов Sentry или полей `user_event_log` ломает аналитику и алерты. `errorResponse` для `isTimeoutError` отдаёт **504**, не 500; клиентские retry (`withTransientNetworkRetry`) **не** ретраят 504 (только 502/503).
-- **`SUPABASE_FETCH_TIMEOUT_MS` (20s)** — общий abort на PostgREST fetch в `createServiceSupabase` / `createAnonSupabase`. Запросы длиннее 20s (админские батчи) должны идти чанками, а не одним select. Gateway `502/503/504` на `GET`/`HEAD` повторяется до двух раз (+300/+800 ms) — worst case одного чтения ≈ 3×timeout; POST RPC/записи не ретраятся, идемпотентность на них не предполагается (read-only RPC → `{ get: true }` + `STABLE`).
+- **`SUPABASE_FETCH_TIMEOUT_MS` (20s)** — общий abort на PostgREST fetch в `createServiceSupabase` / `createAnonSupabase`. `createServiceSupabase({ fetchTimeoutMs })` переопределяет бюджет (otp-gate / unsubscribe — 6 s). Запросы длиннее 20s (админские батчи) должны идти чанками, а не одним select. Gateway `502/503/504` на `GET`/`HEAD` повторяется до двух раз (+300/+800 ms) — worst case одного чтения ≈ 3×timeout; POST RPC/записи в обёртке не ретраятся (read-only RPC → `{ get: true }` + `STABLE`); идемпотентный permit OTP ретраит вызывающий роут.
 - **Grants на `public.*` functions** — новая server-only SQL-функция без `revoke … from public, anon, authenticated` становится доступной через `/rest/v1/rpc/*` с publishable key (Supabase default privileges). Клиентские RPC перечислены в `spec.md`; всё остальное — `postgres, service_role`.
 - **`outputFileTracingRoot`** — должен указывать на `_legacy_web`; смещение ломает Vercel file tracing (правило в `.cursor/rules/vercel-deploy.mdc`).
 - **`.vercelignore` список `/modules/*`** — сейчас явно разрешён импорт из `modules/practices/**`; добавление API-импорта из другого поддерева `modules/` без правки ignore даёт «модуль не найден» на сервере.

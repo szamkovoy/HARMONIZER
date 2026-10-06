@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.40
+version: 1.41
 updated: 2026-10-06
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
@@ -59,6 +59,7 @@ code_refs:
     docs/04_workspace/email_providers.md,
     supabase/migrations/20260915184713_email_campaign_waves.sql,
     supabase/migrations/20260924201000_email_campaign_access_grants.sql,
+    supabase/migrations/20261006020000_email_campaign_batch_send.sql,
   ]
 ---
 
