@@ -86,14 +86,21 @@ async function getAccessToken(): Promise<string | null> {
     },
     sa.private_key,
   );
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion,
+      }),
+      signal: AbortSignal.timeout(2_500),
+    });
+  } catch (e) {
+    console.warn("appCheck: token exchange failed", e);
+    return null;
+  }
   if (!res.ok) {
     console.error("appCheck: token exchange failed", await res.text());
     return null;
@@ -128,15 +135,22 @@ export async function verifyFirebaseAppCheckToken(
   const pid = projectId();
   // Google currently serves verifyAppCheckToken on v1beta (v1 returns HTML 404).
   const url = `https://firebaseappcheck.googleapis.com/v1beta/projects/${encodeURIComponent(pid)}:verifyAppCheckToken`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${access}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ appCheckToken: token }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${access}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ appCheckToken: token }),
+      signal: AbortSignal.timeout(2_500),
+    });
+  } catch (e) {
+    console.warn("appCheck: verify failed", e);
+    return { ok: false, reason: "timeout" };
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     console.warn("appCheck: verify failed", res.status, detail.slice(0, 300));

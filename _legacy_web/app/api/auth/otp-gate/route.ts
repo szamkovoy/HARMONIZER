@@ -7,10 +7,16 @@ import {
   verifyFirebaseAppCheckToken,
   verifyOtpDebugAttestation,
 } from "../../_utils/appCheckVerify";
+import { isRetryableOtpPermitError } from "../../_utils/otpPermitRetry";
 import { createServiceSupabase, json } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
-export const maxDuration = 15;
+/** Two 6s permit attempts + App Check budget must finish before the platform kills the isolate. */
+export const maxDuration = 25;
+
+const PERMIT_ATTEMPTS = 2;
+const PERMIT_TIMEOUT_MS = 6_000;
+const PERMIT_RETRY_DELAY_MS = 400;
 
 type Body = {
   email?: string;
@@ -25,6 +31,10 @@ type LimitRow = {
   retry_after_seconds?: number;
   permit_id?: string;
 };
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function errorPayload(code: string, retryAfterSeconds?: number, status = 429) {
   return json(
@@ -69,15 +79,23 @@ export async function POST(req: Request) {
           return errorPayload("app_check_unavailable", undefined, 503);
         }
       } else {
-        const verified = await verifyFirebaseAppCheckToken(body.appCheckToken);
+        // Enforce is off by default. A hung Google call must not eat the
+        // Vercel budget and turn into a bare 504 before the permit exists.
+        let verified: { ok: true; appId: string } | { ok: false; reason: string };
+        try {
+          verified = await verifyFirebaseAppCheckToken(body.appCheckToken);
+        } catch (e) {
+          console.warn("otp-gate: app check verify threw", e);
+          verified = { ok: false, reason: "timeout" };
+        }
         if (!verified.ok) {
           if (requireAppCheck) {
+            const unavailable =
+              verified.reason === "server_not_configured" || verified.reason === "timeout";
             return errorPayload(
-              verified.reason === "server_not_configured"
-                ? "app_check_unavailable"
-                : "app_check_failed",
+              unavailable ? "app_check_unavailable" : "app_check_failed",
               undefined,
-              verified.reason === "server_not_configured" ? 503 : 401,
+              unavailable ? 503 : 401,
             );
           }
         } else {
@@ -90,15 +108,24 @@ export async function POST(req: Request) {
       return errorPayload("app_check_missing", undefined, 401);
     }
 
-    const db = createServiceSupabase();
-    const { data, error } = await db.rpc("otp_issue_send_permit", {
-      p_email: email,
-      p_app_id: appId,
-      p_ttl_seconds: 180,
-    });
+    const db = createServiceSupabase({ fetchTimeoutMs: PERMIT_TIMEOUT_MS });
+    let data: unknown = null;
+    let error: { message?: string; code?: string } | null = null;
+    for (let attempt = 0; attempt < PERMIT_ATTEMPTS; attempt++) {
+      if (attempt > 0) await sleep(PERMIT_RETRY_DELAY_MS);
+      const result = await db.rpc("otp_issue_send_permit", {
+        p_email: email,
+        p_app_id: appId,
+        p_ttl_seconds: 180,
+      });
+      data = result.data;
+      error = result.error;
+      if (!error) break;
+      console.error("otp-gate: issue permit", { attempt, email, message: error.message });
+      if (!isRetryableOtpPermitError(error) || attempt + 1 >= PERMIT_ATTEMPTS) break;
+    }
     if (error) {
-      console.error("otp-gate: issue permit", error.message);
-      return json({ ok: false, code: "server_error" }, { status: 500 });
+      return json({ ok: false, code: "server_error" }, { status: 503 });
     }
 
     const row = (data ?? {}) as LimitRow;

@@ -1,14 +1,16 @@
 ---
 id: 02_modules/onboarding/history
 title: Onboarding Wizard — history
-version: 1.13
-updated: 2026-09-12
+version: 1.14
+updated: 2026-10-05
 depends_on: [02_modules/onboarding/spec, 02_modules/onboarding/dependencies]
 ---
 
 # Onboarding Wizard — History
 
 ## Decision Log
+
+- **2026-10-05 (OTP gate 504 и пропавшее письмо):** Пять `POST /api/auth/otp-gate` 16:14–16:33 UTC умерли ровно на `maxDuration` 15 с: PostgREST на Nano не отвечал (schema cache / statement timeout), fetch-таймаут шлюза был 20 с, поэтому Vercel убивал изолят голым 504 до `otp_issue_send_permit` — в журнале попытки нет. App Check и `set_signin_name_hint` больше не могут отменить отправку: проверка Google ≤2.5 с и при выключенном enforce не блокирует; ошибка hint только в лог. Permit: 6 с и один retry. Клиент шлюза тоже повторяет один раз.
 
 - **2026-09-12 (`onboarded_at` first-write):** `finishOnboarding` пишет `onboarded_at` только если поле ещё пустое (ремонтный проход мастера не сдвигает дату регистрации и не перезапускает welcome-цепочку).
 

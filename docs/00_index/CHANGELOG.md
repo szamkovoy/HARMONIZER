@@ -1,14 +1,17 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.61
-updated: 2026-10-04
+version: 3.64
+updated: 2026-10-06
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-10-06 (621): Campaigns send in batches of 100 via Resend batch API with a DB-latency brake (skip tick, auto-pause after 3 slow ticks); webhooks apply via one RPC; sent/delivered events no longer stored (email_events 114→4 MB). Docs `marketing_email` + `infra`.
+- 2026-10-05 (620): A database stall on unsubscribe no longer renders as an invalid link: one retry, then a try-again page in 8 locales. Docs `marketing_email`.
+- 2026-10-05 (619): OTP gate no longer dies as a bare Vercel 504 when PostgREST stalls: 6s permit timeout plus one retry, App Check capped at 2.5s, name hint cannot cancel the send. Docs `onboarding` + `infra`.
 - 2026-10-04 (618): A new campaign sends the whole audience in one queue instead of the 500/1000/3000 daily ladder. Docs `marketing_email`.
 - 2026-10-04 (617): Open/click UX and infra env wording match pixel-on (`DISABLE_EMAIL_OPEN_TRACKING=false`). Docs `marketing_email`.
 - 2026-10-04 (616): Open pixel is back on new letters (`DISABLE_EMAIL_OPEN_TRACKING=false`). Test and live recipients are normalized before Resend so a lookalike letter does not 422. Docs `marketing_email`.

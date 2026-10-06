@@ -1,9 +1,13 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.20
-updated: 2026-09-25
+version: 1.21
+updated: 2026-09-30
 ---
+
+## 2026-09-30 — Яндекс.Метрика на странице кабинета
+
+- В `web_cabinet/cabinet/index.html` счётчик `39862855` (webvisor, clickmap, trackLinks, accurateTrackBounce): `dns-prefetch`/`preconnect` на `mc.yandex.ru` в `<head>`; сам `tag.js` — сразу после early-boot (когда `POST /session` уже в полёте), async + `requestIdleCallback` (timeout 2.5 с). Не трогает checkout/CORS/оферту. Нужна выкладка `index.html` на ISPManager (`zamkovoi.yoga/cabinet/`).
 
 ## 2026-09-25 — Кабинет ходит на свой домен API
 

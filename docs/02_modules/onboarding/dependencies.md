@@ -1,8 +1,8 @@
 ---
 id: 02_modules/onboarding/dependencies
 title: Onboarding Wizard — dependencies
-version: 1.2
-updated: 2026-08-20
+version: 1.3
+updated: 2026-10-05
 depends_on: [02_modules/onboarding/spec]
 ---
 
@@ -35,7 +35,7 @@ depends_on: [02_modules/onboarding/spec]
 - **Open-Meteo Geocoding** (через Vercel-прокси) — поиск города рождения, координаты, IANA-таймзона, локализованные имена.
 - **Nominatim/OSM** (через `GET /api/geo/reverse`) — ближайший город для `users.city` / `country_code` (профиль/админ); ≤1 req/s, кэш, порог 100 км.
 - **Supabase Auth** — `signInWithOtp` / `verifyOtp` (email-OTP); RPC `set_signin_name_hint`; OTP ledgers/permits (`otp_send_events`, `otp_send_permits`, `otp_verify_failures`, migration `20260730180000`).
-- **Vercel `POST /api/auth/otp-gate`** — App Check verify + `otp_issue_send_permit` before send.
+- **Vercel `POST /api/auth/otp-gate`** — App Check verify (≤2.5 с, при выключенном enforce не блокирует) + `otp_issue_send_permit` (6 с, один retry на gateway 504 / обрыв) before send. Клиент повторяет сам POST один раз на 502/503/504/`server_error`/сеть.
 - **Vercel `POST /api/auth/otp-verify`** — store-review allowlist (`STORE_REVIEW_EMAIL` / `STORE_REVIEW_OTP`) → mint session; иначе клиент → GoTrue `verifyOtp`.
 - **Edge `send-auth-email`** — OTP-письмо; `otp_consume_send_permit` (rate limits + optional permit when `OTP_REQUIRE_APP_CHECK=true`); для `STORE_REVIEW_EMAIL` — skip send.
 - **Firebase App Check** — Play Integrity / App Attest (`@react-native-firebase/app-check`); Expo/Test — debug provider или `EXPO_PUBLIC_OTP_APP_CHECK_DEBUG_SECRET`.

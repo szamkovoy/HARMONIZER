@@ -217,6 +217,138 @@ export async function sendMarketingEmail(
   return sendViaResend(input, fromEmail, fromName);
 }
 
+export const MARKETING_BATCH_MAX = 100;
+
+export type MarketingBatchItem = Omit<MarketingSendInput, "tags"> & { key: string };
+
+export type MarketingBatchResult =
+  /** Provider accepted the request; `results` is aligned with the input order. */
+  | { ok: true; results: ({ ok: true; resendId: string } | { ok: false; detail: string })[] }
+  /** Provider refused the whole request and nothing was sent — rows may be re-queued. */
+  | { ok: false; sent: false; rateLimited: boolean; detail: string }
+  /** Network/timeout — unknown whether the provider sent; rows must stay claimed. */
+  | { ok: false; sent: "unknown"; detail: string };
+
+/**
+ * Up to 100 letters in one provider request (Resend `/emails/batch`).
+ * `idempotencyKey` is reused when a stale batch is retried so the provider
+ * dedupes instead of sending twice. SES has no batch endpoint: letters go one
+ * by one through `sendMarketingEmail`, which is why the result is per item.
+ */
+export async function sendMarketingEmailBatch(
+  items: MarketingBatchItem[],
+  opts: { idempotencyKey: string },
+): Promise<MarketingBatchResult> {
+  if (items.length === 0) return { ok: true, results: [] };
+  if (items.length > MARKETING_BATCH_MAX) {
+    return {
+      ok: false,
+      sent: false,
+      rateLimited: false,
+      detail: `Batch of ${items.length} exceeds ${MARKETING_BATCH_MAX}`,
+    };
+  }
+
+  const profile = getMarketingTransportProfile();
+  if (profile.provider === "amazon") {
+    const results: ({ ok: true; resendId: string } | { ok: false; detail: string })[] = [];
+    for (const item of items) {
+      results.push(await sendMarketingEmail(item));
+    }
+    return { ok: true, results };
+  }
+
+  const apiKey = getMarketingApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      sent: false,
+      rateLimited: false,
+      detail: `${profile.resendApiKeyEnv ?? "RESEND_*_API_KEY"} is not set for EMAIL_MARKETING=${profile.id}`,
+    };
+  }
+
+  const normalized = items.map((item) => normalizeMarketingRecipient(item.to));
+  const payload: Record<string, unknown>[] = [];
+  const payloadIndex: number[] = [];
+  normalized.forEach((n, i) => {
+    if (!n.ok) return;
+    const item = items[i]!;
+    const { fromEmail, fromName } = getMarketingFrom(item.locale);
+    payload.push({
+      from: formatFrom(fromName, fromEmail),
+      to: [n.email],
+      subject: item.subject,
+      html: item.html,
+      text: item.text,
+      headers: {
+        "List-Unsubscribe": `<${item.unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+    payloadIndex.push(i);
+  });
+
+  const results: ({ ok: true; resendId: string } | { ok: false; detail: string })[] =
+    normalized.map((n) => (n.ok ? { ok: false, detail: "not sent" } : n));
+  if (payload.length === 0) return { ok: true, results };
+
+  let res: Response;
+  let bodyText = "";
+  try {
+    res = await fetch("https://api.resend.com/emails/batch", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": opts.idempotencyKey,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(60_000),
+    });
+    bodyText = await res.text().catch(() => "");
+  } catch (err) {
+    return {
+      ok: false,
+      sent: "unknown",
+      detail: err instanceof Error ? err.message : "Resend batch request failed",
+    };
+  }
+
+  if (!res.ok) {
+    // 5xx after the body was read: the provider may or may not have queued it.
+    if (res.status >= 500) {
+      return { ok: false, sent: "unknown", detail: `Resend HTTP ${res.status}: ${bodyText.slice(0, 400)}` };
+    }
+    return {
+      ok: false,
+      sent: false,
+      rateLimited: res.status === 429,
+      detail: `Resend HTTP ${res.status}${bodyText ? `: ${bodyText.slice(0, 400)}` : ""}`,
+    };
+  }
+
+  let ids: (string | undefined)[] = [];
+  try {
+    const parsed = JSON.parse(bodyText) as { data?: { id?: string }[] };
+    ids = (parsed.data ?? []).map((d) => d.id?.trim());
+  } catch {
+    return { ok: false, sent: "unknown", detail: "Resend batch response is not JSON" };
+  }
+  if (ids.length !== payload.length) {
+    return {
+      ok: false,
+      sent: "unknown",
+      detail: `Resend batch returned ${ids.length} ids for ${payload.length} letters`,
+    };
+  }
+  ids.forEach((id, j) => {
+    const i = payloadIndex[j]!;
+    results[i] = id ? { ok: true, resendId: id } : { ok: false, detail: "Resend response missing id" };
+  });
+  return { ok: true, results };
+}
+
 /** Soft rate limit between provider calls. */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

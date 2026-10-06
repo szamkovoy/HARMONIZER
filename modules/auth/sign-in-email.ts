@@ -114,16 +114,19 @@ export async function requestEmailOtpCode(email: string, displayName?: string): 
 
   // Side-channel для OTP-письма: signInWithOtp НЕ обновляет user_metadata
   // для существующего пользователя (только при создании).
+  // Hint is a side channel for the letter. A rejection here used to cancel
+  // signInWithOtp after the permit was already issued, so no mail was sent.
   if (name) {
-    await supabase
-      .rpc("set_signin_name_hint", {
+    try {
+      const { error } = await supabase.rpc("set_signin_name_hint", {
         p_email: normalized,
         p_name: name,
         p_locale: locale,
-      })
-      .then(({ error }) => {
-        if (error) console.warn("set_signin_name_hint failed", error.message);
       });
+      if (error) console.warn("set_signin_name_hint failed", error.message);
+    } catch (e) {
+      console.warn("set_signin_name_hint failed", e);
+    }
   }
 
   const { error } = await supabase.auth.signInWithOtp({

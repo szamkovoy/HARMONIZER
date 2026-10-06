@@ -60,6 +60,8 @@ describe("unsubscribe page copy", () => {
       expect(copy.successTitle.trim()).not.toBe("");
       expect(copy.successBody.trim()).not.toBe("");
       expect(copy.invalidTitle.trim()).not.toBe("");
+      expect(copy.temporaryTitle.trim()).not.toBe("");
+      expect(copy.temporaryBody.trim()).not.toBe("");
     }
   });
 

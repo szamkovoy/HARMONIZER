@@ -7,6 +7,7 @@ import {
   localeFromAcceptLanguage,
 } from "./emailUnsubscribeCopy";
 import { getEmailPublicBaseUrl } from "./marketingMail";
+import { isRetryableGatewayError } from "./otpPermitRetry";
 import { createServiceSupabase } from "./supabase";
 
 /** Opaque token stored on contact; URL HMAC-wraps it when EMAIL_UNSUBSCRIBE_SECRET is set. */
@@ -86,22 +87,47 @@ export function buildUnsubscribeUrl(token: string): string {
 
 export type UnsubscribeApplyResult =
   | { ok: true; already: boolean; locale: string }
-  | { ok: false; locale: string };
+  | { ok: false; temporary: boolean; locale: string };
+
+const LOOKUP_ATTEMPTS = 2;
+const LOOKUP_RETRY_DELAY_MS = 400;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type ContactRow = { id: string; locale: string | null; marketing_status: string | null };
+
+async function findContactByToken(
+  db: SupabaseClient,
+  token: string,
+): Promise<{ contact: ContactRow | null; unavailable: boolean }> {
+  let unavailable = false;
+  for (let attempt = 0; attempt < LOOKUP_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(LOOKUP_RETRY_DELAY_MS);
+    const { data, error } = await db
+      .from("email_contacts")
+      .select("id, locale, marketing_status")
+      .eq("unsubscribe_token", token)
+      .maybeSingle();
+    if (!error) return { contact: (data as ContactRow | null) ?? null, unavailable: false };
+    unavailable = true;
+    console.error("unsubscribe: contact lookup", { attempt, message: error.message });
+    if (!isRetryableGatewayError(error)) break;
+  }
+  return { contact: null, unavailable };
+}
 
 export async function applyMarketingUnsubscribe(
   db: SupabaseClient,
   rawParam: string | null,
 ): Promise<UnsubscribeApplyResult> {
   const token = parseUnsubscribeParam(rawParam);
-  if (!token) return { ok: false, locale: "ru" };
+  if (!token) return { ok: false, temporary: false, locale: "ru" };
 
-  const { data: contact } = await db
-    .from("email_contacts")
-    .select("id, locale, marketing_status")
-    .eq("unsubscribe_token", token)
-    .maybeSingle();
-
-  if (!contact) return { ok: false, locale: "ru" };
+  const { contact, unavailable } = await findContactByToken(db, token);
+  if (unavailable) return { ok: false, temporary: true, locale: "ru" };
+  if (!contact) return { ok: false, temporary: false, locale: "ru" };
 
   const locale = (contact.locale as string) || "ru";
   if (contact.marketing_status === "unsubscribed") {
@@ -117,7 +143,10 @@ export async function applyMarketingUnsubscribe(
     })
     .eq("id", contact.id)
     .neq("marketing_status", "unsubscribed");
-  if (updateError) throw updateError;
+  if (updateError) {
+    console.error("unsubscribe: status update", updateError.message);
+    return { ok: false, temporary: true, locale };
+  }
 
   try {
     await db
@@ -176,7 +205,7 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function htmlPage(locale: string, title: string, body: string): Response {
+function htmlPage(locale: string, title: string, body: string, status = 200): Response {
   const copy = getUnsubscribePageCopy(locale);
   const doc = `<!DOCTYPE html>
 <html lang="${copy.lang}">
@@ -197,7 +226,7 @@ function htmlPage(locale: string, title: string, body: string): Response {
 <body><div class="card"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p></div></body>
 </html>`;
   return new Response(doc, {
-    status: 200,
+    status,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "private, no-store",
@@ -213,6 +242,9 @@ function pageForResult(
   const fallback = localeFromAcceptLanguage(req.headers.get("accept-language"));
   if (!result.ok) {
     const copy = getUnsubscribePageCopy(fallback);
+    if (result.temporary) {
+      return htmlPage(copy.lang, copy.temporaryTitle, copy.temporaryBody, 503);
+    }
     return htmlPage(copy.lang, copy.invalidTitle, copy.invalidBody);
   }
   const copy = getUnsubscribePageCopy(result.locale || fallback);
@@ -221,7 +253,7 @@ function pageForResult(
 
 /** Human click: opt out immediately and show a confirmation page. */
 export async function handleMarketingUnsubscribeGet(req: Request): Promise<Response> {
-  const db = createServiceSupabase();
+  const db = createServiceSupabase({ fetchTimeoutMs: 6_000 });
   const url = new URL(req.url);
   const raw = url.searchParams.get("t") ?? url.searchParams.get("token");
   const result = await applyMarketingUnsubscribe(db, raw);
@@ -233,12 +265,13 @@ export async function handleMarketingUnsubscribeGet(req: Request): Promise<Respo
  * to the same URL (token stays in the query). No browser confirm.
  */
 export async function handleMarketingUnsubscribePost(req: Request): Promise<Response> {
-  const db = createServiceSupabase();
+  const db = createServiceSupabase({ fetchTimeoutMs: 6_000 });
   const url = new URL(req.url);
   const raw = url.searchParams.get("t") ?? url.searchParams.get("token");
   const result = await applyMarketingUnsubscribe(db, raw);
-  return new Response(result.ok ? "OK" : "invalid", {
-    status: 200,
+  const status = result.ok ? 200 : result.temporary ? 503 : 200;
+  return new Response(result.ok ? "OK" : result.temporary ? "unavailable" : "invalid", {
+    status,
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "private, no-store",

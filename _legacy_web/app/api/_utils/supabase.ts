@@ -63,7 +63,7 @@ export function shouldRetrySupabaseGatewayResponse(
 }
 
 /** sb_* keys are not JWTs — never send them as Authorization: Bearer. */
-function fetchWithoutSbBearer(apiKey: string): typeof fetch {
+function fetchWithoutSbBearer(apiKey: string, fetchTimeoutMs = SUPABASE_FETCH_TIMEOUT_MS): typeof fetch {
   return async (input, init) => {
     const headers = new Headers(init?.headers);
     if (isModernSupabaseApiKey(apiKey)) {
@@ -75,7 +75,7 @@ function fetchWithoutSbBearer(apiKey: string): typeof fetch {
     }
     const method = requestMethod(input, init);
     const attemptFetch = () => {
-      const timeout = AbortSignal.timeout(SUPABASE_FETCH_TIMEOUT_MS);
+      const timeout = AbortSignal.timeout(fetchTimeoutMs);
       const signal = init?.signal ? mergeAbortSignals([init.signal, timeout]) : timeout;
       return fetch(input, { ...init, headers, signal });
     };
@@ -90,14 +90,14 @@ function fetchWithoutSbBearer(apiKey: string): typeof fetch {
   };
 }
 
-function clientOptions(apiKey: string) {
+function clientOptions(apiKey: string, fetchTimeoutMs = SUPABASE_FETCH_TIMEOUT_MS) {
   return {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
     },
     global: {
-      fetch: fetchWithoutSbBearer(apiKey),
+      fetch: fetchWithoutSbBearer(apiKey, fetchTimeoutMs),
     },
   } as const;
 }
@@ -115,12 +115,12 @@ export function createAnonSupabase(): SupabaseClient {
   );
 }
 
-export function createServiceSupabase(): SupabaseClient {
+export function createServiceSupabase(options?: { fetchTimeoutMs?: number }): SupabaseClient {
   const key = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   return createClient(
     requiredEnv("NEXT_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_URL", "SUPABASE_URL"),
     key,
-    clientOptions(key),
+    clientOptions(key, options?.fetchTimeoutMs),
   );
 }
 

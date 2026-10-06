@@ -14,6 +14,66 @@ export type MarketingDeliveryMapped = {
   removeFromResendSuppressions: boolean;
 };
 
+/**
+ * sent/delivered are the bulk of webhook traffic (two per letter) and carry
+ * nothing the send row status does not already hold — they get no event row.
+ */
+const EVENT_TYPES_WITHOUT_ROW = new Set(["email.sent", "email.delivered"]);
+
+function pick(obj: unknown, keys: string[]): Record<string, unknown> | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const out: Record<string, unknown> = {};
+  for (const k of keys) {
+    const v = (obj as Record<string, unknown>)[k];
+    if (v !== undefined && v !== null) out[k] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Raw webhook payloads averaged ~830 bytes and included headers, subject and
+ * the full recipient list. Keep only what the admin reads, in the same
+ * `{type, created_at, data:{…}}` shape the deliverability report parses.
+ */
+export function compactDeliveryPayload(rawPayload: unknown): Record<string, unknown> {
+  if (!rawPayload || typeof rawPayload !== "object") return {};
+  const root = rawPayload as Record<string, unknown>;
+  const src = (root.data && typeof root.data === "object" ? root.data : root) as Record<
+    string,
+    unknown
+  >;
+  const out: Record<string, unknown> = {};
+  const type = root.type ?? root.eventType ?? root.notificationType;
+  if (typeof type === "string") out.type = type;
+  if (typeof root.created_at === "string") out.created_at = root.created_at;
+
+  const data: Record<string, unknown> = {};
+  const to = Array.isArray(src.to) ? src.to.filter((x) => typeof x === "string").slice(0, 1) : null;
+  if (to?.length) data.to = to;
+  else if (typeof src.email === "string") data.to = [src.email];
+  const sesMail = root.mail as { destination?: unknown } | undefined;
+  if (!data.to && Array.isArray(sesMail?.destination) && typeof sesMail.destination[0] === "string") {
+    data.to = [sesMail.destination[0]];
+  }
+  const bounce =
+    pick(src.bounce, ["type", "subType", "message"]) ??
+    (() => {
+      const b = pick(root.bounce, ["bounceType", "bounceSubType"]);
+      return b ? { type: b.bounceType, subType: b.bounceSubType } : undefined;
+    })();
+  if (bounce) data.bounce = bounce;
+  const failed = pick(src.failed, ["reason"]);
+  if (failed) data.failed = failed;
+  const suppressed = pick(src.suppressed, ["reason", "message"]);
+  if (suppressed) data.suppressed = suppressed;
+  const click = pick(src.click, ["link"]);
+  if (click) data.click = click;
+  const complaint = pick(root.complaint, ["complaintFeedbackType"]);
+  if (complaint) data.complaint = complaint;
+  if (Object.keys(data).length) out.data = data;
+  return out;
+}
+
 export async function applyMarketingDeliveryEvent(
   db: SupabaseClient,
   params: {
@@ -38,6 +98,42 @@ export async function applyMarketingDeliveryEvent(
     touchOpenClickTimestamps,
   } = params;
 
+  const recordEvent = !EVENT_TYPES_WITHOUT_ROW.has(mapped.eventType);
+  const detail = compactDeliveryPayload(rawPayload);
+  const touch =
+    touchOpenClickTimestamps &&
+    (mapped.eventType === "email.opened" || mapped.eventType === "opened")
+      ? "open"
+      : touchOpenClickTimestamps &&
+          (mapped.eventType === "email.clicked" || mapped.eventType === "clicked")
+        ? "click"
+        : null;
+
+  // Campaign letters: one RPC does lookup, event, status, counter, suppress, touch.
+  if (providerMessageId) {
+    const { data, error } = await db.rpc("apply_email_campaign_delivery", {
+      p_resend_id: providerMessageId,
+      p_event_type: mapped.eventType,
+      p_send_status: mapped.sendStatus,
+      p_counter: mapped.campaignCounter,
+      p_record_event: recordEvent,
+      p_detail: detail,
+      p_suppress_status: mapped.suppressStatus,
+      p_touch: touch,
+    });
+    if (error) throw error;
+    if (data && typeof data === "object") {
+      const dup = Boolean((data as { duplicate?: boolean }).duplicate);
+      return {
+        ok: true,
+        duplicate: dup || undefined,
+        hard_bounce: mapped.isHardBounce,
+        suppressed_local: !dup && Boolean(mapped.suppressStatus && mapped.suppressStatus !== "active"),
+      };
+    }
+  }
+
+  // Automations and letters without a send row: the old path, minus sent/delivered rows.
   let send: {
     id: string;
     campaign_id: string | null;
@@ -48,29 +144,20 @@ export async function applyMarketingDeliveryEvent(
   } | null = null;
 
   if (providerMessageId) {
-    const { data: campaignSend } = await db
-      .from("email_campaign_sends")
-      .select("id, campaign_id, contact_id, status")
+    const { data: autoSend } = await db
+      .from("email_automation_sends")
+      .select("id, contact_id, status, step_id")
       .eq("resend_id", providerMessageId)
       .maybeSingle();
-    if (campaignSend) {
-      send = { ...campaignSend, step_id: null, kind: "campaign" };
-    } else {
-      const { data: autoSend } = await db
-        .from("email_automation_sends")
-        .select("id, contact_id, status, step_id")
-        .eq("resend_id", providerMessageId)
-        .maybeSingle();
-      if (autoSend) {
-        send = {
-          id: autoSend.id,
-          campaign_id: null,
-          step_id: autoSend.step_id ?? null,
-          contact_id: autoSend.contact_id,
-          status: autoSend.status,
-          kind: "automation",
-        };
-      }
+    if (autoSend) {
+      send = {
+        id: autoSend.id,
+        campaign_id: null,
+        step_id: autoSend.step_id ?? null,
+        contact_id: autoSend.contact_id,
+        status: autoSend.status,
+        kind: "automation",
+      };
     }
   }
 
@@ -84,47 +171,30 @@ export async function applyMarketingDeliveryEvent(
     contactId = contact?.id ?? null;
   }
 
-  const { error: insertError } = await db.from("email_events").insert({
-    send_id: send?.kind === "campaign" ? send.id : null,
-    contact_id: contactId,
-    campaign_id: send?.campaign_id ?? null,
-    resend_id: providerMessageId || null,
-    event_type: mapped.eventType,
-    payload: rawPayload,
-  });
+  if (recordEvent) {
+    const { error: insertError } = await db.from("email_events").insert({
+      send_id: null,
+      contact_id: contactId,
+      campaign_id: null,
+      resend_id: providerMessageId || null,
+      event_type: mapped.eventType,
+      payload: detail,
+    });
 
-  if (insertError) {
-    if (insertError.code === "23505") {
-      return {
-        ok: true,
-        duplicate: true,
-        hard_bounce: mapped.isHardBounce,
-        suppressed_local: false,
-      };
+    if (insertError) {
+      if (insertError.code === "23505") {
+        return {
+          ok: true,
+          duplicate: true,
+          hard_bounce: mapped.isHardBounce,
+          suppressed_local: false,
+        };
+      }
+      throw insertError;
     }
-    throw insertError;
-  }
-
-  if (send?.kind === "campaign" && mapped.sendStatus) {
-    const rank: Record<string, number> = {
-      queued: 0,
-      sent: 1,
-      delivered: 2,
-      opened: 3,
-      clicked: 4,
-      bounced: 5,
-      complained: 5,
-      failed: 5,
-      skipped: 0,
-    };
-    const current = rank[send.status] ?? 0;
-    const next = rank[mapped.sendStatus] ?? 0;
-    if (next >= current) {
-      await db
-        .from("email_campaign_sends")
-        .update({ status: mapped.sendStatus })
-        .eq("id", send.id);
-    }
+  } else if (!send) {
+    // sent/delivered for an unknown letter: nothing to update.
+    return { ok: true, hard_bounce: false, suppressed_local: false };
   }
 
   if (send?.kind === "automation" && mapped.sendStatus) {
@@ -140,24 +210,6 @@ export async function applyMarketingDeliveryEvent(
       .from("email_automation_sends")
       .update({ status: autoStatus })
       .eq("id", send.id);
-  }
-
-  if (send?.campaign_id && mapped.campaignCounter) {
-    const counter = mapped.campaignCounter;
-    const { data: campaign } = await db
-      .from("email_campaigns")
-      .select(
-        "delivered_count, opened_count, clicked_count, bounced_count, complained_count",
-      )
-      .eq("id", send.campaign_id)
-      .maybeSingle();
-    if (campaign && counter in campaign) {
-      const prev = Number((campaign as Record<string, number>)[counter] ?? 0);
-      await db
-        .from("email_campaigns")
-        .update({ [counter]: prev + 1, updated_at: new Date().toISOString() })
-        .eq("id", send.campaign_id);
-    }
   }
 
   if (send?.kind === "automation" && send.step_id) {

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.30
-updated: 2026-10-04
+version: 1.32
+updated: 2026-10-06
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -11,8 +11,22 @@ code_refs:
     supabase/migrations/20260915184713_email_campaign_waves.sql,
     supabase/migrations/20260924201000_email_campaign_access_grants.sql,
     supabase/migrations/20260727160000_email_deliverability_indexes.sql,
+    supabase/migrations/20261006020000_email_campaign_batch_send.sql,
   ]
 ---
+
+## 2026-10-06 — Рассылка пачками по 100, тормоз по здоровью базы, `email_events` без sent/delivered
+
+- **Почему.** Две рассылки подряд (25.09 и 05.10) через ~4 часа непрерывной поштучной отправки клали весь проект Supabase на Free/Nano: ~17 обращений PostgREST на письмо (включая два вебхука), строка кампании переписывалась трижды на письмо, pg_cron не успевал стартовать джобы, авторизация в приложении отдавала 504. Снижать темп до безопасного поштучного (письмо в 30 с → 5 дней на 14 000) было неприемлемо.
+- **Отправка.** `claim_email_campaign_batch` → Resend `/emails/batch` (≤100, `Idempotency-Key = batch_key`) → `finalize_email_campaign_batch`. Три запроса к базе на пачку. Пауза 120 с между пачками: ~200 писем за 5-минутный тик, 14 000 ≈ 6 ч. Сетевой сбой между Resend и finalize не даёт дубля: строки остаются `sending` и через 15 мин уходят с тем же ключом идемпотентности.
+- **Тормоз.** Перед пачками замер тривиального запроса; медленнее 1,5 с — тик пропущен; три подряд — кампания сама становится на паузу с текстом причины в карточке. Это и есть гарантия: при любом темпе база не будет добита, потому что воркер отступает раньше, чем проект перестаёт отвечать.
+- **Вебхуки.** Один RPC `apply_email_campaign_delivery` вместо 5–8 запросов; `email.sent`/`email.delivered` не пишутся в `email_events` (статус уже в строке отправки); для остальных событий компактный payload вместо сырого JSON.
+- **Хранилище.** Удалены 75 600 строк sent/delivered: `email_events` 114 МБ → 4 МБ, база 227 → 120 МБ. Отчёт deliverability считает sent/delivered по строкам отправок. Индекс `(campaign_id)` заменён на `(campaign_id, status)`; autovacuum для горячих таблиц агрессивнее.
+- **Env (необязательные).** `CAMPAIGN_BATCH_SIZE`, `CAMPAIGN_BATCH_GAP_MS`, `CAMPAIGN_DB_SLOW_MS`.
+
+## 2026-10-05 — Сбой базы больше не выглядит как битая ссылка отписки
+
+- Пока PostgREST не отвечал, чтение `email_contacts` по токену возвращало пусто, и живая ссылка показывала «Ссылка недействительна». Теперь ошибка шлюза повторяется один раз; если база всё ещё молчит — страница «Не получилось отписать» (8 локалей) и HTTP 503.
 
 ## 2026-10-04 — Рассылка уходит всей аудитории без дневных порций
 

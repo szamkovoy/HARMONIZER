@@ -1,8 +1,8 @@
 ---
 id: 02_modules/onboarding/spec
 title: Onboarding Wizard — spec
-version: 1.12
-updated: 2026-09-12
+version: 1.13
+updated: 2026-10-05
 depends_on: [02_modules/onboarding/dependencies, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/astro/spec]
 code_refs:
   [
@@ -53,8 +53,8 @@ code_refs:
 
 - Два подшага: `welcome` (имя + email) → `confirm` (6 ячеек OTP).
 - `requestEmailOtpCode` (`modules/auth/sign-in-email.ts`):
-  1. `POST /api/auth/otp-gate` (App Check token или debug attestation + серверные лимиты) → single-use permit;
-  2. RPC `set_signin_name_hint` + `signInWithOtp`;
+  1. `POST /api/auth/otp-gate` (App Check token или debug attestation + серверные лимиты) → single-use permit. Проверка App Check ограничена 2.5 с и при выключенном enforce не блокирует выдачу. RPC permit — таймаут 6 с и одна повторная попытка на gateway 504 / обрыв (запрос до Postgres не доходит). `maxDuration` 25 с, чтобы изолят вернул JSON, а не голый 504 платформы. Клиент повторяет сам запрос шлюза один раз на 502/503/504/`server_error`/сеть.
+  2. RPC `set_signin_name_hint` (ошибка только в лог, отправку кода не отменяет) + `signInWithOtp`;
   3. edge `send-auth-email` потребляет permit и шлёт письмо; для `STORE_REVIEW_EMAIL` (серверный секрет) письмо **не** отправляется (gate/лимиты остаются).
 - Пока идёт отправка: CTA `busy` + лейбл `auth.sending` («Отправляется…»), без dim. На mount welcome — `prefetchOtpAppCheck` (прогрев Play Integrity); на критическом пути getToken ≤ ~1.2 с, иначе gate без токена (пока enforce выключен).
 - Лимиты отправки (сервер, email): ≥60 с между письмами; ≤10/час; ≤25/сутки. UI cooldown 60 с на welcome и resend (SecureStore; «Изменить email» не обходит).

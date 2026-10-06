@@ -59,6 +59,7 @@ type Campaign = {
   next_wave_size?: number | null;
   audience_cap?: number | null;
   send_halted_at?: string | null;
+  send_halt_reason?: string | null;
   recipient_count: number;
   skipped_locale_count: number;
   sent_count: number;
@@ -801,6 +802,11 @@ export default function AdminEmailCampaignPage() {
             <p className="text-xs text-emerald-800">
               Следующая волна сама стартует {formatAdminDateTime(campaign.next_wave_at)} (16:00
               МСК). До этого можно править текст и нажать «Остановить», чтобы отменить автозапуск.
+            </p>
+          ) : null}
+          {campaign.send_halt_reason && campaign.status === "paused" ? (
+            <p className="text-xs text-amber-800">
+              Отправка остановилась сама: {campaign.send_halt_reason}
             </p>
           ) : null}
           <label className="block text-xs font-medium text-zinc-500">

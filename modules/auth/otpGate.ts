@@ -39,6 +39,19 @@ type GateResponse = {
   retry_after_seconds?: number;
 };
 
+const GATE_ATTEMPTS = 2;
+const GATE_TIMEOUT_MS = 12_000;
+const GATE_RETRY_DELAY_MS = 400;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableGateFailure(status: number, code: string): boolean {
+  if (status === 502 || status === 503 || status === 504) return true;
+  return code === "server_error";
+}
+
 /** Call before signInWithOtp — issues single-use send permit after App Check. */
 export async function requestOtpSendPermit(email: string): Promise<void> {
   const origin = apiOrigin();
@@ -47,30 +60,40 @@ export async function requestOtpSendPermit(email: string): Promise<void> {
   }
 
   const creds = await getOtpAppCheckCredentials();
-  let res: Response;
-  try {
-    res = await fetch(`${origin}/api/auth/otp-gate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        email: email.trim().toLowerCase(),
-        appCheckToken: creds.appCheckToken,
-        debugAttestation: creds.debugAttestation,
-      }),
-    });
-  } catch {
-    throw new OtpGateError("network");
+  const body = JSON.stringify({
+    email: email.trim().toLowerCase(),
+    appCheckToken: creds.appCheckToken,
+    debugAttestation: creds.debugAttestation,
+  });
+
+  let lastError = new OtpGateError("server_error");
+  for (let attempt = 0; attempt < GATE_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(GATE_RETRY_DELAY_MS);
+    let res: Response;
+    try {
+      res = await fetch(`${origin}/api/auth/otp-gate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body,
+        signal: AbortSignal.timeout(GATE_TIMEOUT_MS),
+      });
+    } catch {
+      lastError = new OtpGateError("network");
+      continue;
+    }
+
+    let data: GateResponse = {};
+    try {
+      data = (await res.json()) as GateResponse;
+    } catch {
+      data = {};
+    }
+
+    if (res.ok && data.ok) return;
+
+    const code = (data.code ?? "server_error") as OtpGateErrorCode;
+    lastError = new OtpGateError(code, data.retry_after_seconds);
+    if (!isRetryableGateFailure(res.status, code)) break;
   }
-
-  let data: GateResponse = {};
-  try {
-    data = (await res.json()) as GateResponse;
-  } catch {
-    data = {};
-  }
-
-  if (res.ok && data.ok) return;
-
-  const code = (data.code ?? "server_error") as OtpGateErrorCode;
-  throw new OtpGateError(code, data.retry_after_seconds);
+  throw lastError;
 }

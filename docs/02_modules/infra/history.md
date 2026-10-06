@@ -1,13 +1,17 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.27
-updated: 2026-09-27
+version: 1.29
+updated: 2026-10-06
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-10-06 (затор Nano №2 и ответ на него):** 22:38–22:45 UTC 2026-10-05 — повтор: `/auth/v1/user` 504×115 и 522×13, админка входила 2 минуты, в приложении «Сервис авторизации временно недоступен». Причина та же — рассылка 11 000 писем поштучно ~4 ч подряд. Кампания поставлена на паузу (22:58 UTC), пользователь перезапустил проект, статус `ACTIVE_HEALTHY`. План Free подтверждён через API организации (`plan: free`), compute Nano. `cron.max_running_jobs` на Free поменять нельзя (`permission denied`). Решение — не апгрейд, а снижение нагрузки в самом коде рассылки: пачки по 100 через Resend batch, 3 обращения к базе на пачку, пауза 120 с, тормоз по латентности с автопаузой; вебхуки одним RPC, без хранения sent/delivered; `email_events` 114 → 4 МБ после `VACUUM FULL`. Подробно — `marketing_email/history.md`. Pro ($25, Micro включён) остаётся рекомендацией только ради ежедневных бэкапов и 7-дневных логов, не ради скорости рассылки.
+
+- **2026-10-05 (OTP во время затора Nano):** 15:51–16:54 UTC все pg_cron job падали с `job startup timeout`, PostgREST не мог загрузить schema cache (`57014`). `cron.max_running_jobs=32` при `max_connections=60` (настройка postmaster, без рестарта не меняется) удерживал слоты и растягивал затор примерно на час. Шлюз OTP ждал PostgREST дольше, чем Vercel держит изолят. Фикс шлюза — в `onboarding/history.md` за эту дату. Кап cron — после рестарта проекта, не во время идущей рассылки.
 
 - **2026-09-27 (deployment retention):** `scripts/prune-vercel-deployments.mjs` и GitHub Action `prune-vercel-deployments` оставляют 10 последних деплоев `harmonizer` и не удаляют самый новый production READY. Нужен секрет `VERCEL_TOKEN`.
 

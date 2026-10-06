@@ -97,6 +97,7 @@ type NotifHist = {
 
 const EMAIL_STATUS_RU: Record<string, string> = {
   queued: "в очереди",
+  sending: "отправляется",
   sent: "отправлено",
   delivered: "доставлено",
   opened: "открыто",
@@ -119,6 +120,7 @@ function emailStatusClass(status: string): string {
       return "bg-emerald-50 text-emerald-700";
     case "sent":
     case "queued":
+    case "sending":
       return "bg-zinc-100 text-zinc-600";
     case "skipped":
       return "bg-amber-50 text-amber-800";

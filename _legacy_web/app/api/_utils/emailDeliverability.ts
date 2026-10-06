@@ -123,13 +123,48 @@ export async function buildDeliverabilityReport(
     display_name: string | null;
   }[] = [];
 
-  for (const ev of events ?? []) {
-    const key = dayKey(ev.created_at);
+  // sent/delivered no longer produce event rows (two per letter was most of the
+  // table); the send row status is the source. Automations only know "sent".
+  const bucketFor = (createdAt: string): DayBucket => {
+    const key = dayKey(createdAt);
     let bucket = seriesMap.get(key);
     if (!bucket) {
       bucket = emptyBucket(key);
       seriesMap.set(key, bucket);
     }
+    return bucket;
+  };
+  const DELIVERED_STATUSES = new Set(["delivered", "opened", "clicked"]);
+  const ACCEPTED_STATUSES = new Set(["sent", "delivered", "opened", "clicked", "bounced", "complained"]);
+  const { data: campaignSends } = await db
+    .from("email_campaign_sends")
+    .select("created_at, status")
+    .gte("created_at", since)
+    .limit(20000);
+  for (const row of campaignSends ?? []) {
+    if (!ACCEPTED_STATUSES.has(row.status)) continue;
+    const bucket = bucketFor(row.created_at);
+    totals.sent += 1;
+    bucket.sent += 1;
+    if (DELIVERED_STATUSES.has(row.status)) {
+      totals.delivered += 1;
+      bucket.delivered += 1;
+    }
+  }
+  const { data: automationSends } = await db
+    .from("email_automation_sends")
+    .select("created_at, status")
+    .eq("status", "sent")
+    .gte("created_at", since)
+    .limit(20000);
+  for (const row of automationSends ?? []) {
+    const bucket = bucketFor(row.created_at);
+    totals.sent += 1;
+    bucket.sent += 1;
+  }
+
+  for (const ev of events ?? []) {
+    const bucket = bucketFor(ev.created_at);
     const t = ev.event_type as string;
     const payload = (ev.payload ?? {}) as {
       data?: {
@@ -159,12 +194,8 @@ export async function buildDeliverabilityReport(
 
     switch (t) {
       case "email.sent":
-        totals.sent += 1;
-        bucket.sent += 1;
-        break;
       case "email.delivered":
-        totals.delivered += 1;
-        bucket.delivered += 1;
+        // Legacy rows (before 2026-10-06) — counted from send rows above.
         break;
       case "email.opened":
         totals.opened += 1;

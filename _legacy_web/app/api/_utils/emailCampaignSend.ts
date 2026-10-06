@@ -17,7 +17,6 @@ import { resolveCampaignEmailCopy, type EmailCopySource } from "./emailCopy";
 import {
   newEmailTrackId,
   prepareTrackedMarketingEmailHtml,
-  registerEmailTrackKey,
 } from "./emailFirstPartyTracking";
 import {
   fetchAllPostgrestRows,
@@ -26,11 +25,14 @@ import {
   type CampaignRecipientRow,
 } from "./emailSegment";
 import { applyEmailPlaceholders } from "./emailTemplate";
+import { buildSignedUnsubscribeUrl } from "./emailUnsubscribe";
 import {
-  buildSignedUnsubscribeUrl,
-  generateUnsubscribeToken,
-} from "./emailUnsubscribe";
-import { htmlToPlaintext, sendMarketingEmail, sleep } from "./marketingMail";
+  htmlToPlaintext,
+  MARKETING_BATCH_MAX,
+  sendMarketingEmailBatch,
+  sleep,
+  type MarketingBatchItem,
+} from "./marketingMail";
 import {
   applyCampaignAccessWindow,
   isLongTermMaster,
@@ -39,7 +41,27 @@ import {
 } from "./emailCampaignAccessWindow";
 
 export const CAMPAIGN_SEND_DEADLINE_MS = 250_000;
-export const CAMPAIGN_SEND_GAP_MS = 500;
+
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const raw = Number(process.env[name]);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(raw)));
+}
+
+/** Letters per provider request (Resend batch max is 100). */
+export const CAMPAIGN_BATCH_SIZE = envInt("CAMPAIGN_BATCH_SIZE", 100, 1, MARKETING_BATCH_MAX);
+/**
+ * Pause between batches inside one run. With the 250 s run and the 5-minute
+ * cron that is two batches per tick → ~200 letters / 5 min → 14 000 in ~6 h.
+ * Nano compute stalled after ~4 h at the old continuous 23 letters/min.
+ */
+export const CAMPAIGN_BATCH_GAP_MS = envInt("CAMPAIGN_BATCH_GAP_MS", 120_000, 0, 240_000);
+/** A trivial query slower than this means the database is struggling: skip the tick. */
+export const CAMPAIGN_DB_SLOW_MS = envInt("CAMPAIGN_DB_SLOW_MS", 1_500, 200, 20_000);
+/** Consecutive slow ticks before the campaign pauses itself. */
+export const CAMPAIGN_SLOW_STRIKES_TO_HALT = 3;
+/** A 'sending' batch older than this belongs to a dead worker and is retried with the same key. */
+export const CAMPAIGN_STALE_BATCH_MINUTES = 15;
 
 type CampaignRow = {
   id: string;
@@ -55,6 +77,8 @@ type CampaignRow = {
   next_wave_size: number | null;
   audience_cap: number | null;
   send_halted_at: string | null;
+  send_slow_strikes: number | null;
+  send_halt_reason: string | null;
   sent_count: number;
   error_count: number;
   skipped_locale_count: number;
@@ -85,7 +109,7 @@ async function loadCampaign(
   const { data, error } = await db
     .from("email_campaigns")
     .select(
-      "id, status, subject, html_body, subject_i18n, html_body_i18n, segment_query, warmup_plan, warmup_wave_index, next_wave_at, next_wave_size, audience_cap, send_halted_at, sent_count, error_count, skipped_locale_count, recipient_count, sent_at",
+      "id, status, subject, html_body, subject_i18n, html_body_i18n, segment_query, warmup_plan, warmup_wave_index, next_wave_at, next_wave_size, audience_cap, send_halted_at, send_slow_strikes, send_halt_reason, sent_count, error_count, skipped_locale_count, recipient_count, sent_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -234,120 +258,159 @@ async function isHalted(db: SupabaseClient, campaignId: string): Promise<boolean
   return Boolean(data?.send_halted_at);
 }
 
-function isProviderRateLimited(detail: string): boolean {
-  return /\bHTTP 429\b/i.test(detail) || /rate.?limit/i.test(detail);
+type ClaimedRow = {
+  send_id: string;
+  contact_id: string;
+  send_locale: string;
+  batch_key: string;
+  email: string;
+  contact_locale: string | null;
+  unsubscribe_token: string;
+  marketing_status: string;
+  display_name: string | null;
+};
+
+type BatchResultRow = {
+  send_id: string;
+  status: "sent" | "failed" | "skipped" | "queued";
+  resend_id?: string | null;
+  locale?: string | null;
+  error_detail?: string | null;
+  track_id?: string | null;
+};
+
+/**
+ * Trivial read timed against the same PostgREST path the batch will use.
+ * Slow answer → the project is struggling → this tick sends nothing.
+ */
+async function measureDbLatencyMs(db: SupabaseClient): Promise<number | null> {
+  const started = Date.now();
+  const { error } = await db.from("email_campaigns").select("id").limit(1);
+  if (error) return null;
+  return Date.now() - started;
 }
 
-async function sendOneQueued(
+async function claimBatch(
+  db: SupabaseClient,
+  campaignId: string,
+): Promise<ClaimedRow[]> {
+  const { data, error } = await db.rpc("claim_email_campaign_batch", {
+    p_campaign_id: campaignId,
+    p_limit: CAMPAIGN_BATCH_SIZE,
+    p_stale_minutes: CAMPAIGN_STALE_BATCH_MINUTES,
+  });
+  if (error) throw error;
+  return (data ?? []) as ClaimedRow[];
+}
+
+async function finalizeBatch(
+  db: SupabaseClient,
+  campaignId: string,
+  results: BatchResultRow[],
+): Promise<{ sent: number; failed: number; skipped: number }> {
+  const { data, error } = await db.rpc("finalize_email_campaign_batch", {
+    p_campaign_id: campaignId,
+    p_results: results,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    sent: Number(row?.sent ?? 0),
+    failed: Number(row?.failed ?? 0),
+    skipped: Number(row?.skipped ?? 0),
+  };
+}
+
+/**
+ * One batch: claim ≤100 rows (1 RPC), one provider request, finalize (1 RPC).
+ * `rateLimited` → rows go back to queued; `unknown` → rows stay 'sending' and
+ * are retried with the same idempotency key after CAMPAIGN_STALE_BATCH_MINUTES.
+ */
+async function sendOneBatch(
   db: SupabaseClient,
   campaign: CampaignRow,
   copySource: EmailCopySource,
-  sendRow: SendRow,
-): Promise<"sent" | "failed" | "skipped" | "rate_limited"> {
-  const { data: contact, error: contactError } = await db
-    .from("email_contacts")
-    .select(
-      "id, email, locale, user_id, unsubscribe_token, marketing_status",
-    )
-    .eq("id", sendRow.contact_id)
-    .maybeSingle();
-  if (contactError) throw contactError;
-  if (!contact || contact.marketing_status !== "active") {
-    await db
-      .from("email_campaign_sends")
-      .update({ status: "skipped", error_detail: "inactive" })
-      .eq("id", sendRow.id);
-    return "skipped";
+): Promise<{
+  claimed: number;
+  sent: number;
+  failed: number;
+  rateLimited: boolean;
+  unknown: boolean;
+}> {
+  const rows = await claimBatch(db, campaign.id);
+  if (rows.length === 0) {
+    return { claimed: 0, sent: 0, failed: 0, rateLimited: false, unknown: false };
   }
+  const batchKey = rows[0]!.batch_key;
 
-  const exact = resolveCampaignEmailCopy(contact.locale || sendRow.locale, copySource);
-  if (!exact) {
-    await db
-      .from("email_campaign_sends")
-      .update({ status: "skipped", error_detail: "no_locale" })
-      .eq("id", sendRow.id);
-    return "skipped";
-  }
+  const results: BatchResultRow[] = [];
+  const items: MarketingBatchItem[] = [];
+  const itemRow: { row: ClaimedRow; locale: string; trackId: string }[] = [];
 
-  let token = contact.unsubscribe_token as string | null;
-  if (!token) {
-    token = generateUnsubscribeToken();
-    await db
-      .from("email_contacts")
-      .update({ unsubscribe_token: token })
-      .eq("id", contact.id);
-  }
-
-  let displayName = "";
-  if (contact.user_id) {
-    const { data: u } = await db
-      .from("users")
-      .select("display_name")
-      .eq("id", contact.user_id)
-      .maybeSingle();
-    displayName = (u?.display_name ?? "").trim();
-  }
-  const name = displayName || String(contact.email).split("@")[0] || "";
-  const unsubscribeUrl = buildSignedUnsubscribeUrl(token);
-  const subject = applyEmailPlaceholders(exact.subject, { name, unsubscribeUrl });
-  const bodyHtml = applyEmailPlaceholders(exact.htmlBody, { name, unsubscribeUrl });
-  const trackId = newEmailTrackId();
-  const html = await prepareTrackedMarketingEmailHtml({
-    bodyHtml,
-    unsubscribeUrl,
-    previewText: subject,
-    trackId,
-  });
-
-  const result = await sendMarketingEmail({
-    to: contact.email as string,
-    subject,
-    html,
-    text: htmlToPlaintext(html),
-    unsubscribeUrl,
-    locale: exact.locale,
-    tags: [
-      { name: "campaign_id", value: campaign.id },
-      { name: "contact_id", value: contact.id as string },
-    ],
-  });
-
-  if (result.ok) {
-    await db
-      .from("email_campaign_sends")
-      .update({
-        status: "sent",
-        resend_id: result.resendId,
-        locale: exact.locale,
-        error_detail: null,
-      })
-      .eq("id", sendRow.id);
-    await registerEmailTrackKey(db, {
+  for (const row of rows) {
+    if (row.marketing_status !== "active") {
+      results.push({ send_id: row.send_id, status: "skipped", error_detail: "inactive" });
+      continue;
+    }
+    const exact = resolveCampaignEmailCopy(row.contact_locale || row.send_locale, copySource);
+    if (!exact) {
+      results.push({ send_id: row.send_id, status: "skipped", error_detail: "no_locale" });
+      continue;
+    }
+    const name = (row.display_name ?? "").trim() || row.email.split("@")[0] || "";
+    const unsubscribeUrl = buildSignedUnsubscribeUrl(row.unsubscribe_token);
+    const subject = applyEmailPlaceholders(exact.subject, { name, unsubscribeUrl });
+    const bodyHtml = applyEmailPlaceholders(exact.htmlBody, { name, unsubscribeUrl });
+    const trackId = newEmailTrackId();
+    const html = await prepareTrackedMarketingEmailHtml({
+      bodyHtml,
+      unsubscribeUrl,
+      previewText: subject,
       trackId,
-      resendId: result.resendId,
-      contactId: contact.id as string,
-      campaignId: campaign.id,
-      sendId: sendRow.id,
     });
-    await db
-      .from("email_contacts")
-      .update({ last_sent_at: new Date().toISOString() })
-      .eq("id", contact.id);
-    return "sent";
+    items.push({
+      key: row.send_id,
+      to: row.email,
+      subject,
+      html,
+      text: htmlToPlaintext(html),
+      unsubscribeUrl,
+      locale: exact.locale,
+    });
+    itemRow.push({ row, locale: exact.locale, trackId });
   }
 
-  if (isProviderRateLimited(result.detail)) {
-    return "rate_limited";
+  if (items.length > 0) {
+    const batch = await sendMarketingEmailBatch(items, { idempotencyKey: batchKey });
+    if (!batch.ok && batch.sent === "unknown") {
+      console.error("[email-campaign-send] batch outcome unknown", campaign.id, batchKey, batch.detail);
+      // Leave rows in 'sending'; claim_email_campaign_batch retries them with the same key.
+      if (results.length) await finalizeBatch(db, campaign.id, results);
+      return { claimed: rows.length, sent: 0, failed: 0, rateLimited: false, unknown: true };
+    }
+    if (!batch.ok) {
+      for (const { row } of itemRow) {
+        results.push({
+          send_id: row.send_id,
+          status: batch.rateLimited ? "queued" : "failed",
+          error_detail: batch.detail,
+        });
+      }
+      const fin = await finalizeBatch(db, campaign.id, results);
+      return { claimed: rows.length, sent: 0, failed: fin.failed, rateLimited: batch.rateLimited, unknown: false };
+    }
+    batch.results.forEach((r, i) => {
+      const { row, locale, trackId } = itemRow[i]!;
+      if (r.ok) {
+        results.push({ send_id: row.send_id, status: "sent", resend_id: r.resendId, locale, track_id: trackId });
+      } else {
+        results.push({ send_id: row.send_id, status: "failed", locale, error_detail: r.detail });
+      }
+    });
   }
 
-  await db
-    .from("email_campaign_sends")
-    .update({
-      status: "failed",
-      error_detail: result.detail.slice(0, 500),
-    })
-    .eq("id", sendRow.id);
-  return "failed";
+  const fin = await finalizeBatch(db, campaign.id, results);
+  return { claimed: rows.length, sent: fin.sent, failed: fin.failed, rateLimited: false, unknown: false };
 }
 
 async function enqueueWave(
@@ -376,42 +439,15 @@ async function enqueueWave(
   return n;
 }
 
-async function loadQueued(
-  db: SupabaseClient,
-  campaignId: string,
-): Promise<SendRow[]> {
-  const { data, error } = await db
+/** Rows still to go: queued + claimed-but-unfinished. One HEAD count, no payload. */
+async function countPending(db: SupabaseClient, campaignId: string): Promise<number> {
+  const { count, error } = await db
     .from("email_campaign_sends")
-    .select("id, contact_id, locale, status")
+    .select("id", { count: "exact", head: true })
     .eq("campaign_id", campaignId)
-    .eq("status", "queued")
-    .order("created_at", { ascending: true })
-    .limit(800);
+    .in("status", ["queued", "sending"]);
   if (error) throw error;
-  return (data ?? []) as SendRow[];
-}
-
-async function bumpCounts(
-  db: SupabaseClient,
-  campaignId: string,
-  sentDelta: number,
-  errorDelta: number,
-): Promise<void> {
-  if (!sentDelta && !errorDelta) return;
-  const { data, error } = await db
-    .from("email_campaigns")
-    .select("sent_count, error_count")
-    .eq("id", campaignId)
-    .maybeSingle();
-  if (error) throw error;
-  await db
-    .from("email_campaigns")
-    .update({
-      sent_count: Number(data?.sent_count ?? 0) + sentDelta,
-      error_count: Number(data?.error_count ?? 0) + errorDelta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", campaignId);
+  return count ?? 0;
 }
 
 function scheduleAfterWave(
@@ -522,6 +558,10 @@ async function finishWaveOrCampaign(
   return "paused";
 }
 
+/**
+ * Batches until the deadline. Pauses CAMPAIGN_BATCH_GAP_MS between batches so
+ * one 250 s run sends about two batches; cron continues 5 minutes later.
+ */
 async function drainQueued(
   db: SupabaseClient,
   campaign: CampaignRow,
@@ -532,39 +572,32 @@ async function drainQueued(
   let failed = 0;
   let halted = false;
   let timedOut = false;
+  let first = true;
   while (Date.now() < deadline) {
+    if (!first) {
+      // Gap belongs before the next batch; do not start one we cannot finish.
+      if (Date.now() + CAMPAIGN_BATCH_GAP_MS + 30_000 >= deadline) {
+        timedOut = true;
+        break;
+      }
+      await sleep(CAMPAIGN_BATCH_GAP_MS);
+    }
+    first = false;
     if (await isHalted(db, campaign.id)) {
       halted = true;
       break;
     }
-    const queued = await loadQueued(db, campaign.id);
-    if (queued.length === 0) break;
-    const row = queued[0]!;
-    const result = await sendOneQueued(db, campaign, copySource, row);
-    if (result === "rate_limited") {
+    const batch = await sendOneBatch(db, campaign, copySource);
+    sent += batch.sent;
+    failed += batch.failed;
+    if (batch.claimed === 0) break;
+    if (batch.rateLimited || batch.unknown) {
       timedOut = true;
       break;
     }
-    if (result === "sent") sent += 1;
-    else if (result === "failed") failed += 1;
-    await bumpCounts(
-      db,
-      campaign.id,
-      result === "sent" ? 1 : 0,
-      result === "failed" ? 1 : 0,
-    );
-    if (!campaign.sent_at && result === "sent") {
-      campaign.sent_at = new Date().toISOString();
-      await db
-        .from("email_campaigns")
-        .update({ sent_at: campaign.sent_at })
-        .eq("id", campaign.id);
-    }
-    await sleep(CAMPAIGN_SEND_GAP_MS);
   }
-  if (!halted && Date.now() >= deadline) {
-    const leftover = await loadQueued(db, campaign.id);
-    timedOut = leftover.length > 0;
+  if (!halted && !timedOut && Date.now() >= deadline) {
+    timedOut = (await countPending(db, campaign.id)) > 0;
   }
   return { sent, failed, halted, timedOut };
 }
@@ -675,20 +708,20 @@ export async function runCampaignSend(
     }
 
     const copySource = copySourceFromCampaign(campaign);
-    const queuedNow = await loadQueued(db, campaignId);
+    const queuedNow = await countPending(db, campaignId);
     const plan = parseWarmupPlan(campaign.warmup_plan);
     const progress = currentWaveNeed({
       sentCount: campaign.sent_count,
-      queuedCount: queuedNow.length,
+      queuedCount: queuedNow,
       nextWaveSize: campaign.next_wave_size,
       waveIndex: campaign.warmup_wave_index ?? 0,
       plan,
     });
-    const shouldFill = progress.need > 0 && (opts.startWave || queuedNow.length === 0);
+    const shouldFill = progress.need > 0 && (opts.startWave || queuedNow === 0);
     let exhausted = false;
 
     if (shouldFill) {
-      if (opts.startWave && queuedNow.length === 0 && progress.acceptedThisWave === 0) {
+      if (opts.startWave && queuedNow === 0 && progress.acceptedThisWave === 0) {
         await db.rpc("sync_email_contacts_from_users");
       }
       const pick = await pickWaveRecipients(db, campaign, copySource);
@@ -759,13 +792,13 @@ export async function runCampaignSend(
       }
       const fillNeed = currentWaveNeed({
         sentCount: campaign.sent_count,
-        queuedCount: queuedNow.length,
+        queuedCount: queuedNow,
         nextWaveSize: waveSize,
         waveIndex: campaign.warmup_wave_index ?? 0,
         plan: wavePlan,
       }).need;
       const slice = pick.remaining.slice(0, fillNeed);
-      if (slice.length === 0 && queuedNow.length === 0) {
+      if (slice.length === 0 && queuedNow === 0) {
         const fin = await finishWaveOrCampaign(db, campaign, copySource);
         return {
           campaign_id: campaignId,
@@ -813,6 +846,55 @@ export async function runCampaignSend(
     }
 
     campaign = (await loadCampaign(db, campaignId)) ?? campaign;
+
+    // Health brake: a slow trivial query means Nano is already struggling.
+    // Skip this tick instead of adding a batch; three slow ticks in a row pause
+    // the campaign with a visible reason (admin «Отправить» resumes it).
+    const latencyMs = await measureDbLatencyMs(db);
+    if (latencyMs === null || latencyMs > CAMPAIGN_DB_SLOW_MS) {
+      const strikes = (campaign.send_slow_strikes ?? 0) + 1;
+      const halt = strikes >= CAMPAIGN_SLOW_STRIKES_TO_HALT;
+      console.warn(
+        "[email-campaign-send] db slow",
+        campaignId,
+        latencyMs === null ? "probe failed" : `${latencyMs} ms`,
+        `strike ${strikes}/${CAMPAIGN_SLOW_STRIKES_TO_HALT}`,
+      );
+      await db
+        .from("email_campaigns")
+        .update({
+          send_slow_strikes: strikes,
+          ...(halt
+            ? {
+                status: "paused",
+                send_halted_at: new Date().toISOString(),
+                send_halt_reason: `База отвечала медленно ${strikes} раза подряд (${
+                  latencyMs === null ? "нет ответа" : `${latencyMs} мс`
+                }). Нажмите «Отправить», чтобы продолжить.`,
+              }
+            : {}),
+          send_lease_until: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", campaignId);
+      return {
+        campaign_id: campaignId,
+        status: halt ? "paused" : "sending",
+        sent_count: campaign.sent_count,
+        error_count: campaign.error_count,
+        queued_enqueued: enqueued,
+        halted: halt,
+        timed_out: !halt,
+        detail: halt ? "Остановлено: база перегружена" : "Пропуск: база отвечает медленно",
+      };
+    }
+    if (campaign.send_slow_strikes || campaign.send_halt_reason) {
+      await db
+        .from("email_campaigns")
+        .update({ send_slow_strikes: 0, send_halt_reason: null })
+        .eq("id", campaignId);
+    }
+
     const drain = await drainQueued(db, campaign, copySource, deadline);
 
     if (drain.halted) {
@@ -835,16 +917,16 @@ export async function runCampaignSend(
       };
     }
 
-    const leftover = await loadQueued(db, campaignId);
+    const leftover = await countPending(db, campaignId);
     campaign = (await loadCampaign(db, campaignId)) ?? campaign;
     const after = currentWaveNeed({
       sentCount: campaign.sent_count,
-      queuedCount: leftover.length,
+      queuedCount: leftover,
       nextWaveSize: campaign.next_wave_size,
       waveIndex: campaign.warmup_wave_index ?? 0,
       plan: parseWarmupPlan(campaign.warmup_plan),
     });
-    if (leftover.length > 0 || drain.timedOut || (!exhausted && after.need > 0)) {
+    if (leftover > 0 || drain.timedOut || (!exhausted && after.need > 0)) {
       await db
         .from("email_campaigns")
         .update({
@@ -964,7 +1046,7 @@ export async function campaignSendProgress(
     .from("email_campaign_sends")
     .select("id", { count: "exact", head: true })
     .eq("campaign_id", campaign.id)
-    .eq("status", "queued");
+    .in("status", ["queued", "sending"]);
   const { count: accepted } = await db
     .from("email_campaign_sends")
     .select("id", { count: "exact", head: true })
