@@ -1,8 +1,10 @@
+import { sendWebinarInvites } from "../../../account/webinarNotices";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 import { emailsByUserId } from "../../_utils/authEmails";
 import { webinarUpdateFromPayload, type AdminWebinarPayload } from "../webinarPayload";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -136,14 +138,14 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     const { id } = await ctx.params;
     const payload = (await req.json()) as AdminWebinarPayload;
     const update = webinarUpdateFromPayload(payload);
-    const { data, error } = await createServiceSupabase()
-      .from("webinars")
-      .update(update)
-      .eq("id", id)
-      .select("*")
-      .single();
+    const db = createServiceSupabase();
+    const { data, error } = await db.from("webinars").update(update).eq("id", id).select("*").single();
     if (error) throw error;
-    return json({ webinar: data });
+    const notices = await sendWebinarInvites(db, id).catch((err) => {
+      console.error("[webinar] invite emails failed", id, err);
+      return { sent: 0, failed: 1 };
+    });
+    return json({ webinar: data, notices });
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,14 +1,17 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.70
-updated: 2026-10-06
+version: 3.71
+updated: 2026-10-08
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-10-08 (631): The webinar recording tab is only the letter to participants. It does not publish a post in the app. The Russian template is prefilled, and the button is «Отправить письмо участникам». Docs `webinars`, `admin_panel`.
+- 2026-10-08 (630): Webinar invite and recording letters go out when the announcement or the recording is published, and when someone pays while a webinar is already scheduled. No 5-minute cron and no reminder letters. A purchase sets an unsubscribed contact back to active; product letters still go to people who opted out of newsletters. A missing translation sends the whole letter in Russian. Migration `20261008030000`. Docs `account_web`, `webinars`, `marketing_email`, `admin_panel`.
+- 2026-10-07 (629): Landing-page payment widgets (`public/widget.js`, `/api/widget/*`, admin «Виджеты») with Russian/international card choice, 8 languages and a buyer letter. The account is created after payment. A «Каталог продуктов» with Lava offers replaces «Каталог ЮКасса». Webinar passes (1 webinar / 7 days at 1500 ₽, 4 / 28 days at 4000 ₽) with auto-registration and a join email. The REG.RU proxy forwards the client IP. Migration `20261007190000`. Docs `account_web`, `webinars`, `admin_panel`, `marketing_email`, open_questions, DEPLOY.
 - 2026-10-06 (628): Doc-sync push: code_refs + §3 для follow-up RPC-миграций `20261006101500` / `20261006102000` (pgcrypto claim, safeupdate finalize). Docs `marketing_email`, MAP.
 - 2026-10-06 (627): Затор Nano №3 (14:46–15:20 UTC): кампания с пустой очередью висела в `sending` и каждые 5 мин пересчитывала сегмент (5 `failed` считались «оставшимися», upsert их игнорировал); на Nano в swap это довело инстанс до остановки. Фикс в `emailCampaignSend.ts` (задеплоено): существующие строки не попадают в набор, 0 вставленных при пустой очереди = кампания закрывается. Docs `marketing_email`, `infra`, open_questions.
 - 2026-10-06 (626): Campaign batch RPCs: pgcrypto on claim, safeupdate-safe finalize, stable send_id pixel, Resend 409 replay counted as sent. Docs `marketing_email`.

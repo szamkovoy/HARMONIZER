@@ -2379,6 +2379,10 @@ export type Database = {
         Args: { p_token: string; p_platform: string; p_expo_token?: boolean }
         Returns: undefined
       }
+      apply_my_webinar_passes: {
+        Args: Record<string, never>
+        Returns: number
+      }
       set_signin_name_hint: {
         Args: { p_email: string; p_name: string; p_locale: string }
         Returns: undefined

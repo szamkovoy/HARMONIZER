@@ -1,3 +1,4 @@
+import { sendRecordingNotices } from "../../../../account/webinarNotices";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../../_utils/supabase";
 import {
   recordingPostRowFromPayload,
@@ -7,6 +8,7 @@ import {
 import { isWebinarRecordingTabAvailable } from "@/modules/webinars/core/webinarTiming";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -37,18 +39,28 @@ export async function PUT(req: Request, ctx: RouteContext) {
       .maybeSingle();
     if (existingError) throw existingError;
 
+    const letter = { ...payload, is_published: false, cover_url: null };
+
     if (existing) {
-      const update = recordingPostUpdateFromPayload(payload, { published_at: existing.published_at });
+      const update = recordingPostUpdateFromPayload(letter, { published_at: existing.published_at });
       const { data, error } = await db.from("posts").update(update).eq("id", existing.id).select("*").single();
       if (error) throw error;
-      return json({ recording: data });
+      const notices = await sendRecordingNotices(db, webinarId).catch((err) => {
+        console.error("[webinar] recording emails failed", webinarId, err);
+        return { sent: 0, failed: 1 };
+      });
+      return json({ recording: data, notices });
     }
 
-    const title = payload.title?.trim() || webinar.title;
-    const row = recordingPostRowFromPayload({ ...payload, title }, webinarId, userId);
+    const title = letter.title?.trim() || webinar.title;
+    const row = recordingPostRowFromPayload({ ...letter, title }, webinarId, userId);
     const { data, error } = await db.from("posts").insert(row).select("*").single();
     if (error) throw error;
-    return json({ recording: data });
+    const notices = await sendRecordingNotices(db, webinarId).catch((err) => {
+      console.error("[webinar] recording emails failed", webinarId, err);
+      return { sent: 0, failed: 1 };
+    });
+    return json({ recording: data, notices });
   } catch (error) {
     return errorResponse(error);
   }

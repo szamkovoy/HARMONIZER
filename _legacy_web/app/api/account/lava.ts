@@ -92,28 +92,45 @@ export async function resolveLavaOfferIdByName(
   locale: string,
 ): Promise<string> {
   const norm = locale.trim().slice(0, 2).toLowerCase();
-  const candidates = norm === LAVA_FALLBACK_LOCALE ? [norm] : [norm, LAVA_FALLBACK_LOCALE];
-  for (const loc of candidates) {
-    const { data, error } = await db
-      .from("payment_offers")
-      .select("offer_id")
-      .eq("tier", tier)
-      .eq("locale", loc)
-      .eq("active", true)
-      .maybeSingle();
-    if (error) throw error;
-    if (data?.offer_id) return data.offer_id;
+  const localized = await findPaymentOffer(db, tier, norm);
+  if (localized) return localized;
+  // Единый каталог: оффер Lava, привязанный к продукту в админке.
+  const { data: catalog, error: catalogError } = await db
+    .from("payment_catalog")
+    .select("lava_offer_id")
+    .eq("tier", tier)
+    .eq("active", true)
+    .not("lava_offer_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (catalogError) throw catalogError;
+  if (catalog?.lava_offer_id) return catalog.lava_offer_id as string;
+  if (norm !== LAVA_FALLBACK_LOCALE) {
+    const fallback = await findPaymentOffer(db, tier, LAVA_FALLBACK_LOCALE);
+    if (fallback) return fallback;
   }
   throw new Error(`No Lava offer configured for tier "${tier}" (locale ${norm}, fallback ${LAVA_FALLBACK_LOCALE})`);
 }
 
-type LavaOffer = {
+async function findPaymentOffer(db: SupabaseClient, tier: string, locale: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("payment_offers")
+    .select("offer_id")
+    .eq("tier", tier)
+    .eq("locale", locale)
+    .eq("active", true)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.offer_id as string | undefined) ?? null;
+}
+
+export type LavaOffer = {
   id: string;
   name: string;
   prices: { currency: string; amount: number; periodicity: string }[];
 };
 
-type LavaProduct = {
+export type LavaProduct = {
   id: string;
   title: string;
   description?: string;
@@ -125,6 +142,34 @@ type LavaProductsResponse = { items?: LavaProduct[] };
 /** In-memory кэш списка продуктов Lava (TTL 10 мин) — цены меняются редко. */
 let productsCache: { at: number; data: LavaProduct[] } | null = null;
 const PRODUCTS_TTL_MS = 10 * 60 * 1000;
+
+/** Все продукты автора в Lava (с офферами и ценами). fresh=true — мимо кэша. */
+export async function listLavaProducts(options: { fresh?: boolean } = {}): Promise<LavaProduct[]> {
+  if (options.fresh) productsCache = null;
+  return fetchLavaProducts();
+}
+
+/** Оффер Lava по id вместе с продуктом, null если его нет у автора. */
+export async function findLavaOffer(
+  offerId: string,
+): Promise<{ product: LavaProduct; offer: LavaOffer } | null> {
+  const products = await fetchLavaProducts();
+  for (const product of products) {
+    const offer = product.offers.find((o) => o.id === offerId);
+    if (offer) return { product, offer };
+  }
+  return null;
+}
+
+/** Цена оффера в валюте; null если такой цены в Lava нет. */
+export function lavaOfferPrice(
+  offer: LavaOffer,
+  currency: LavaCurrency,
+  periodicity: LavaPeriodicity,
+): number | null {
+  const price = offer.prices.find((p) => p.currency === currency && p.periodicity === periodicity);
+  return price ? price.amount : null;
+}
 
 async function fetchLavaProducts(): Promise<LavaProduct[]> {
   if (productsCache && Date.now() - productsCache.at < PRODUCTS_TTL_MS) {
@@ -171,6 +216,7 @@ export async function createLavaSubscriptionInvoice(params: {
   offerId: string;
   currency: LavaCurrency;
   locale: string;
+  successUrl?: string | null;
 }): Promise<LavaInvoiceResponse> {
   return createLavaInvoice({ ...params, periodicity: "MONTHLY" });
 }
@@ -184,6 +230,8 @@ export async function createLavaOneTimeInvoice(params: {
   offerId: string;
   currency: LavaCurrency;
   locale: string;
+  /** Куда Lava вернёт покупателя после успешной оплаты; без него — страница Lava. */
+  successUrl?: string | null;
 }): Promise<LavaInvoiceResponse> {
   return createLavaInvoice({ ...params, periodicity: "ONE_TIME" });
 }
@@ -220,6 +268,7 @@ async function createLavaInvoice(params: {
   currency: LavaCurrency;
   locale: string;
   periodicity: LavaPeriodicity;
+  successUrl?: string | null;
 }): Promise<LavaInvoiceResponse> {
   const email = normalizeLavaBuyerEmail(params.email);
   if (!email || !email.includes("@")) {
@@ -238,6 +287,7 @@ async function createLavaInvoice(params: {
       currency: params.currency,
       periodicity: params.periodicity,
       buyerLanguage: lavaBuyerLanguage(params.locale),
+      ...(params.successUrl ? { successful_return_url: params.successUrl } : {}),
     }),
   });
   const text = await res.text();

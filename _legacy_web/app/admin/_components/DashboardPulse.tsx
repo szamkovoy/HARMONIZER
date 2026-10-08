@@ -82,6 +82,7 @@ const TIER_REV_LABELS: Record<string, string> = {
   oracle: "Наставник",
   master: "Мастер",
   webinar: "Вебинар",
+  webinar_pack: "Четыре вебинара",
   book: "Книга",
 };
 

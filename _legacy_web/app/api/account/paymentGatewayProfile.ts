@@ -92,6 +92,11 @@ export function resolvePaymentGateway(params: {
   return { ok: false, error: "payment_gateway_unavailable" };
 }
 
+/** Landing widget: the visitor picks the gateway explicitly (Russian / international card). */
+export function isPaymentProviderEnabled(id: PaymentProviderId): boolean {
+  return loadGateways().some((g) => g.id === id && g.enabled);
+}
+
 /**
  * @deprecated Prefer resolvePaymentGateway. Returns lavatop on fail-closed
  * only for accidental legacy callers — checkout/overview must use resolve*.

@@ -18,10 +18,11 @@ code_refs:
 ## 1. Зависит от
 
 - **`subscription`** — `webinar_community` для кнопки записи на анонс (сейчас Master); paywall/checkout — будущая точка расширения.
-- **`author_presence` (posts)** — запись вебинара = `posts.kind='webinar_recording'`; лента `get_posts_feed` + RLS как у video; `CommentsSection` / `LinkifiedBody` / обложки `post-covers`; admin translate `type=post`; home `LatestPostBanner` делит пул с video.
+- **`author_presence` (posts)** — текст письма о записи хранится как неопубликованный `posts.kind='webinar_recording'` и в ленту не попадает. Ранее опубликованная запись исчезает из ленты при следующей отправке письма.
 - **`admin_panel`** — `/admin/webinars*`, `/api/admin/webinars*`, recording upsert route.
 - **`infra`** — таблицы `webinars` / `webinar_registrations` / расширенный `posts`.
-- **`i18n`** — catalog `webinars.*`, Luxon, announce/recording `*_i18n`.
+- **`i18n`** — catalog `webinars.*`, Luxon, announce/recording `*_i18n`. Письмо берёт текст той же локали; если перевода нет — письмо целиком по-русски.
+- **`marketing_email`** — приглашение и письмо о записи уходят через `sendMarketingEmail`, минуя фильтр «только active».
 
 ## 2. От него зависят
 

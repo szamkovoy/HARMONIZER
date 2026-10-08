@@ -77,3 +77,21 @@ describe("countryFromVercelHeaders", () => {
     expect(countryFromVercelHeaders(new Headers({ "x-vercel-ip-country": "fr" }))).toBe("FR");
   });
 });
+
+describe("resolveIpCountry behind the REG.RU proxy", () => {
+  it("looks up the visitor IP forwarded by the proxy, ignoring the Vercel header", async () => {
+    const headers = new Headers({
+      "x-harmonizer-client-ip": "203.0.113.7",
+      "x-vercel-ip-country": "RU",
+      "x-forwarded-for": "31.31.196.134",
+    });
+    const result = await resolveIpCountry(headers, async (ip) => (ip === "203.0.113.7" ? "DE" : ""));
+    expect(result).toEqual({ country: "DE", source: "proxy_client" });
+  });
+
+  it("returns unknown instead of the proxy's own RU geo when the proxy sent no client IP", async () => {
+    const headers = new Headers({ "x-vercel-ip-country": "RU", "x-forwarded-for": "31.31.196.134" });
+    const result = await resolveIpCountry(headers, async () => "RU");
+    expect(result).toEqual({ country: "", source: "none" });
+  });
+});

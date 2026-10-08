@@ -9,6 +9,7 @@ import {
 export const TIER_LABELS: Record<string, string> = {
   ...TIER_LABELS_RU,
   webinar: "Вебинар",
+  webinar_pack: "Четыре вебинара",
   book: "Книга",
 };
 
@@ -18,6 +19,7 @@ const TIER_BADGE: Record<string, string> = {
   practitioner: "bg-violet-500/15 text-violet-300",
   master: "bg-amber-500/15 text-amber-300",
   webinar: "bg-emerald-500/15 text-emerald-700",
+  webinar_pack: "bg-emerald-500/15 text-emerald-700",
   book: "bg-fuchsia-500/15 text-fuchsia-300",
 };
 

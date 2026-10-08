@@ -9,6 +9,12 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-10-08 (recording tab is the letter):** The recording tab has no cover and no publish checkbox. The Russian template is already filled in. The button is «Отправить письмо участникам». The linked post stays unpublished.
+
+- **2026-10-08 (webinar letters from the editor):** Saving a published announcement with a room link sends invitations. Publishing the recording tab with text sends the recording letter. The response includes `notices`.
+
+- **2026-10-07 (payment widgets + product catalog):** «Каталог ЮКасса» → «Каталог продуктов» (привязка оффера Lava, обе цены, письмо покупателю на 8 языках, параметры пропуска на вебинары). Новый раздел «Виджеты» с редактором и предпросмотром. Translate API получил `type: "fields"`. Метки tier `webinar_pack` — «Четыре вебинара».
+
 - **2026-09-24 (CRM POST live = app_first_open_at):** `POST /api/admin/users` считает пользователя уже в Гармонизаторе при `app_first_open_at` (не только `onboarded_at` / `last_seen_at`) → 409; согласовано с демо-на-первом-входе (`subscription`).
 
 - **2026-09-18 (chunked session Storage):** Chunked story upload sessions moved from Vercel `/tmp` to `story-media/tmp/stories/sessions/*` so `process` works across isolates.

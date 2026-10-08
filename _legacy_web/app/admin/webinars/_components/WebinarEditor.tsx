@@ -11,6 +11,7 @@ import { adminFetch } from "../../_lib/adminApi";
 import { formatAdminDateTime } from "../../_lib/adminDates";
 import { getBrowserSupabase } from "../../_lib/supabaseBrowser";
 import { compressPostCoverFile } from "../../posts/_lib/compressPostCover";
+import { RECORDING_LETTER_BODY, RECORDING_LETTER_SUBJECT } from "../../../api/_utils/webinarNoticeCopy";
 
 const TARGET_LOCALES = ["en", "de", "fr", "it", "es", "pt", "nl"] as const;
 type TargetLocale = (typeof TARGET_LOCALES)[number];
@@ -158,12 +159,34 @@ function createCoverUploadCache() {
 const inputCls =
   "w-full min-w-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-500";
 
+function noticeNote(
+  notices: { sent: number; failed: number } | undefined,
+  what: string,
+): string | null {
+  if (!notices || (notices.sent === 0 && notices.failed === 0)) return null;
+  if (notices.failed > 0) {
+    return `Отправлено ${what}: ${notices.sent}. Не ушло: ${notices.failed}. Сохраните ещё раз — они уйдут повторно.`;
+  }
+  return `Отправлено ${what}: ${notices.sent}.`;
+}
+
+function recordingSendNote(
+  notices: { sent: number; failed: number; already?: number } | undefined,
+): string | null {
+  if (!notices) return null;
+  if (notices.failed > 0) {
+    return `Отправлено: ${notices.sent}. Не ушло: ${notices.failed}. Нажмите ещё раз — они уйдут повторно.`;
+  }
+  if (notices.sent > 0) return `Письмо отправлено: ${notices.sent}.`;
+  if ((notices.already ?? 0) > 0) return "Это письмо участникам уже отправлено.";
+  return "Некому отправить: на момент начала вебинара не было оплативших.";
+}
+
 export function WebinarEditor({
   webinar,
   questions,
   registrations,
   recording,
-  recordingComments,
 }: {
   webinar: AdminWebinar | null;
   questions: AdminWebinarQuestion[];
@@ -190,12 +213,8 @@ export function WebinarEditor({
   );
   const [activeLocale, setActiveLocale] = useState<ContentLocale>("ru");
 
-  const [recTitle, setRecTitle] = useState(recording?.title ?? webinar?.title ?? "");
-  const [recBody, setRecBody] = useState(recording?.body ?? "");
-  const [recPublished, setRecPublished] = useState(recording?.is_published ?? false);
-  const [recCoverUrl, setRecCoverUrl] = useState<string | null>(recording?.cover_url ?? null);
-  const [recCoverFile, setRecCoverFile] = useState<File | null>(null);
-  const [recCoverPreview, setRecCoverPreview] = useState<string | null>(null);
+  const [recTitle, setRecTitle] = useState(recording?.title?.trim() ? recording.title : RECORDING_LETTER_SUBJECT);
+  const [recBody, setRecBody] = useState(recording?.body?.trim() ? recording.body : RECORDING_LETTER_BODY);
   const [recLocaleTabs, setRecLocaleTabs] = useState(() =>
     initLocaleTabs(recording?.title_i18n, recording?.body_i18n, recording?.cover_url_i18n),
   );
@@ -205,6 +224,7 @@ export function WebinarEditor({
   const [busy, setBusy] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
   const [regsOpen, setRegsOpen] = useState(false);
 
   async function runTranslate(kind: "announce" | "recording") {
@@ -213,7 +233,7 @@ export function WebinarEditor({
     const sourceBody = isAnnounce ? description : recBody;
     const tabs = isAnnounce ? localeTabs : recLocaleTabs;
     if (!sourceTitle) {
-      setError("Сначала заполните название на русском");
+      setError(isAnnounce ? "Сначала заполните название на русском" : "Сначала заполните тему на русском");
       return;
     }
     const fillLocales = TARGET_LOCALES.filter((locale) => !tabs[locale].title.trim());
@@ -237,11 +257,9 @@ export function WebinarEditor({
           }),
         },
       );
-      const sourceCover = {
-        coverUrl: isAnnounce ? coverUrl : recCoverUrl,
-        coverFile: isAnnounce ? coverFile : recCoverFile,
-        coverPreview: isAnnounce ? coverPreview : recCoverPreview,
-      };
+      const sourceCover = isAnnounce
+        ? { coverUrl, coverFile, coverPreview }
+        : { coverUrl: null, coverFile: null, coverPreview: null };
       const patchTabs = (prev: Record<TargetLocale, LocaleTabData>) => {
         const next = { ...prev };
         for (const locale of fillLocales) {
@@ -287,6 +305,7 @@ export function WebinarEditor({
   async function saveAnnounce(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setSavedNote(null);
     setBusy(true);
     try {
       const resolveCover = createCoverUploadCache();
@@ -303,14 +322,21 @@ export function WebinarEditor({
         description_i18n: maps.body_i18n,
         cover_url_i18n: maps.cover_url_i18n,
       };
+      const saveOpts = { timeoutMs: 120_000 };
       if (webinar) {
-        await adminFetch(`/api/admin/webinars/${webinar.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+        const saved = await adminFetch<{ notices?: { sent: number; failed: number } }>(
+          `/api/admin/webinars/${webinar.id}`,
+          { method: "PATCH", body: JSON.stringify(payload) },
+          saveOpts,
+        );
+        setSavedNote(noticeNote(saved.notices, "приглашения"));
         router.refresh();
       } else {
-        const { webinar: created } = await adminFetch<{ webinar: AdminWebinar }>("/api/admin/webinars", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        const { webinar: created, notices } = await adminFetch<{
+          webinar: AdminWebinar;
+          notices?: { sent: number; failed: number };
+        }>("/api/admin/webinars", { method: "POST", body: JSON.stringify(payload) }, saveOpts);
+        setSavedNote(noticeNote(notices, "приглашения"));
         router.replace(`/admin/webinars/${created.id}`);
       }
     } catch (err) {
@@ -324,27 +350,31 @@ export function WebinarEditor({
     e.preventDefault();
     if (!webinar) return;
     setError(null);
+    setSavedNote(null);
     setBusy(true);
     try {
-      const resolveCover = createCoverUploadCache();
-      const nextCover = recCoverFile ? await resolveCover(recCoverFile) : recCoverUrl;
-      const maps = await buildI18nMaps(recLocaleTabs, resolveCover);
-      const { recording: saved } = await adminFetch<{ recording: AdminWebinarRecording }>(
+      const maps = await buildI18nMaps(recLocaleTabs, async () => "");
+      const { recording: saved, notices } = await adminFetch<{
+        recording: AdminWebinarRecording;
+        notices?: { sent: number; failed: number; already?: number };
+      }>(
         `/api/admin/webinars/${webinar.id}/recording`,
         {
           method: "PUT",
           body: JSON.stringify({
             title: recTitle,
             body: recBody,
-            cover_url: nextCover,
-            is_published: recPublished,
+            cover_url: null,
+            is_published: false,
             title_i18n: maps.title_i18n,
             body_i18n: maps.body_i18n,
-            cover_url_i18n: maps.cover_url_i18n,
+            cover_url_i18n: {},
           }),
         },
+        { timeoutMs: 120_000 },
       );
       setSavedRecording(saved);
+      setSavedNote(recordingSendNote(notices));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось сохранить запись");
@@ -394,18 +424,14 @@ export function WebinarEditor({
   function clearRecordingLocaleTranslation() {
     if (
       !window.confirm(
-        `Удалить перевод для ${LOCALE_FULL_NAMES[recActiveLocale]}? Заголовок, текст и обложка этой вкладки будут очищены.`,
+        `Удалить перевод для ${LOCALE_FULL_NAMES[recActiveLocale]}? Тема и текст этой вкладки будут очищены.`,
       )
     ) {
       return;
     }
     if (recActiveLocale === "ru") {
-      setRecTitle("");
-      setRecBody("");
-      if (recCoverPreview) URL.revokeObjectURL(recCoverPreview);
-      setRecCoverFile(null);
-      setRecCoverPreview(null);
-      setRecCoverUrl(null);
+      setRecTitle(RECORDING_LETTER_SUBJECT);
+      setRecBody(RECORDING_LETTER_BODY);
       return;
     }
     const prevPreview = recLocaleTabs[recActiveLocale].coverPreview;
@@ -423,7 +449,7 @@ export function WebinarEditor({
         );
   const recordingHasTranslation =
     recActiveLocale === "ru"
-      ? Boolean(recTitle.trim() || recBody.trim() || recCoverUrl || recCoverFile)
+      ? Boolean(recTitle.trim() || recBody.trim())
       : Boolean(
           recLocaleTabs[recActiveLocale].title.trim() ||
             recLocaleTabs[recActiveLocale].body.trim() ||
@@ -671,6 +697,7 @@ export function WebinarEditor({
           </div>
 
           {error && tab === "announce" ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
+          {savedNote && tab === "announce" ? <p className="mb-3 text-sm text-emerald-700">{savedNote}</p> : null}
 
           <div className="flex items-center gap-2">
             <button
@@ -707,37 +734,25 @@ export function WebinarEditor({
 
           {recActiveLocale === "ru" ? (
             <>
-              {renderCoverPicker(
-                recCoverPreview,
-                recCoverUrl,
-                (file) => {
-                  setRecCoverFile(file);
-                  setRecCoverPreview(URL.createObjectURL(file));
-                },
-                () => {
-                  setRecCoverFile(null);
-                  setRecCoverPreview(null);
-                  setRecCoverUrl(null);
-                },
-              )}
               <label className="mb-3 block">
-                <span className="mb-1 block text-xs text-zinc-400">Заголовок (Русский)</span>
+                <span className="mb-1 block text-xs text-zinc-400">Тема</span>
                 <input required value={recTitle} onChange={(e) => setRecTitle(e.target.value)} className={inputCls} />
               </label>
               <label className="mb-4 block">
                 <span className="mb-1 block text-xs text-zinc-400">
-                  Текст (переносы строк сохраняются, ссылки станут кликабельными в приложении)
+                  Текст письма. {"{{name}}"} заменится именем. Ссылку вставьте в текст — в письме она будет кликабельной.
                 </span>
                 <textarea
                   value={recBody}
                   onChange={(e) => setRecBody(e.target.value)}
-                  rows={10}
+                  rows={12}
                   className={`${inputCls} resize-y`}
                 />
               </label>
             </>
           ) : (
             <LocaleFields
+              letter
               locale={recActiveLocale}
               tab={recLocaleTabs[recActiveLocale]}
               onChange={(patch) =>
@@ -750,15 +765,6 @@ export function WebinarEditor({
           )}
 
           <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-700">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={recPublished}
-                onChange={(e) => setRecPublished(e.target.checked)}
-                className="accent-emerald-500"
-              />
-              {savedRecording ? "Запись опубликована" : "Опубликовать"}
-            </label>
             {recordingHasTranslation ? (
               <button
                 type="button"
@@ -772,6 +778,7 @@ export function WebinarEditor({
           </div>
 
           {error && tab === "recording" ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
+          {savedNote && tab === "recording" ? <p className="mb-3 text-sm text-emerald-700">{savedNote}</p> : null}
 
           <div className="flex items-center gap-2">
             <button
@@ -779,7 +786,7 @@ export function WebinarEditor({
               disabled={busy}
               className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
             >
-              {busy ? "Сохраняю…" : savedRecording ? "Сохранить" : "Создать запись"}
+              {busy ? "Отправляю…" : "Отправить письмо участникам"}
             </button>
             {webinar ? (
               <button
@@ -805,12 +812,6 @@ export function WebinarEditor({
           />
         </>
       ) : null}
-      {webinar && tab === "recording" ? (
-        <CommentsModeration
-          initial={recordingComments}
-          title={`Комментарии (${recordingComments.length})`}
-        />
-      ) : null}
     </div>
   );
 }
@@ -819,14 +820,17 @@ function LocaleFields({
   locale,
   tab,
   onChange,
+  letter = false,
 }: {
   locale: TargetLocale;
   tab: LocaleTabData;
   onChange: (patch: Partial<LocaleTabData>) => void;
+  letter?: boolean;
 }) {
   const src = tab.coverPreview || tab.coverUrl;
   return (
     <>
+      {letter ? null : (
       <div className="mb-4 w-full min-w-0">
         <div
           className={`relative mb-1.5 h-40 w-full min-w-0 overflow-hidden rounded-xl bg-white ${
@@ -865,8 +869,11 @@ function LocaleFields({
           ) : null}
         </div>
       </div>
+      )}
       <label className="mb-3 block">
-        <span className="mb-1 block text-xs text-zinc-400">Заголовок ({LOCALE_FULL_NAMES[locale]})</span>
+        <span className="mb-1 block text-xs text-zinc-400">
+          {letter ? "Тема" : "Заголовок"} ({LOCALE_FULL_NAMES[locale]})
+        </span>
         <input
           value={tab.title}
           onChange={(e) => onChange({ title: e.target.value })}
@@ -874,7 +881,9 @@ function LocaleFields({
         />
       </label>
       <label className="mb-4 block">
-        <span className="mb-1 block text-xs text-zinc-400">Текст ({LOCALE_FULL_NAMES[locale]})</span>
+        <span className="mb-1 block text-xs text-zinc-400">
+          {letter ? "Текст письма" : "Текст"} ({LOCALE_FULL_NAMES[locale]})
+        </span>
         <textarea
           value={tab.body}
           onChange={(e) => onChange({ body: e.target.value })}
@@ -954,81 +963,6 @@ function QuestionsModeration({ initial, title }: { initial: AdminWebinarQuestion
                 type="button"
                 onClick={() => remove(question)}
                 disabled={busyId === question.id}
-                className="rounded-lg p-2 text-zinc-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CommentsModeration({ initial, title }: { initial: AdminWebinarComment[]; title: string }) {
-  const [comments, setComments] = useState(initial);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  async function toggleHidden(comment: AdminWebinarComment) {
-    setBusyId(comment.id);
-    try {
-      await adminFetch(`/api/admin/comments/${comment.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_hidden: !comment.is_hidden }),
-      });
-      setComments((prev) =>
-        prev.map((c) => (c.id === comment.id ? { ...c, is_hidden: !comment.is_hidden } : c)),
-      );
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function remove(comment: AdminWebinarComment) {
-    if (!window.confirm("Удалить комментарий безвозвратно?")) return;
-    setBusyId(comment.id);
-    try {
-      await adminFetch(`/api/admin/comments/${comment.id}`, { method: "DELETE" });
-      setComments((prev) => prev.filter((c) => c.id !== comment.id));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  return (
-    <div className="mt-6">
-      <h2 className="mb-3 text-base font-semibold text-zinc-900">{title}</h2>
-      {comments.length === 0 ? <p className="text-sm text-zinc-500">Комментариев пока нет.</p> : null}
-      <div className="flex flex-col gap-2">
-        {comments.map((comment) => (
-          <div
-            key={comment.id}
-            className={`flex items-start gap-3 rounded-xl border border-zinc-200 p-3 ${
-              comment.is_hidden ? "bg-zinc-50 opacity-60" : "bg-white"
-            }`}
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="font-semibold text-zinc-700">{comment.display_name}</span>
-                <span>{formatAdminDateTime(comment.created_at)}</span>
-              </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-800">{comment.body}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {busyId === comment.id ? <Loader2 size={16} className="animate-spin text-zinc-500" /> : null}
-              <button
-                type="button"
-                onClick={() => toggleHidden(comment)}
-                disabled={busyId === comment.id}
-                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 disabled:opacity-50"
-              >
-                {comment.is_hidden ? <Eye size={16} /> : <EyeOff size={16} />}
-              </button>
-              <button
-                type="button"
-                onClick={() => remove(comment)}
-                disabled={busyId === comment.id}
                 className="rounded-lg p-2 text-zinc-400 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
               >
                 <Trash2 size={16} />

@@ -45,6 +45,7 @@ $hop = [
     'upgrade' => true,
     'host' => true,
     'content-length' => true,
+    'x-harmonizer-client-ip' => true,
 ];
 
 $outgoing = [
@@ -53,6 +54,8 @@ $outgoing = [
 ];
 if (!empty($_SERVER['REMOTE_ADDR'])) {
     $outgoing[] = 'X-Forwarded-For: ' . $_SERVER['REMOTE_ADDR'];
+    // Vercel replaces X-Forwarded-For with the proxy address; geo needs the visitor.
+    $outgoing[] = 'X-Harmonizer-Client-Ip: ' . $_SERVER['REMOTE_ADDR'];
 }
 
 $headers = [];

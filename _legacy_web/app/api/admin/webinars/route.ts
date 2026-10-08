@@ -1,7 +1,9 @@
+import { sendWebinarInvites } from "../../account/webinarNotices";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
 import { webinarRowFromPayload, type AdminWebinarPayload } from "./webinarPayload";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 const DEFAULT_LIMIT = 50;
 
@@ -108,13 +110,14 @@ export async function POST(req: Request) {
   try {
     await requireAdmin(req);
     const payload = (await req.json()) as AdminWebinarPayload;
-    const { data, error } = await createServiceSupabase()
-      .from("webinars")
-      .insert(webinarRowFromPayload(payload))
-      .select("*")
-      .single();
+    const db = createServiceSupabase();
+    const { data, error } = await db.from("webinars").insert(webinarRowFromPayload(payload)).select("*").single();
     if (error) throw error;
-    return json({ webinar: data });
+    const notices = await sendWebinarInvites(db, data.id as string).catch((err) => {
+      console.error("[webinar] invite emails failed", data.id, err);
+      return { sent: 0, failed: 1 };
+    });
+    return json({ webinar: data, notices });
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Loader2, Package } from "lucide-react";
+import { BarChart3, Code2, Loader2, Package } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { adminFetch } from "../_lib/adminApi";
@@ -80,7 +80,14 @@ export default function AdminPaymentsPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
           >
             <Package size={16} />
-            Каталог ЮКасса
+            Каталог продуктов
+          </Link>
+          <Link
+            href="/admin/payments/widgets"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
+          >
+            <Code2 size={16} />
+            Виджеты
           </Link>
           <Link
             href="/admin/payments/stats"

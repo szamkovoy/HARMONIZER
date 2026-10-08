@@ -66,6 +66,15 @@ code_refs: []
 - **~~Долгая пауза при наступлении нового дня (free)~~** — закрыто 2026-07-21: крон/`global_daily_content` были готовы; зависание splash из-за abort при `profileLoading` flicker + `holdWarmForTexts`/locale strip на free. См. `daily_forecast/history`, `profile/history`.
 - **~~Paid midnight pre-warm не был в pg_cron~~** — закрыто 2026-07-21: Edge был, schedule не было; `20260721003000` + self-heal `ensure_harmonizer_cron_jobs` (`20260721010000`, watchdog каждые 15 мин). Force-warm Master на 2026-07-21.
 
+## `account_web` / виджеты оплаты лендингов (2026-10-07)
+
+- **Catalog letters are drafts, and they go out only when no webinar is published yet.** **Context:** `payment_catalog.letter_*_i18n` for `webinar` and `webinar_pack`. Once a webinar is on the schedule, the buyer gets the invitation built from the announcement text instead. **Action:** the author writes the fallback texts in «Каталог продуктов» and clicks «Перевести с русского». Invitation and recording letters use the webinar texts already entered in the webinar editor.
+- **Recording inside the app.** Closed 2026-10-08: the recording is only an email. The admin tab stores an unpublished post so the text can be translated and sent again; the feed and the home screen do not show it.
+- **Geo behind REG.RU.** **Context:** `X-Harmonizer-Client-Ip` from `deploy/reg-ru-harmonizer-proxy.php`. **Effect:** until the PHP file is re-uploaded, every visitor through `harmonizer.zamkovoi.yoga` gets an unknown country and the choice falls back to the browser time zone (an RU time zone means a Russian card). **Action:** upload the PHP file and check that a US visitor sees «Международная карта» and USD.
+- **1 or 4 webinars in the cabinet.** **Context:** the cabinet still sells one webinar with `product_ref`. **Action:** later, offer a choice of the pass (`webinar` / `webinar_pack`).
+- **The GetCourse option.** **Context:** we chose our own widget (option B); the contract and pass were built so a GetCourse integration (option C) can be added later. **Action:** come back to it if needed.
+- **Subscriptions through a widget** go through the same fulfill path but have no smoke test with a real payment yet; there is also no «Наставник»/«Мастер» widget so far.
+
 ## `account_web` / внешние платежи (отложено по решению продукта, 2026-07-14)
 
 - **Safari progress bar на `/cabinet/` (2026-07-20):** закрыто переходом на standalone HTML вне WP (см. `account_web/history` 2026-07-20). Если после выкладки на ISPManager полоска снова «залипает» — проверить, что URL не отдаётся темой WordPress.

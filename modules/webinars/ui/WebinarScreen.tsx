@@ -30,6 +30,7 @@ import { isWebinarInJoinWindow } from "@/modules/webinars/core/webinarTiming";
 import {
   fetchWebinar,
   isRegistered,
+  registerWithWebinarPass,
   localizeWebinar,
   setRegistered,
   type WebinarItem,
@@ -100,7 +101,14 @@ export function WebinarScreen() {
   const register = useCallback(() => {
     if (!id || !userId) return;
     if (!canUseFeature("webinar_community")) {
-      setShowUpgrade(true);
+      void registerWithWebinarPass(id, userId).then((ok) => {
+        if (!ok) {
+          setShowUpgrade(true);
+          return;
+        }
+        setRegisteredState(true);
+        void askWebinarNotifications(userId);
+      });
       return;
     }
     setRegisteredState(true);

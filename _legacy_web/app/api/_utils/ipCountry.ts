@@ -8,7 +8,15 @@ const RESERVED_COUNTRY_CODES = new Set(["XX", "A1", "A2", "O1", "T1", "AP", "EU"
 const IPV4_PRIVATE =
   /^(?:127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[0-1])\.)/;
 
-export type IpCountrySource = "vercel" | "ip_lookup" | "none";
+export type IpCountrySource = "vercel" | "ip_lookup" | "proxy_client" | "none";
+
+/**
+ * REG.RU PHP proxy in front of harmonizer.zamkovoi.yoga (DEPLOY.md «Russia proxy»).
+ * Vercel sees the proxy, not the visitor, so its geo header says RU for everyone.
+ * The proxy forwards the visitor address in this header.
+ */
+export const PROXY_CLIENT_IP_HEADER = "x-harmonizer-client-ip";
+const REG_RU_PROXY_IPS = new Set(["31.31.196.134", "2a00:f940:2:2:1:1:0:147"]);
 
 export type IpCountryResult = {
   country: string;
@@ -76,10 +84,20 @@ export async function resolveIpCountry(
   headers: Headers,
   lookup: IpLookupFn = lookupCountryByIp,
 ): Promise<IpCountryResult> {
+  const proxiedClient = (headers.get(PROXY_CLIENT_IP_HEADER) ?? "").split(",")[0]?.trim() ?? "";
+  if (proxiedClient && isPublicIp(proxiedClient)) {
+    const lookedUp = await lookup(proxiedClient);
+    return lookedUp ? { country: lookedUp, source: "proxy_client" } : { country: "", source: "none" };
+  }
+  const connecting = clientIpFromHeaders(headers);
+  if (connecting && REG_RU_PROXY_IPS.has(connecting)) {
+    return { country: "", source: "none" };
+  }
+
   const vercel = countryFromVercelHeaders(headers);
   if (vercel) return { country: vercel, source: "vercel" };
 
-  const ip = clientIpFromHeaders(headers);
+  const ip = connecting;
   if (!ip) return { country: "", source: "none" };
 
   const lookedUp = await lookup(ip);

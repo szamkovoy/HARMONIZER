@@ -197,6 +197,10 @@ export async function markContractAndSettlementsRefunded(
     .eq("contract_id", contract.contract_id);
   if (contractErr) throw contractErr;
 
+  if (contract.product_kind === "one_time") {
+    await revokeWebinarPass(db, contract.contract_id);
+  }
+
   if (contract.user_id && (contract.product_kind ?? "subscription") === "subscription") {
     await db
       .from("yookassa_payment_methods")
@@ -204,6 +208,32 @@ export async function markContractAndSettlementsRefunded(
       .eq("user_id", contract.user_id)
       .in("status", ["active", "pending"]);
     await revokeOrRestoreMembershipAfterRefund(db, contract.user_id);
+  }
+}
+
+/** Пропуск на вебинары после возврата: отзыв + снятие с ещё не начавшихся вебинаров. */
+async function revokeWebinarPass(db: SupabaseClient, contractId: string): Promise<void> {
+  const { data: pass, error } = await db
+    .from("webinar_passes")
+    .update({ status: "revoked" })
+    .eq("contract_id", contractId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!pass?.id) return;
+  const { data: regs } = await db
+    .from("webinar_registrations")
+    .select("webinar_id, webinars!inner(starts_at)")
+    .eq("pass_id", pass.id as string)
+    .gt("webinars.starts_at", new Date().toISOString());
+  const upcoming = (regs ?? []).map((r) => r.webinar_id as string);
+  if (upcoming.length) {
+    const { error: delErr } = await db
+      .from("webinar_registrations")
+      .delete()
+      .eq("pass_id", pass.id as string)
+      .in("webinar_id", upcoming);
+    if (delErr) throw delErr;
   }
 }
 

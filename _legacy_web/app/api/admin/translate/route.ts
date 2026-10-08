@@ -27,7 +27,63 @@ type TranslatePayload =
       source_body?: string;
       /** Locales to fill (may include ru). Default = all except source. */
       fill_locales?: PostLocale[];
+    }
+  | {
+      /** Named short texts (widget form, product letter). Placeholders like {{name}} kept as-is. */
+      type: "fields";
+      source_locale?: AppContentLocale;
+      fields: Record<string, string>;
+      fill_locales?: PostLocale[];
     };
+
+type FieldTranslations = Record<string, Record<string, string>>;
+
+function buildFieldsPrompt(
+  sourceLocale: AppContentLocale,
+  fields: Record<string, string>,
+  fillLocales: readonly PostLocale[],
+): string {
+  const sourceName = LANGUAGE_NAMES[sourceLocale];
+  const langList = fillLocales.map((l) => `"${l}": "${LANGUAGE_NAMES[l]}"`).join(", ");
+  const keys = Object.keys(fields);
+  const example = fillLocales
+    .map((l) => `  "${l}": { ${keys.map((k) => `"${k}": "..."`).join(", ")} }`)
+    .join(",\n");
+  return `You are a professional translator. Translate the following short texts of a payment form / purchase email from ${sourceName} into the listed languages.
+Return ONLY a valid JSON object. No markdown, no explanation.
+
+Source texts (JSON, key → text):
+${JSON.stringify(fields, null, 2)}
+
+Required JSON format (locales: ${fillLocales.join(", ")}; same keys in each):
+{
+${example}
+}
+
+Languages: ${langList}
+Keep placeholders such as {{name}} unchanged. Preserve line breaks (\\n), URLs and the warm, personal tone. Keep it natural and idiomatic.`;
+}
+
+function validateFieldTranslations(
+  raw: unknown,
+  keys: readonly string[],
+  fillLocales: readonly PostLocale[],
+): FieldTranslations {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("Invalid translation response: expected object");
+  }
+  const result: FieldTranslations = {};
+  for (const locale of fillLocales) {
+    const val = (raw as Record<string, unknown>)[locale];
+    const entry: Record<string, string> = {};
+    for (const key of keys) {
+      const v = val && typeof val === "object" ? (val as Record<string, unknown>)[key] : undefined;
+      entry[key] = typeof v === "string" ? v.trim() : "";
+    }
+    result[locale] = entry;
+  }
+  return result;
+}
 
 type StoryTranslations = Record<StoryTargetLocale, string>;
 type PostTranslations = Record<string, { title: string; body: string }>;
@@ -80,7 +136,7 @@ ${example}
 }
 
 Languages: ${langList}
-Preserve line breaks (\\n) and URL formatting. Keep it natural and idiomatic.`;
+Preserve line breaks (\\n) and URL formatting. Keep placeholders such as {{name}} unchanged. Keep it natural and idiomatic.`;
 }
 
 function validateStoryTranslations(raw: unknown): StoryTranslations {
@@ -198,7 +254,31 @@ export async function POST(req: Request) {
       return json({ translations });
     }
 
-    return json({ error: "Неизвестный type — ожидается story или post" }, { status: 400 });
+    if (payload.type === "fields") {
+      const sourceLocale = (payload.source_locale ?? "ru") as AppContentLocale;
+      const fields: Record<string, string> = {};
+      for (const [key, value] of Object.entries(payload.fields ?? {})) {
+        if (typeof value === "string" && value.trim() && /^[\w.-]{1,64}$/.test(key)) fields[key] = value;
+      }
+      const keys = Object.keys(fields);
+      if (!keys.length) return json({ error: "Нет текста для перевода" }, { status: 400 });
+      const fillLocales = resolvePostFillLocales(sourceLocale, payload.fill_locales);
+      const translations: FieldTranslations = {};
+      for (let i = 0; i < fillLocales.length; i += POST_TRANSLATE_CHUNK) {
+        const chunk = fillLocales.slice(i, i + POST_TRANSLATE_CHUNK);
+        const { json: raw } = await generateGeminiJson<unknown>({
+          prompt: buildFieldsPrompt(sourceLocale, fields, chunk),
+          model,
+          temperature: 0.3,
+          maxOutputTokens: 8000,
+          timeoutMs: POST_TRANSLATE_TIMEOUT_MS,
+        });
+        Object.assign(translations, validateFieldTranslations(raw, keys, chunk));
+      }
+      return json({ translations });
+    }
+
+    return json({ error: "Неизвестный type — ожидается story, post или fields" }, { status: 400 });
   } catch (error) {
     return errorResponse(error);
   }

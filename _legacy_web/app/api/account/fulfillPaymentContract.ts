@@ -9,6 +9,21 @@ import { settlePayment } from "./fx";
 import { nextPeriodEnd } from "./lava";
 import { resolveCatalogPrice } from "./paymentCatalog";
 import { computeMasterBonusDays, periodEndWithBonusDays } from "./upgradeCredit";
+import {
+  hasPublishedWebinarForPass,
+  sendMasterWebinarInvites,
+  sendPassWebinarInvites,
+  sendWebinarInvites,
+  ticketWebinarIsPublished,
+  type NoticeResult,
+} from "./webinarNotices";
+import {
+  ensureWidgetBuyer,
+  grantWebinarPass,
+  loadWebinarPassProduct,
+  resubscribeContactOnPurchase,
+  sendWidgetPurchaseLetter,
+} from "./widgetFulfillment";
 
 const RENEWAL_GRACE_MS = 48 * 60 * 60 * 1000;
 
@@ -25,6 +40,11 @@ export type FulfillContractRow = {
   renew_fail_count?: number | null;
   amount?: number | null;
   currency?: string | null;
+  source?: string | null;
+  buyer_email?: string | null;
+  buyer_name?: string | null;
+  buyer_locale?: string | null;
+  catalog_id?: string | null;
 };
 
 export async function findPaymentContract(
@@ -34,7 +54,7 @@ export async function findPaymentContract(
   const { data, error } = await db
     .from("payment_contracts")
     .select(
-      "user_id,contract_id,tier,status,product_kind,product_ref,provider,current_period_end,payment_method_id,renew_fail_count,amount,currency",
+      "user_id,contract_id,tier,status,product_kind,product_ref,provider,current_period_end,payment_method_id,renew_fail_count,amount,currency,source,buyer_email,buyer_name,buyer_locale,catalog_id",
     )
     .eq("contract_id", contractId)
     .maybeSingle();
@@ -133,8 +153,17 @@ export async function fulfillFirstPaymentSuccess(
     logTag: string;
   },
 ): Promise<Record<string, unknown>> {
-  const { contract } = params;
-  const contractId = contract.contract_id;
+  const contractId = params.contract.contract_id;
+  let contract = params.contract;
+
+  if (contract.status !== "active" && contract.source === "widget" && contract.buyer_email) {
+    const buyer = await ensureWidgetBuyer(db, {
+      email: contract.buyer_email,
+      name: contract.buyer_name ?? null,
+      locale: contract.buyer_locale || "ru",
+    });
+    contract = { ...contract, user_id: buyer.userId };
+  }
 
   if (contract.status === "active") {
     await settleChargeSafe(db, {
@@ -147,15 +176,25 @@ export async function fulfillFirstPaymentSuccess(
       provider: params.provider,
       logTag: params.logTag,
     });
+    await resubscribeSafe(db, contract, params.logTag);
+    if (contract.source === "widget" && contract.product_kind === "one_time") {
+      // Retry after a partial first run: pass and letter are idempotent.
+      await completeOneTimeExtras(db, contract, contract.user_id, params);
+    }
+    if (contract.tier === "master" && contract.user_id) {
+      await masterInvitesSafe(db, contract.user_id, params.logTag);
+    }
     return { ok: true, alreadyActive: true };
   }
 
   const nowIso = new Date().toISOString();
 
   if (contract.product_kind === "one_time") {
+    const userId: string | null = contract.user_id ?? null;
+
     const { error: contractError } = await db
       .from("payment_contracts")
-      .update({ status: "active", updated_at: nowIso })
+      .update({ status: "active", updated_at: nowIso, ...(userId ? { user_id: userId } : {}) })
       .eq("contract_id", contractId);
     if (contractError) throw contractError;
 
@@ -165,28 +204,13 @@ export async function fulfillFirstPaymentSuccess(
       amount: params.amount,
       currency: params.currency,
       paidAt: params.paidAt,
-      userId: contract.user_id,
+      userId,
       provider: params.provider,
       logTag: params.logTag,
     });
 
-    if (contract.tier === "webinar") {
-      const webinarId = contract.product_ref;
-      if (webinarId) {
-        const { error: regError } = await db.from("webinar_registrations").upsert(
-          { webinar_id: webinarId, user_id: contract.user_id },
-          { onConflict: "webinar_id,user_id", ignoreDuplicates: true },
-        );
-        if (regError) throw regError;
-      }
-      return { ok: true, webinarRegistered: webinarId ?? null };
-    }
-
-    if (contract.tier === "book") {
-      return { ok: true, bookPurchased: contractId };
-    }
-
-    return { ok: true, oneTimeActivated: contractId };
+    await resubscribeSafe(db, { ...contract, user_id: userId }, params.logTag);
+    return completeOneTimeExtras(db, contract, userId, params);
   }
 
   let bonusDays = 0;
@@ -237,6 +261,7 @@ export async function fulfillFirstPaymentSuccess(
       status: "active",
       current_period_end: periodEnd.toISOString(),
       updated_at: nowIso,
+      ...(contract.user_id ? { user_id: contract.user_id } : {}),
     })
     .eq("contract_id", contractId);
   if (contractError) throw contractError;
@@ -262,8 +287,120 @@ export async function fulfillFirstPaymentSuccess(
   if (userError) throw userError;
 
   await cancelOtherActiveSubscriptions(db, contract.user_id, contractId, params.logTag);
+  await resubscribeSafe(db, contract, params.logTag);
 
-  return { ok: true, activated: contractId, upgradeBonusDays: bonusDays };
+  const result: Record<string, unknown> = { ok: true, activated: contractId, upgradeBonusDays: bonusDays };
+  if (contract.tier === "master" && contract.user_id) {
+    result.invites = await masterInvitesSafe(db, contract.user_id, params.logTag);
+  }
+  if (contract.source === "widget") {
+    result.letter = await sendWidgetPurchaseLetterSafe(db, contractId, params.logTag);
+  }
+  return result;
+}
+
+async function sendWidgetPurchaseLetterSafe(
+  db: SupabaseClient,
+  contractId: string,
+  logTag: string,
+): Promise<{ sent: boolean; reason?: string }> {
+  try {
+    return await sendWidgetPurchaseLetter(db, contractId);
+  } catch (letterErr) {
+    console.error(`[${logTag}] widget letter failed`, contractId, letterErr);
+    return { sent: false, reason: "send_failed" };
+  }
+}
+
+/** Разовая покупка после активации: вебинар (конкретный или пропуск), письмо виджета. */
+async function completeOneTimeExtras(
+  db: SupabaseClient,
+  contract: FulfillContractRow,
+  userId: string | null,
+  params: { paidAt?: string | null; logTag: string },
+): Promise<Record<string, unknown>> {
+  const contractId = contract.contract_id;
+  const result: Record<string, unknown> = { ok: true, oneTimeActivated: contractId };
+
+  // A 1- or 4-webinar purchase sends the catalog letter only when no published
+  // webinar fits yet. Once one does, the invitation replaces that letter.
+  let skipProductLetter = false;
+
+  if (contract.tier === "webinar" && contract.product_ref) {
+    if (userId) {
+      const { error: regError } = await db.from("webinar_registrations").upsert(
+        { webinar_id: contract.product_ref, user_id: userId },
+        { onConflict: "webinar_id,user_id", ignoreDuplicates: true },
+      );
+      if (regError) throw regError;
+      skipProductLetter = await ticketWebinarIsPublished(db, contract.product_ref);
+      if (skipProductLetter) {
+        result.invites = await invitesSafe(
+          () => sendWebinarInvites(db, contract.product_ref as string, { onlyUserId: userId }),
+          params.logTag,
+        );
+      }
+    }
+    result.webinarRegistered = contract.product_ref;
+  } else if ((contract.tier === "webinar" || contract.tier === "webinar_pack") && userId) {
+    const product = await loadWebinarPassProduct(db, {
+      catalogId: contract.catalog_id ?? null,
+      tier: contract.tier,
+    });
+    if (product) {
+      const paid = params.paidAt ? new Date(params.paidAt) : new Date();
+      const pass = await grantWebinarPass(db, {
+        userId,
+        contractId,
+        product,
+        paidAt: Number.isNaN(paid.getTime()) ? new Date() : paid,
+      });
+      result.webinarPass = { credits: product.credits, registered: pass.registered };
+      skipProductLetter = await hasPublishedWebinarForPass(db, userId);
+      if (skipProductLetter) {
+        result.invites = await invitesSafe(() => sendPassWebinarInvites(db, userId), params.logTag);
+      }
+    }
+  } else if (contract.tier === "book") {
+    result.bookPurchased = contractId;
+  }
+
+  if (contract.source === "widget" && !skipProductLetter) {
+    result.letter = await sendWidgetPurchaseLetterSafe(db, contractId, params.logTag);
+  }
+  return result;
+}
+
+async function resubscribeSafe(
+  db: SupabaseClient,
+  contract: { contract_id: string; buyer_email?: string | null; user_id: string | null },
+  logTag: string,
+): Promise<void> {
+  try {
+    await resubscribeContactOnPurchase(db, {
+      email: contract.buyer_email,
+      userId: contract.user_id,
+    });
+  } catch (err) {
+    console.error(`[${logTag}] resubscribe failed`, contract.contract_id, err);
+  }
+}
+
+async function masterInvitesSafe(
+  db: SupabaseClient,
+  userId: string,
+  logTag: string,
+): Promise<NoticeResult> {
+  return invitesSafe(() => sendMasterWebinarInvites(db, userId), logTag);
+}
+
+async function invitesSafe(run: () => Promise<NoticeResult>, logTag: string): Promise<NoticeResult> {
+  try {
+    return await run();
+  } catch (err) {
+    console.error(`[${logTag}] webinar invites failed`, err);
+    return { sent: 0, failed: 1 };
+  }
 }
 
 /**
@@ -320,6 +457,7 @@ export async function fulfillYookassaRenewal(
     .eq("id", contract.user_id);
   if (userError) throw userError;
 
+  await resubscribeSafe(db, contract, logTag);
   return { ok: true, renewed: contract.contract_id };
 }
 

@@ -30,7 +30,22 @@ export type WrapEmailOptions = {
   bodyHtml: string;
   unsubscribeUrl: string;
   previewText?: string;
+  /** Document language; default ru. */
+  lang?: string;
+  /** Localized footer: `{before} <a>{link}</a>{after}`; default is the Russian marketing footer. */
+  footer?: { before: string; link: string; after: string };
 };
+
+const DEFAULT_FOOTER = {
+  before:
+    "Вы получили это письмо, потому что регистрировались в учебном центре Сергея Замкового. Если вы не хотите получать мои письма, вы можете",
+  link: "отписаться",
+  after: ".",
+};
+
+function escapeText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 const HEADING_FONT_SIZE: Record<string, string> = {
   h1: "22px",
@@ -197,8 +212,10 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
   const preheader = preview
     ? `<div style="display:none;max-height:0;max-width:0;overflow:hidden;font-size:1px;line-height:1px;color:#f4f6f5;opacity:0;mso-hide:all;">${preview}</div>`
     : "";
+  const footer = opts.footer ?? DEFAULT_FOOTER;
+  const lang = (opts.lang ?? "ru").replace(/[^a-z-]/gi, "").slice(0, 8) || "ru";
   return `<!DOCTYPE html>
-<html lang="ru">
+<html lang="${lang}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -226,9 +243,8 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
           <tr>
             <td style="padding:20px 28px 28px;border-top:1px solid #e8ebe9;font-family:${BODY_FONT};font-size:14px;line-height:21px;color:#6b7280;text-align:center;${WORD_BREAK}">
               <p style="margin:0;padding:0;font-family:${BODY_FONT};font-size:14px;line-height:21px;color:#6b7280;${WORD_BREAK}">
-                Вы получили это письмо, потому что регистрировались в учебном центре Сергея Замкового.
-                Если вы не хотите получать мои письма, вы можете
-                <a href="${escapeHref(opts.unsubscribeUrl)}" style="color:${BRAND_COLOR};text-decoration:underline;font-size:14px;white-space:nowrap;word-break:keep-all;overflow-wrap:normal;">отписаться</a>.
+                ${escapeText(footer.before)}
+                <a href="${escapeHref(opts.unsubscribeUrl)}" style="color:${BRAND_COLOR};text-decoration:underline;font-size:14px;white-space:nowrap;word-break:keep-all;overflow-wrap:normal;">${escapeText(footer.link)}</a>${escapeText(footer.after)}
               </p>
             </td>
           </tr>

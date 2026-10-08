@@ -1,21 +1,16 @@
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../_utils/supabase";
+import { loadCatalogRows, withLavaOffers } from "./catalogItem";
 
 export const runtime = "nodejs";
 
-/** Каталог SKU ЮKassa (и задел под другие provider). */
+/** Каталог продуктов: SKU ЮKassa (RUB) + привязанный оффер Lava (цены read-only). */
 export async function GET(req: Request) {
   try {
     await requireAdmin(req);
     const db = createServiceSupabase();
-    const { data, error } = await db
-      .from("payment_catalog")
-      .select(
-        "id, provider, tier, currency, amount, title, description, product_kind, active, updated_at",
-      )
-      .order("provider", { ascending: true })
-      .order("tier", { ascending: true });
-    if (error) throw error;
-    return json({ items: data ?? [] });
+    const rows = await loadCatalogRows(db);
+    const { items, lavaError } = await withLavaOffers(rows);
+    return json({ items, lavaError });
   } catch (error) {
     return errorResponse(error);
   }

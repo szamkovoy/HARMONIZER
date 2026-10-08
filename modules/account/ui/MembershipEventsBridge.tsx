@@ -168,7 +168,7 @@ export function MembershipEventsBridge() {
       if (cancelled) return "none";
       const visit = await readFreshCabinetVisit(uid);
       const recentVisit = visit ? Date.now() - visit.ts < 90_000 : false;
-      const kind = purchase?.kind;
+      const kind = purchase?.kind === "webinar_pack" ? "webinar" : purchase?.kind;
       if (!purchase || (kind !== "book" && kind !== "webinar")) {
         return recentVisit ? "pending" : "none";
       }

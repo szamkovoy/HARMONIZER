@@ -1,6 +1,8 @@
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
 import { settlePayment } from "../../fx";
+import { findPaymentContract, fulfillFirstPaymentSuccess } from "../../fulfillPaymentContract";
 import { cancelLavaSubscription, nextPeriodEnd } from "../../lava";
+import { resubscribeContactOnPurchase } from "../../widgetFulfillment";
 
 // Приём вебхуков Lava.top (оба типа: «Результат платежа» и «Регулярный платёж»).
 // Аутентификация: заголовок X-Api-Key = LAVATOP_WEBHOOK_SECRET (настраивается
@@ -153,43 +155,26 @@ async function handleFirstPaymentSuccess(
     console.warn("[lava-webhook] payment.success for unknown contract", contractId);
     return json({ ok: true, unknownContract: true });
   }
+  // Разовая покупка (ONE_TIME) не меняет membership_*. Разовые покупки (вебинар,
+  // пропуск на вебинары, книга) и всё купленное с виджета лендинга (аккаунт
+  // покупателя создаётся здесь) — общая логика с ЮKassa.
+  const full = await findPaymentContract(db, contractId);
+  if (full && (full.product_kind === "one_time" || full.source === "widget")) {
+    const result = await fulfillFirstPaymentSuccess(db, {
+      contract: full,
+      amount: body.amount,
+      currency: body.currency,
+      paidAt: body.timestamp ?? new Date().toISOString(),
+      provider: "lavatop",
+      logTag: "lava-webhook",
+    });
+    return json(result);
+  }
+
   if (contract.status === "active") {
     // Идемпотентный ретрай вебхука: статус уже active, но settlement мог не записаться.
     await settleLavaCharge(db, contractId, "payment.success", body, contract.user_id);
     return json({ ok: true, alreadyActive: true });
-  }
-
-  // Разовая покупка (ONE_TIME): НЕ меняет membership_*, только фиксируется как
-  // активная. Для вебинара — дополнительно регистрируем пользователя на вебинар
-  // (product_ref = webinar_id). Для книги — просто активная покупка (приложение
-  // поблагодарит через /api/account/purchases/last).
-  if (contract.product_kind === "one_time") {
-    const nowIso = new Date().toISOString();
-    const { error: contractError } = await db
-      .from("payment_contracts")
-      .update({ status: "active", updated_at: nowIso })
-      .eq("contract_id", contractId);
-    if (contractError) throw contractError;
-
-    await settleLavaCharge(db, contractId, "payment.success", body, contract.user_id);
-
-    if (contract.tier === "webinar") {
-      const webinarId = contract.product_ref;
-      if (webinarId) {
-        const { error: regError } = await db.from("webinar_registrations").upsert(
-          { webinar_id: webinarId, user_id: contract.user_id },
-          { onConflict: "webinar_id,user_id", ignoreDuplicates: true },
-        );
-        if (regError) throw regError;
-      }
-      return json({ ok: true, webinarRegistered: webinarId ?? null });
-    }
-
-    if (contract.tier === "book") {
-      return json({ ok: true, bookPurchased: contractId });
-    }
-
-    return json({ ok: true, oneTimeActivated: contractId });
   }
 
   const periodEnd = nextPeriodEnd();
@@ -289,6 +274,15 @@ async function handleRenewal(parentContractId: string, body: LavaWebhookBody): P
     })
     .eq("id", contract.user_id);
   if (userError) throw userError;
+
+  try {
+    await resubscribeContactOnPurchase(db, {
+      email: body.buyer?.email ?? null,
+      userId: contract.user_id,
+    });
+  } catch (err) {
+    console.error("[lava-webhook] resubscribe failed", contract.contract_id, err);
+  }
 
   return json({ ok: true, renewed: contract.contract_id });
 }

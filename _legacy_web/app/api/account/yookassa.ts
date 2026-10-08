@@ -21,7 +21,8 @@ function isRecurringNotAllowedError(status: number, bodyText: string): boolean {
 export type YookassaCreatePaymentParams = {
   /** Наш contract_id (uuid), уходит в metadata и Idempotence-Key namespace. */
   contractId: string;
-  userId: string;
+  /** null — покупатель виджета без аккаунта; аккаунт создаётся при fulfill. */
+  userId: string | null;
   amount: number;
   currency: "RUB";
   description: string;
@@ -30,6 +31,8 @@ export type YookassaCreatePaymentParams = {
   webinarId?: string | null;
   /** Подписки: ограничить картой; разовые — Умный платёж (все методы магазина). */
   cardOnly?: boolean;
+  /** Возврат после оплаты; по умолчанию YOOKASSA_RETURN_URL (кабинет). */
+  returnUrl?: string | null;
 };
 
 export type YookassaPayment = {
@@ -64,7 +67,7 @@ function truncateDescription(text: string): string {
 export async function createYookassaPayment(
   params: YookassaCreatePaymentParams,
 ): Promise<{ payment: YookassaPayment; confirmationUrl: string }> {
-  const returnUrl = requiredEnv("YOOKASSA_RETURN_URL");
+  const returnUrl = params.returnUrl?.trim() || requiredEnv("YOOKASSA_RETURN_URL");
   const amountValue = params.amount.toFixed(2);
   const wantSaveMethod = params.kind === "subscription";
 
@@ -76,7 +79,7 @@ export async function createYookassaPayment(
       description: truncateDescription(params.description),
       metadata: {
         contractId: params.contractId,
-        userId: params.userId,
+        ...(params.userId ? { userId: params.userId } : {}),
         tier: params.tier,
         kind: params.kind,
         ...(params.webinarId ? { webinarId: params.webinarId } : {}),

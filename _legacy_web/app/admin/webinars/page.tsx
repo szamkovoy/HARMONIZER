@@ -117,12 +117,8 @@ export default function AdminWebinarsPage() {
 
       <div className="flex flex-col gap-3">
         {webinars?.map((webinar) => {
-          const recordingCreated = Boolean(webinar.recording_post_id);
           const recordingPublished = Boolean(webinar.recording_is_published);
-          const listTitle =
-            recordingCreated && webinar.recording_title?.trim()
-              ? webinar.recording_title.trim()
-              : webinar.title;
+          const listTitle = webinar.title;
           return (
             <div
               key={webinar.id}

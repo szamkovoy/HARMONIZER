@@ -17,6 +17,16 @@ code_refs:
   ]
 ---
 
+## 2026-10-08 — Покупка снова подписывает и не смешивает языки
+
+- An `unsubscribed` contact becomes `active` on any purchase, including a renewal. `complained` and `suppressed` are left alone, but a letter about the purchased product is still sent.
+- Webinar invite and recording letters are one language end to end. A missing translation sends the whole letter in Russian.
+- The recording letter is the text from the admin tab, including its own greeting and signature. The mailer adds only the footer.
+
+## 2026-10-07 — Покупатели с виджетов лендингов
+
+- Contacts with `source = 'widget'` are added after payment without consent, as the product decided. An unsubscribed contact stays unsubscribed. `wrapMarketingEmailHtml` takes a `lang` and `footer` so the purchase letter and the webinar join email go out in the widget's language; the Russian footer stays the default.
+
 ## 2026-10-06 — Пустая очередь больше не крутит пересчёт сегмента
 
 - **Что было.** Очередь кампании «От соматики к собственной религии» опустела в 11:55 UTC, но статус остался `sending`. `pickWaveRecipients` считал 5 `failed` «оставшимися», `enqueueWave` вставлял их с `ignoreDuplicates` (то есть ничего), а код считал вставленными все строки. Кампания не закрывалась. Каждый 5-минутный тик повторял полный проход: `email_segment_resolve` (~1.5–4 s, ~17k контактов в jsonb), ~15 страниц `email_campaign_sends`, ~25 чанков `users`, upsert. С 11:55 до 14:46 было 35 тиков (35 вызовов RPC сегмента в `pg_stat_statements`). Это выполнялось на Nano, где ~500 MB уже лежало в swap, а committed memory (~1.6 GB) превышала commit limit. Отсюда пики IOwait до 85 %. В 14:46 инстанс замер целиком (`infra/history.md`).

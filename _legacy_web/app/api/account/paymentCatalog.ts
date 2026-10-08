@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type CatalogTier = "oracle" | "master" | "webinar" | "book";
+export type CatalogTier = "oracle" | "master" | "webinar" | "webinar_pack" | "book";
 
 export type PaymentCatalogRow = {
   provider: string;

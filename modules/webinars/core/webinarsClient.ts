@@ -181,6 +181,21 @@ export async function isRegistered(webinarId: string, userId: string): Promise<b
   return !!data;
 }
 
+/**
+ * Webinar pass bought on a landing widget: the server registers the user for
+ * webinars inside the paid window. Returns true when this webinar is now registered.
+ */
+export async function registerWithWebinarPass(webinarId: string, userId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const { error } = await supabase.rpc("apply_my_webinar_passes");
+  if (error) {
+    if (__DEV__) console.warn("[webinars] pass apply failed", error.message);
+    return false;
+  }
+  return isRegistered(webinarId, userId);
+}
+
 export async function setRegistered(webinarId: string, userId: string, registered: boolean): Promise<void> {
   const supabase = getSupabase();
   if (!supabase) return;

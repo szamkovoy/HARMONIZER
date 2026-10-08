@@ -40,6 +40,8 @@ The certificate is Let's Encrypt, name in the panel `harmonizer.zamkovoi.yoga_le
 
 Do not point YooKassa, SES, Resend, or Supabase cron at this proxy. Those callers stay on `https://harmonizer-ten.vercel.app`. That alias stays attached in the Vercel project and must not 307-redirect. The custom name is not attached there: DNS does not point at Vercel, so the dashboard marks it invalid and emails about it. Removing `harmonizer.zamkovoi.yoga` from the project stops the mail. Do not add it back, and do not point its DNS at the Vercel CNAME.
 
+Since 2026-10-07 the proxy forwards the visitor address as `X-Harmonizer-Client-Ip` (any incoming copy is stripped). `ipCountry.ts` geolocates that address. A request coming from the proxy addresses without that header gets an unknown country, so the payment widgets fall back to the browser time zone and don't show every visitor as RU. Every change to the PHP file needs a manual re-upload to `/www/harmonizer.zamkovoi.yoga` on REG.RU.
+
 `deploy/reg-ru-harmonizer-proxy.conf` is a nginx snippet for a VPS only. It is not installed here.
 
 Rollback: in the Vercel project add `harmonizer.zamkovoi.yoga` again and wait until it has a certificate, then restore CNAME `harmonizer` → `30e747ace3367cc1.vercel-dns-017.com.` and delete the A/AAAA. Until that certificate exists, do not switch DNS back.

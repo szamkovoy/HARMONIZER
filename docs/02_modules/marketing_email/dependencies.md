@@ -42,7 +42,8 @@ code_refs:
 ## 2. От него зависят
 
 - **`admin_panel`** — карточка пользователя читает sends / запускает цепочки.
-- **`account_web`** — единый wipe вызывает cancel enrollments из `emailAutomationRunner`.
+- **`account_web`** — единый wipe вызывает cancel enrollments из `emailAutomationRunner`. Покупка возвращает `unsubscribed` → `active` и шлёт письмо о продукте вне сегмента рассылки.
+- **`webinars`** — приглашение и письмо о записи (`webinarNotices.ts`) используют тот же транспорт и футер.
 
 ## 3. Риски
 
