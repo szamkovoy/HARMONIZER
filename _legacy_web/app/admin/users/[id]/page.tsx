@@ -75,6 +75,7 @@ type EmailHist = {
   campaign_id: string | null;
   automation_id: string | null;
   step_id?: string | null;
+  webinar_id?: string | null;
 };
 
 type ActiveEnrollment = {
@@ -411,6 +412,11 @@ export default function AdminUserCardPage() {
   }
 
   function emailHistoryLabel(e: EmailHist): string {
+    if (e.kind === "webinar") {
+      const letter = (e.letter_name || e.subject || "").trim() || "Вебинар";
+      const title = (e.chain_name || "").trim();
+      return title ? `${letter} · ${title}` : letter;
+    }
     if (e.kind === "automation") {
       const chain = (e.chain_name || "").trim() || "Цепочка";
       const letter = (e.letter_name || e.subject || "").trim() || "Письмо";
@@ -482,6 +488,7 @@ export default function AdminUserCardPage() {
     if (e.kind === "automation" && e.automation_id) {
       return `/admin/email/automations/${e.automation_id}`;
     }
+    if (e.kind === "webinar" && e.webinar_id) return `/admin/webinars/${e.webinar_id}`;
     return null;
   }
 
@@ -814,7 +821,7 @@ export default function AdminUserCardPage() {
                 <span className="flex w-full items-center justify-between gap-2 py-2">
                   <span className="min-w-0 truncate font-normal text-zinc-800">
                     <span className="text-xs text-zinc-400">
-                      {e.kind === "automation" ? "цепочка" : "рассылка"} ·{" "}
+                      {e.kind === "automation" ? "цепочка" : e.kind === "webinar" ? "вебинар" : "рассылка"} ·{" "}
                     </span>
                     {emailHistoryLabel(e)}
                   </span>

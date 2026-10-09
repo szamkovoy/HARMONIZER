@@ -9,6 +9,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 
 ## Decision Log
 
+- **2026-10-09 (webinar letters on the user card):** Блок «Письма» в карточке пользователя показывает и `webinar_notice_sends`: «вебинар · Приглашаю на вебинар» или «Запись вебинара», со ссылкой на карточку вебинара. Раньше там были только рассылки и цепочки.
+
 - **2026-10-08 (recording tab is the letter):** The recording tab has no cover and no publish checkbox. The Russian template is already filled in. The button is «Отправить письмо участникам». The linked post stays unpublished.
 
 - **2026-10-08 (webinar letters from the editor):** Saving a published announcement with a room link sends invitations. Publishing the recording tab with text sends the recording letter. The response includes `notices`.

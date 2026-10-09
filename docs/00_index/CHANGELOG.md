@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-09 (635): User card «Письма» lists webinar invite and recording letters from `webinar_notice_sends`, with a link to the webinar. Docs `admin_panel`, `webinars`.
 - 2026-10-09 (634): Webinar invite shows a button «Перейти в вебинарную комнату» and puts «Код доступа: 123456» on the next line under it. The room address stays inside the button. Docs `webinars`.
 - 2026-10-09 (633): Webinar invite puts «Код доступа: 123456» on the line under the room link, then the same gap as after the greeting, then the signature. The code is fixed; the label follows the letter language. Docs `webinars`.
 - 2026-10-08 (631): The webinar recording tab is only the letter to participants. It does not publish a post in the app. The Russian template is prefilled, and the button is «Отправить письмо участникам». Docs `webinars`, `admin_panel`.

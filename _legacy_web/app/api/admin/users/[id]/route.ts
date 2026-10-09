@@ -152,6 +152,7 @@ export async function GET(req: Request, ctx: RouteContext) {
       campaign_id: string | null;
       automation_id: string | null;
       step_id: string | null;
+      webinar_id: string | null;
     }[] = [];
     let emailHistoryTotal = 0;
     let activeEnrollments: {
@@ -214,6 +215,7 @@ export async function GET(req: Request, ctx: RouteContext) {
           campaign_id: row.campaign_id ?? null,
           automation_id: null,
           step_id: null,
+          webinar_id: null,
         });
       }
       for (const row of autoSends.data ?? []) {
@@ -243,6 +245,7 @@ export async function GET(req: Request, ctx: RouteContext) {
           campaign_id: null,
           automation_id: row.automation_id ?? null,
           step_id: (row.step_id as string | null) ?? null,
+          webinar_id: null,
         });
       }
       emailHistory.sort(
@@ -281,6 +284,35 @@ export async function GET(req: Request, ctx: RouteContext) {
         };
       });
     }
+
+    const noticeRes = await db
+      .from("webinar_notice_sends")
+      .select("kind, sent_at, webinar_id, webinars(title)")
+      .eq("user_id", id)
+      .order("sent_at", { ascending: false });
+    if (noticeRes.error) throw noticeRes.error;
+    emailHistoryTotal += noticeRes.data?.length ?? 0;
+    for (const row of noticeRes.data ?? []) {
+      const raw = row.webinars as { title?: string } | { title?: string }[] | null;
+      const webinar = Array.isArray(raw) ? raw[0] : raw;
+      const letter = row.kind === "recording" ? "Запись вебинара" : "Приглашаю на вебинар";
+      emailHistory.push({
+        kind: "webinar",
+        subject: letter,
+        chain_name: (webinar?.title || "").trim() || null,
+        letter_name: letter,
+        status: "sent",
+        created_at: row.sent_at,
+        campaign_id: null,
+        automation_id: null,
+        step_id: null,
+        webinar_id: row.webinar_id,
+      });
+    }
+    emailHistory.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    emailHistory = emailHistory.slice(0, HISTORY_LIMIT);
 
     const { count: notifTotal } = await db
       .from("notification_deliveries")
