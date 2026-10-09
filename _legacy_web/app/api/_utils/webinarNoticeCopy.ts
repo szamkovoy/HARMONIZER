@@ -15,6 +15,8 @@ export type WebinarNoticeCopy = {
   /** Author's signature. Russian keeps the Cyrillic name; other locales use the Latin form already used in the From line. */
   signature: string;
   joinButton: string;
+  /** Fixed room code, on the line directly under the join button. Same code in every locale; only the label is translated. */
+  accessCode: string;
 };
 
 const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
@@ -25,7 +27,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "Здравствуйте!",
     closing: "До встречи!",
     signature: "Сергей Замковой",
-    joinButton: "Перейти к трансляции",
+    joinButton: "Перейти в вебинарную комнату",
+    accessCode: "Код доступа: 123456",
   },
   en: {
     inviteSubject: "I invite you to a webinar",
@@ -34,7 +37,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "Hello!",
     closing: "See you soon!",
     signature: "Sergei Zamkovoi",
-    joinButton: "Join the stream",
+    joinButton: "Go to the webinar room",
+    accessCode: "Access code: 123456",
   },
   de: {
     inviteSubject: "Ich lade Sie zum Webinar ein",
@@ -43,7 +47,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "Guten Tag!",
     closing: "Bis bald!",
     signature: "Sergei Zamkovoi",
-    joinButton: "Zur Übertragung",
+    joinButton: "Zum Webinar-Raum",
+    accessCode: "Zugangscode: 123456",
   },
   fr: {
     inviteSubject: "Je vous invite au webinaire",
@@ -52,7 +57,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "Bonjour !",
     closing: "À bientôt !",
     signature: "Sergei Zamkovoi",
-    joinButton: "Rejoindre la diffusion",
+    joinButton: "Accéder à la salle du webinaire",
+    accessCode: "Code d'accès : 123456",
   },
   it: {
     inviteSubject: "Ti invito al webinar",
@@ -61,7 +67,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "Buongiorno!",
     closing: "A presto!",
     signature: "Sergei Zamkovoi",
-    joinButton: "Vai alla diretta",
+    joinButton: "Vai alla stanza del webinar",
+    accessCode: "Codice di accesso: 123456",
   },
   es: {
     inviteSubject: "Te invito al webinar",
@@ -70,7 +77,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "¡Hola!",
     closing: "¡Hasta pronto!",
     signature: "Sergei Zamkovoi",
-    joinButton: "Ir a la transmisión",
+    joinButton: "Ir a la sala del webinar",
+    accessCode: "Código de acceso: 123456",
   },
   pt: {
     inviteSubject: "Convido-o para o webinar",
@@ -79,7 +87,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "Olá!",
     closing: "Até breve!",
     signature: "Sergei Zamkovoi",
-    joinButton: "Ir para a transmissão",
+    joinButton: "Ir para a sala do webinar",
+    accessCode: "Código de acesso: 123456",
   },
   nl: {
     inviteSubject: "Ik nodig je uit voor het webinar",
@@ -88,7 +97,8 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     greetingNoName: "Hallo!",
     closing: "Tot snel!",
     signature: "Sergei Zamkovoi",
-    joinButton: "Naar de livestream",
+    joinButton: "Naar de webinarruimte",
+    accessCode: "Toegangscode: 123456",
   },
 };
 
@@ -196,7 +206,7 @@ export function buildNoticePlainText(params: {
   const greeting = params.name.trim() ? copy.greeting(params.name.trim()) : copy.greetingNoName;
   const lines = [greeting, "", params.body.trim()];
   if (params.kind === "invite" && params.joinUrl?.trim()) {
-    lines.push("", params.joinUrl.trim());
+    lines.push("", copy.joinButton, params.joinUrl.trim(), copy.accessCode);
   }
   lines.push("", copy.closing, copy.signature);
   return {

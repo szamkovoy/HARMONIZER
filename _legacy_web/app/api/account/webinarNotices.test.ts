@@ -13,6 +13,7 @@ import {
   instantInHalfOpenWindow,
   isActiveMaster,
   masterCoveredStart,
+  noticeHtml,
   passCoveredWebinar,
   recordingRecipientIds,
   startsStillOpen,
@@ -81,9 +82,10 @@ describe("letter language is never mixed", () => {
     expect(subject).toBe("Je vous invite au webinaire");
     expect(text).toContain("Bonjour Anne !");
     expect(text).toContain("Le texte du webinaire");
-    expect(text).toContain("https://example.com/room");
-    expect(text).toContain("À bientôt !");
-    expect(text).not.toMatch(/Здравствуйте|До встречи|Приглашаю/);
+    expect(text).toContain(
+      "Accéder à la salle du webinaire\nhttps://example.com/room\nCode d'accès : 123456\n\nÀ bientôt !",
+    );
+    expect(text).not.toMatch(/Здравствуйте|До встречи|Приглашаю|Код доступа/);
   });
 
   it("builds the Russian letter with the greeting, the room link and the sign-off", () => {
@@ -95,10 +97,30 @@ describe("letter language is never mixed", () => {
       joinUrl: "https://example.com/room",
     });
     expect(subject).toBe("Приглашаю на вебинар");
-    expect(text).toContain("Здравствуйте, Анна!");
-    expect(text).toContain("Описание вебинара");
-    expect(text).toContain("https://example.com/room");
-    expect(text).toContain("До встречи!\nСергей Замковой");
+    expect(text).toBe(
+      [
+        "Здравствуйте, Анна!",
+        "",
+        "Описание вебинара",
+        "",
+        "Перейти в вебинарную комнату",
+        "https://example.com/room",
+        "Код доступа: 123456",
+        "",
+        "До встречи!",
+        "Сергей Замковой",
+      ].join("\n"),
+    );
+    const html = noticeHtml({
+      kind: "invite",
+      locale: "ru",
+      name: "Анна",
+      body: "Описание вебинара",
+      joinUrl: "https://example.com/room",
+    });
+    expect(html).toContain("</a></p>\n<p>Код доступа: 123456</p>");
+    expect(html).not.toContain("Код доступа: 123456</a>");
+    expect(html).not.toContain("</a><br />Код доступа");
   });
 
   it("omits the name when it is empty", () => {

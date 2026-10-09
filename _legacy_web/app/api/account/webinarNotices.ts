@@ -138,7 +138,7 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function noticeHtml(params: {
+export function noticeHtml(params: {
   kind: WebinarNoticeKind;
   locale: WidgetLocale;
   name: string;
@@ -153,7 +153,7 @@ function noticeHtml(params: {
     const href = escapeHtml(joinUrl);
     parts.push(
       `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:#0f3d2e;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${escapeHtml(copy.joinButton)}</a></p>`,
-      `<p><a href="${href}" style="color:#0f3d2e;">${href}</a></p>`,
+      `<p>${escapeHtml(copy.accessCode)}</p>`,
     );
   }
   parts.push(`<p>${escapeHtml(copy.closing)}<br />${escapeHtml(copy.signature)}</p>`);

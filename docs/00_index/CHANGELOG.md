@@ -1,14 +1,16 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.71
-updated: 2026-10-08
+version: 3.72
+updated: 2026-10-09
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-10-09 (634): Webinar invite shows a button «Перейти в вебинарную комнату» and puts «Код доступа: 123456» on the next line under it. The room address stays inside the button. Docs `webinars`.
+- 2026-10-09 (633): Webinar invite puts «Код доступа: 123456» on the line under the room link, then the same gap as after the greeting, then the signature. The code is fixed; the label follows the letter language. Docs `webinars`.
 - 2026-10-08 (631): The webinar recording tab is only the letter to participants. It does not publish a post in the app. The Russian template is prefilled, and the button is «Отправить письмо участникам». Docs `webinars`, `admin_panel`.
 - 2026-10-08 (630): Webinar invite and recording letters go out when the announcement or the recording is published, and when someone pays while a webinar is already scheduled. No 5-minute cron and no reminder letters. A purchase sets an unsubscribed contact back to active; product letters still go to people who opted out of newsletters. A missing translation sends the whole letter in Russian. Migration `20261008030000`. Docs `account_web`, `webinars`, `marketing_email`, `admin_panel`.
 - 2026-10-07 (629): Landing-page payment widgets (`public/widget.js`, `/api/widget/*`, admin «Виджеты») with Russian/international card choice, 8 languages and a buyer letter. The account is created after payment. A «Каталог продуктов» with Lava offers replaces «Каталог ЮКасса». Webinar passes (1 webinar / 7 days at 1500 ₽, 4 / 28 days at 4000 ₽) with auto-registration and a join email. The REG.RU proxy forwards the client IP. Migration `20261007190000`. Docs `account_web`, `webinars`, `admin_panel`, `marketing_email`, open_questions, DEPLOY.
