@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.37
+version: 1.38
 updated: 2026-10-16
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -19,8 +19,14 @@ code_refs:
     supabase/migrations/20261016040000_email_open_no_campaign_lock.sql,
     supabase/migrations/20261016050000_email_campaign_claim_pace.sql,
     supabase/migrations/20261016161000_email_send_pace.sql,
+    supabase/migrations/20261016220000_email_send_pace_small_default.sql,
   ]
 ---
+
+## 2026-10-16 — Строка темпа по умолчанию 100 / 120
+
+- **Что изменилось.** `email_send_pace` после рассылки «Болеть иль не болеть?» стоит на 100 писем и 120 секунд. Миграция `20261016220000` записывает то же значение и меняет default колонок.
+- **Почему.** На compute Small ступени 40/240, 60/120 и 100/120 прошли без жёлтого сигнала: 504 не было, соединения держались около 15. Выше 100 не поднимали. Это самая быстрая ступень, которую можно оставить следующим рассылкам.
 
 ## 2026-10-16 — Темп пачки меняется одной строкой
 

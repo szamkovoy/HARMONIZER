@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.75
+version: 3.76
 updated: 2026-10-16
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-16 (647): The live campaign pace default is 100 letters / 120 seconds, the fastest stage that stayed green on compute Small. Migration `20261016220000`. Docs `marketing_email`.
 - 2026-10-16 (646): Campaign batch size and the gap between claims are one row in `email_send_pace` (default 40 letters / 240 s, ceiling 100). The cron skips a wave at 65 connections. Migration `20261016161000`. Docs `marketing_email`, `infra`.
 - 2026-10-16 (645): A delivery webhook that hits a database timeout answers 200, so the provider does not retry it into a full connection pool. Bounce and complaint still retry. Docs `marketing_email`.
 - 2026-10-16 (644): A campaign batch is at most 40 letters and not more often than once per 4 minutes. The cron skips a wave when the database already has 45 connections. The `email.sent` webhook no longer writes to the database. Migration `20261016050000`. Docs `marketing_email`.
