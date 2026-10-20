@@ -149,14 +149,17 @@ export function nextMskHour(now: Date, hourMsk: number, minGapHours = 12): Date 
   return next;
 }
 
+/** Latest of the given timestamps. Missing or unparseable stamps are ignored. */
 export function activityMs(
-  lastSeenAt: string | null | undefined,
-  getcourseAt: string | null | undefined,
+  ...stamps: Array<string | null | undefined>
 ): number {
-  const a = lastSeenAt ? Date.parse(lastSeenAt) : NaN;
-  const b = getcourseAt ? Date.parse(getcourseAt) : NaN;
-  const vals = [a, b].filter((n) => Number.isFinite(n));
-  return vals.length ? Math.max(...vals) : 0;
+  let best = 0;
+  for (const stamp of stamps) {
+    if (!stamp) continue;
+    const ms = Date.parse(stamp);
+    if (Number.isFinite(ms) && ms > best) best = ms;
+  }
+  return best;
 }
 
 export function parseAudienceCap(raw: unknown): number | null {

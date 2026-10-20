@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.38
+version: 1.39
 updated: 2026-10-16
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -20,8 +20,14 @@ code_refs:
     supabase/migrations/20261016050000_email_campaign_claim_pace.sql,
     supabase/migrations/20261016161000_email_send_pace.sql,
     supabase/migrations/20261016220000_email_send_pace_small_default.sql,
+    supabase/migrations/20261020181500_email_campaign_claim_by_activity.sql,
   ]
 ---
+
+## 2026-10-20 — Очередь от самых живых, включая открытия писем
+
+- **Что изменилось.** Порядок «Отправить всем» — самая поздняя из дат: последнее открытие приложения, открытие или клик письма рассылки, импортированная активность GetCourse. У кого ни одной даты нет, тот в конце. Так выбирает `claim_email_campaign_batch` (`20261020181500`), и в том же порядке пишется `created_at` строки.
+- **Почему.** Раньше открытие письма не участвовало, и внутри пачки вставки на 200 человек порядок не сохранялся.
 
 ## 2026-10-16 — Строка темпа по умолчанию 100 / 120
 

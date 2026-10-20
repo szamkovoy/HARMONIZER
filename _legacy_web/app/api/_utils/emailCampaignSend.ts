@@ -158,17 +158,51 @@ async function loadActivityMs(
   return out;
 }
 
+async function loadMailTouchMs(
+  db: SupabaseClient,
+  contactIds: string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const CHUNK = 500;
+  for (let i = 0; i < contactIds.length; i += CHUNK) {
+    const chunk = contactIds.slice(i, i + CHUNK);
+    const { data, error } = await db
+      .from("email_contacts")
+      .select("id, last_open_at, last_click_at")
+      .in("id", chunk);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      out.set(
+        row.id as string,
+        activityMs(
+          row.last_open_at as string | null,
+          row.last_click_at as string | null,
+        ),
+      );
+    }
+  }
+  return out;
+}
+
+function recipientActivityMs(
+  row: CampaignRecipientRow,
+  activityByUser: Map<string, number>,
+  mailByContact: Map<string, number>,
+): number {
+  const userMs = row.contact.user_id
+    ? (activityByUser.get(row.contact.user_id) ?? 0)
+    : 0;
+  return Math.max(userMs, mailByContact.get(row.contact.id) ?? 0);
+}
+
 function sortByActivity(
   rows: CampaignRecipientRow[],
   activityByUser: Map<string, number>,
+  mailByContact: Map<string, number>,
 ): CampaignRecipientRow[] {
   return [...rows].sort((a, b) => {
-    const am = a.contact.user_id
-      ? (activityByUser.get(a.contact.user_id) ?? 0)
-      : 0;
-    const bm = b.contact.user_id
-      ? (activityByUser.get(b.contact.user_id) ?? 0)
-      : 0;
+    const am = recipientActivityMs(a, activityByUser, mailByContact);
+    const bm = recipientActivityMs(b, activityByUser, mailByContact);
     if (bm !== am) return bm - am;
     return a.contact.id < b.contact.id ? -1 : 1;
   });
@@ -210,7 +244,11 @@ export async function pickWaveRecipients(
     .map((r) => r.contact.user_id)
     .filter((id): id is string => Boolean(id));
   const activity = await loadActivityMs(db, userIds);
-  let ranked = sortByActivity(resolved.eligible, activity);
+  const mailTouch = await loadMailTouchMs(
+    db,
+    resolved.eligible.map((row) => row.contact.id),
+  );
+  let ranked = sortByActivity(resolved.eligible, activity, mailTouch);
   const plan = parseWarmupPlan(campaign.warmup_plan);
   if (plan.exclude_long_term_master || (plan.access_window_hours ?? 0) > 0) {
     const access = await loadMailAccess(db, userIds);
@@ -433,14 +471,17 @@ async function enqueueWave(
 ): Promise<number> {
   const CHUNK = 200;
   let n = 0;
+  // Claim reads created_at, so the rank has to be stored on the row.
+  const queuedAt = Date.now();
   for (let i = 0; i < slice.length; i += CHUNK) {
     const chunk = slice.slice(i, i + CHUNK);
-    const rows = chunk.map((row) => ({
+    const rows = chunk.map((row, j) => ({
       campaign_id: campaignId,
       contact_id: row.contact.id,
       locale: row.locale,
       status: "queued" as const,
       error_detail: null,
+      created_at: new Date(queuedAt + i + j).toISOString(),
     }));
     const { data, error } = await db
       .from("email_campaign_sends")
