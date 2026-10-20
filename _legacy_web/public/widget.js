@@ -3,12 +3,48 @@
  * Embed: <script src="https://harmonizer.zamkovoi.yoga/widget.js" data-id="WIDGET_ID" data-lang="auto" async></script>
  * data-lang: ru | en | de | fr | it | es | pt | nl | auto (browser language; widget main language if no translation).
  * Each <script> renders its own independent form right where it stands.
+ * After YooKassa, the return URL has ?hz_paid=<widgetId>. That load shows
+ * the thank-you text and drops the parameter, so a refresh shows the form.
  */
 (function () {
   "use strict";
 
   var LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"];
   var counter = 0;
+  /** Shared by every copy of this script on the page. Not kept after reload. */
+  var PAID_RETURN_SLOT = "__hzPaidReturnId";
+
+  /**
+   * Remember ?hz_paid= for this document only, then remove it from the address.
+   * A later script on the same page reads the same id; a refresh does not.
+   */
+  function consumePaidReturn() {
+    if (Object.prototype.hasOwnProperty.call(window, PAID_RETURN_SLOT)) {
+      return window[PAID_RETURN_SLOT];
+    }
+    var id = null;
+    try {
+      var url = new URL(window.location.href);
+      var raw = url.searchParams.get("hz_paid");
+      if (raw) {
+        id = raw;
+        url.searchParams.delete("hz_paid");
+        if (window.history && typeof window.history.replaceState === "function") {
+          window.history.replaceState(window.history.state, "", url.toString());
+        }
+      }
+    } catch (e) {
+      id = null;
+    }
+    try {
+      window[PAID_RETURN_SLOT] = id;
+    } catch (e2) {
+      /* this load still uses `id` */
+    }
+    return id;
+  }
+
+  var returnPaidId = consumePaidReturn();
 
   function pickLocale(dataLang) {
     var raw = String(dataLang || "").trim().toLowerCase();
@@ -314,14 +350,6 @@
     });
   }
 
-  function paidWidgetId() {
-    try {
-      return new URL(window.location.href).searchParams.get("hz_paid");
-    } catch (e) {
-      return null;
-    }
-  }
-
   function mount(script) {
     if (script.getAttribute("data-hz-mounted")) return;
     script.setAttribute("data-hz-mounted", "1");
@@ -347,7 +375,7 @@
       })
       .then(function (data) {
         if (!data || !data.texts) return;
-        render(host, data, { apiBase: apiBase, thanks: paidWidgetId() === id });
+        render(host, data, { apiBase: apiBase, thanks: returnPaidId === id });
       })
       .catch(function () {
         /* widget stays empty; the landing page keeps working */

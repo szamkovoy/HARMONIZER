@@ -1,14 +1,15 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.76
-updated: 2026-10-16
+version: 3.77
+updated: 2026-10-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-10-21 (649): The landing payment widget shows «Спасибо за оплату» only on the return from YooKassa, then removes `?hz_paid=` so a refresh shows the form again. Docs `account_web`.
 - 2026-10-16 (647): The live campaign pace default is 100 letters / 120 seconds, the fastest stage that stayed green on compute Small. Migration `20261016220000`. Docs `marketing_email`.
 - 2026-10-16 (646): Campaign batch size and the gap between claims are one row in `email_send_pace` (default 40 letters / 240 s, ceiling 100). The cron skips a wave at 65 connections. Migration `20261016161000`. Docs `marketing_email`, `infra`.
 - 2026-10-16 (645): A delivery webhook that hits a database timeout answers 200, so the provider does not retry it into a full connection pool. Bounce and complaint still retry. Docs `marketing_email`.

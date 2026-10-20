@@ -129,7 +129,10 @@ export function availableMethods(offer: WidgetOffer): WidgetMethod[] {
   return methods;
 }
 
-/** `pageUrl` with `hz_paid=<widgetId>` so the widget shows its thank-you state on return. */
+/**
+ * `pageUrl` with `hz_paid=<widgetId>` so the widget shows its thank-you state on return.
+ * The script then removes the parameter; a reload shows the payment form again.
+ */
 export function thanksReturnUrl(pageUrl: string | null, widgetId: string): string | null {
   if (!pageUrl) return null;
   try {
