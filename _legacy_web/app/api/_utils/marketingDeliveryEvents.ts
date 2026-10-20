@@ -109,13 +109,14 @@ export async function applyMarketingDeliveryEvent(
         ? "click"
         : null;
 
-  // Campaign letters: one RPC does lookup, event, status, counter, suppress, touch.
+  // Campaign letters: one RPC updates this send row only. Campaign KPI
+  // counters are refreshed in one pass by refresh_email_campaign_counters.
   if (providerMessageId) {
     const { data, error } = await db.rpc("apply_email_campaign_delivery", {
       p_resend_id: providerMessageId,
       p_event_type: mapped.eventType,
       p_send_status: mapped.sendStatus,
-      p_counter: mapped.campaignCounter,
+      p_counter: null,
       p_record_event: recordEvent,
       p_detail: detail,
       p_suppress_status: mapped.suppressStatus,

@@ -1,7 +1,12 @@
 import { bookDevEpubUrl } from "./bookDevUrl";
 import type { BookLocale } from "./bookIds";
 import { fetchBookManifest } from "./bookManifestClient";
-import { BOOK_EPUB_CACHE_REVISION, peekCachedBookEpub, resolveBookSrcFromUrl } from "./resolveBookSrc";
+import {
+  BOOK_EPUB_CACHE_REVISION,
+  peekCachedBookEpub,
+  peekHealthyCachedBookEpub,
+  resolveBookSrcFromUrl,
+} from "./resolveBookSrc";
 
 function isDevelopmentAppEnv(): boolean {
   return (process.env.EXPO_PUBLIC_APP_ENV ?? "").trim().toLowerCase() === "development";
@@ -48,11 +53,19 @@ export async function openBookSrc(bookLocale: BookLocale): Promise<string> {
       return resolveBookSrcFromUrl(manifest.epubUrl, bookLocale, cacheRevision);
     }
     if (!isDevelopmentAppEnv()) {
+      const stale = await peekHealthyCachedBookEpub(bookLocale);
+      if (stale) return stale;
       throw new Error("book_cdn_unavailable");
     }
   } catch (e) {
     const code = e instanceof Error ? e.message : "";
     if (!isDevelopmentAppEnv()) {
+      // Explicit denial stays a denial. Any other failure may still read
+      // the copy already on disk (the purchase check itself can time out).
+      if (code !== "book_not_owned") {
+        const stale = await peekHealthyCachedBookEpub(bookLocale);
+        if (stale) return stale;
+      }
       throw e instanceof Error ? e : new Error(String(e));
     }
     // Dev unlock / translator path: fall through to Metro for missing CDN locales.

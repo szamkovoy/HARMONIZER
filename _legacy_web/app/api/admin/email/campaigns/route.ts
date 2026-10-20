@@ -1,4 +1,9 @@
 import { asContentLocale } from "../../../_utils/contentLocales";
+import {
+  DEFAULT_WARMUP_HOUR_MSK,
+  DEFAULT_WARMUP_SIZES,
+  serializeWarmupPlan,
+} from "../../../_utils/emailCampaignWarmup";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -125,6 +130,11 @@ export async function POST(req: Request) {
         html_body_i18n: htmlBodyI18n,
         blocks_i18n: payload.blocks_i18n ?? {},
         segment_query: payload.segment_query ?? { all_contacts: true },
+        warmup_plan: serializeWarmupPlan({
+          sizes: [...DEFAULT_WARMUP_SIZES],
+          repeat_last: true,
+          hour_msk: DEFAULT_WARMUP_HOUR_MSK,
+        }),
       })
       .select("*")
       .single();

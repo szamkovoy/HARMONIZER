@@ -1,8 +1,8 @@
 ---
 id: 02_modules/book/dependencies
 title: Book Dependencies
-version: 2.0
-updated: 2026-08-14
+version: 2.1
+updated: 2026-10-09
 depends_on: [02_modules/book/spec]
 code_refs:
   [
@@ -22,7 +22,7 @@ code_refs:
 - **`i18n`** — `book.*`, `gate.body.book`.
 - **`ui/theme`** — light/dark ридера.
 - **`auth`** — JWT для purchases/book, manifest, progress; `user.id` для local progress keys.
-- **`account_web`** — покупка `tier=book` в кабинете; `GET /api/account/purchases/book` / shared `bookOwnership.ts`.
+- **`account_web`** — покупка `tier=book` в кабинете; `GET /api/account/purchases/book` / shared `bookOwnership.ts`; флаг подтверждённой покупки в `accountFlagsStore` (`bookOwned.<userId>`).
 - **`infra`** — Vercel env CDN; Supabase `book_reading_progress`; HTTPS на zamkovoi.yoga.
 - **EPUB pipeline** — `scripts/book-build-epub.mjs` + `Book/*.docx` / `cover_*.jpg`.
 
@@ -33,6 +33,6 @@ code_refs:
 
 ## 3. Контрактные точки риска
 
-- Store: без active one_time book → gate; без `BOOK_CDN_*` manifest падает.
+- Store: сервер явно ответил `owned: false` → gate. Сбой проверки не считается отсутствием покупки; без сети открывается уже скачанный EPUB, если на устройстве есть прогресс или флаг покупки. Без `BOOK_CDN_*` и без локального файла manifest падает.
 - Dev: Metro fallback `/hz-book/{locale}.epub` из `book/build/{locale}/book.epub` для локалей без CDN.
 - Не ломать существующие `/api/account/{ott,session,overview,checkout,webhooks}` — только новые routes.

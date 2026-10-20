@@ -85,6 +85,7 @@
   "auth.spamHint": "¿No llegó el correo? Revisa la carpeta de Spam o Promociones.",
   "auth.subtitle": "Introduce tu nombre y tu email: te enviaremos un código de acceso. Así creas tu cuenta o accedes a una existente.",
   "auth.title": "Harmonizer",
+  "book.access.unavailable": "No se pudo verificar tu acceso al libro. Comprueba tu conexión e inténtalo de nuevo.",
   "book.profile.read": "Leer…",
   "book.profile.subtitle": "En mi libro «Yoga — el camino del mago» encontrarás respuestas a muchas preguntas.",
   "book.profile.title": "Manual de estudio",

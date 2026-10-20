@@ -9,7 +9,7 @@ import {
   type FeatureKey,
 } from "@/modules/access";
 import { deleteAccountRemote, openAccountCabinet, prefetchAccountCabinetOtt, useAccountLinksEnabled } from "@/modules/account";
-import { resolveBookAccess } from "@/modules/book/core/bookAccess";
+import { decideBookOpen, hasOfflineBookGrant, resolveBookAccess } from "@/modules/book/core/bookAccess";
 import { bookLocaleForAppLocale } from "@/modules/book/core/bookIds";
 import { BookProfileCard } from "@/modules/book/ui/BookProfileCard";
 import { isStoreReviewAccount, useAuth } from "@/modules/auth";
@@ -415,6 +415,8 @@ export default function ProfileTabRoute() {
   const [birthMapOpen, setBirthMapOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
   const [bookGateOpen, setBookGateOpen] = useState(false);
+  const [bookOpening, setBookOpening] = useState(false);
+  const [bookAccessError, setBookAccessError] = useState<string | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [supportOpen, setSupportOpen] = useState(false);
   const [cabinetOpening, setCabinetOpening] = useState(false);
@@ -828,19 +830,37 @@ export default function ProfileTabRoute() {
         </View>
 
         <BookProfileCard
+          busy={bookOpening}
+          error={bookAccessError}
           onRead={() => {
             void (async () => {
-              const owned = await resolveBookAccess();
-              if (!owned) {
-                setBookGateOpen(true);
-                return;
+              setBookAccessError(null);
+              setBookOpening(true);
+              try {
+                const access = await resolveBookAccess();
+                const userId = profile?.id ?? authUser?.id ?? null;
+                const offlineGrant =
+                  access.state === "unavailable" && userId
+                    ? await hasOfflineBookGrant(userId)
+                    : false;
+                const decision = decideBookOpen(access, offlineGrant);
+                if (decision === "gate") {
+                  setBookGateOpen(true);
+                  return;
+                }
+                if (decision === "retry") {
+                  setBookAccessError(t("book.access.unavailable"));
+                  return;
+                }
+                const bookLocale = bookLocaleForAppLocale(locale);
+                // Typed routes refresh after Expo generates `.expo/types`; cast until then.
+                router.push({
+                  pathname: "/book/[locale]",
+                  params: { locale: bookLocale },
+                } as unknown as Href);
+              } finally {
+                setBookOpening(false);
               }
-              const bookLocale = bookLocaleForAppLocale(locale);
-              // Typed routes refresh after Expo generates `.expo/types`; cast until then.
-              router.push({
-                pathname: "/book/[locale]",
-                params: { locale: bookLocale },
-              } as unknown as Href);
             })();
           }}
         />

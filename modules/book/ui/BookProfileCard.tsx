@@ -5,7 +5,15 @@ import { AppText } from "@/modules/ui/AppText";
 import { useTheme } from "@/modules/ui/theme";
 import { useTranslate } from "@/modules/i18n";
 
-export function BookProfileCard({ onRead }: { onRead: () => void }) {
+export function BookProfileCard({
+  onRead,
+  busy = false,
+  error,
+}: {
+  onRead: () => void;
+  busy?: boolean;
+  error?: string | null;
+}) {
   const theme = useTheme();
   const { t } = useTranslate();
 
@@ -23,7 +31,12 @@ export function BookProfileCard({ onRead }: { onRead: () => void }) {
       <AppText variant="screenHint" tone="muted">
         {t("book.profile.subtitle")}
       </AppText>
-      <AppButton label={t("book.profile.read")} onPress={onRead} />
+      <AppButton label={busy ? "…" : t("book.profile.read")} onPress={onRead} disabled={busy} />
+      {error ? (
+        <AppText variant="technicalCaption" style={{ color: theme.colors.danger }}>
+          {error}
+        </AppText>
+      ) : null}
     </View>
   );
 }

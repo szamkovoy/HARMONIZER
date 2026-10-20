@@ -140,13 +140,13 @@ export async function POST(req: Request, ctx: Ctx) {
         unsubscribeUrl,
         previewText: subject,
         trackId,
+        footer: null,
       });
       const result = await sendMarketingEmail({
         to: email,
         subject,
         html,
         text: htmlToPlaintext(html),
-        unsubscribeUrl,
         locale: exact.locale,
         tags: [
           { name: "campaign_id", value: campaign.id },

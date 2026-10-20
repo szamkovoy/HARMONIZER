@@ -85,6 +85,7 @@
   "auth.spamHint": "Keine E-Mail erhalten? Prüfen Sie den Spam- oder Werbung-Ordner.",
   "auth.subtitle": "Geben Sie Ihren Namen und Ihre E-Mail ein — wir senden Ihnen einen Anmeldecode. So erstellen Sie ein Konto oder melden sich in einem bestehenden an.",
   "auth.title": "Harmonizer",
+  "book.access.unavailable": "Der Zugriff auf das Buch konnte nicht überprüft werden. Bitte überprüfe deine Verbindung und versuche es noch einmal.",
   "book.profile.read": "Lesen…",
   "book.profile.subtitle": "In meinem Buch „Yoga — der Weg des Zauberers“ finden Sie Antworten auf viele Fragen.",
   "book.profile.title": "Lehrbuch",

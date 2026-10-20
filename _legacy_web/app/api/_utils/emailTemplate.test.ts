@@ -61,6 +61,17 @@ describe("wrapMarketingEmailHtml", () => {
       /<a href="https:\/\/example\.com\/u\/unsubscribe\?t=verylongtoken"[^>]*word-break:break-all/,
     );
   });
+
+  it("omits the unsubscribe footer when footer is null", () => {
+    const html = wrapMarketingEmailHtml({
+      bodyHtml: "<p>Спасибо за оплату.</p>",
+      footer: null,
+      lang: "ru",
+    });
+    expect(html).toContain("Спасибо за оплату.");
+    expect(html).not.toContain("отписаться");
+    expect(html).not.toContain("border-top:1px solid");
+  });
 });
 
 describe("bindUnsubscribeLinks", () => {

@@ -291,6 +291,7 @@
   "book.profile.title": "Учебное пособие",
   "book.profile.subtitle": "В моей книге «Йога — путь волшебника» вы найдёте ответы на многие вопросы.",
   "book.profile.read": "Читать…",
+  "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
   "book.reader.close": "Закрыть",
   "book.reader.toc": "Оглавление",
   "book.reader.appearance": "Настройки чтения",

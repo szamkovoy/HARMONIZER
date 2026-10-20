@@ -147,6 +147,30 @@ export async function peekCachedBookEpub(
 }
 
 /**
+ * Healthy on-disk EPUB even when the CDN revision in meta is stale.
+ * Used when the ownership/manifest check cannot reach the server but this
+ * device already downloaded the book.
+ */
+export async function peekHealthyCachedBookEpub(bookLocale: BookLocale): Promise<string | null> {
+  const root = documentDirectory;
+  if (!root) return null;
+
+  const dest = `${root}books/${BOOK_ID}-${bookLocale}.epub`;
+  const metaUri = `${dest}.meta.json`;
+  const existing = await getInfoAsync(dest);
+  const existingSize = existing.exists && !existing.isDirectory ? (existing.size ?? 0) : 0;
+  if (existingSize < MIN_EPUB_BYTES) return null;
+
+  try {
+    const meta = JSON.parse(await readAsStringAsync(metaUri)) as Partial<CacheMeta>;
+    if (meta?.locale && meta.locale !== bookLocale) return null;
+  } catch {
+    /* meta missing — the file itself is still the last good copy */
+  }
+  return dest;
+}
+
+/**
  * Materialize the bundled EPUB to a stable `file://…/*.epub` URI.
  * Reuses any healthy on-device copy (avoids multi-minute Metro re-download).
  */

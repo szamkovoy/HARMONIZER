@@ -1,13 +1,15 @@
 ---
 id: 02_modules/book/history
 title: Book History
-version: 1.0
-updated: 2026-08-24
+version: 1.1
+updated: 2026-10-09
 depends_on: [02_modules/book/spec]
 code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 ---
 
 ## Decision Log
+
+- **2026-10-09 (ложный отказ в книге):** У Audrone (`audrone.leisenberger@gmail.com`) active `payment_contracts` `tier=book` (ручной грант 2026-08-21) и прогресс чтения за 2026-10-08, но «Читать…» показывал paywall и ошибку кабинета. `fetchBookOwnership` любой сбой (нет JWT, таймаут, 401/5xx) превращал в `owned: false`. Теперь только HTTP 200 `owned: false` — это отсутствие покупки; сбой проверки — повтор или уже скачанный EPUB, если на устройстве есть прогресс или флаг покупки. `getActiveBookPurchase` читает `limit 1` без `maybeSingle`, чтобы второй active-контракт не ронял проверку в 500. `getSupabaseAccessSession` один раз повторяет refresh и больше не отдаёт протухший JWT.
 
 - **2026-08-24 (CDN folder rename):** На zamkovoi папка EPUB переименована `book/` → `ebook/` (чтобы не конфликтовать с WP-страницей `/book`). Vercel `BOOK_CDN_BASE_URL=https://zamkovoi.yoga/ebook` (prod/preview/dev). Страница продукта и кабинетный `BOOK_URL` остаются `https://zamkovoi.yoga/book`.
 

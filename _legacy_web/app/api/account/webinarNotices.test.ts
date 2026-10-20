@@ -19,6 +19,7 @@ import {
   startsStillOpen,
   ticketCoveredStart,
 } from "./webinarNotices";
+import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
 import { marketingStatusAfterPurchase } from "./widgetFulfillment";
 
 const START = "2026-10-20T15:00:00.000Z";
@@ -118,9 +119,24 @@ describe("letter language is never mixed", () => {
       body: "Описание вебинара",
       joinUrl: "https://example.com/room",
     });
-    expect(html).toContain("</a></p>\n<p>Код доступа: 123456</p>");
+    expect(html).toContain("</p>\n<p></p>\n<p>Описание вебинара</p>");
+    expect(html).toContain(
+      '</p>\n<p></p>\n<p><a href="https://example.com/room" style="display:inline-block;padding:12px 22px;background:#2E8B57;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Перейти в вебинарную комнату</a></p>\n<p>Код доступа: 123456</p>\n<p></p>\n<p>До встречи!<br />Сергей Замковой</p>',
+    );
+    expect(html).not.toContain("#0f3d2e");
     expect(html).not.toContain("Код доступа: 123456</a>");
     expect(html).not.toContain("</a><br />Код доступа");
+    const wrapped = wrapMarketingEmailHtml({
+      bodyHtml: html,
+      previewText: "Приглашаю на вебинар",
+      lang: "ru",
+      footer: null,
+    });
+    expect(wrapped.match(/height:1\.55em/g)).toHaveLength(3);
+    expect(wrapped).toContain("background:#2E8B57");
+    expect(wrapped).not.toContain("отписаться");
+    expect(wrapped).not.toContain("Вы получили это письмо");
+    expect(wrapped).not.toContain("List-Unsubscribe");
   });
 
   it("omits the name when it is empty", () => {

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/book/spec
 title: Book Spec
-version: 2.0
-updated: 2026-08-24
+version: 2.1
+updated: 2026-10-09
 depends_on: [02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/subscription/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -40,7 +40,7 @@ Barrel `modules/book/index.ts`:
 
 - **`BOOK_ID`** — `yoga_wizards_path`.
 - **`bookLocaleForAppLocale(locale)`** — UI → `BookLocale` (8 локалей).
-- **`resolveBookAccess(): Promise<boolean>`** — `GET /api/account/purchases/book` (`payment_contracts` one_time `tier=book` active). Доступ выдаётся покупкой в кабинете или админским «Добавить платёж» → Книга.
+- **`resolveBookAccess(): Promise<BookAccessState>`** — `GET /api/account/purchases/book` (`payment_contracts` one_time `tier=book` active). Состояния: `owned` | `absent` (только HTTP 200 и `owned: false`) | `unavailable` (сеть, таймаут, 401/5xx). Paywall (`AccountGateDialog`) — только `absent`. При `unavailable` и локальном гранте (флаг `bookOwned.<userId>` или файл прогресса) книга открывается с уже скачанного EPUB; иначе на карточке текст `book.access.unavailable` и повтор по тапу. Доступ выдаётся покупкой в кабинете или админским «Добавить платёж» → Книга.
 - **`BookProfileCard`** — карточка «Учебное пособие» + «Читать…».
 - **`BookReaderScreen`** — lazy `app/book/[locale].tsx` (не в barrel).
 

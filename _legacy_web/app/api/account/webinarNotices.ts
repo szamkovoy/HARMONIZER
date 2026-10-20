@@ -11,7 +11,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyEmailPlaceholders, wrapMarketingEmailHtml } from "../_utils/emailTemplate";
 import { buildSignedUnsubscribeUrl } from "../_utils/emailUnsubscribe";
 import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
-import { getWidgetEmailCopy } from "../_utils/widgetEmailCopy";
 import {
   authoredRecordingLetter,
   buildNoticePlainText,
@@ -138,6 +137,10 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/** Empty paragraph. The mail wrapper turns it into one visible blank line. */
+const LETTER_GAP = "<p></p>";
+const JOIN_BUTTON_COLOR = "#2E8B57";
+
 export function noticeHtml(params: {
   kind: WebinarNoticeKind;
   locale: WidgetLocale;
@@ -147,16 +150,17 @@ export function noticeHtml(params: {
 }): string {
   const copy = getWebinarNoticeCopy(params.locale);
   const greeting = params.name.trim() ? copy.greeting(params.name.trim()) : copy.greetingNoName;
-  const parts = [`<p>${escapeHtml(greeting)}</p>`, plainLetterToHtml(params.body)];
+  const parts = [`<p>${escapeHtml(greeting)}</p>`, LETTER_GAP, plainLetterToHtml(params.body)];
   const joinUrl = params.joinUrl?.trim();
   if (params.kind === "invite" && joinUrl) {
     const href = escapeHtml(joinUrl);
     parts.push(
-      `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:#0f3d2e;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${escapeHtml(copy.joinButton)}</a></p>`,
+      LETTER_GAP,
+      `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:${JOIN_BUTTON_COLOR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${escapeHtml(copy.joinButton)}</a></p>`,
       `<p>${escapeHtml(copy.accessCode)}</p>`,
     );
   }
-  parts.push(`<p>${escapeHtml(copy.closing)}<br />${escapeHtml(copy.signature)}</p>`);
+  parts.push(LETTER_GAP, `<p>${escapeHtml(copy.closing)}<br />${escapeHtml(copy.signature)}</p>`);
   return parts.join("\n");
 }
 
@@ -383,20 +387,17 @@ async function deliver(
     body: letter.text,
     joinUrl: webinar.join_url,
   });
-  const copy = getWidgetEmailCopy(letter.locale);
   const html = wrapMarketingEmailHtml({
-    bodyHtml: applyEmailPlaceholders(bodyHtml, { name, unsubscribeUrl: recipient.unsubscribeUrl }),
-    unsubscribeUrl: recipient.unsubscribeUrl,
+    bodyHtml: applyEmailPlaceholders(bodyHtml, { name }),
     previewText: subject,
     lang: letter.locale,
-    footer: copy.footer,
+    footer: null,
   });
   const result = await sendMarketingEmail({
     to: recipient.email,
     subject: applyEmailPlaceholders(subject, { name }),
     html,
-    text: htmlToPlaintext(applyEmailPlaceholders(text, { name, unsubscribeUrl: recipient.unsubscribeUrl })),
-    unsubscribeUrl: recipient.unsubscribeUrl,
+    text: htmlToPlaintext(applyEmailPlaceholders(text, { name })),
     locale: letter.locale,
     tags: [{ name: "kind", value: kind === "invite" ? "webinar_invite" : "webinar_recording" }],
   });
@@ -514,20 +515,17 @@ async function deliverAuthored(
   const subject = fillLetterName(letter.subject, name);
   const text = fillLetterName(letter.body, name);
   const bodyHtml = fillLetterName(plainLetterToHtml(letter.body), escapeHtml(name));
-  const copy = getWidgetEmailCopy(letter.locale);
   const html = wrapMarketingEmailHtml({
     bodyHtml,
-    unsubscribeUrl: recipient.unsubscribeUrl,
     previewText: subject,
     lang: letter.locale,
-    footer: copy.footer,
+    footer: null,
   });
   const result = await sendMarketingEmail({
     to: recipient.email,
     subject,
     html,
     text: htmlToPlaintext(text),
-    unsubscribeUrl: recipient.unsubscribeUrl,
     locale: letter.locale,
     tags: [{ name: "kind", value: "webinar_recording" }],
   });

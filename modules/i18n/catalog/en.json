@@ -85,6 +85,7 @@
   "auth.spamHint": "Didn't get the email? Check your Spam or Promotions folder.",
   "auth.subtitle": "Enter your name and email — we'll send you a sign-in code. This creates your account or signs you into an existing one.",
   "auth.title": "Harmonizer",
+  "book.access.unavailable": "Couldn't verify access to the book. Check your connection and try again.",
   "book.profile.read": "Read…",
   "book.profile.subtitle": "In my book “Yoga — the Wizard’s Path” you’ll find answers to many questions.",
   "book.profile.title": "Study guide",

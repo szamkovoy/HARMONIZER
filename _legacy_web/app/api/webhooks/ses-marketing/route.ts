@@ -119,6 +119,9 @@ export async function POST(req: Request) {
     if (!messageId && mapped.eventType === "email.unknown") {
       return json({ ok: true, skipped: "no_message_id" });
     }
+    if (mapped.eventType === "email.sent") {
+      return json({ ok: true, skipped: "sent_already_recorded" });
+    }
 
     const db = createServiceSupabase();
     const result = await applyMarketingDeliveryEvent(db, {

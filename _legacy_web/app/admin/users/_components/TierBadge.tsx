@@ -11,6 +11,8 @@ export const TIER_LABELS: Record<string, string> = {
   webinar: "Вебинар",
   webinar_pack: "Четыре вебинара",
   book: "Книга",
+  spb_practicum: "Практикум в Санкт-Петербурге",
+  surcharge: "Доплата",
 };
 
 const TIER_BADGE: Record<string, string> = {
@@ -21,6 +23,8 @@ const TIER_BADGE: Record<string, string> = {
   webinar: "bg-emerald-500/15 text-emerald-700",
   webinar_pack: "bg-emerald-500/15 text-emerald-700",
   book: "bg-fuchsia-500/15 text-fuchsia-300",
+  spb_practicum: "bg-teal-500/15 text-teal-700",
+  surcharge: "bg-orange-500/15 text-orange-700",
 };
 
 const ACCESS_NOW_BADGE: Record<AccessNowSeg, string> = {
