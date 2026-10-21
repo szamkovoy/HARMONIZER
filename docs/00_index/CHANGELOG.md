@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.79
+version: 3.80
 updated: 2026-10-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-21 (651): Production migration journal aligned with repo file versions (`migration repair`); `db push --dry-run` is empty. Rule: apply SQL only via `supabase db push`, not MCP `apply_migration`. Docs `migration_protocol`, `.cursor/rules/supabase-migrations.mdc`.
 - 2026-10-21 (650): Campaign cards recount opens for 14 days, and an hourly Postgres cron does that recount without calling Vercel. Send rows from before 10 October take opened/clicked from events; bounced and complained stay, and those old cards are not recounted. Migrations `20261021132644`, `20261021132651`, `20261021132659`. Docs `marketing_email`.
 - 2026-10-21 (649): The landing payment widget shows «Спасибо за оплату» only on the return from YooKassa, then removes `?hz_paid=` so a refresh shows the form again. Docs `account_web`.
 - 2026-10-20 (648): A campaign queue is ordered by the latest of app open, marketing-mail open or click, and imported GetCourse activity. Migration `20261020151508`. Docs `marketing_email`.

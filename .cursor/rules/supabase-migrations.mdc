@@ -1,0 +1,11 @@
+---
+description: Apply Supabase SQL migrations only via db push; keep the journal aligned
+alwaysApply: true
+---
+
+# Supabase SQL migrations
+
+- Change production schema only with `supabase db push` from a file under `supabase/migrations/`. The file version and the row in `supabase_migrations.schema_migrations` must match.
+- Do not use MCP `apply_migration`, the Dashboard SQL editor, or ad-hoc `execute_sql` to land a new migration from the repo. Those paths write a different timestamp and leave Local ≠ Remote.
+- If SQL had to be applied another way: immediately run `supabase migration repair --status applied <file_version>`, then `supabase migration list --linked`. Repair updates the journal only; it does not re-run SQL.
+- Before a push when the history might be skewed: `supabase db push --dry-run` should report nothing to apply.
