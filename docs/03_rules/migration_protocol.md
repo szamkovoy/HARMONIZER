@@ -1,8 +1,8 @@
 ---
 id: 03_rules/migration_protocol
 title: Migration Protocol
-version: 1.1
-updated: 2026-05-07
+version: 1.2
+updated: 2026-10-21
 depends_on: [00_index/MAP, 00_index/CHANGELOG, docs/_proposal, 03_rules/change_protocol]
 code_refs: [docs/02_modules/audio/spec.md, docs/02_modules/audio/dependencies.md, docs/02_modules/audio/history.md, docs/00_index/MAP.md]
 ---
@@ -178,3 +178,12 @@ Reference-документы НЕ синхронизируются с кодом
 - `CHANGELOG.md` обновлён обязательно;
 - все старые источники перенесены в `05_archive/migrated/<module>/`;
 - нерешённые вопросы, если они есть, вынесены в `open_questions.md`, а не оставлены в чате.
+
+## 9. Миграции Postgres (Supabase)
+
+Этот раздел — про SQL в `supabase/migrations/`, не про наполнение `docs/02_modules/`.
+
+- В прод схему менять только через `supabase db push` из файла миграции в репозитории. Версия файла и строка в `supabase_migrations.schema_migrations` должны совпадать.
+- Не применять DDL через MCP `apply_migration`, Dashboard SQL или произвольный `execute_sql`, если цель — новая миграция из репо: у MCP свой timestamp, и журнал расходится с Local.
+- Если SQL уже пришлось выполнить иначе (инцидент, ручной hotfix): сразу `supabase migration repair --status applied <версия_файла>` и проверить `supabase migration list --linked` (обе колонки заполнены, лишних Remote-only нет). Схему repair не меняет — только журнал.
+- Перед `db push` при сомнении: `supabase db push --dry-run`. Должно быть «нечего применять», если код и прод уже совпадают.
