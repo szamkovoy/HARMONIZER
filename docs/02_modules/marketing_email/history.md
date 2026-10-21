@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.39
-updated: 2026-10-16
+version: 1.40
+updated: 2026-10-21
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -21,8 +21,16 @@ code_refs:
     supabase/migrations/20261016161000_email_send_pace.sql,
     supabase/migrations/20261016220000_email_send_pace_small_default.sql,
     supabase/migrations/20261020151508_email_campaign_claim_by_activity.sql,
+    supabase/migrations/20261021132644_email_campaign_counter_window_14d.sql,
+    supabase/migrations/20261021132651_email_campaign_counter_hourly_cron.sql,
+    supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-10-21 — Карточка рассылки догоняет открытия за 14 суток
+
+- **Что изменилось.** `refresh_email_campaign_counters` пересчитывает отправленные кампании за 14 суток, не за 6 часов (`20261021132644`). Раз в час, в минуту :07, pg_cron вызывает этот проход сам, без Vercel (`20261021132651`); при 65 соединениях час пропускается. У писем до 10 октября статус строки поднят по событиям `email.opened` / `email.clicked` (клик старше открытия); `bounced`, `complained` и `failed` не трогались, цифры старых карточек не пересчитывались (`20261021132659`).
+- **Почему.** После отправки окно в 6 часов закрывалось, а пересчёт жил только внутри крона волны. В простое карточка оставалась на цифре первого часа. У ранних рассылок события открытия были, а статус строки — нет, и когорты их не видели.
 
 ## 2026-10-20 — Очередь от самых живых, включая открытия писем
 
