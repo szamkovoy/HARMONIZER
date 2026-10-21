@@ -10,7 +10,7 @@ export type SesMarketingSendInput = {
   subject: string;
   html: string;
   text: string;
-  unsubscribeUrl: string;
+  unsubscribeUrl?: string;
 };
 
 export type SesMarketingSendResult =
@@ -46,6 +46,7 @@ export async function sendMarketingEmailViaSes(
   });
 
   const configSet = process.env.SES_CONFIGURATION_SET?.trim();
+  const unsubscribeUrl = input.unsubscribeUrl?.trim();
 
   try {
     const out = await client.send(
@@ -59,10 +60,14 @@ export async function sendMarketingEmailViaSes(
               Html: { Data: input.html, Charset: "UTF-8" },
               Text: { Data: input.text, Charset: "UTF-8" },
             },
-            Headers: [
-              { Name: "List-Unsubscribe", Value: `<${input.unsubscribeUrl}>` },
-              { Name: "List-Unsubscribe-Post", Value: "List-Unsubscribe=One-Click" },
-            ],
+            ...(unsubscribeUrl
+              ? {
+                  Headers: [
+                    { Name: "List-Unsubscribe", Value: `<${unsubscribeUrl}>` },
+                    { Name: "List-Unsubscribe-Post", Value: "List-Unsubscribe=One-Click" },
+                  ],
+                }
+              : {}),
           },
         },
         ...(configSet ? { ConfigurationSetName: configSet } : {}),

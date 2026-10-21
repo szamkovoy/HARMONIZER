@@ -85,6 +85,7 @@
   "auth.spamHint": "Vous n'avez pas reçu l'e-mail ? Vérifiez le dossier Spam ou Promotions.",
   "auth.subtitle": "Saisissez votre nom et votre e-mail — nous vous enverrons un code de connexion. Cela crée votre compte ou vous connecte à un compte existant.",
   "auth.title": "Harmonizer",
+  "book.access.unavailable": "Impossible de vérifier l'accès au livre. Vérifiez votre connexion et réessayez.",
   "book.profile.read": "Lire…",
   "book.profile.subtitle": "Dans mon livre « Yoga — la voie du magicien », vous trouverez des réponses à de nombreuses questions.",
   "book.profile.title": "Manuel",

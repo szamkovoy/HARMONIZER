@@ -1,17 +1,32 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.72
-updated: 2026-10-09
+version: 3.78
+updated: 2026-10-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-10-21 (649): The landing payment widget shows «Спасибо за оплату» only on the return from YooKassa, then removes `?hz_paid=` so a refresh shows the form again. Docs `account_web`.
+- 2026-10-20 (648): A campaign queue is ordered by the latest of app open, marketing-mail open or click, and imported GetCourse activity. Migration `20261020151508`. Docs `marketing_email`.
+- 2026-10-16 (647): The live campaign pace default is 100 letters / 120 seconds, the fastest stage that stayed green on compute Small. Migration `20261016220000`. Docs `marketing_email`.
+- 2026-10-16 (646): Campaign batch size and the gap between claims are one row in `email_send_pace` (default 40 letters / 240 s, ceiling 100). The cron skips a wave at 65 connections. Migration `20261016161000`. Docs `marketing_email`, `infra`.
+- 2026-10-16 (645): A delivery webhook that hits a database timeout answers 200, so the provider does not retry it into a full connection pool. Bounce and complaint still retry. Docs `marketing_email`.
+- 2026-10-16 (644): A campaign batch is at most 40 letters and not more often than once per 4 minutes. The cron skips a wave when the database already has 45 connections. The `email.sent` webhook no longer writes to the database. Migration `20261016050000`. Docs `marketing_email`.
+- 2026-10-16 (643): The open pixel no longer increments the campaign row. It marks that letter opened; the card total stays on the 5-minute rollup. Migration `20261016040000`. Docs `marketing_email`.
+- 2026-10-16 (642): Campaign delivery counters are one rollup every 5 minutes, not +1 per webhook. The send row still records that letter's status. Migration `20261016025609`. Docs `marketing_email`.
+- 2026-10-16 (641): Unsent newsletter drafts no longer use the 500/1000/3000 day-by-day ladder. Default and those drafts are one queue of 1 000 000. Migration `20261016014242`. Docs `marketing_email`.
+- 2026-10-16 (640): A manual letter from the user card no longer adds the unsubscribe footer. Segment campaigns and automation steps still do. Docs `marketing_email`, `admin_panel`.
+- 2026-10-16 (639): Purchase, webinar-invite and recording letters keep blank lines from the editor and no longer add the unsubscribe footer. Newsletter campaigns and automations keep theirs. Docs `account_web`, `webinars`, `marketing_email`.
+- 2026-10-15 (638): Catalog product «Доплата» (`surcharge`, 13000 ₽, YooKassa only). It is sold from a landing widget and is not listed in the app cabinet. Migration `20261015165030`. Docs `account_web`, `admin_panel`.
+- 2026-10-14 (637): Catalog product «Практикум в Санкт-Петербурге» (`spb_practicum`, 2500 ₽, YooKassa only). It is sold from a landing widget and is not listed in the app cabinet. Migration `20261014003433`. Docs `account_web`, `admin_panel`.
+- 2026-10-09 (636): Webinar invite has a blank line after the greeting, above the room button, and above «До встречи!». The button color is #2E8B57. Docs `webinars`.
 - 2026-10-09 (635): User card «Письма» lists webinar invite and recording letters from `webinar_notice_sends`, with a link to the webinar. Docs `admin_panel`, `webinars`.
 - 2026-10-09 (634): Webinar invite shows a button «Перейти в вебинарную комнату» and puts «Код доступа: 123456» on the next line under it. The room address stays inside the button. Docs `webinars`.
 - 2026-10-09 (633): Webinar invite puts «Код доступа: 123456» on the line under the room link, then the same gap as after the greeting, then the signature. The code is fixed; the label follows the letter language. Docs `webinars`.
+- 2026-10-09 (632): A failed book-ownership check (network, timeout, 401/5xx) no longer looks like a missing purchase. Only HTTP 200 `owned: false` opens the cabinet gate; a previous reader keeps the downloaded EPUB. Access-token refresh is retried once and an expired JWT is not sent. Docs `book`, `profile`.
 - 2026-10-08 (631): The webinar recording tab is only the letter to participants. It does not publish a post in the app. The Russian template is prefilled, and the button is «Отправить письмо участникам». Docs `webinars`, `admin_panel`.
 - 2026-10-08 (630): Webinar invite and recording letters go out when the announcement or the recording is published, and when someone pays while a webinar is already scheduled. No 5-minute cron and no reminder letters. A purchase sets an unsubscribed contact back to active; product letters still go to people who opted out of newsletters. A missing translation sends the whole letter in Russian. Migration `20261008030000`. Docs `account_web`, `webinars`, `marketing_email`, `admin_panel`.
 - 2026-10-07 (629): Landing-page payment widgets (`public/widget.js`, `/api/widget/*`, admin «Виджеты») with Russian/international card choice, 8 languages and a buyer letter. The account is created after payment. A «Каталог продуктов» with Lava offers replaces «Каталог ЮКасса». Webinar passes (1 webinar / 7 days at 1500 ₽, 4 / 28 days at 4000 ₽) with auto-registration and a join email. The REG.RU proxy forwards the client IP. Migration `20261007190000`. Docs `account_web`, `webinars`, `admin_panel`, `marketing_email`, open_questions, DEPLOY.

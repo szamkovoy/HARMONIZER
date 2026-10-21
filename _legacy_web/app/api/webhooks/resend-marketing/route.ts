@@ -15,6 +15,18 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+/** Bounce and complaint must be retried. Everything else is acked on a busy database so Resend does not multiply a full connection pool. */
+const RETRY_WHEN_BUSY = new Set(["email.bounced", "email.complained"]);
+
+function databaseBusy(error: unknown): boolean {
+  const message = error instanceof Error
+    ? error.message
+    : error && typeof error === "object"
+      ? JSON.stringify(error)
+      : String(error);
+  return /timeout|timed out|abort|deadline|57014|too many clients|connection terminated|ECONNRESET|fetch failed/i.test(message);
+}
+
 /**
  * Resend marketing webhooks → email_events + campaign counters + auto-suppress.
  * OTP (zamkovoi.yoga / sign-in codes) is ignored — same Resend account can emit them.
@@ -23,6 +35,7 @@ export const maxDuration = 30;
  * failed, suppressed, suppression.added, suppression.removed.
  */
 export async function POST(req: Request) {
+  let ackWhenBusy = false;
   try {
     const rawBody = await req.text();
     if (!verifyResendMarketingWebhook(req, rawBody)) {
@@ -45,6 +58,13 @@ export async function POST(req: Request) {
     if (isOtpTransportResendEvent(payload)) {
       return json({ ok: true, skipped: "otp_transport" });
     }
+
+    // Finalize already stored "sent". Acknowledging here avoids one database
+    // call per letter; delivered/bounce/complaint still update the send row.
+    if (type === "email.sent") {
+      return json({ ok: true, skipped: "sent_already_recorded" });
+    }
+    ackWhenBusy = !RETRY_WHEN_BUSY.has(type);
 
     const resendId = payload.data?.email_id?.trim() ?? "";
     const mapped = mapResendEventType(type, payload);
@@ -89,6 +109,10 @@ export async function POST(req: Request) {
       suppressed_local: result.suppressed_local,
     });
   } catch (error) {
+    if (ackWhenBusy && databaseBusy(error)) {
+      console.warn("[resend-marketing] database busy, acknowledged without retry");
+      return json({ ok: true, skipped: "db_busy" });
+    }
     return errorResponse(error);
   }
 }

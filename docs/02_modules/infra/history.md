@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.30
-updated: 2026-10-06
+version: 1.31
+updated: 2026-10-16
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-10-16 (Pro + Small):** Организация переведена на Pro, compute проекта — Small (2 ГБ RAM, `max_connections` 90, пулер 400). Это ответ на зависания рассылки на Nano, а не замена тормозов в коде. Порог крона рассылки поднят с 45 до 65 соединений. Вопрос «апгрейд не планируется» в `open_questions` закрыт.
 
 - **2026-10-06 (затор Nano №3):** 14:46–15:20 UTC проект снова встал (cron `job startup timeout` на всех job, edge 5xx, auth 504), пользователь перезапустил проект в 15:20. Письма перестали уходить в 11:55 UTC, но кампания осталась в `sending` и каждые 5 мин заново пересчитывала сегмент на ~17k контактов (баг, `marketing_email/history.md` за эту дату). До 14:45 трафика было мало, cron отрабатывал быстро. С 14:45:00 до 14:59:36 Postgres не записал в лог ни строки, checkpoint 14:46:44 пропущен — замер весь инстанс. Dashboard → Observability → Database за 14:30–15:30 UTC: ~500 MB в swap при ~400 MB RAM. Committed ~1.6 GB при commit limit ~1.3 GB. IOwait 85 %/55 %/50 % пиками, синхронно с всплесками network out ~330 KB/s, то есть с тиками пересчёта. Диск: IOPS ≈ 8, throughput < 1 MB/s, IO-бюджет не упирался. Механизм — нехватка памяти Nano (0.5 GB): тяжёлый периодический тик вытягивал страницы из swap, пока система не встала. После рестарта swap ~250 MB, committed ~1.1 GB. Фикс цикла задеплоен. Хронический swap остаётся риском (`open_questions`).
 

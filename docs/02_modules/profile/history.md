@@ -1,13 +1,15 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.49
-updated: 2026-09-26
+version: 1.50
+updated: 2026-10-09
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/localeRebuild.ts, modules/profile/ui/LocaleRebuildModal.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
 ## Decision Log
+
+- **2026-10-09 (книга не «пропадает» из‑за JWT):** `getSupabaseAccessSession` повторяет refresh один раз и не отдаёт access token вне skew. Иначе протухший JWT уходил в `purchases/book` и `account/ott`: книга показывала paywall, «Личный кабинет» — `gate.cabinetError`, хотя `payment_contracts` книги был active. Карточка пособия на Профиле различает отказ сервера и сбой проверки.
 
 - **2026-09-26 (OTP → Resend yoga, временно):** Amazon SES account suspended. Supabase `EMAIL_OTP=RESEND_ZAMKOVOI_YOGA`. From остаётся `sergei@zamkovoi.yoga` (`MAIL_FROM_EMAIL`). DNS не менялся: Resend DKIM + `send` verified, Amazon `sesmail` оставлен. `SES_*` и `RESEND_ZAMKOVOI_YOGA_API_KEY` не снимать. Маркетинг не трогать (`EMAIL_MARKETING=RESEND_ZAMKOVOI_RU`). Возврат после разблокировки SES: `EMAIL_OTP=AMAZON_ZAMKOVOI_YOGA` + deploy `send-auth-email`. Не переключать OTP на `RESEND_ZAMKOVOI_RU`.
 

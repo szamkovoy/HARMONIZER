@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
-version: 1.12
-updated: 2026-10-06
+version: 1.17
+updated: 2026-10-16
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -22,6 +22,12 @@ code_refs:
     supabase/migrations/20261006020000_email_campaign_batch_send.sql,
     supabase/migrations/20261006101500_claim_batch_pgcrypto.sql,
     supabase/migrations/20261006102000_finalize_batch_safeupdate.sql,
+    supabase/migrations/20261016014242_email_campaign_single_queue.sql,
+    supabase/migrations/20261016025609_email_campaign_counter_rollup.sql,
+    supabase/migrations/20261016040000_email_open_no_campaign_lock.sql,
+    supabase/migrations/20261016050000_email_campaign_claim_pace.sql,
+    supabase/migrations/20261016161000_email_send_pace.sql,
+    supabase/migrations/20261016220000_email_send_pace_small_default.sql,
     _legacy_web/app/api/_utils/emailCampaignSend.ts,
     _legacy_web/app/api/_utils/marketingDeliveryEvents.ts,
   ]
@@ -31,7 +37,7 @@ code_refs:
 
 - **`admin_panel`** — UI `/admin/email*`, `/admin/email/automations/*/steps/*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
 - **Resend Batch API** — `POST https://api.resend.com/emails/batch` (≤100 писем, заголовок `Idempotency-Key`, ответ `{data:[{id}]}` в порядке запроса; без `tags` — вебхуки матчатся по `resend_id`). Профиль SES — по одному письму.
-- **Supabase RPC** (service_role) — `claim_email_campaign_batch`, `finalize_email_campaign_batch`, `apply_email_campaign_delivery` (`20261006020000`; тела claim/finalize — `20261006101500` / `20261006102000`); воркер и вебхук больше не пишут в `email_campaigns` / `email_contacts` напрямую на каждое письмо.
+- **Supabase RPC** (service_role) — `claim_email_campaign_batch`, `finalize_email_campaign_batch`, `apply_email_campaign_delivery` (`20261006020000`; тела claim/finalize — `20261006101500` / `20261006102000`); воркер, вебхук и пиксель открытия не пишут в строку `email_campaigns` на каждое письмо (`20261016025609`, `20261016040000`). Пиксель по-прежнему обновляет `email_contacts.last_open_at`. Размер и пауза claim читаются из `email_send_pace` (`20261016161000`), ключи `warmup_plan` той же кампании перекрывают строку. После зелёной рассылки 2026-10-16 строка по умолчанию — 100 писем / 120 с (`20261016220000`). Порядок пачки — самая поздняя из открытия приложения, открытия или клика письма и импортированной активности (`20261020151508`).
 - **`infra`** — Supabase tables/storage, Vercel env (`EMAIL_MARKETING`, `RESEND_ZAMKOVOI_*` / `SES_*`, webhook secrets, `CRON_SECRET`, `EMAIL_PUBLIC_BASE_URL`, `EMAIL_UNSUBSCRIBE_SECRET`, `BLOB_READ_WRITE_TOKEN` для новых картинок писем, `DISABLE_EMAIL_OPEN_TRACKING`: `true`/`1`/`yes`/`on` опускает пиксель, `false` или пусто — пиксель в новых письмах), темп рассылки (`CAMPAIGN_BATCH_SIZE` 1–100, по умолчанию 100; `CAMPAIGN_BATCH_GAP_MS` 0–240 000, по умолчанию 120 000; `CAMPAIGN_DB_SLOW_MS` 200–20 000, по умолчанию 1 500 — все необязательные), Resend and/or Amazon SES; first-party click and open pixel unless that flag is on; pg_cron → email-welcome trigger + email-automations every 5m (pg_net timeout 120s) + **email-campaigns every 5m** (pg_net 300s) + suppressions-sync (Resend-only when profile is Resend).
 - **`i18n`** — 8 content locales; automations exact copy per contact locale; campaigns temporarily force RU (`MARKETING_CAMPAIGN_FORCE_COPY_LOCALE`); admin translate (`type=post` reuse for subject/body HTML).
 - **`profile` / auth** — `email_contacts.user_id` → `users`; welcome enroll по первому `onboarded_at` (+ confirmed); trigger на `users.onboarded_at`; `skip_email_automations` / `last_seen_at` / `display_name`.

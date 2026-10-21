@@ -1,3 +1,8 @@
+import {
+  DEFAULT_WARMUP_HOUR_MSK,
+  DEFAULT_WARMUP_SIZES,
+  serializeWarmupPlan,
+} from "../../../../../_utils/emailCampaignWarmup";
 import { emailCopyName } from "../../../../../_utils/emailNaming";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../../../_utils/supabase";
 
@@ -30,6 +35,11 @@ export async function POST(req: Request, ctx: Ctx) {
         html_body_i18n: source.html_body_i18n ?? {},
         blocks_i18n: source.blocks_i18n ?? {},
         segment_query: source.segment_query ?? {},
+        warmup_plan: serializeWarmupPlan({
+          sizes: [...DEFAULT_WARMUP_SIZES],
+          repeat_last: true,
+          hour_msk: DEFAULT_WARMUP_HOUR_MSK,
+        }),
       })
       .select("*")
       .single();

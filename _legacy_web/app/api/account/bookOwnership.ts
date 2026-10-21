@@ -15,10 +15,11 @@ export async function hasActiveBookPurchase(
     .eq("product_kind", "one_time")
     .eq("tier", "book")
     .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: false })
+    .limit(1);
   if (error) throw error;
-  return !!data?.contract_id;
+  const row = data?.[0];
+  return !!row?.contract_id;
 }
 
 export type ActiveBookPurchaseRow = {
@@ -38,12 +39,12 @@ export async function getActiveBookPurchase(
     .eq("tier", "book")
     .eq("status", "active")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
   if (error) throw error;
-  if (!data?.contract_id) return null;
+  const row = data?.[0];
+  if (!row?.contract_id) return null;
   return {
-    contractId: data.contract_id,
-    purchasedAt: data.created_at,
+    contractId: row.contract_id,
+    purchasedAt: row.created_at,
   };
 }

@@ -13,7 +13,8 @@ export type MarketingSendInput = {
   subject: string;
   html: string;
   text: string;
-  unsubscribeUrl: string;
+  /** Omitted for purchase and webinar letters: no List-Unsubscribe header. */
+  unsubscribeUrl?: string;
   /** Content locale for From display name (ru → Сергей Замковой, else Sergei Zamkovoi). */
   locale?: string | null;
   tags?: { name: string; value: string }[];
@@ -123,6 +124,15 @@ export function getEmailPublicBaseUrl(): string {
 }
 
 /** Plaintext fallback from HTML (very light). */
+function listUnsubscribeHeaders(url: string | null | undefined): Record<string, string> | undefined {
+  const trimmed = url?.trim();
+  if (!trimmed) return undefined;
+  return {
+    "List-Unsubscribe": `<${trimmed}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
 export function htmlToPlaintext(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
@@ -162,10 +172,9 @@ async function sendViaResend(
       subject: input.subject,
       html: input.html,
       text: input.text,
-      headers: {
-        "List-Unsubscribe": `<${input.unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      ...(listUnsubscribeHeaders(input.unsubscribeUrl)
+        ? { headers: listUnsubscribeHeaders(input.unsubscribeUrl) }
+        : {}),
       tags: input.tags,
     }),
   });
@@ -281,10 +290,9 @@ export async function sendMarketingEmailBatch(
       subject: item.subject,
       html: item.html,
       text: item.text,
-      headers: {
-        "List-Unsubscribe": `<${item.unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      ...(listUnsubscribeHeaders(item.unsubscribeUrl)
+        ? { headers: listUnsubscribeHeaders(item.unsubscribeUrl) }
+        : {}),
     });
     payloadIndex.push(i);
   });

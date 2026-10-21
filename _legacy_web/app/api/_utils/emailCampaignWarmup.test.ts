@@ -6,6 +6,7 @@ import {
   nextMskHour,
   parseAudienceCap,
   parseWarmupPlan,
+  serializeWarmupPlan,
   waveSizeAt,
   DEFAULT_WARMUP_SIZES,
 } from "./emailCampaignWarmup";
@@ -27,11 +28,31 @@ describe("emailCampaignWarmup", () => {
     expect(nextMskHour(justBefore, 16).toISOString()).toBe("2026-09-16T13:00:00.000Z");
   });
 
-  it("uses the later of app last_seen and GetCourse activity", () => {
+  it("uses the latest of app, imported activity, and mail opens", () => {
     expect(
       activityMs("2026-01-01T00:00:00.000Z", "2026-06-01T00:00:00.000Z"),
     ).toBe(Date.parse("2026-06-01T00:00:00.000Z"));
+    expect(
+      activityMs(
+        "2026-01-01T00:00:00.000Z",
+        "2026-06-01T00:00:00.000Z",
+        "2026-10-01T00:00:00.000Z",
+      ),
+    ).toBe(Date.parse("2026-10-01T00:00:00.000Z"));
     expect(activityMs(null, null)).toBe(0);
+  });
+
+  it("keeps a per-campaign pace override through a rewrite", () => {
+    const plan = parseWarmupPlan({
+      sizes: DEFAULT_WARMUP_SIZES,
+      batch_limit: 60,
+      claim_interval_seconds: 120,
+    });
+    expect(serializeWarmupPlan(plan)).toMatchObject({
+      batch_limit: 60,
+      claim_interval_seconds: 120,
+    });
+    expect(parseWarmupPlan({ batch_limit: 500, claim_interval_seconds: 10 }).batch_limit).toBeUndefined();
   });
 
   it("treats empty audience cap as unlimited", () => {

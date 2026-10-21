@@ -353,20 +353,29 @@ export async function getSupabaseSessionSnapshot(options?: { allowExpired?: bool
   return null;
 }
 
+const REFRESH_RETRY_DELAY_MS = 400;
+
 export async function getSupabaseAccessSession(): Promise<Session> {
   const snapshot = await getSupabaseSessionSnapshot();
   if (snapshot) return snapshot;
 
   // Snapshot пустой/протухший — упреждающий refresh, иначе запросы с устаревшим
   // JWT получают 401 (кнопка «Личный кабинет» после долгого фона и т.п.).
-  const refreshed = await refreshAccessSessionOnce();
+  // Одна повторная попытка: первый refresh часто падает на пробуждении радио,
+  // а следующий через доли секунды уже проходит.
+  let refreshed = await refreshAccessSessionOnce();
+  if (!refreshed) {
+    await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS));
+    refreshed = await refreshAccessSessionOnce();
+  }
   if (refreshed) return refreshed;
 
-  // Refresh не вышел (нет сети / refresh token отозван) — fallback на состояние SDK.
+  // Refresh не вышел. SDK-сессия годится только пока access token ещё живой:
+  // протухший JWT даёт 401, а клиент книги принимал это за «покупки нет».
   const { data, error } = await requireSupabase().auth.getSession();
   if (error) throw error;
   rememberSupabaseSession(data.session ?? null);
-  if (data.session?.access_token && data.session.user?.id) {
+  if (sessionHasUsableAccessToken(data.session)) {
     return data.session;
   }
   throw new Error("Нужна авторизация Supabase.");

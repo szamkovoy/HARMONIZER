@@ -1,7 +1,7 @@
 /**
  * One continuous send for the whole audience. Larger than the list, so the
- * 5-minute cron keeps draining until nobody is left. A campaign that already
- * stored the old 500/1000/3000 ladder still follows that stored plan.
+ * 5-minute cron keeps draining until nobody is left. The old 500/1000/3000
+ * day-by-day ladder is no longer written; unsent drafts were moved to this queue.
  */
 export const DEFAULT_WARMUP_SIZES = [1_000_000];
 export const DEFAULT_WARMUP_HOUR_MSK = 16;
@@ -20,6 +20,13 @@ export type WarmupPlan = {
   exclude_long_term_master?: boolean;
   /** Exact UTC instant for the following wave. Consumed once. */
   pinned_next_wave_at?: string;
+  /**
+   * Optional per-campaign override of `email_send_pace`. The live cap is the
+   * SQL function; these fields must survive a wave rewrite or the override
+   * disappears on the next tick.
+   */
+  batch_limit?: number;
+  claim_interval_seconds?: number;
 };
 
 export const TERMINAL_SEND_STATUSES = [
@@ -52,6 +59,8 @@ export function parseWarmupPlan(raw: unknown): WarmupPlan {
   const windowHours = Math.floor(Number(o.access_window_hours));
   const pinned =
     typeof o.pinned_next_wave_at === "string" ? Date.parse(o.pinned_next_wave_at) : NaN;
+  const batchLimit = Math.floor(Number(o.batch_limit));
+  const claimGap = Math.floor(Number(o.claim_interval_seconds));
   return {
     sizes: sizes.length ? sizes : [...DEFAULT_WARMUP_SIZES],
     repeat_last: o.repeat_last !== false,
@@ -69,6 +78,14 @@ export function parseWarmupPlan(raw: unknown): WarmupPlan {
     pinned_next_wave_at: Number.isFinite(pinned)
       ? new Date(pinned).toISOString()
       : undefined,
+    batch_limit:
+      Number.isFinite(batchLimit) && batchLimit >= 1 && batchLimit <= 100
+        ? batchLimit
+        : undefined,
+    claim_interval_seconds:
+      Number.isFinite(claimGap) && claimGap >= 60 && claimGap <= 900
+        ? claimGap
+        : undefined,
   };
 }
 
@@ -84,6 +101,10 @@ export function serializeWarmupPlan(plan: WarmupPlan): Record<string, unknown> {
       : {}),
     ...(plan.exclude_long_term_master ? { exclude_long_term_master: true } : {}),
     ...(plan.pinned_next_wave_at ? { pinned_next_wave_at: plan.pinned_next_wave_at } : {}),
+    ...(plan.batch_limit != null ? { batch_limit: plan.batch_limit } : {}),
+    ...(plan.claim_interval_seconds != null
+      ? { claim_interval_seconds: plan.claim_interval_seconds }
+      : {}),
   };
 }
 
@@ -128,14 +149,17 @@ export function nextMskHour(now: Date, hourMsk: number, minGapHours = 12): Date 
   return next;
 }
 
+/** Latest of the given timestamps. Missing or unparseable stamps are ignored. */
 export function activityMs(
-  lastSeenAt: string | null | undefined,
-  getcourseAt: string | null | undefined,
+  ...stamps: Array<string | null | undefined>
 ): number {
-  const a = lastSeenAt ? Date.parse(lastSeenAt) : NaN;
-  const b = getcourseAt ? Date.parse(getcourseAt) : NaN;
-  const vals = [a, b].filter((n) => Number.isFinite(n));
-  return vals.length ? Math.max(...vals) : 0;
+  let best = 0;
+  for (const stamp of stamps) {
+    if (!stamp) continue;
+    const ms = Date.parse(stamp);
+    if (Number.isFinite(ms) && ms > best) best = ms;
+  }
+  return best;
 }
 
 export function parseAudienceCap(raw: unknown): number | null {

@@ -48,6 +48,8 @@ const TIER_LABELS: Record<string, string> = {
   webinar: "Вебинар",
   webinar_pack: "Четыре вебинара",
   book: "Книга",
+  spb_practicum: "Практикум в Санкт-Петербурге",
+  surcharge: "Доплата",
 };
 
 const SCROLL_LIST_CLASS =

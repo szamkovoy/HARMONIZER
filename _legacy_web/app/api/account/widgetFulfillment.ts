@@ -5,10 +5,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { applyEmailPlaceholders, wrapMarketingEmailHtml } from "../_utils/emailTemplate";
-import { buildSignedUnsubscribeUrl, generateUnsubscribeToken } from "../_utils/emailUnsubscribe";
+import { generateUnsubscribeToken } from "../_utils/emailUnsubscribe";
 import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
 import { purchaseLetterLocale, ownI18nText } from "../_utils/webinarNoticeCopy";
-import { getWidgetEmailCopy } from "../_utils/widgetEmailCopy";
 import { asWidgetLocale } from "../../../lib/paymentWidget/copy";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -220,20 +219,36 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Plain-text letter → paragraphs; URLs become links. */
+/**
+ * Plain-text letter → HTML. A blank line in the editor becomes an empty
+ * paragraph; the mail wrapper turns that into one visible gap. A single
+ * line break stays inside the paragraph. URLs become links.
+ */
 export function plainLetterToHtml(text: string): string {
-  return text
-    .replace(/\r\n/g, "\n")
-    .split(/\n{2,}/)
-    .map((para) => para.trim())
-    .filter(Boolean)
-    .map((para) => {
-      const html = escapeHtml(para)
-        .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0f3d2e;">$1</a>')
-        .replace(/\n/g, "<br />");
-      return `<p>${html}</p>`;
-    })
-    .join("\n");
+  const lines = text.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "").split("\n");
+  const blocks: string[] = [];
+  let paraLines: string[] = [];
+
+  const pushPara = () => {
+    const para = paraLines.join("\n").trim();
+    paraLines = [];
+    if (!para) return;
+    const html = escapeHtml(para)
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0f3d2e;">$1</a>')
+      .replace(/\n/g, "<br />");
+    blocks.push(`<p>${html}</p>`);
+  };
+
+  for (const line of lines) {
+    if (line.trim() === "") {
+      if (paraLines.length) pushPara();
+      if (blocks.length) blocks.push("<p></p>");
+    } else {
+      paraLines.push(line);
+    }
+  }
+  pushPara();
+  return blocks.join("\n");
 }
 
 /**
@@ -284,24 +299,14 @@ export async function sendWidgetPurchaseLetter(
   if (claimErr) throw claimErr;
   if (!claimed?.length) return { sent: false, reason: "already_sent" };
 
-  const { data: contact } = await db
-    .from("email_contacts")
-    .select("unsubscribe_token")
-    .eq("email_normalized", to)
-    .maybeSingle();
-  const token = (contact?.unsubscribe_token as string | null) ?? null;
-  const unsubscribeUrl = token ? buildSignedUnsubscribeUrl(token) : "";
-
   const name = ((contract.buyer_name as string | null) ?? "").trim();
   const subject = applyEmailPlaceholders(subjectRaw, { name });
-  const bodyHtml = applyEmailPlaceholders(plainLetterToHtml(bodyRaw), { name, unsubscribeUrl });
-  const copy = getWidgetEmailCopy(locale);
+  const bodyHtml = applyEmailPlaceholders(plainLetterToHtml(bodyRaw), { name });
   const html = wrapMarketingEmailHtml({
     bodyHtml,
-    unsubscribeUrl,
     previewText: subject,
     lang: locale,
-    footer: copy.footer,
+    footer: null,
   });
 
   const result = await sendMarketingEmail({
@@ -309,7 +314,6 @@ export async function sendWidgetPurchaseLetter(
     subject,
     html,
     text: htmlToPlaintext(bodyHtml),
-    unsubscribeUrl,
     locale,
     tags: [{ name: "kind", value: "widget_purchase" }],
   });

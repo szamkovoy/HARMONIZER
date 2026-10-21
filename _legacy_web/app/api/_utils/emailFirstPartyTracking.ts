@@ -88,9 +88,11 @@ function isSkippableHref(url: string): boolean {
 export async function prepareTrackedMarketingEmailHtml(
   opts: {
     bodyHtml: string;
-    unsubscribeUrl: string;
+    unsubscribeUrl?: string;
     previewText?: string;
     trackId: string;
+    /** `null` — no unsubscribe footer (manual send from the user card). */
+    footer?: { before: string; link: string; after: string } | null;
   },
 ): Promise<string> {
   const { prepareMarketingEmailHtml } = await import("./emailImgDimensions");
@@ -98,6 +100,7 @@ export async function prepareTrackedMarketingEmailHtml(
     bodyHtml: opts.bodyHtml,
     unsubscribeUrl: opts.unsubscribeUrl,
     previewText: opts.previewText,
+    ...(opts.footer !== undefined ? { footer: opts.footer } : {}),
   });
   return injectFirstPartyEmailTracking(wrapped, opts.trackId);
 }
@@ -259,13 +262,14 @@ export async function recordFirstPartyTrackEvent(
       .eq("id", row.contact_id);
   }
 
-  if (row.campaign_id) {
-    await bumpCounter(
-      db,
-      "email_campaigns",
-      row.campaign_id,
-      opts.kind === "opened" ? "opened_count" : "clicked_count",
-    );
+  // One letter, one row. Campaign totals are the 5-minute rollup.
+  if (row.send_id && row.campaign_id) {
+    const next = opts.kind === "opened" ? "opened" : "clicked";
+    const from =
+      opts.kind === "opened"
+        ? ["queued", "sending", "sent", "delivered"]
+        : ["queued", "sending", "sent", "delivered", "opened"];
+    await db.from("email_campaign_sends").update({ status: next }).eq("id", row.send_id).in("status", from);
   }
   if (row.step_id) {
     await bumpCounter(
