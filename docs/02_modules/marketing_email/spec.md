@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.49
-updated: 2026-10-16
+version: 1.50
+updated: 2026-10-21
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -116,13 +116,13 @@ code_refs:
 - OTP (from `@zamkovoi.yoga` / subject «sign-in code» / «код входа») на Resend webhook **игнорируется** — тот же аккаунт Resend может слать OTP; в marketing deliverability не пишется.
 - `GET …/deliverability` при агрегации тоже отфильтровывает исторические OTP-события по from/subject.
 
-Оба пути → `applyMarketingDeliveryEvent`. У шага цепочки счётчик пишется сразу. У рассылки вебхук меняет только строку этого письма (статус, отписка, открытие); общие цифры кампании (`delivered_count` и соседние) пересчитываются одним проходом `refresh_email_campaign_counters` в начале каждого 5-минутного крона (`20261016025609`), а не `+1` на каждое событие. Пиксель открытия делает то же: помечает строку этого письма `opened` и не увеличивает `opened_count` кампании (`20261016040000`). Match по `resend_id` (= Resend id или SES MessageId).
+Оба пути → `applyMarketingDeliveryEvent`. У шага цепочки счётчик пишется сразу. У рассылки вебхук меняет только строку этого письма (статус, отписка, открытие); общие цифры кампании (`delivered_count` и соседние) пересчитываются одним проходом `refresh_email_campaign_counters` (`20261016025609`), а не `+1` на каждое событие. В проход входят кампании `sending`/`paused` и уже отправленные за последние 14 суток (`20261021132644`). Пиксель открытия помечает строку этого письма `opened` и не увеличивает `opened_count` кампании (`20261016040000`). Match по `resend_id` (= Resend id или SES MessageId). Сам проход запускает pg_cron `refresh_email_campaign_counters_hourly` в минуту :07 (`20261021132651`) прямо в Postgres, без запроса на Vercel; если соединений уже 65 или больше, этот час пропускается. `invoke_run_email_campaigns` вызывает тот же проход только когда есть волна или откат доступа.
 
 | Event (Resend / SES) | Действие |
 | --- | --- |
 | sent / Send | send status |
 | delivered / Delivery | `delivered_count` |
-| opened/clicked / Open/Click | статус строки письма; цифра карточки — тот же 5-минутный пересчёт |
+| opened/clicked / Open/Click | статус строки письма; цифра карточки — часовой пересчёт (и тот же проход, когда крон реально берёт волну) |
 | bounced Permanent / Bounce Permanent | `bounced_count` + local suppressed (+ Resend suppressions API if Resend) |
 | bounced Transient + subType MailboxFull | `bounced_count` + local suppressed (маркетинг стоп; OTP не трогаем) |
 | bounced Transient (прочее) | bounce counter, **no** suppress |
