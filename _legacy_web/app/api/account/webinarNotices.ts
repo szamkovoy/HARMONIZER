@@ -17,6 +17,7 @@ import {
   fillLetterName,
   getWebinarNoticeCopy,
   letterLocale,
+  webinarStartSentence,
   type WebinarNoticeKind,
 } from "../_utils/webinarNoticeCopy";
 import { asWidgetLocale, type WidgetLocale } from "../../../lib/paymentWidget/copy";
@@ -147,10 +148,14 @@ export function noticeHtml(params: {
   name: string;
   body: string;
   joinUrl?: string | null;
+  startsAt?: string | null;
 }): string {
   const copy = getWebinarNoticeCopy(params.locale);
   const greeting = params.name.trim() ? copy.greeting(params.name.trim()) : copy.greetingNoName;
-  const parts = [`<p>${escapeHtml(greeting)}</p>`, LETTER_GAP, plainLetterToHtml(params.body)];
+  const parts = [`<p>${escapeHtml(greeting)}</p>`];
+  const startLine = params.kind === "invite" ? webinarStartSentence(params.locale, params.startsAt) : "";
+  if (startLine) parts.push(LETTER_GAP, `<p>${escapeHtml(startLine)}</p>`);
+  parts.push(LETTER_GAP, plainLetterToHtml(params.body));
   const joinUrl = params.joinUrl?.trim();
   if (params.kind === "invite" && joinUrl) {
     const href = escapeHtml(joinUrl);
@@ -361,7 +366,13 @@ async function releaseSend(
 
 async function deliver(
   db: SupabaseClient,
-  webinar: { id: string; description: string | null; description_i18n: unknown; join_url: string | null },
+  webinar: {
+    id: string;
+    description: string | null;
+    description_i18n: unknown;
+    join_url: string | null;
+    starts_at: string;
+  },
   kind: WebinarNoticeKind,
   bodyRu: string,
   bodyI18n: unknown,
@@ -379,6 +390,7 @@ async function deliver(
     name,
     body: letter.text,
     joinUrl: webinar.join_url,
+    startsAt: webinar.starts_at,
   });
   const bodyHtml = noticeHtml({
     kind,
@@ -386,6 +398,7 @@ async function deliver(
     name,
     body: letter.text,
     joinUrl: webinar.join_url,
+    startsAt: webinar.starts_at,
   });
   const html = wrapMarketingEmailHtml({
     bodyHtml: applyEmailPlaceholders(bodyHtml, { name }),

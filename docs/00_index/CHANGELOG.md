@@ -9,6 +9,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-10-30 (653): The one-webinar letter sent before a webinar is scheduled now says the room link will follow in a separate letter, and a recording link after the webinar. Migration `20261030103558`. Docs `account_web`.
+- 2026-10-30 (652): The one-webinar purchase letter no longer names 17 September or a room link; it says the link arrives when the webinar is scheduled. The four-webinar letter no longer promises that link an hour before the start. The invitation itself states the Moscow start time. Migration `20261030095939`. Docs `account_web`, `webinars`.
 - 2026-10-21 (651): Production migration journal aligned with repo file versions (`migration repair`); `db push --dry-run` is empty. Rule: apply SQL only via `supabase db push`, not MCP `apply_migration`. Docs `migration_protocol`, `.cursor/rules/supabase-migrations.mdc`.
 - 2026-10-21 (650): Campaign cards recount opens for 14 days, and an hourly Postgres cron does that recount without calling Vercel. Send rows from before 10 October take opened/clicked from events; bounced and complained stay, and those old cards are not recounted. Migrations `20261021132644`, `20261021132651`, `20261021132659`. Docs `marketing_email`.
 - 2026-10-21 (649): The landing payment widget shows «Спасибо за оплату» only on the return from YooKassa, then removes `?hz_paid=` so a refresh shows the form again. Docs `account_web`.
