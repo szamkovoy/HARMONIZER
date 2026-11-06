@@ -7,7 +7,8 @@ export type CatalogTier =
   | "webinar_pack"
   | "book"
   | "spb_practicum"
-  | "surcharge";
+  | "surcharge"
+  | "yoga_course";
 
 export type PaymentCatalogRow = {
   provider: string;

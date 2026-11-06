@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/dependencies
 title: Subscription Dependencies
-version: 1.6
-updated: 2026-09-24
+version: 1.7
+updated: 2026-11-06
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -72,7 +72,7 @@ code_refs:
   Миграция 4 тиров + `membership_expires_at` (этап 0); ручной грант/правка платежей (этап 6) пишет леджер и пересчитывает `users.membership_*` по правилу highest active tier. Подписи в UI админки — `TIER_LABELS_RU`. См. `02_modules/admin_panel/`.
 
 - **`infra`**  
-  Hourly Edge `reconcile-expired-memberships` + SQL `recompute_user_membership` / `reconcile_expired_memberships` поддерживают актуальность `users.membership_*` после истечения `membership_expires_at` без интерактивного захода в админку.
+  Hourly Edge `reconcile-expired-memberships` + SQL `recompute_user_membership` / `reconcile_expired_memberships` поддерживают актуальность `users.membership_*` после истечения `membership_expires_at` без интерактивного захода в админку. Окно до 2026-11-10 00:00 UTC (`20261106184910`) для короткого «Наставника» дотягивает только `users.membership_expires_at`, не `payment_contracts`, чтобы этот reconcile не снял временный «Мастер» раньше конца окна.
 
 - **`marketing_email`**  
   Волна с `access_window_hours` на время окна пишет `users.trial_expires_at` (уже вошедший «Навигатор») или временный `membership_tier=master` («Наставник») и откатывает снимок из `email_campaign_access_grants`. Не вошедших в приложение не помечает.

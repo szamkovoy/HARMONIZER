@@ -12,6 +12,6 @@ Treat deployment as synchronization of the whole working system, not only source
 - Never commit `.env*` secrets to Git. Use provider environment stores (`vercel env`, Supabase secrets, GitHub secrets) for remote secret/config sync.
 - Do not invent fallback values for required config. Missing required env is a real deployment error and should stay visible until the config is fixed.
 - Keep local and remote naming aligned. If code reads `AI_MODEL_STANDARD`, Vercel/Supabase must also have `AI_MODEL_STANDARD`, not only an older alias.
-- For Supabase changes, deploy the required migrations/seeds/functions together with the code that depends on them, or clearly stop before deploy if that would break runtime compatibility.
+- For Supabase changes, deploy the required migrations/seeds/functions together with the code that depends on them, or clearly stop before deploy if that would break runtime compatibility. Apply SQL only via `supabase db push` from migration files (see `.cursor/rules/supabase-migrations.mdc`); do not use MCP `apply_migration` for repo migrations.
 - For GitHub, do not push or create commits unless the user asks, but when a deploy depends on committed remote code, say so and keep the deployment path explicit.
 - After syncing remote config or infrastructure, verify with the provider CLI (`vercel env ls`, Supabase status/secrets/functions, GitHub checks) before declaring the deployment ready.

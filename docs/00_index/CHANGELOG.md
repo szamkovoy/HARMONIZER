@@ -1,14 +1,19 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.79
-updated: 2026-10-21
+version: 3.80
+updated: 2026-11-06
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-11-06 (655): Through 2026-11-10 00:00 UTC, people already in the app on Navigator get demo (Master without webinars), and active Mentors are shown as Master. Charge dates stay on `payment_contracts`. `revert_access_promo_grants` puts Mentors back; a Master bought during the window is kept. Never-opened accounts still get 24h on first sign-in. Migration `20261106184910`. Docs `subscription`.
+- 2026-11-06 (654): Catalog product «Месячный курс йоги с 20% скидкой» (`yoga_course`, 24000 ₽ YooKassa + Lava offer, one-time). Landing widget takes a Russian or international card and emails the buyer to name the course. It is not listed in the app cabinet. Migration `20261106182625`. Docs `account_web`, `admin_panel`.
+- 2026-10-30 (653): The one-webinar letter sent before a webinar is scheduled now says the room link will follow in a separate letter, and a recording link after the webinar. Migration `20261030103558`. Docs `account_web`.
+- 2026-10-30 (652): The one-webinar purchase letter no longer names 17 September or a room link; it says the link arrives when the webinar is scheduled. The four-webinar letter no longer promises that link an hour before the start. The invitation itself states the Moscow start time. Migration `20261030095939`. Docs `account_web`, `webinars`.
+- 2026-10-21 (651): Production migration journal aligned with repo file versions (`migration repair`); `db push --dry-run` is empty. Rule: apply SQL only via `supabase db push`, not MCP `apply_migration`. Docs `migration_protocol`, `.cursor/rules/supabase-migrations.mdc`.
 - 2026-10-21 (650): Campaign cards recount opens for 14 days, and an hourly Postgres cron does that recount without calling Vercel. Send rows from before 10 October take opened/clicked from events; bounced and complained stay, and those old cards are not recounted. Migrations `20261021132644`, `20261021132651`, `20261021132659`. Docs `marketing_email`.
 - 2026-10-21 (649): The landing payment widget shows «Спасибо за оплату» only on the return from YooKassa, then removes `?hz_paid=` so a refresh shows the form again. Docs `account_web`.
 - 2026-10-20 (648): A campaign queue is ordered by the latest of app open, marketing-mail open or click, and imported GetCourse activity. Migration `20261020151508`. Docs `marketing_email`.
