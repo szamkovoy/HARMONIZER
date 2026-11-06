@@ -2,12 +2,14 @@
 id: 02_modules/admin_panel/history
 title: Admin Panel History
 version: 1.9
-updated: 2026-09-24
+updated: 2026-11-06
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
 ## Decision Log
+
+- **2026-11-06 (месячный курс йоги):** В каталоге `yoga_course`, 24000 ₽ и оффер Lava. Виджет лендинга продаёт его российской и международной картой. Кабинет приложения его не показывает.
 
 - **2026-10-16 (письмо из карточки без подписи):** «Отправить письмо» не дописывает футер «отписаться». Рассылка по сегменту и цепочка — с подписью.
 

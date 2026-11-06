@@ -43,6 +43,7 @@ const TIER_LABELS: Record<string, string> = {
   book: "Книга",
   spb_practicum: "Практикум в Санкт-Петербурге",
   surcharge: "Доплата",
+  yoga_course: "Месячный курс йоги",
 };
 
 const KIND_LABELS: Record<string, string> = {
