@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.12
-updated: 2026-09-24
+version: 1.13
+updated: 2026-11-06
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -33,6 +33,7 @@ code_refs:
     supabase/migrations/20260714210000_trial_one_day.sql,
     supabase/migrations/20260924010000_trial_on_first_sign_in.sql,
     supabase/migrations/20260924013000_trial_write_flag_reset.sql,
+    supabase/migrations/20261106184910_access_promo_navigator_mentor_20261110.sql,
   ]
 ---
 
@@ -87,6 +88,7 @@ code_refs:
 - **Каталог тарифов** — единственная точка: `modules/access/core/tiers.ts` (id, порядок, `PAID_PRODUCT_TIERS`, `VISIBLE_*`, `TIER_LABELS` / `TIER_LABELS_RU`) + матрица фич в `features.ts`. Смена названий/числа тарифов в будущем правится здесь (и в SQL CHECK / `restore_membership_from_ledger`).
 - **Порядок тарифов** — `TIER_ORDER` / `tierAtLeast` в `modules/access/core/tiers.ts`.
 - **Схема БД** — `supabase/migrations/20260501193000_free_tier_global_content.sql` (`membership_tier`, `trial_expires_at`) + `supabase/migrations/20260708010000_admin_panel_tier_foundation.sql`: constraint расширен до `check in ('free','oracle','practitioner','master')` (данные `premium` нормализованы в `oracle`), добавлен `membership_expires_at timestamptz` (истечение ручного гранта/оплаты; NULL = бессрочно; истёкший грант = `free`). Пересчёт из леджера: hourly Edge `reconcile-expired-memberships` → SQL `reconcile_expired_memberships(p_limit)` → `restore_membership_from_ledger` (payments + payment_contracts; `20260914010000_cron_invokers_hardening.sql`, заменяет `recompute_user_membership` из `20260710023000`, которого на remote не было). **Trial = 1 сутки** уровня «Мастер». Новый OTP-аккаунт получает его в `handle_new_auth_user` (`20260714210000_trial_one_day.sql`). Импортированная почтовая строка (`trial_expires_at` пуст, `app_first_open_at` пуст) получает те же сутки в момент **первого** `auth.users.last_sign_in_at` (`20260924010000_trial_on_first_sign_in.sql`); повторный вход и уже открывавшие приложение (`app_first_open_at` / `onboarded_at` / `last_seen_at`) демо не получают. Активный оплаченный план очищает ещё не истёкший trial. Клиент не может сам записать `trial_expires_at` / `app_first_open_at`.
+- **Окно 6–9 ноября 2026 (до 2026-11-10 00:00 UTC)** — миграция `20261106184910`. Уже вошедший пользователь без живого платного плана получает `trial_expires_at` на этот момент (демо = «Мастер» без вебинаров; гаснет само). Кто ещё не входил, не помечается: первый вход по-прежнему даёт свои сутки. Активный «Наставник» (`oracle` / `practitioner`, срок пуст или в будущем) на это окно становится `membership_tier=master`; снимок — `access_promo_grants`. Если его `membership_expires_at` раньше конца окна, в `users` срок дотягивается до конца окна, чтобы hourly reconcile не снял доступ раньше. `payment_contracts` не пишутся. Каждые 15 минут `revert_access_promo_grants` после `revert_at` возвращает снимок тарифа и срока, если строка всё ещё этот временный «Мастер» и за окно не куплен свой «Мастер». Продление, которое уже сменило тариф, не затирается. Потом cron снимает сам себя.
 
 ## 5. Известные ограничения и инварианты
 

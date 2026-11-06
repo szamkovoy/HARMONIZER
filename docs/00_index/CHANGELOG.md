@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-06 (655): Through 2026-11-10 00:00 UTC, people already in the app on Navigator get demo (Master without webinars), and active Mentors are shown as Master. Charge dates stay on `payment_contracts`. `revert_access_promo_grants` puts Mentors back; a Master bought during the window is kept. Never-opened accounts still get 24h on first sign-in. Migration `20261106184910`. Docs `subscription`.
 - 2026-11-06 (654): Catalog product «Месячный курс йоги с 20% скидкой» (`yoga_course`, 24000 ₽ YooKassa + Lava offer, one-time). Landing widget takes a Russian or international card and emails the buyer to name the course. It is not listed in the app cabinet. Migration `20261106182625`. Docs `account_web`, `admin_panel`.
 - 2026-10-30 (653): The one-webinar letter sent before a webinar is scheduled now says the room link will follow in a separate letter, and a recording link after the webinar. Migration `20261030103558`. Docs `account_web`.
 - 2026-10-30 (652): The one-webinar purchase letter no longer names 17 September or a room link; it says the link arrives when the webinar is scheduled. The four-webinar letter no longer promises that link an hour before the start. The invitation itself states the Moscow start time. Migration `20261030095939`. Docs `account_web`, `webinars`.
