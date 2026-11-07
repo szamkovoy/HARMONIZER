@@ -11,6 +11,8 @@ code_refs:
     _legacy_web/app/api/account/subscription/route.ts,
     _legacy_web/app/api/account/purchases/last/route.ts,
     _legacy_web/app/api/account/webhooks/lava/route.ts,
+    _legacy_web/app/api/account/lavaReconcile.ts,
+    _legacy_web/app/api/cron/lava-reconcile/route.ts,
     _legacy_web/app/api/account/overview-data.ts,
     modules/account/core/purchasesClient.ts,
     web_cabinet/cabinet/index.html,
@@ -37,6 +39,12 @@ code_refs:
 | DELETE | `/api/v1/subscriptions?contractId=&email=` | Отмена подписки. 404 = уже отменена (не ошибка для нас). |
 
 Вебхуки (настроены в ЛК автора, два эндпоинта на `POST /api/account/webhooks/lava`): «Результат платежа» (`payment.success`/`payment.failed`) и «Регулярный платёж» (`subscription.recurring.payment.success`/`.failed`, `subscription.cancelled`). Аутентификация вебхука — заголовок `X-Api-Key: $LAVATOP_WEBHOOK_SECRET`. Тело: `{ eventType, contractId, parentContractId?, buyer{email}, amount, currency, status, timestamp, errorMessage?, product{id,title} }`. Lava ретраит доставку до 20 раз, пока не получит 2xx.
+
+URL вебхуков в ЛК Lava: `https://harmonizer.zamkovoi.yoga/api/account/webhooks/lava` (PHP-прокси REG.RU, см. `DEPLOY.md` «Russia proxy»), не `harmonizer-ten.vercel.app`. Отправитель вебхуков Lava сидит в российской сети: `harmonizer-ten.vercel.app` резолвится в `*.131`, на которых TLS из РФ зависает. 06.11 все 20 попыток доставки успешной оплаты ушли в TIMEOUT/BLOCKED и ни одна не дошла до кода. BLOCKED — пауза самой Lava после серии таймаутов.
+
+Ответ вебхука уходит сразу после записи оплаты. Письмо и расчёт комиссии дописываются после ответа, потому что Lava ждёт не дольше 10 секунд.
+
+Если вебхук так и не обновил строку, планировщик раз в 10 минут проверяет только pending-счета Lava возрастом 10–22 минуты и только их спрашивает у `GET /api/v1/invoices/{id}`. Пустой список наружу не уходит. Дальше тот же счёт уже не проверяется.
 
 `buyerLanguage` (EN/RU/ES) локализует **только хром интерфейса** Lava (кнопки, подписи). Название и описание продукта — фиксированы автором при создании продукта. Поэтому полная локализация страницы оплаты требует отдельного продукта Lava на каждый язык (см. §3).
 

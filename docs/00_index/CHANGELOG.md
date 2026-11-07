@@ -2,13 +2,15 @@
 id: 00_index/CHANGELOG
 title: Documentation Changelog
 version: 3.80
-updated: 2026-11-06
+updated: 2026-11-07
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-11-07 (657): Lava webhooks never reached Vercel from Lava's Russian network (`harmonizer-ten.vercel.app` → `*.131`, TLS stalls), so the 06.11 webinar payment stayed pending. Lava webhook URL moves to the REG.RU proxy `harmonizer.zamkovoi.yoga`. Docs `DEPLOY.md`, `account_web`.
+- 2026-11-07 (656): The Lava webhook answers as soon as the payment is stored; the letter follows after the response, inside Lava's 10-second limit. A missed webhook is checked only for a pending invoice 10–22 minutes old, once or twice, and not at all when nothing is pending. Migrations `20261107182702`, `20261107185410`. Docs `account_web`.
 - 2026-11-06 (655): Through 2026-11-10 00:00 UTC, people already in the app on Navigator get demo (Master without webinars), and active Mentors are shown as Master. Charge dates stay on `payment_contracts`. `revert_access_promo_grants` puts Mentors back; a Master bought during the window is kept. Never-opened accounts still get 24h on first sign-in. Migration `20261106184910`. Docs `subscription`.
 - 2026-11-06 (654): Catalog product «Месячный курс йоги с 20% скидкой» (`yoga_course`, 24000 ₽ YooKassa + Lava offer, one-time). Landing widget takes a Russian or international card and emails the buyer to name the course. It is not listed in the app cabinet. Migration `20261106182625`. Docs `account_web`, `admin_panel`.
 - 2026-10-30 (653): The one-webinar letter sent before a webinar is scheduled now says the room link will follow in a separate letter, and a recording link after the webinar. Migration `20261030103558`. Docs `account_web`.

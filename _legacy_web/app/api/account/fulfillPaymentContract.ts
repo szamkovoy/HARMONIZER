@@ -151,6 +151,11 @@ export async function fulfillFirstPaymentSuccess(
     paidAt?: string | null;
     provider: string;
     logTag: string;
+    /**
+     * Lava drops the webhook unless we answer within 10s. Pass this to finish
+     * the payment row first and send letters / FX after the response.
+     */
+    scheduleSlow?: (work: () => Promise<void>) => void;
   },
 ): Promise<Record<string, unknown>> {
   const contractId = params.contract.contract_id;
@@ -166,24 +171,31 @@ export async function fulfillFirstPaymentSuccess(
   }
 
   if (contract.status === "active") {
-    await settleChargeSafe(db, {
-      contractId,
-      eventType: "payment.success",
-      amount: params.amount,
-      currency: params.currency,
-      paidAt: params.paidAt,
-      userId: contract.user_id,
-      provider: params.provider,
-      logTag: params.logTag,
-    });
-    await resubscribeSafe(db, contract, params.logTag);
-    if (contract.source === "widget" && contract.product_kind === "one_time") {
-      // Retry after a partial first run: pass and letter are idempotent.
-      await completeOneTimeExtras(db, contract, contract.user_id, params);
+    const slow = async () => {
+      await settleChargeSafe(db, {
+        contractId,
+        eventType: "payment.success",
+        amount: params.amount,
+        currency: params.currency,
+        paidAt: params.paidAt,
+        userId: contract.user_id,
+        provider: params.provider,
+        logTag: params.logTag,
+      });
+      await resubscribeSafe(db, contract, params.logTag);
+      if (contract.source === "widget" && contract.product_kind === "one_time") {
+        // Retry after a partial first run: pass and letter are idempotent.
+        await completeOneTimeExtras(db, contract, contract.user_id, params);
+      }
+      if (contract.tier === "master" && contract.user_id) {
+        await masterInvitesSafe(db, contract.user_id, params.logTag);
+      }
+    };
+    if (params.scheduleSlow) {
+      params.scheduleSlow(slow);
+      return { ok: true, alreadyActive: true, deferred: true };
     }
-    if (contract.tier === "master" && contract.user_id) {
-      await masterInvitesSafe(db, contract.user_id, params.logTag);
-    }
+    await slow();
     return { ok: true, alreadyActive: true };
   }
 
@@ -198,19 +210,27 @@ export async function fulfillFirstPaymentSuccess(
       .eq("contract_id", contractId);
     if (contractError) throw contractError;
 
-    await settleChargeSafe(db, {
-      contractId,
-      eventType: "payment.success",
-      amount: params.amount,
-      currency: params.currency,
-      paidAt: params.paidAt,
-      userId,
-      provider: params.provider,
-      logTag: params.logTag,
-    });
-
-    await resubscribeSafe(db, { ...contract, user_id: userId }, params.logTag);
-    return completeOneTimeExtras(db, contract, userId, params);
+    const access = await completeOneTimeExtras(db, contract, userId, params, false);
+    const slow = async () => {
+      await settleChargeSafe(db, {
+        contractId,
+        eventType: "payment.success",
+        amount: params.amount,
+        currency: params.currency,
+        paidAt: params.paidAt,
+        userId,
+        provider: params.provider,
+        logTag: params.logTag,
+      });
+      await resubscribeSafe(db, { ...contract, user_id: userId }, params.logTag);
+      await completeOneTimeExtras(db, contract, userId, params, true);
+    };
+    if (params.scheduleSlow) {
+      params.scheduleSlow(slow);
+      return { ...access, deferred: true };
+    }
+    await slow();
+    return access;
   }
 
   let bonusDays = 0;
@@ -266,17 +286,6 @@ export async function fulfillFirstPaymentSuccess(
     .eq("contract_id", contractId);
   if (contractError) throw contractError;
 
-  await settleChargeSafe(db, {
-    contractId,
-    eventType: "payment.success",
-    amount: params.amount,
-    currency: params.currency,
-    paidAt: params.paidAt,
-    userId: contract.user_id,
-    provider: params.provider,
-    logTag: params.logTag,
-  });
-
   const { error: userError } = await db
     .from("users")
     .update({
@@ -286,16 +295,32 @@ export async function fulfillFirstPaymentSuccess(
     .eq("id", contract.user_id);
   if (userError) throw userError;
 
-  await cancelOtherActiveSubscriptions(db, contract.user_id, contractId, params.logTag);
-  await resubscribeSafe(db, contract, params.logTag);
-
+  const slow = async () => {
+    await settleChargeSafe(db, {
+      contractId,
+      eventType: "payment.success",
+      amount: params.amount,
+      currency: params.currency,
+      paidAt: params.paidAt,
+      userId: contract.user_id,
+      provider: params.provider,
+      logTag: params.logTag,
+    });
+    await cancelOtherActiveSubscriptions(db, contract.user_id, contractId, params.logTag);
+    await resubscribeSafe(db, contract, params.logTag);
+    if (contract.tier === "master" && contract.user_id) {
+      await masterInvitesSafe(db, contract.user_id, params.logTag);
+    }
+    if (contract.source === "widget") {
+      await sendWidgetPurchaseLetterSafe(db, contractId, params.logTag);
+    }
+  };
+  if (params.scheduleSlow) {
+    params.scheduleSlow(slow);
+    return { ok: true, activated: contractId, upgradeBonusDays: bonusDays, deferred: true };
+  }
+  await slow();
   const result: Record<string, unknown> = { ok: true, activated: contractId, upgradeBonusDays: bonusDays };
-  if (contract.tier === "master" && contract.user_id) {
-    result.invites = await masterInvitesSafe(db, contract.user_id, params.logTag);
-  }
-  if (contract.source === "widget") {
-    result.letter = await sendWidgetPurchaseLetterSafe(db, contractId, params.logTag);
-  }
   return result;
 }
 
@@ -318,6 +343,7 @@ async function completeOneTimeExtras(
   contract: FulfillContractRow,
   userId: string | null,
   params: { paidAt?: string | null; logTag: string },
+  sendMail = true,
 ): Promise<Record<string, unknown>> {
   const contractId = contract.contract_id;
   const result: Record<string, unknown> = { ok: true, oneTimeActivated: contractId };
@@ -334,7 +360,7 @@ async function completeOneTimeExtras(
       );
       if (regError) throw regError;
       skipProductLetter = await ticketWebinarIsPublished(db, contract.product_ref);
-      if (skipProductLetter) {
+      if (skipProductLetter && sendMail) {
         result.invites = await invitesSafe(
           () => sendWebinarInvites(db, contract.product_ref as string, { onlyUserId: userId }),
           params.logTag,
@@ -357,7 +383,7 @@ async function completeOneTimeExtras(
       });
       result.webinarPass = { credits: product.credits, registered: pass.registered };
       skipProductLetter = await hasPublishedWebinarForPass(db, userId);
-      if (skipProductLetter) {
+      if (skipProductLetter && sendMail) {
         result.invites = await invitesSafe(() => sendPassWebinarInvites(db, userId), params.logTag);
       }
     }
@@ -365,7 +391,7 @@ async function completeOneTimeExtras(
     result.bookPurchased = contractId;
   }
 
-  if (contract.source === "widget" && !skipProductLetter) {
+  if (sendMail && contract.source === "widget" && !skipProductLetter) {
     result.letter = await sendWidgetPurchaseLetterSafe(db, contractId, params.logTag);
   }
   return result;

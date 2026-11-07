@@ -299,6 +299,29 @@ async function createLavaInvoice(params: {
   return data;
 }
 
+export type LavaInvoiceDetails = {
+  id: string;
+  status?: string | null;
+  datetime?: string | null;
+  receipt?: { amount?: number; currency?: string } | null;
+};
+
+/** Source of truth when the payment.success webhook never arrives. */
+export async function getLavaInvoice(invoiceId: string): Promise<LavaInvoiceDetails | null> {
+  const res = await fetch(`${LAVA_API_BASE}/api/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+    headers: {
+      "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),
+      Accept: "application/json",
+    },
+  });
+  if (res.status === 404) return null;
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Lava invoice HTTP ${res.status}: ${text.slice(0, 300)}`);
+  const data = JSON.parse(text) as LavaInvoiceDetails;
+  if (!data.id) throw new Error("Lava invoice: response has no id");
+  return data;
+}
+
 export async function cancelLavaSubscription(params: { contractId: string; email: string }): Promise<void> {
   const url = new URL(`${LAVA_API_BASE}/api/v1/subscriptions`);
   url.searchParams.set("contractId", params.contractId);
