@@ -1,7 +1,7 @@
 import { useFocusEffect } from "@react-navigation/native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -292,6 +292,7 @@ export function OpportunityWindows({
   /** Не даём повторно жать «Сохранить», пока идёт запрос разрешения / schedule. */
   const reminderSavingRef = useRef(false);
   const [chartWidth, setChartWidth] = useState(0);
+  const [markerLabelWidths, setMarkerLabelWidths] = useState<Record<string, number>>({});
   const [nowBadgeLayoutW, setNowBadgeLayoutW] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const t = strings.opportunityWindows;
@@ -575,6 +576,12 @@ export function OpportunityWindows({
     const w = event.nativeEvent.layout.width;
     setNowBadgeLayoutW((prev) => (Math.abs(prev - w) < 0.5 ? prev : w));
   }, []);
+  const onMarkerLabelLayout = useCallback((key: WindowItem["key"], width: number) => {
+    setMarkerLabelWidths((prev) => {
+      if (Math.abs((prev[key] ?? 0) - width) < 0.5) return prev;
+      return { ...prev, [key]: width };
+    });
+  }, []);
   const chartPoints = useMemo(
     () =>
       activeItems
@@ -846,29 +853,32 @@ export function OpportunityWindows({
           </Svg>
         ) : null}
         {chartPoints.map((point) => {
+          const timeLabel = point.time ? strings.formatTime(point.time) : "";
+          const estimatedWidth = Math.max(28, 18 + timeLabel.length * 6);
+          const labelWidth = markerLabelWidths[point.key] ?? estimatedWidth;
           return (
-            <Pressable
-              key={point.key}
-              disabled={point.past && !enabledReminders[point.key]}
-              onPress={() => void toggleReminder(point)}
-              style={[
-                styles.markerHitbox,
-                {
-                  left: `${point.x * 100}%`,
-                  opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
-                },
-              ]}
-            >
-              <View
+            <Fragment key={point.key}>
+              <Pressable
+                disabled={point.past && !enabledReminders[point.key]}
+                onPress={() => void toggleReminder(point)}
                 style={[
-                  styles.dash,
+                  styles.markerHitbox,
                   {
-                    borderColor: theme.colors.surfaceBorder,
-                    left: MARKER_HITBOX_HALF_W_PX,
-                    top: Math.min(point.y + 8, 78),
+                    left: `${point.x * 100}%`,
+                    opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
                   },
                 ]}
-              />
+              >
+                <View
+                  style={[
+                    styles.dash,
+                    {
+                      borderColor: theme.colors.surfaceBorder,
+                      left: MARKER_HITBOX_HALF_W_PX,
+                      top: Math.min(point.y + 8, 78),
+                    },
+                  ]}
+                />
                 <View
                   style={[
                     styles.point,
@@ -879,7 +889,24 @@ export function OpportunityWindows({
                     },
                   ]}
                 />
-            </Pressable>
+              </Pressable>
+              <View
+                pointerEvents="none"
+                onLayout={(event) => onMarkerLabelLayout(point.key, event.nativeEvent.layout.width)}
+                style={[
+                  styles.markerTimeLabel,
+                  {
+                    left: `${point.x * 100}%`,
+                    marginLeft: labelWidth > 0 ? -labelWidth / 2 : 0,
+                    opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
+                  },
+                ]}
+              >
+                <AppText variant="technicalCaption" tone={point.past ? "faint" : "primary"}>
+                  {point.time ? strings.formatTime(point.time) : ""}
+                </AppText>
+              </View>
+            </Fragment>
           );
         })}
         <View
@@ -1083,6 +1110,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderStyle: "dashed",
     bottom: 68,
+    position: "absolute",
+  },
+  markerTimeLabel: {
+    bottom: 6,
+    flexDirection: "row",
+    justifyContent: "center",
     position: "absolute",
   },
   windowDetailRow: {
