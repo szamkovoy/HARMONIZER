@@ -88,7 +88,8 @@ export function renderPayPage(params: {
   <title>${escapeHtml(params.title)}</title>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; background: #f4f6f5; color: #1a1a1a;
-      display: flex; min-height: 100vh; align-items: center; justify-content: center; margin: 0; padding: 1rem; box-sizing: border-box; }
+      display: flex; min-height: 100dvh; align-items: flex-start; justify-content: center; margin: 0;
+      padding: 12px 1rem 1.5rem; box-sizing: border-box; }
     .card { background: #fff; padding: 2rem 1.5rem; border-radius: 16px; max-width: 460px; width: 100%;
       box-shadow: 0 8px 30px rgba(0,0,0,.06); text-align: center; }
     h1 { font-size: 1.75rem; font-weight: 800; margin: 0 0 1rem; }

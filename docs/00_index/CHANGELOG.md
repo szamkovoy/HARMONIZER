@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.83
+version: 3.84
 updated: 2026-11-08
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-08 (661): `/pay/*` pages pin the card near the top (~12px) instead of vertical centering in the in-app browser. Docs `account_web`.
 - 2026-11-08 (660): App shows a one-time «30 дней расширенного доступа истекли» modal when a paid tier expires unrenewed (paid → free); its «Личный кабинет» button just opens the cabinet. Keys `gate.accessExpired.*`. Docs `account_web`.
 - 2026-11-08 (659): Paid-30-days reminder goes 12 hours before the end (hourly cron). Leaving the YooKassa form after a decline now lands on «Оплата не удалась», which offers a foreign-bank card via Lava (EUR). Migration `20261108180153`. Docs `account_web`.
 - 2026-11-08 (658): A failed tier payment (Lava `failure_return_url`, YooKassa `/pay/return`) opens «Оплата не удалась» in 8 languages: another card, PayPal (Lava EUR/USD), or 30 days of the tier without auto-renewal, each straight to the payment form. Decline reason stored in `payment_contracts.failure_reason`; one reminder letter 3 days before paid 30 days end. Migration `20261108170536`. Docs `account_web`.
