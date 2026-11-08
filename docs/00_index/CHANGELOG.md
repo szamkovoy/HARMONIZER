@@ -9,7 +9,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
-- 2026-11-09 (662): «Окна возможностей» показывают нижней строкой «Новолуние»/«Полнолуние» с точным временем максимальной фазы в timezone пользователя, если сизигия попадает в текущие локальные сутки. Считается на клиенте (`computeMoonPhaseForLocalDay`), без точки на графике и без колокольчика; free и paid — одинаково, без правок сервера/БД. i18n — 8 локалей. Docs `daily_forecast`.
+- 2026-11-09 (663): «Окна возможностей» — колокольчики перенесены из строки под графиком в строки списка окон (перед временем); новолуние/полнолуние теперь тоже могут ставить напоминание. Размер иконки 13 → 12; удалена мёртвая антиколлизионная механика подписей. Docs `daily_forecast`.
+- 2026-11-09 (662): «Окна возможностей» показывают нижней строкой «Новолуние»/«Полнолуние» с точным временем максимальной фазы в timezone пользователя, если сизигия попадает в текущие локальные сутки. Считается на клиенте (`computeMoonPhaseForLocalDay`), без точки на графике; free и paid — одинаково, без правок сервера/БД. i18n — 8 локалей. Docs `daily_forecast`.
 - 2026-11-08 (661): `/pay/*` pages pin the card near the top (~12px) instead of vertical centering in the in-app browser. Docs `account_web`.
 - 2026-11-08 (660): App shows a one-time «30 дней расширенного доступа истекли» modal when a paid tier expires unrenewed (paid → free); its «Личный кабинет» button just opens the cabinet. Keys `gate.accessExpired.*`. Docs `account_web`.
 - 2026-11-08 (659): Paid-30-days reminder goes 12 hours before the end (hourly cron). Leaving the YooKassa form after a decline now lands on «Оплата не удалась», which offers a foreign-bank card via Lava (EUR). Migration `20261108180153`. Docs `account_web`.

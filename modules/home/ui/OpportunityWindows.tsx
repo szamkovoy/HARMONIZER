@@ -1,7 +1,7 @@
 import { useFocusEffect } from "@react-navigation/native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Ionicons } from "@expo/vector-icons";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -59,7 +59,7 @@ interface OpportunityWindowsProps {
 }
 
 type WindowItem = {
-  key: "sunrise" | "culmination" | "exactAspect";
+  key: "sunrise" | "culmination" | "exactAspect" | "moonPhaseNew" | "moonPhaseFull";
   title: string;
   time?: string;
   detail: string | null;
@@ -81,6 +81,9 @@ function buildDefaultReminderTitle(item: WindowItem, windows: Windows, strings: 
   if (item.key === "exactAspect" && windows.exactAspect) {
     return `${wt.exactAspect} ${pl[windows.exactAspect.toNatalPlanet]}`.trim();
   }
+  if (item.key === "moonPhaseNew" || item.key === "moonPhaseFull") {
+    return item.title;
+  }
   return item.title;
 }
 
@@ -100,13 +103,7 @@ const AXIS_NOW_ROW_H = 22;
 const AXIS_NOW_GAP = 3;
 /** До первого onLayout бейджа — грубая оценка; после измерения используется фактическая ширина. */
 const NOW_BADGE_FALLBACK_W = 72;
-/** Оценка полу-ширины подписи маркера (колокольчик + время) до первого onLayout. */
-const MARKER_LABEL_FALLBACK_HALF_W_PX = 28;
-/** Минимальный зазор между соседними подписями маркеров (край к краю), пиксели. */
-const LABEL_GAP_PX = 6;
-/** Небольшой технический воздух у краёв графика для текстовых подписей. */
-const LABEL_EDGE_GAP_PX = 2;
-/** Половина hitbox зоны точки/пунктира: label живёт отдельно, поэтому её ширина не ограничивает край графика. */
+/** Половина hitbox зоны точки/пунктира: точка на кривой имеет отдельный hitbox. */
 const MARKER_HITBOX_HALF_W_PX = 32;
 
 /**
@@ -186,106 +183,6 @@ function shouldCancelStaleOpportunityOsAlarm(
     (eventIsoFallback ? Date.parse(eventIsoFallback) : Number.NaN);
   if (!Number.isFinite(eventMs)) return true;
   return nowMs > eventMs + OPPORTUNITY_REMINDER_LATE_DELIVERY_GRACE_MS;
-}
-
-type ChartLabelSlot = { key: string; x: number; halfWidthPx: number };
-
-type PositionedChartLabelSlot = ChartLabelSlot & { idealCenterPx: number };
-
-function clampLabelCenterPx(width: number, centerPx: number, halfWidthPx: number): number {
-  if (!(width > 0)) return centerPx;
-  const edge = Math.max(halfWidthPx + LABEL_EDGE_GAP_PX, 1);
-  return Math.min(width - edge, Math.max(edge, centerPx));
-}
-
-function clusterSpanWidthPx(slots: PositionedChartLabelSlot[]): number {
-  if (slots.length === 0) return 0;
-  let span = slots[0].halfWidthPx + slots[slots.length - 1].halfWidthPx;
-  for (let i = 1; i < slots.length; i += 1) {
-    span += slots[i - 1].halfWidthPx + slots[i].halfWidthPx + LABEL_GAP_PX;
-  }
-  return span;
-}
-
-function placeLabelCluster(width: number, slots: PositionedChartLabelSlot[]): number[] {
-  if (slots.length === 0) return [];
-  const span = clusterSpanWidthPx(slots);
-  const desiredMid =
-    slots.reduce((sum, slot) => sum + slot.idealCenterPx, 0) / Math.max(1, slots.length);
-  const minMid = span / 2 + LABEL_EDGE_GAP_PX;
-  const maxMid = width - span / 2 - LABEL_EDGE_GAP_PX;
-  const clusterMid = maxMid >= minMid ? Math.min(maxMid, Math.max(minMid, desiredMid)) : width / 2;
-
-  const centers: number[] = [];
-  let current = clusterMid - span / 2 + slots[0].halfWidthPx;
-  centers.push(current);
-  for (let i = 1; i < slots.length; i += 1) {
-    current += slots[i - 1].halfWidthPx + slots[i].halfWidthPx + LABEL_GAP_PX;
-    centers.push(current);
-  }
-  return centers;
-}
-
-/**
- * Единый горизонтальный layout: возвращает labelX как долю ширины (0…1), центр подписи.
- * Точки на кривой остаются на своих x; смещаются только центры подписей.
- */
-function layoutLabelCentersPx(width: number, slots: ChartLabelSlot[]): Map<string, number> {
-  const out = new Map<string, number>();
-  if (slots.length === 0) return out;
-  if (!(width > 0)) {
-    slots.forEach((s) => out.set(s.key, s.x));
-    return out;
-  }
-
-  const sorted = [...slots]
-    .sort((a, b) => a.x - b.x)
-    .map<PositionedChartLabelSlot>((slot) => ({
-      ...slot,
-      idealCenterPx: clampLabelCenterPx(width, slot.x * width, slot.halfWidthPx),
-    }));
-
-  let clusters = sorted.map((slot) => [slot]);
-  let placedClusters: Array<{ slots: PositionedChartLabelSlot[]; centers: number[] }> = [];
-
-  for (let iter = 0; iter < Math.max(1, sorted.length); iter += 1) {
-    placedClusters = clusters.map((cluster) => ({
-      slots: cluster,
-      centers: placeLabelCluster(width, cluster),
-    }));
-
-    let overlapAt = -1;
-    for (let i = 1; i < placedClusters.length; i += 1) {
-      const prev = placedClusters[i - 1];
-      const next = placedClusters[i];
-      const prevLastCenter = prev.centers[prev.centers.length - 1];
-      const nextFirstCenter = next.centers[0];
-      const minNextCenter =
-        prevLastCenter +
-        prev.slots[prev.slots.length - 1].halfWidthPx +
-        next.slots[0].halfWidthPx +
-        LABEL_GAP_PX;
-      if (nextFirstCenter < minNextCenter - 0.1) {
-        overlapAt = i;
-        break;
-      }
-    }
-
-    if (overlapAt === -1) break;
-
-    clusters = [
-      ...clusters.slice(0, overlapAt - 1),
-      [...clusters[overlapAt - 1], ...clusters[overlapAt]],
-      ...clusters.slice(overlapAt + 1),
-    ];
-  }
-
-  placedClusters.forEach((cluster) => {
-    cluster.slots.forEach((slot, index) => {
-      out.set(slot.key, cluster.centers[index] / width);
-    });
-  });
-  return out;
 }
 
 /**
@@ -395,7 +292,6 @@ export function OpportunityWindows({
   /** Не даём повторно жать «Сохранить», пока идёт запрос разрешения / schedule. */
   const reminderSavingRef = useRef(false);
   const [chartWidth, setChartWidth] = useState(0);
-  const [markerLabelWidths, setMarkerLabelWidths] = useState<Record<string, number>>({});
   const [nowBadgeLayoutW, setNowBadgeLayoutW] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const t = strings.opportunityWindows;
@@ -404,6 +300,18 @@ export function OpportunityWindows({
   const nowLineColor = useMemo(
     () => hexToRgba(theme.colors.textPrimary, 0.28),
     [theme.colors.textPrimary],
+  );
+  const chartTimezone = userLocation?.timezone ?? "UTC";
+  /**
+   * Новолуние/полнолуние — глобальный момент (не зависит от lat/lng), только
+   * timezone решает, попадает ли он в текущие локальные сутки пользователя.
+   * Считается на клиенте (общая эфемерида с кривой). Включено в общий список
+   * `displayItems`, чтобы получить колокольчик-напоминание единообразно с другими
+   * окнами, но без точки на кривой (сизигия не лежит на суточной кривой планеты дня).
+   */
+  const moonPhase = useMemo(
+    () => computeMoonPhaseForLocalDay({ forecastDate, timezone: chartTimezone }),
+    [forecastDate, chartTimezone],
   );
   useEffect(() => {
     setNow(new Date());
@@ -425,6 +333,8 @@ export function OpportunityWindows({
       sunrise: windows.sunrise?.time,
       culmination: windows.culmination?.time,
       exactAspect: accessMode === "free" ? undefined : windows.exactAspect?.time,
+      moonPhaseNew: moonPhase?.kind === "new" ? moonPhase.time : undefined,
+      moonPhaseFull: moonPhase?.kind === "full" ? moonPhase.time : undefined,
     };
 
     void (async () => {
@@ -494,6 +404,8 @@ export function OpportunityWindows({
     windows.sunrise?.time,
     windows.culmination?.time,
     windows.exactAspect?.time,
+    moonPhase?.kind,
+    moonPhase?.time,
   ]);
 
   /**
@@ -507,6 +419,8 @@ export function OpportunityWindows({
       sunrise: windows.sunrise?.time,
       culmination: windows.culmination?.time,
       exactAspect: accessMode === "free" ? undefined : windows.exactAspect?.time,
+      moonPhaseNew: moonPhase?.kind === "new" ? moonPhase.time : undefined,
+      moonPhaseFull: moonPhase?.kind === "full" ? moonPhase.time : undefined,
     };
 
     const nowMs = Date.now();
@@ -538,6 +452,8 @@ export function OpportunityWindows({
     windows.sunrise?.time,
     windows.culmination?.time,
     windows.exactAspect?.time,
+    moonPhase?.kind,
+    moonPhase?.time,
   ]);
 
   const items: Array<WindowItem | null> = [
@@ -565,19 +481,20 @@ export function OpportunityWindows({
             strings.planetLabels[windows.exactAspect.toNatalPlanet],
           ),
         },
+    moonPhase
+      ? {
+          key: moonPhase.kind === "new" ? "moonPhaseNew" : "moonPhaseFull",
+          title: moonPhase.kind === "new" ? t.windowTitles.moonPhaseNew : t.windowTitles.moonPhaseFull,
+          time: moonPhase.time,
+          detail: t.moonPhaseDetail,
+        }
+      : null,
   ];
   const displayItems = items.filter((item): item is WindowItem => Boolean(item));
-  const activeItems = displayItems.filter((item) => item.time);
-  const chartTimezone = userLocation?.timezone ?? "UTC";
-  /**
-   * Новолуние/полнолуние — глобальный момент (не зависит от lat/lng), только
-   * timezone решает, попадает ли он в текущие локальные сутки пользователя.
-   * Считается на клиенте (общая эфемерида с кривой), без точки на графике и
-   * без колокольчика — только нижняя текстовая строка в списке окон.
-   */
-  const moonPhase = useMemo(
-    () => computeMoonPhaseForLocalDay({ forecastDate, timezone: chartTimezone }),
-    [forecastDate, chartTimezone],
+  // Точки на кривой — только для окон, привязанных к суточной кривой планеты дня.
+  // Сизигия (новолуние/полнолуние) глобальна и на кривой не отображается.
+  const activeItems = displayItems.filter(
+    (item) => item.time && item.key !== "moonPhaseNew" && item.key !== "moonPhaseFull",
   );
   const diurnalChart = useMemo(() => {
     if (!userLocation) return null;
@@ -634,31 +551,21 @@ export function OpportunityWindows({
     return Math.min(152 - AXIS_NOW_ROW_H - 2, SKY_AXIS_Y + AXIS_NOW_GAP);
   }, [yCurve]);
 
-  const chartMarkerLabelSlots = useMemo((): ChartLabelSlot[] => {
-    const slots: ChartLabelSlot[] = [];
-    for (const item of activeItems) {
+  /**
+   * Состояние «момент уже прошёл» для каждой строки списка (колокольчик седеет
+   * после наступления события). Считается той же `timeToDayFraction`, что и точки
+   * на кривой, но отдельно — потому что луна не входит в `activeItems` (нет точки
+   * на графике), а `past` для её строки нужен.
+   */
+  const pastByKey = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const item of displayItems) {
+      if (!item.time) continue;
       const frac = timeToDayFraction(item.time, chartTimezone);
-      if (frac) {
-        const measuredWidth = markerLabelWidths[item.key];
-        const timeLabel = item.time ? strings.formatTime(item.time) : "";
-        const estimatedWidth = Math.max(
-          MARKER_LABEL_FALLBACK_HALF_W_PX * 2,
-          18 + timeLabel.length * 6,
-        );
-        slots.push({
-          key: item.key,
-          x: frac.x,
-          halfWidthPx: (measuredWidth > 0 ? measuredWidth : estimatedWidth) / 2,
-        });
-      }
+      if (frac) map[item.key] = frac.past;
     }
-    return slots;
-  }, [activeItems, chartTimezone, markerLabelWidths, strings]);
-
-  const chartMarkerLabelXByKey = useMemo(
-    () => layoutLabelCentersPx(chartWidth, chartMarkerLabelSlots),
-    [chartWidth, chartMarkerLabelSlots],
-  );
+    return map;
+  }, [displayItems, chartTimezone]);
 
   const onChartLayout = useCallback((event: LayoutChangeEvent) => {
     setChartWidth(event.nativeEvent.layout.width);
@@ -668,41 +575,26 @@ export function OpportunityWindows({
     const w = event.nativeEvent.layout.width;
     setNowBadgeLayoutW((prev) => (Math.abs(prev - w) < 0.5 ? prev : w));
   }, []);
-  const onMarkerLabelLayout = useCallback((key: WindowItem["key"], width: number) => {
-    setMarkerLabelWidths((prev) => {
-      if (Math.abs((prev[key] ?? 0) - width) < 0.5) return prev;
-      return { ...prev, [key]: width };
-    });
-  }, []);
   const chartPoints = useMemo(
     () =>
       activeItems
         .map((item) => {
           const frac = timeToDayFraction(item.time, chartTimezone);
           if (!frac) return null;
-          const labelX = chartMarkerLabelXByKey.get(item.key) ?? frac.x;
           return {
             ...item,
             ...frac,
             y: skyY(frac.x),
-            labelX,
-            labelHalfWidthPx:
-              (markerLabelWidths[item.key] ??
-                Math.max(MARKER_LABEL_FALLBACK_HALF_W_PX * 2, 18 + strings.formatTime(item.time ?? "").length * 6)) / 2,
           };
         })
         .filter(
-          (
-            item,
-          ): item is WindowItem & {
+          (item): item is WindowItem & {
             x: number;
             y: number;
             past: boolean;
-            labelX: number;
-            labelHalfWidthPx: number;
           } => Boolean(item),
         ),
-    [activeItems, chartMarkerLabelXByKey, chartTimezone, markerLabelWidths, skyY, strings],
+    [activeItems, chartTimezone, skyY],
   );
 
   const nowBadgeBodyHalfPx = (nowBadgeLayoutW > 0 ? nowBadgeLayoutW : NOW_BADGE_FALLBACK_W) / 2;
@@ -954,30 +846,29 @@ export function OpportunityWindows({
           </Svg>
         ) : null}
         {chartPoints.map((point) => {
-          const reminderUiOn = Boolean(enabledReminders[point.key]) && !point.past;
           return (
-            <Fragment key={point.key}>
-              <Pressable
-                disabled={point.past && !enabledReminders[point.key]}
-                onPress={() => void toggleReminder(point)}
+            <Pressable
+              key={point.key}
+              disabled={point.past && !enabledReminders[point.key]}
+              onPress={() => void toggleReminder(point)}
+              style={[
+                styles.markerHitbox,
+                {
+                  left: `${point.x * 100}%`,
+                  opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
+                },
+              ]}
+            >
+              <View
                 style={[
-                  styles.markerHitbox,
+                  styles.dash,
                   {
-                    left: `${point.x * 100}%`,
-                    opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
+                    borderColor: theme.colors.surfaceBorder,
+                    left: MARKER_HITBOX_HALF_W_PX,
+                    top: Math.min(point.y + 8, 78),
                   },
                 ]}
-              >
-                <View
-                  style={[
-                    styles.dash,
-                    {
-                      borderColor: theme.colors.surfaceBorder,
-                      left: MARKER_HITBOX_HALF_W_PX,
-                      top: Math.min(point.y + 8, 78),
-                    },
-                  ]}
-                />
+              />
                 <View
                   style={[
                     styles.point,
@@ -988,36 +879,7 @@ export function OpportunityWindows({
                     },
                   ]}
                 />
-              </Pressable>
-              <Pressable
-                disabled={point.past && !enabledReminders[point.key]}
-                onPress={() => void toggleReminder(point)}
-                onLayout={(event) => onMarkerLabelLayout(point.key, event.nativeEvent.layout.width)}
-                style={[
-                  styles.markerLabelButton,
-                  {
-                    left: `${point.labelX * 100}%`,
-                    marginLeft: -point.labelHalfWidthPx,
-                    opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
-                  },
-                ]}
-              >
-                <FontAwesome
-                  name={reminderUiOn ? "bell" : "bell-o"}
-                  size={13}
-                  color={
-                    reminderUiOn
-                      ? theme.colors.danger
-                      : point.past
-                        ? theme.colors.textFaint
-                        : theme.colors.textPrimary
-                  }
-                />
-                <AppText variant="technicalCaption" tone={point.past ? "faint" : "primary"}>
-                  {point.time ? strings.formatTime(point.time) : ""}
-                </AppText>
-              </Pressable>
-            </Fragment>
+            </Pressable>
           );
         })}
         <View
@@ -1043,26 +905,47 @@ export function OpportunityWindows({
       </View>
 
       <View style={styles.windowList}>
-        {displayItems.map((item) => (
-          <View key={item.key} style={styles.windowLine}>
-            <AppText variant="statPillLabel" style={styles.windowTitle}>
-              {item.title}
-            </AppText>
-            <AppText variant="technicalCaption" tone="muted" style={styles.windowDetail}>
-              {item.time ? `${strings.formatTime(item.time)} · ${item.detail}` : t.emptyDetail}
-            </AppText>
-          </View>
-        ))}
-        {moonPhase ? (
-          <View style={styles.windowLine}>
-            <AppText variant="statPillLabel" style={styles.windowTitle}>
-              {moonPhase.kind === "new" ? t.windowTitles.moonPhaseNew : t.windowTitles.moonPhaseFull}
-            </AppText>
-            <AppText variant="technicalCaption" tone="muted" style={styles.windowDetail}>
-              {`${strings.formatTime(moonPhase.time)} · ${t.moonPhaseDetail}`}
-            </AppText>
-          </View>
-        ) : null}
+        {displayItems.map((item) => {
+          const time = item.time;
+          const hasTime = Boolean(time);
+          const past = pastByKey[item.key] ?? false;
+          const reminderUiOn = Boolean(enabledReminders[item.key]) && !past;
+          const disabled = !hasTime || (past && !enabledReminders[item.key]);
+          return (
+            <Pressable
+              key={item.key}
+              disabled={disabled}
+              onPress={hasTime ? () => void toggleReminder(item) : undefined}
+              style={[styles.windowLine, { opacity: disabled ? 0.45 : 1 }]}
+            >
+              <AppText variant="statPillLabel" style={styles.windowTitle}>
+                {item.title}
+              </AppText>
+              <View style={styles.windowDetailRow}>
+                {hasTime ? (
+                  <FontAwesome
+                    name={reminderUiOn ? "bell" : "bell-o"}
+                    size={12}
+                    color={
+                      reminderUiOn
+                        ? theme.colors.danger
+                        : past
+                          ? theme.colors.textFaint
+                          : theme.colors.textPrimary
+                    }
+                  />
+                ) : null}
+                <AppText
+                  variant="technicalCaption"
+                  tone={past ? "faint" : "muted"}
+                  style={styles.windowDetail}
+                >
+                  {time ? `${strings.formatTime(time)} · ${item.detail}` : t.emptyDetail}
+                </AppText>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
       <Modal animationType="fade" transparent visible={Boolean(reminderTarget)} onRequestClose={() => setReminderTarget(null)}>
         <View style={styles.modalBackdrop}>
@@ -1202,14 +1085,10 @@ const styles = StyleSheet.create({
     bottom: 68,
     position: "absolute",
   },
-  markerLabelButton: {
-    alignItems: "center",
-    bottom: 6,
+  windowDetailRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    justifyContent: "center",
-    position: "absolute",
-    zIndex: 4,
   },
   modalBackdrop: {
     alignItems: "center",
