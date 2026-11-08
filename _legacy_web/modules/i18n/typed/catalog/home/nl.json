@@ -75,7 +75,9 @@
     "windowTitles": {
       "sunrise": "Opkomst",
       "culmination": "Culminatie",
-      "exactAspect": "Exact aspect"
+      "exactAspect": "Exact aspect",
+      "moonPhaseNew": "Nieuwe maan",
+      "moonPhaseFull": "Volle maan"
     },
     "aspectLabels": {
       "conjunction": "conjunctie",
@@ -105,6 +107,7 @@
     "sunriseDetailTemplate": "{planet} komt boven de horizon",
     "culminationDetailTemplate": "{planet} is op maximale kracht",
     "exactAspectDetailTemplate": "{aspect} {transitPlanet} (transit) en {natalPlanet} (nataal)",
+    "moonPhaseDetail": "maximale fase",
     "help": {
       "freeOpening": "De sterkste planeet van de dag is {planet}. De grafiek toont wanneer {planet} opkomt en het zenit bereikt op uw locatie.",
       "paidOpening": "De sterkste planeet van uw geboortehoroscoop is vandaag {natalPlanet}. Deze kracht komt grotendeels voort uit de wisselwerking met de transitplaneet {transitPlanet}, waarvan de beweging aan de hemel bijzondere kansenvensters voor u opent.",

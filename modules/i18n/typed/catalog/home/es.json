@@ -75,7 +75,9 @@
     "windowTitles": {
       "sunrise": "Salida",
       "culmination": "Culminación",
-      "exactAspect": "Aspecto exacto"
+      "exactAspect": "Aspecto exacto",
+      "moonPhaseNew": "Luna nueva",
+      "moonPhaseFull": "Luna llena"
     },
     "aspectLabels": {
       "conjunction": "conjunción",
@@ -105,6 +107,7 @@
     "sunriseDetailTemplate": "{planet} se eleva sobre el horizonte",
     "culminationDetailTemplate": "{planet} está en su máxima fuerza",
     "exactAspectDetailTemplate": "{aspect} {transitPlanet} (tránsito) y {natalPlanet} (natal)",
+    "moonPhaseDetail": "fase máxima",
     "help": {
       "freeOpening": "El planeta más fuerte del día es {planet}. El gráfico muestra cuándo {planet} sale y alcanza el cenit en tu ubicación.",
       "paidOpening": "El planeta más fuerte de tu carta natal hoy es {natalPlanet}. Esta fuerza se debe en gran parte a la interacción con el planeta de tránsito {transitPlanet}, cuyo movimiento en el cielo abre para ti ventanas especiales de oportunidades.",

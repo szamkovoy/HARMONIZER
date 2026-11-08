@@ -21,7 +21,7 @@ import Svg, { Line, Polyline } from "react-native-svg";
 import { DateTime } from "luxon";
 
 import type { AspectType, DailyForecast, Planet } from "@/modules/daily-engine";
-import { dayFractionFromIso, interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
+import { computeMoonPhaseForLocalDay, dayFractionFromIso, interpolateDiurnalAltitude, samplePlanetAltitudeForDay } from "@/modules/daily-engine";
 import type { AccessMode } from "@/services/globalContentClient";
 import { fillHomeTemplate, type HomeStrings } from "@/modules/home/i18n/home";
 import { PLANET_CHAKRA } from "@/modules/home/planetChakra";
@@ -569,6 +569,16 @@ export function OpportunityWindows({
   const displayItems = items.filter((item): item is WindowItem => Boolean(item));
   const activeItems = displayItems.filter((item) => item.time);
   const chartTimezone = userLocation?.timezone ?? "UTC";
+  /**
+   * Новолуние/полнолуние — глобальный момент (не зависит от lat/lng), только
+   * timezone решает, попадает ли он в текущие локальные сутки пользователя.
+   * Считается на клиенте (общая эфемерида с кривой), без точки на графике и
+   * без колокольчика — только нижняя текстовая строка в списке окон.
+   */
+  const moonPhase = useMemo(
+    () => computeMoonPhaseForLocalDay({ forecastDate, timezone: chartTimezone }),
+    [forecastDate, chartTimezone],
+  );
   const diurnalChart = useMemo(() => {
     if (!userLocation) return null;
     return buildDiurnalChartModel({
@@ -1043,6 +1053,16 @@ export function OpportunityWindows({
             </AppText>
           </View>
         ))}
+        {moonPhase ? (
+          <View style={styles.windowLine}>
+            <AppText variant="statPillLabel" style={styles.windowTitle}>
+              {moonPhase.kind === "new" ? t.windowTitles.moonPhaseNew : t.windowTitles.moonPhaseFull}
+            </AppText>
+            <AppText variant="technicalCaption" tone="muted" style={styles.windowDetail}>
+              {`${strings.formatTime(moonPhase.time)} · ${t.moonPhaseDetail}`}
+            </AppText>
+          </View>
+        ) : null}
       </View>
       <Modal animationType="fade" transparent visible={Boolean(reminderTarget)} onRequestClose={() => setReminderTarget(null)}>
         <View style={styles.modalBackdrop}>

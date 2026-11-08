@@ -14,6 +14,11 @@ export { findAspect } from "./core/aspects";
 export { chooseFinalPlanet, rankPlanets } from "./core/chooseFinalPlanet";
 export { computeWindowsForFreeUser } from "./freeWindows";
 export {
+  computeMoonPhaseForLocalDay,
+  type MoonPhaseEvent,
+  type MoonPhaseKind,
+} from "./moonPhase";
+export {
   computeDiurnalWindowTimes,
   dayFractionFromIso,
   interpolateDiurnalAltitude,

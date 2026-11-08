@@ -75,7 +75,9 @@
     "windowTitles": {
       "sunrise": "Aufgang",
       "culmination": "Kulmination",
-      "exactAspect": "Exakter Aspekt"
+      "exactAspect": "Exakter Aspekt",
+      "moonPhaseNew": "Neumond",
+      "moonPhaseFull": "Vollmond"
     },
     "aspectLabels": {
       "conjunction": "Konjunktion",
@@ -105,6 +107,7 @@
     "sunriseDetailTemplate": "{planet} steigt über den Horizont",
     "culminationDetailTemplate": "{planet} ist in maximaler Kraft",
     "exactAspectDetailTemplate": "{aspect} {transitPlanet} (Transit) und {natalPlanet} (Natal)",
+    "moonPhaseDetail": "maximale Phase",
     "help": {
       "freeOpening": "Der stärkste Planet des Tages ist {planet}. Das Diagramm zeigt, wann {planet} an Ihrem Standort über den Horizont steigt und den Zenit erreicht.",
       "paidOpening": "Der stärkste Planet Ihrer Geburtshoroskopkarte ist heute {natalPlanet}. Diese Kraft entsteht vor allem durch die Wechselwirkung mit dem Transitplaneten {transitPlanet}, dessen Bewegung am Himmel besondere Fenster der Möglichkeiten für Sie öffnet.",

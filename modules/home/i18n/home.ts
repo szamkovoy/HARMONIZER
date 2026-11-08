@@ -76,12 +76,14 @@ export interface HomeStrings {
      */
     paidIntroTemplate: string;
     emptyDetail: string;
-    windowTitles: Record<"sunrise" | "culmination" | "exactAspect", string>;
+    windowTitles: Record<"sunrise" | "culmination" | "exactAspect" | "moonPhaseNew" | "moonPhaseFull", string>;
     aspectLabels: Record<AspectType, string>;
     sunriseDetailTemplate: string;
     culminationDetailTemplate: string;
     /** Paid: «{aspect} {transitPlanet} и {natalPlanet}» — без склонений. */
     exactAspectDetailTemplate: string;
+    /** Новолуние/полнолуние: подпись второй строки («максимальная фаза»). */
+    moonPhaseDetail: string;
     reminderModalTitle: string;
     reminderTextLabel: string;
     reminderModeExact: string;
@@ -329,6 +331,8 @@ const ru: HomeStrings = {
       sunrise: "Восход",
       culmination: "Кульминация",
       exactAspect: "Точный аспект",
+      moonPhaseNew: "Новолуние",
+      moonPhaseFull: "Полнолуние",
     },
     aspectLabels: {
       conjunction: "соединение",
@@ -340,6 +344,7 @@ const ru: HomeStrings = {
     sunriseDetailTemplate: "{planet} поднимается над горизонтом",
     culminationDetailTemplate: "{planet} в максимальной силе",
     exactAspectDetailTemplate: "{aspect} {transitPlanet} (транзит) и {natalPlanet} (натал)",
+    moonPhaseDetail: "максимальная фаза",
     reminderModalTitle: "Уведомить",
     reminderTextLabel: "Текст уведомления",
     reminderModeExact: "точно в это время",
@@ -549,6 +554,8 @@ const en: HomeStrings = {
       sunrise: "Rise",
       culmination: "Culmination",
       exactAspect: "Exact aspect",
+      moonPhaseNew: "New moon",
+      moonPhaseFull: "Full moon",
     },
     aspectLabels: {
       conjunction: "conjunction",
@@ -560,6 +567,7 @@ const en: HomeStrings = {
     sunriseDetailTemplate: "{planet} rises above the horizon",
     culminationDetailTemplate: "{planet} is at peak strength",
     exactAspectDetailTemplate: "{aspect} {transitPlanet} (transit) and {natalPlanet} (natal)",
+    moonPhaseDetail: "maximum phase",
     reminderModalTitle: "Notify me",
     reminderTextLabel: "Notification text",
     reminderModeExact: "at the exact time",
