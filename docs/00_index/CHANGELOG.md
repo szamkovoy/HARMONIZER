@@ -1,14 +1,17 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.80
-updated: 2026-11-07
+version: 3.83
+updated: 2026-11-08
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-11-08 (660): App shows a one-time «30 дней расширенного доступа истекли» modal when a paid tier expires unrenewed (paid → free); its «Личный кабинет» button just opens the cabinet. Keys `gate.accessExpired.*`. Docs `account_web`.
+- 2026-11-08 (659): Paid-30-days reminder goes 12 hours before the end (hourly cron). Leaving the YooKassa form after a decline now lands on «Оплата не удалась», which offers a foreign-bank card via Lava (EUR). Migration `20261108180153`. Docs `account_web`.
+- 2026-11-08 (658): A failed tier payment (Lava `failure_return_url`, YooKassa `/pay/return`) opens «Оплата не удалась» in 8 languages: another card, PayPal (Lava EUR/USD), or 30 days of the tier without auto-renewal, each straight to the payment form. Decline reason stored in `payment_contracts.failure_reason`; one reminder letter 3 days before paid 30 days end. Migration `20261108170536`. Docs `account_web`.
 - 2026-11-07 (657): Lava webhooks never reached Vercel from Lava's Russian network (`harmonizer-ten.vercel.app` → `*.131`, TLS stalls), so the 06.11 webinar payment stayed pending. Lava webhook URL moves to the REG.RU proxy `harmonizer.zamkovoi.yoga`. Docs `DEPLOY.md`, `account_web`.
 - 2026-11-07 (656): The Lava webhook answers as soon as the payment is stored; the letter follows after the response, inside Lava's 10-second limit. A missed webhook is checked only for a pending invoice 10–22 minutes old, once or twice, and not at all when nothing is pending. Migrations `20261107182702`, `20261107185410`. Docs `account_web`.
 - 2026-11-06 (655): Through 2026-11-10 00:00 UTC, people already in the app on Navigator get demo (Master without webinars), and active Mentors are shown as Master. Charge dates stay on `payment_contracts`. `revert_access_promo_grants` puts Mentors back; a Master bought during the window is kept. Never-opened accounts still get 24h on first sign-in. Migration `20261106184910`. Docs `subscription`.

@@ -14,6 +14,8 @@
  *      (сравнение с последним известным уровнем, переживает перезапуск).
  *   4. Одноразовая модалка «Демонстрационный период завершён» после
  *      истечения trial (кнопки «Закрыть» / «Личный кабинет»).
+ *   5. Модалка «30 дней расширенного доступа истекли», когда платный уровень
+ *      закончился и не продлён (переход с платного на free; те же кнопки).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Modal, StyleSheet, View } from "react-native";
@@ -44,6 +46,7 @@ const REALTIME_WINDOW_MS = 30 * 60 * 1000;
 type NoticeState =
   | { kind: "none" }
   | { kind: "trial_ended" }
+  | { kind: "access_expired"; fromTier: ProductTier }
   | { kind: "tier_changed"; fromTier: ProductTier; toTier: ProductTier }
   | { kind: "webinar_paid" }
   | { kind: "book_paid" };
@@ -237,6 +240,15 @@ export function MembershipEventsBridge() {
         }
         if (baseTier !== storedTier) {
           await writeAccountFlag(`lastTier.${userId}`, baseTier);
+          // Платный уровень истёк и не продлён. Смена между платными уровнями
+          // (откат промо, возврат Мастера при живом Наставнике) — не повод.
+          if (baseTier === "free" && !trialActive && !cancelled && !noticeVisibleRef.current) {
+            await writeAccountFlag(`trialEndedShown.${userId}`, "1");
+            if (cancelled) return;
+            logRuntimeEvent("membership:access_expired_notice", { from: storedTier });
+            setNotice({ kind: "access_expired", fromTier: storedTier });
+            return;
+          }
         }
       } else {
         await writeAccountFlag(`lastTier.${userId}`, baseTier);
@@ -301,25 +313,31 @@ function MembershipNoticeModal({
   }, [hideAndWait, notice.kind, onClose, resetHiding, t]);
 
   const isTrialEnded = notice.kind === "trial_ended";
+  const isAccessExpired = notice.kind === "access_expired";
+  const offersCabinet = isTrialEnded || isAccessExpired;
   const isWebinarPaid = notice.kind === "webinar_paid";
   const isBookPaid = notice.kind === "book_paid";
   const title = isTrialEnded
     ? t("gate.trialEnded.title")
-    : isWebinarPaid
-      ? t("gate.webinarPaid.title")
-      : isBookPaid
-        ? t("gate.bookPaid.title")
-        : t("gate.tierChanged.title");
+    : isAccessExpired
+      ? t("gate.accessExpired.title")
+      : isWebinarPaid
+        ? t("gate.webinarPaid.title")
+        : isBookPaid
+          ? t("gate.bookPaid.title")
+          : t("gate.tierChanged.title");
   const body = isTrialEnded
     ? t("gate.trialEnded.body")
-    : isWebinarPaid
-      ? t("gate.webinarPaid.body")
-      : isBookPaid
-        ? t("gate.bookPaid.body")
-        : t("gate.tierChanged.body", {
-            from: t(`tier.${notice.fromTier}`),
-            to: t(`tier.${notice.toTier}`),
-          });
+    : isAccessExpired
+      ? t("gate.accessExpired.body")
+      : isWebinarPaid
+        ? t("gate.webinarPaid.body")
+        : isBookPaid
+          ? t("gate.bookPaid.body")
+          : t("gate.tierChanged.body", {
+              from: t(`tier.${notice.fromTier}`),
+              to: t(`tier.${notice.toTier}`),
+            });
 
   return (
     <Modal
@@ -350,12 +368,12 @@ function MembershipNoticeModal({
           ) : null}
           <View style={styles.actions}>
             <AppButton
-              label={isTrialEnded ? t("gate.close") : t("gate.tierChanged.ok")}
-              variant={isTrialEnded ? "secondary" : "primary"}
+              label={offersCabinet ? t("gate.close") : t("gate.tierChanged.ok")}
+              variant={offersCabinet ? "secondary" : "primary"}
               onPress={onClose}
               style={styles.action}
             />
-            {isTrialEnded && showCabinet ? (
+            {offersCabinet && showCabinet ? (
               <AppButton
                 label={opening ? "…" : t("gate.openCabinet")}
                 onPress={() => void onOpenCabinet()}

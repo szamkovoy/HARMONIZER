@@ -19,6 +19,13 @@ function allowedOrigin(): string {
   return process.env.ACCOUNT_CABINET_ALLOWED_ORIGIN?.trim() || "https://zamkovoi.yoga";
 }
 
+/** Страница Личного кабинета на сайте; `paid` — блок «Спасибо за оплату». */
+export function accountCabinetUrl(options?: { paid?: boolean }): string {
+  const url = new URL("/cabinet/", allowedOrigin());
+  if (options?.paid) url.searchParams.set("paid", "1");
+  return url.toString();
+}
+
 function cabinetSecret(): string {
   const secret = process.env.ACCOUNT_CABINET_SECRET?.trim();
   if (!secret) throw new Error("Missing required env: ACCOUNT_CABINET_SECRET");

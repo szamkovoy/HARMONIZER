@@ -572,7 +572,8 @@ export async function sendRecordingNotices(db: SupabaseClient, webinarId: string
       .from("payment_contracts")
       .select("user_id,status,created_at,current_period_end")
       .eq("tier", "master")
-      .eq("product_kind", "subscription")
+      // one_time master = 30 дней тарифа без автопродления
+      .in("product_kind", ["subscription", "one_time"])
       .in("status", ["active", "cancelled", "refunded"])
       .lte("created_at", startsAt),
     db

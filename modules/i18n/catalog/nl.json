@@ -116,6 +116,8 @@
   "common.cancel": "Annuleren",
   "common.close": "Sluiten",
   "common.ok": "OK",
+  "gate.accessExpired.body": "Ga naar je account om je toegang te verlengen.",
+  "gate.accessExpired.title": "Je 30 dagen uitgebreide toegang zijn verlopen",
   "gate.body.affirmation": "Een persoonlijke affirmatie in ademhalingsoefeningen helpt je zachtjes de gewenste innerlijke staat te verankeren. Om deze functie te gebruiken, kun je het gebruik van ademhalingsoefeningen inschakelen in je Persoonlijke Profiel.",
   "gate.body.assistant": "De stap van astrologische aanbevelingen naar het niveau van psychologie en gedragspraktijken, gericht op het verruimen van de biostochastische matrix van je toestanden, vraagt veel rekenkracht. Je kunt dit activeren via Mijn account.",
   "gate.body.book": "Je hebt geen toegang tot dit materiaal. Ga naar Mijn account om het te krijgen.",

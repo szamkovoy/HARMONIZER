@@ -2,7 +2,7 @@ import { after } from "next/server";
 
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
 import { settlePayment } from "../../fx";
-import { findPaymentContract, fulfillFirstPaymentSuccess } from "../../fulfillPaymentContract";
+import { findPaymentContract, fulfillFirstPaymentSuccess, markContractFailed } from "../../fulfillPaymentContract";
 import { cancelLavaSubscription, nextPeriodEnd } from "../../lava";
 import { resubscribeContactOnPurchase } from "../../widgetFulfillment";
 
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
       case "payment.success":
         return await handleFirstPaymentSuccess(contractId, body);
       case "payment.failed":
-        return await handleFirstPaymentFailed(contractId);
+        return await handleFirstPaymentFailed(contractId, body);
       case "subscription.recurring.payment.success":
         return await handleRenewal(body.parentContractId?.trim() || contractId, body);
       case "subscription.recurring.payment.failed":
@@ -249,14 +249,8 @@ async function handleFirstPaymentSuccess(
   return json({ ok: true, activated: contractId });
 }
 
-async function handleFirstPaymentFailed(contractId: string): Promise<Response> {
-  const db = webhookDb();
-  const { error } = await db
-    .from("payment_contracts")
-    .update({ status: "failed", updated_at: new Date().toISOString() })
-    .eq("contract_id", contractId)
-    .eq("status", "pending");
-  if (error) throw error;
+async function handleFirstPaymentFailed(contractId: string, body: LavaWebhookBody): Promise<Response> {
+  await markContractFailed(webhookDb(), contractId, body.errorMessage);
   return json({ ok: true, failed: contractId });
 }
 

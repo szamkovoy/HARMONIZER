@@ -116,6 +116,8 @@
   "common.cancel": "Cancelar",
   "common.close": "Fechar",
   "common.ok": "OK",
+  "gate.accessExpired.body": "Acesse Minha Conta para renovar o acesso.",
+  "gate.accessExpired.title": "Os 30 dias de acesso estendido expiraram",
   "gate.body.affirmation": "Uma afirmação pessoal na prática de respiração ajuda a fixar suavemente o estado interior desejado. Para usar esta função, você pode ativar o uso de práticas de respiração no seu Perfil.",
   "gate.body.assistant": "Passar das recomendações astrológicas para o nível da psicologia e das práticas comportamentais voltadas a expandir a matriz bioestocástica dos seus estados exige alta capacidade computacional. Você pode ativá-la em Minha conta.",
   "gate.body.book": "Você não tem acesso a este material. Para obtê-lo, vá para Minha conta.",

@@ -116,6 +116,8 @@
   "common.cancel": "Cancel",
   "common.close": "Close",
   "common.ok": "OK",
+  "gate.accessExpired.body": "Go to your Account to renew access.",
+  "gate.accessExpired.title": "Your 30 days of extended access have expired",
   "gate.body.affirmation": "A personal affirmation in your breathing practice helps gently reinforce your desired inner state. To use this feature, you can enable breathing practices in your Profile.",
   "gate.body.assistant": "Moving from astrological guidance to the level of psychology and behavioural practices aimed at expanding the biostochastic matrix of your states requires substantial computing power. You can enable it in My account.",
   "gate.body.book": "You don’t have access to this material. To get it, go to My account.",

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.3
-updated: 2026-07-22
+version: 1.4
+updated: 2026-11-08
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -34,7 +34,7 @@ code_refs:
 
 | Метод | Путь | Назначение |
 | --- | --- | --- |
-| POST | `/api/v2/invoice` | Создание инвойса (первый платёж по подписке). Body: `{ email, offerId, currency, periodicity, buyerLanguage }`. Ответ: `{ id, status, amountTotal, paymentUrl }`. `id` = contractId (он же `parentContractId` рекуррентных платежей). |
+| POST | `/api/v2/invoice` | Создание инвойса (первый платёж по подписке). Body: `{ email, offerId, currency, periodicity, buyerLanguage, successful_return_url?, failure_return_url?, cancel_return_url?, paymentMethod? }` (`paymentMethod`: `UNLIMINT` карта по умолчанию для EUR/USD, `PAYPAL`; для RUB не передаём). Ответ: `{ id, status, amountTotal, paymentUrl }`. `id` = contractId (он же `parentContractId` рекуррентных платежей). |
 | GET | `/api/v2/products?feedVisibility=ALL&limit=100` | Список продуктов с офферами и ценами. Источник правды для цен. **`feedVisibility=ALL` обязателен**: по умолчанию возвращаются только продукты, видимые в общей ленте, а разовые товары (вебинар/книга) опубликованы как «Доступ только по ссылке» и без параметра не попадают в ответ. Ответ: `{ items: [{ id, title, description, offers: [{ id, name, prices: [{ currency, amount, periodicity }] }] }] }`. Кэшируется сервером 10 мин. |
 | DELETE | `/api/v1/subscriptions?contractId=&email=` | Отмена подписки. 404 = уже отменена (не ошибка для нас). |
 
@@ -83,6 +83,10 @@ Lava не поддерживает несколько языков у одног
 3. Кабинет: redirect на `paymentUrl` Lava. По `visibilitychange` (возврат с оплаты) — `GET /api/account/overview?currency=` и перерисовка.
 4. Вебхук `payment.success` → контракт active, `users.membership_tier/expires_at` обновлены (период 30 дней + 48ч грейс), прежние active-подписки пользователя отменены в Lava и БД (политика A3); параллельно `settlePayment` пишет net в `payment_settlements` (см. `spec.md` §3.2).
 5. Приложение подхватывает смену уровня через Realtime/foreground (`MembershipEventsBridge`).
+
+### 5.1a Отказ банка и 30 дней без автопродления
+
+Подписка сохраняет карту, и банк требует полный 3‑D Secure. Карты без него (или неверный код) дают `payment.failed` с `errorMessage: "Declined by 3-D Secure"`, хотя разовые платежи той же карты проходят. Поэтому счёт тарифа из кабинета передаёт `failure_return_url` = `https://harmonizer.zamkovoi.yoga/pay/failed?t=<токен>`: Lava сразу возвращает человека на страницу «Оплата не удалась» с кнопками «Оплатить другой картой», «Оплатить через PayPal» (EUR/USD) и «Оплатить 30 дней без автопродления». Кнопка создаёт новый счёт на тот же email и открывает форму Lava без повторного ввода данных. 30 дней — отдельные разовые продукты Lava «Гармонизатор (тариф Наставник)» (`oracle_30d`, оффер `8df24276-c186-4637-a89a-3e4bf85bc0b6`) и «Гармонизатор (тариф Мастер)» (`master_30d`, оффер `dba6b70c-8222-4cf6-b5e8-6c725132e994`). Подробно — `spec.md` §3.5. `errorMessage` сохраняется в `payment_contracts.failure_reason`.
 
 ### 5.2 Разовая оплата вебинара (ONE_TIME)
 

@@ -116,6 +116,8 @@
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
   "common.ok": "OK",
+  "gate.accessExpired.body": "Gehe in dein persönliches Konto, um den Zugang zu verlängern.",
+  "gate.accessExpired.title": "30 Tage erweiterter Zugang sind abgelaufen",
   "gate.body.affirmation": "Eine persönliche Affirmation in der Atemübung hilft, den gewünschten inneren Zustand sanft zu verankern. Um diese Funktion zu nutzen, kannst du in deinem Profil die Nutzung von Atemübungen aktivieren.",
   "gate.body.assistant": "Der Übergang von astrologischen Empfehlungen zur Ebene der Psychologie und Verhaltenspraktiken, die die biostochastische Matrix Ihrer Zustände erweitern, erfordert hohe Rechenleistung. Sie können sie in Mein Konto aktivieren.",
   "gate.body.book": "Sie haben keinen Zugriff auf dieses Material. Um ihn zu erhalten, gehen Sie zum Persönlichen Konto.",

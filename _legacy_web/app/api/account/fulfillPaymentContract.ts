@@ -8,6 +8,7 @@ import { cancelProviderSubscription } from "./cancelActiveSubscriptions";
 import { settlePayment } from "./fx";
 import { nextPeriodEnd } from "./lava";
 import { resolveCatalogPrice } from "./paymentCatalog";
+import { hasHigherPaidAccess, isTierPassContract, tierPassPeriodEnd, type PassTier } from "./tierPass";
 import { computeMasterBonusDays, periodEndWithBonusDays } from "./upgradeCredit";
 import {
   hasPublishedWebinarForPass,
@@ -201,6 +202,10 @@ export async function fulfillFirstPaymentSuccess(
 
   const nowIso = new Date().toISOString();
 
+  if (isTierPassContract(contract) && contract.user_id) {
+    return activateTierPass(db, contract, params);
+  }
+
   if (contract.product_kind === "one_time") {
     const userId: string | null = contract.user_id ?? null;
 
@@ -286,11 +291,24 @@ export async function fulfillFirstPaymentSuccess(
     .eq("contract_id", contractId);
   if (contractError) throw contractError;
 
+  // Оплаченные 30 дней того же тарифа не сгорают при оформлении подписки.
+  const { data: currentAccess, error: accessError } = await db
+    .from("users")
+    .select("membership_tier,membership_expires_at")
+    .eq("id", contract.user_id)
+    .maybeSingle();
+  if (accessError) throw accessError;
+  let accessUntilMs = periodEnd.getTime() + RENEWAL_GRACE_MS;
+  if (currentAccess?.membership_tier === contract.tier && currentAccess.membership_expires_at) {
+    const currentMs = new Date(currentAccess.membership_expires_at as string).getTime();
+    if (Number.isFinite(currentMs) && currentMs > accessUntilMs) accessUntilMs = currentMs;
+  }
+
   const { error: userError } = await db
     .from("users")
     .update({
       membership_tier: contract.tier,
-      membership_expires_at: new Date(periodEnd.getTime() + RENEWAL_GRACE_MS).toISOString(),
+      membership_expires_at: new Date(accessUntilMs).toISOString(),
     })
     .eq("id", contract.user_id);
   if (userError) throw userError;
@@ -321,6 +339,67 @@ export async function fulfillFirstPaymentSuccess(
   }
   await slow();
   const result: Record<string, unknown> = { ok: true, activated: contractId, upgradeBonusDays: bonusDays };
+  return result;
+}
+
+/** 30 дней тарифа без автопродления: доступ без 48 ч запаса, подписки не трогаем. */
+async function activateTierPass(
+  db: SupabaseClient,
+  contract: FulfillContractRow,
+  params: { amount?: number | null; currency?: string | null; paidAt?: string | null; provider: string; logTag: string; scheduleSlow?: (work: () => Promise<void>) => void },
+): Promise<Record<string, unknown>> {
+  const contractId = contract.contract_id;
+  const tier = contract.tier as PassTier;
+  const { data: user, error: userReadError } = await db
+    .from("users")
+    .select("membership_tier,membership_expires_at")
+    .eq("id", contract.user_id)
+    .maybeSingle();
+  if (userReadError) throw userReadError;
+
+  const paid = params.paidAt ? new Date(params.paidAt) : new Date();
+  const paidAt = Number.isNaN(paid.getTime()) ? new Date() : paid;
+  const current = {
+    currentTier: (user?.membership_tier as string | null) ?? null,
+    currentExpiresAt: (user?.membership_expires_at as string | null) ?? null,
+  };
+  const periodEnd = tierPassPeriodEnd({ tier, paidAt, ...current });
+  const nowIso = new Date().toISOString();
+
+  const { error: contractError } = await db
+    .from("payment_contracts")
+    .update({ status: "active", current_period_end: periodEnd.toISOString(), updated_at: nowIso })
+    .eq("contract_id", contractId);
+  if (contractError) throw contractError;
+
+  if (!hasHigherPaidAccess({ tier, ...current, now: paidAt })) {
+    const { error: userError } = await db
+      .from("users")
+      .update({ membership_tier: tier, membership_expires_at: periodEnd.toISOString() })
+      .eq("id", contract.user_id);
+    if (userError) throw userError;
+  }
+
+  const slow = async () => {
+    await settleChargeSafe(db, {
+      contractId,
+      eventType: "payment.success",
+      amount: params.amount,
+      currency: params.currency,
+      paidAt: params.paidAt,
+      userId: contract.user_id,
+      provider: params.provider,
+      logTag: params.logTag,
+    });
+    await resubscribeSafe(db, contract, params.logTag);
+    if (tier === "master") await masterInvitesSafe(db, contract.user_id, params.logTag);
+  };
+  const result = { ok: true, activated: contractId, passUntil: periodEnd.toISOString() };
+  if (params.scheduleSlow) {
+    params.scheduleSlow(slow);
+    return { ...result, deferred: true };
+  }
+  await slow();
   return result;
 }
 
@@ -487,13 +566,28 @@ export async function fulfillYookassaRenewal(
   return { ok: true, renewed: contract.contract_id };
 }
 
+/** Причина отказа ЮKassa: `party:reason`, напр. `issuer:3d_secure_failed`. */
+export function yookassaFailureReason(payment: {
+  cancellation_details?: { party?: string; reason?: string } | null;
+}): string | null {
+  const details = payment.cancellation_details;
+  if (!details?.reason) return null;
+  return details.party ? `${details.party}:${details.reason}` : details.reason;
+}
+
 export async function markContractFailed(
   db: SupabaseClient,
   contractId: string,
+  failureReason?: string | null,
 ): Promise<void> {
+  const reason = failureReason?.trim().slice(0, 500) || null;
   const { error } = await db
     .from("payment_contracts")
-    .update({ status: "failed", updated_at: new Date().toISOString() })
+    .update({
+      status: "failed",
+      updated_at: new Date().toISOString(),
+      ...(reason ? { failure_reason: reason } : {}),
+    })
     .eq("contract_id", contractId)
     .eq("status", "pending");
   if (error) throw error;
