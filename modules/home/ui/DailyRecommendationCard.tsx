@@ -81,9 +81,9 @@ export function DailyRecommendationCard({
             model: {modelUsed ?? "unknown"} · {accessMode}
           </AppText>
         ) : null}
-        {forecast.isAlternativeChoice && forecast.alternativeReasonText ? (
+        {forecast.isAlternativeChoice ? (
           <AppText variant="technicalCaption" tone="muted">
-            {forecast.alternativeReasonText}
+            {t.alternativeChoiceNote}
           </AppText>
         ) : null}
         <AppButton label={t.readMoreButton} variant="secondary" onPress={() => setModalLevel("long")} />

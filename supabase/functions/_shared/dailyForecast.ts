@@ -529,6 +529,56 @@ function rankPlanets(importance: Record<string, number>) {
   return [...PLANETS_7].sort((a, b) => importance[b] - importance[a]);
 }
 
+const KNOWN_PLANETS = new Set<string>(PLANETS_7);
+
+/** Keep in sync with `modules/daily-engine/core/chooseFinalPlanet.ts`. */
+export function priorForecastDates(forecastDate: string): [string, string] {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(forecastDate);
+  if (!match) return ["", ""];
+  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  const iso = (daysBack: number) => {
+    const next = new Date(utc);
+    next.setUTCDate(next.getUTCDate() - daysBack);
+    return next.toISOString().slice(0, 10);
+  };
+  return [iso(1), iso(2)];
+}
+
+export function recentPlanetsFromHistory(
+  forecastDate: string,
+  rows: Array<{
+    forecast_date?: string | null;
+    forecastDate?: string | null;
+    planet_of_the_day?: string | null;
+    planetOfTheDay?: string | null;
+  }>,
+): string[] {
+  const [yesterday, dayBefore] = priorForecastDates(forecastDate);
+  const byDate = new Map<string, string>();
+  for (const row of rows) {
+    const date = String(row.forecast_date ?? row.forecastDate ?? "").slice(0, 10);
+    const planet = String(row.planet_of_the_day ?? row.planetOfTheDay ?? "");
+    if (date && KNOWN_PLANETS.has(planet)) byDate.set(date, planet);
+  }
+  const recent: string[] = [];
+  for (const date of [yesterday, dayBefore]) {
+    const planet = byDate.get(date);
+    if (planet) recent.push(planet);
+  }
+  return recent;
+}
+
+/** True when a stored day still shows the same planet as the two previous calendar days. */
+export function forecastRepeatsPreviousDays(
+  planetOfTheDay: string | null | undefined,
+  isAlternativeChoice: boolean,
+  recentPlanetsOfDay: readonly string[],
+): boolean {
+  if (isAlternativeChoice || !planetOfTheDay) return false;
+  const [previousDay, dayBefore] = recentPlanetsOfDay;
+  return previousDay === planetOfTheDay && dayBefore === planetOfTheDay;
+}
+
 function chooseFinalPlanet(rankedPlanets: string[], recentPlanetsOfDay: string[]) {
   const firstChoice = rankedPlanets[0];
   const [previousDay, dayBefore] = recentPlanetsOfDay;

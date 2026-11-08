@@ -5,6 +5,7 @@ import type { NatalProfile, Planet } from "../../../modules/astro-core";
 import { PLANET_TO_CHAKRA, PLANETS_7 } from "./topPetals";
 import type { CalibrationLike } from "./topPetals";
 import type { AppContentLocale } from "./contentLocales";
+import { alternativeChoiceMathReason } from "./alternativeChoiceNote";
 import { getMathLevelStrings } from "./mathLevelI18n";
 
 type ForecastLike = {
@@ -171,13 +172,7 @@ export function buildMathLevel(
   md.push(`\n${t.section4Title}`);
   md.push(t.winnerLine(t.planetLabel(planetOfTheDay), (forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)));
   if (forecast.is_alternative_choice ?? forecast.isAlternativeChoice) {
-    md.push(
-      t.alternativeLine(
-        forecast.alternative_reason_text ??
-          forecast.alternativeReasonText ??
-          (locale === "en" ? "diversity rule applied" : "сработало правило разнообразия тем"),
-      ),
-    );
+    md.push(t.alternativeLine(alternativeChoiceMathReason(locale)));
   }
 
   if (calibration) {

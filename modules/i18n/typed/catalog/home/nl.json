@@ -135,6 +135,7 @@
   },
   "recommendation": {
     "title": "Dagadvies",
+    "alternativeChoiceNote": "Vandaag stellen we voor de aandacht op een ander thema te richten. Zo blijven je inspanningen om te harmoniseren afwisselend.",
     "loading": "Aanbeveling voor vandaag wordt geladen…",
     "discussButton": "Wat te doen?",
     "readMoreButton": "Lees meer",

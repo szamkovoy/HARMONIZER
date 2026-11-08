@@ -123,6 +123,8 @@ export interface HomeStrings {
   };
   recommendation: {
     title: string;
+    /** Shown when the planet of the day is the second theme after two identical days. */
+    alternativeChoiceNote: string;
     /** Shown while locale-specific LLM texts are loading (avoid EN/RU fallback flash). */
     loading: string;
     /** While «Что делать?» checks day plan / opens communicator. */
@@ -388,6 +390,8 @@ const ru: HomeStrings = {
   },
   recommendation: {
     title: "Рекомендации на день",
+    alternativeChoiceNote:
+      "Сегодня предлагаем направить внимание на другую тему. Это разнообразит ваши усилия по гармонизации.",
     discussButton: "Что делать?",
     readMoreButton: "Подробнее",
     loading: "Загружаю текст рекомендации на этот день",
@@ -407,9 +411,7 @@ const ru: HomeStrings = {
       return [
         `Сегодня алгоритм выделил тему «${meta.label}»: её важность выше остальных направлений дня.`,
         `Тональность сейчас ${tone}, поэтому рекомендация сформулирована как практическое задание: удерживать состояние, которое поддерживает качества ${chakraLabelGenitive("ru", meta.chakraNumber)}, и не разгонять автоматические реакции.`,
-        forecast.isAlternativeChoice && forecast.alternativeReasonText
-          ? forecast.alternativeReasonText
-          : "Если эта тема повторялась несколько дней подряд, приложение может выбрать вторую по значимости чакру, чтобы усилия не зацикливались.",
+        "Если эта тема повторялась несколько дней подряд, приложение может выбрать вторую по значимости чакру, чтобы усилия не зацикливались.",
         "Окна возможностей ниже показывают моменты, когда телу и вниманию легче перестроиться: восход даёт импульс, кульминация усиливает проявление, точный аспект делает тему особенно заметной.",
       ];
     },
@@ -611,6 +613,8 @@ const en: HomeStrings = {
   },
   recommendation: {
     title: "Daily recommendation",
+    alternativeChoiceNote:
+      "Today we suggest turning your attention to another theme. This brings variety to your harmonizing efforts.",
     discussButton: "What to do?",
     readMoreButton: "More details",
     loading: "Loading today’s recommendation…",
@@ -630,9 +634,7 @@ const en: HomeStrings = {
       return [
         `Today's algorithm highlighted "${meta.label}" as the most important theme of the day.`,
         `The tone is ${tone}, so the recommendation is a practical task: hold a state that supports the qualities of ${chakraLabelGenitive("en", meta.chakraNumber)} and avoid automatic reactions.`,
-        forecast.isAlternativeChoice && forecast.alternativeReasonText
-          ? forecast.alternativeReasonText
-          : "If this theme repeats several days in a row, the app may choose the second-most important chakra so your effort does not get stuck.",
+        "If this theme repeats several days in a row, the app may choose the second-most important chakra so your effort does not get stuck.",
         "The opportunity windows below show moments when body and attention can shift more easily: rise brings impulse, culmination amplifies expression, an exact aspect makes the theme especially visible.",
       ];
     },
@@ -692,6 +694,20 @@ function bindOpportunityWindowHelpers(
   };
 }
 
+function bindRecommendation(rec: HomeStrings["recommendation"]): HomeStrings["recommendation"] {
+  const original = rec.detailParagraphs;
+  return {
+    ...rec,
+    detailParagraphs: (forecast) => {
+      const paragraphs = original(forecast);
+      if (!forecast.isAlternativeChoice || paragraphs.length < 3) return paragraphs;
+      const next = paragraphs.slice();
+      next[2] = rec.alternativeChoiceNote;
+      return next;
+    },
+  };
+}
+
 export function getHomeStrings(locale: HomeLocale): HomeStrings {
   const base = inlineBaseLocale(locale) === "en" ? en : ru;
   const merged = mergeTypedLocale("home", base, locale) as HomeStrings;
@@ -699,6 +715,7 @@ export function getHomeStrings(locale: HomeLocale): HomeStrings {
     ...merged,
     locale,
     opportunityWindows: bindOpportunityWindowHelpers(merged.opportunityWindows),
+    recommendation: bindRecommendation(merged.recommendation),
     formatTime: (value) => formatTime(value, locale),
   };
 }

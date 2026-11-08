@@ -135,6 +135,7 @@
   },
   "recommendation": {
     "title": "Recomendações do dia",
+    "alternativeChoiceNote": "Hoje propomos dirigir a atenção para outro tema. Assim, os seus esforços de harmonização ficam mais variados.",
     "loading": "Carregando a recomendação de hoje…",
     "discussButton": "O que fazer?",
     "readMoreButton": "Saiba mais",
