@@ -1,11 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.9
-updated: 2026-11-06
+version: 1.10
+updated: 2026-11-09
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-09 — Метка подписка / разовая в списке платежей
+
+- В общем списке `/admin/payments` и в «Истории платежей» карточки пользователя рядом с тарифом показывается вид оплаты: «подписка», «30 дней без автопродления» (`product_ref=pass_30d`), «разовая оплата» (вебинар/книга) или «грант» (ручная запись). Поля `product_kind` / `product_ref` отдаёт `loadAdminPaymentLedger`.
 
 ## Decision Log
 

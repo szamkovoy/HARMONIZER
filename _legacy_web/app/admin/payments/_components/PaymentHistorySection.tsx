@@ -46,6 +46,17 @@ function isEditable(payment: AdminPaymentRow): boolean {
   return true;
 }
 
+/** Метка вида оплаты в списке: подписка vs разовая (в т.ч. 30 дней без автопродления). */
+function paymentKindLabel(payment: AdminPaymentRow): string | null {
+  if (payment.kind === "grant") return "грант";
+  if (payment.product_kind === "subscription") return "подписка";
+  if (payment.product_kind === "one_time") {
+    if (payment.product_ref === "pass_30d") return "30 дней без автопродления";
+    return "разовая оплата";
+  }
+  return null;
+}
+
 export function PaymentHistorySection({
   title = "История платежей",
   variant = "section",
@@ -190,6 +201,7 @@ export function PaymentHistorySection({
         {payments.map((payment) => {
           const editable = isEditable(payment);
           const name = payment.display_name ?? "Без имени";
+          const kindLabel = paymentKindLabel(payment);
           return (
             <div key={payment.id} className={rowClass}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -206,6 +218,11 @@ export function PaymentHistorySection({
                   )
                 ) : null}
                 <TierBadge tier={payment.tier} />
+                {kindLabel ? (
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+                    {kindLabel}
+                  </span>
+                ) : null}
                 <span className="font-semibold text-zinc-800">
                   {payment.amount > 0
                     ? `${payment.amount} ${payment.currency}`
