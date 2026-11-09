@@ -48,7 +48,7 @@ describe("M2 Daily-Engine", () => {
       }),
     });
 
-    expect(forecast.rankedPlanets[0]).toBe("Mars");
+    expect(forecast.rankedPlanets[0]).toBe("Venus");
     expect(forecast.planetOfTheDay).not.toBe("Mars");
     expect(forecast.isAlternativeChoice).toBe(true);
   });

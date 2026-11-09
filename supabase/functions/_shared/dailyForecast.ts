@@ -671,6 +671,13 @@ export function computeDailyForecast(input: {
 
   const rankedPlanets = rankPlanets(importance);
   const choice = chooseFinalPlanet(rankedPlanets, input.recentPlanetsOfDay);
+  // When the streak rule picks the alternative (2nd) planet, planetOfTheDay differs from
+  // rankedPlanets[0] (top by importance). Morning text (buildTopPetals) reads rankedPlanets,
+  // so without reordering it would describe the top-importance planet instead of the
+  // chosen planet of the day — causing navigator/text mismatch. Put planetOfTheDay first.
+  const finalRankedPlanets = choice.isAlternativeChoice
+    ? [choice.planetOfTheDay, ...rankedPlanets.filter((p) => p !== choice.planetOfTheDay)]
+    : rankedPlanets;
   const mainContribution = mainContributionFor(contributions, choice.planetOfTheDay);
   const todayH = H_eff[choice.planetOfTheDay];
   let windowsOfOpportunity = { sunrise: null, culmination: null, exactAspect: null };
@@ -701,7 +708,7 @@ export function computeDailyForecast(input: {
     date: input.forecastDate,
     importance,
     activation,
-    rankedPlanets,
+    rankedPlanets: finalRankedPlanets,
     ...choice,
     todayPlanetState: {
       naturalHarmoniousness: todayH,
