@@ -48,7 +48,7 @@ code_refs:
 
 - **`resolveExactNotificationCopy` / `resolveNotificationLocale`** — язык **отправки** remote push + deliveries (клиент mirror + сервер `_legacy_web/app/api/_utils/notificationCopy.ts`). Только точный текст для `users.locale` (RU-колонка или `title_i18n[L]`); иначе получатель **пропускается** (нет EN→RU).
 - **`resolveNotificationCopy`** — soft preferred → en → ru для **отображения** уже доставленных строк в inbox.
-- **`PushRegistrationBridge`** — после логина / `AppState=active` вызывает `registerPushToken` **без** системного диалога (только если уже granted); тап по push → **`router.replace("/push-message")`**.
+- **`PushRegistrationBridge`** — после логина / `AppState=active` вызывает `registerPushToken` **без** системного диалога (только если уже granted); тап по push → **`router.replace("/push-message")`**. Холодный старт по тапу: `Notifications.getLastNotificationResponseAsync()` — но с cross-session dedupe: обработанный `request.identifier` персистится в SecureStore (`harmonizer.notifications.lastHandledResponseId`); если `getLastNotificationResponseAsync()` возвращает тот же id (stale — Android восстанавливает нативный кэш expo-notifications после апдейта из Play Store, и запуск из «Открыть» в Play переоткрывает stale-ответ), кэш чистится и навигации **нет**. Свежий тап (новый id) → навигация + персист. Решение вынесено в `classifyLastResponse` (тест `PushRegistrationBridge.test.ts`).
 - **`ensureNotificationPermission(reason)`** — единая политика запроса OS-разрешения (см. §3.1).
 - **`registerPushToken(userId)`** — **await** sync UI → `users.locale`, затем **`claim_push_token` RPC**; **не** вызывает `requestPermissionsAsync`.
 - **`PushMessageScreen`** / **`MyNotificationsScreen`** / Профиль — без изменений контракта inbox.
