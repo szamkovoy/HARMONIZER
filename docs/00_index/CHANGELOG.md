@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-09 (667): Android-билд зависал на «Отправляется…» после 200 от GoTrue (`/auth/v1/otp` 200, письмо уже пришло) — okhttp-промис `signInWithOtp` не зарезолвился. `requestEmailOtpCode` гоняет `signInWithOtp` с бюджетом 10 с (`raceBudget`/`OTP_SEND_RESPONSE_BUDGET_MS`); по таймауту/abort'у экран кода открывается всё равно, `isOtpClientAbort` отличает наш abort от сбоя. `set_signin_name_hint` — бюджет 4 с. `services/supabase.ts` абортит fetch `/auth/v1/otp` за 10 с (`AUTH_OTP_FETCH_TIMEOUT_MS`). `markOtpCooldown(60)` больше не await'ится. Тесты `modules/auth/sign-in-email.test.ts`. Docs `onboarding`, `profile`.
 - 2026-11-09 (666): Починен промпт утренней рекомендации (v6, оба ключа): опечатка «положительный» в обеих ветках фразы-шаблона + добавлен нейтральный случай (H≈0) в SHORT_TEXT и §2. Раньше LLM для `todayTone = "neutral"` писал дисгармоничный текст, рассогласуясь с бейджем без минуса. Миграция `20261109023000`. Docs `daily_forecast`.
 - 2026-11-09 (665): Третий одинаковый день планеты переписывается в ночном прогреве, вместе с текстом рекомендации. Открытие приложения готовый кэш не пересчитывает. Миграция `20261108232845`. Docs `daily_forecast`.
 - 2026-11-09 (664): Планета дня на третий одинаковый день берётся вторая по важности. История читается из `user_daily_forecasts` (две предыдущие даты), а не из пустого `preferences.recentPlanetsOfDay`. Docs `daily_forecast`.

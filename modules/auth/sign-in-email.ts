@@ -15,6 +15,43 @@ import { requireSupabase } from "@/services/supabase";
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/**
+ * GoTrue often answers `/otp` in under a second, after the hook has already
+ * sent the letter. On Android the okhttp promise can stay pending anyway
+ * (2026-11-09: HTTP 200, content-length 2, UI stuck on «Отправляется…»).
+ * Past this budget we open the code screen — the letter may already be in
+ * the inbox, and a fast API error still arrives before the budget.
+ */
+export const OTP_SEND_RESPONSE_BUDGET_MS = 10_000;
+/** A hung name hint must not block the send (same contract as a hint error). */
+export const SIGNIN_HINT_BUDGET_MS = 4_000;
+
+export type RequestEmailOtpOptions = {
+  responseBudgetMs?: number;
+  hintBudgetMs?: number;
+};
+
+/** Resolves with the value, or `"timeout"` if `promise` is still pending. Late rejection is swallowed. */
+export function raceBudget<T>(promise: Promise<T>, budgetMs: number): Promise<T | "timeout"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), budgetMs);
+  });
+  void promise.catch(() => undefined);
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
+/** True when our own `/auth/v1/otp` abort fired, not a fast offline failure. */
+export function isOtpClientAbort(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const name = "name" in error ? String((error as { name?: unknown }).name ?? "") : "";
+  if (name === "AbortError") return true;
+  const message = error instanceof Error ? error.message : "";
+  return /abort/i.test(message);
+}
+
 export function isValidEmail(raw: string): boolean {
   return EMAIL_RX.test(raw.trim());
 }
@@ -104,11 +141,17 @@ async function tryStoreReviewVerify(email: string, code: string): Promise<"ok" |
 }
 
 /** Запросить письмо с кодом. Бросает OtpGateError / Supabase-ошибку (UI мапит). */
-export async function requestEmailOtpCode(email: string, displayName?: string): Promise<void> {
+export async function requestEmailOtpCode(
+  email: string,
+  displayName?: string,
+  options?: RequestEmailOtpOptions,
+): Promise<void> {
   const supabase = requireSupabase();
   const name = displayName?.trim();
   const normalized = normalizeEmail(email);
   const locale = getResponseLocale();
+  const responseBudgetMs = options?.responseBudgetMs ?? OTP_SEND_RESPONSE_BUDGET_MS;
+  const hintBudgetMs = options?.hintBudgetMs ?? SIGNIN_HINT_BUDGET_MS;
 
   await requestOtpSendPermit(normalized);
 
@@ -116,20 +159,26 @@ export async function requestEmailOtpCode(email: string, displayName?: string): 
   // для существующего пользователя (только при создании).
   // Hint is a side channel for the letter. A rejection here used to cancel
   // signInWithOtp after the permit was already issued, so no mail was sent.
+  // A hang is the same class of failure: wait a short budget, then send anyway.
   if (name) {
-    try {
-      const { error } = await supabase.rpc("set_signin_name_hint", {
+    const hint = supabase
+      .rpc("set_signin_name_hint", {
         p_email: normalized,
         p_name: name,
         p_locale: locale,
+      })
+      .then(({ error }) => {
+        if (error) console.warn("set_signin_name_hint failed", error.message);
       });
-      if (error) console.warn("set_signin_name_hint failed", error.message);
+    try {
+      const hinted = await raceBudget(hint, hintBudgetMs);
+      if (hinted === "timeout") console.warn("set_signin_name_hint timed out");
     } catch (e) {
       console.warn("set_signin_name_hint failed", e);
     }
   }
 
-  const { error } = await supabase.auth.signInWithOtp({
+  const pending = supabase.auth.signInWithOtp({
     email: normalized,
     options: {
       shouldCreateUser: true,
@@ -139,8 +188,23 @@ export async function requestEmailOtpCode(email: string, displayName?: string): 
       },
     },
   });
-  if (error) throw error;
-  await markOtpCooldown(60);
+  let outcome: Awaited<typeof pending> | "timeout";
+  try {
+    outcome = await raceBudget(pending, responseBudgetMs);
+  } catch (e) {
+    // Fetch abort (services/supabase.ts) after the letter may already be out.
+    if (!isOtpClientAbort(e)) throw e;
+    console.warn("signInWithOtp aborted after response budget; opening code entry");
+    outcome = "timeout";
+  }
+  if (outcome === "timeout") {
+    console.warn("signInWithOtp: no response within budget; opening code entry");
+  } else if (outcome.error) {
+    throw outcome.error;
+  }
+  // SecureStore write is UX-only. Awaiting it kept the wizard on «Отправляется…»
+  // after GoTrue had already returned 200 and the letter was delivered.
+  void markOtpCooldown(60);
 }
 
 /** Проверить код из письма. Успех = SDK установил сессию. */
