@@ -2,13 +2,14 @@
 id: 00_index/CHANGELOG
 title: Documentation Changelog
 version: 3.85
-updated: 2026-11-08
+updated: 2026-11-11
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-11-11 (675): Сводка `/admin/summary`: вебинары привязываются к ближайшему старту (включая пустой `product_ref`), «новые» и продления — только успешные settlement'ы, в неделях колонка «Другое» и «Впервые», подпись недели — понедельник МСК, у цепочек убраны открытия/клики. Миграция `20261111040000`. Docs `admin_panel`.
 - 2026-11-11 (674): Retention `user_event_log`: pg_cron `cleanup_old_user_event_log_daily` (00:30 UTC) удаляет партиями по 10k; `dialog_turn`/`llm_*`/`api_error` — 90д, `app_open` — 365д, `practice_selected`/`calibration_suggested` не трогает. Миграция `20261111010000`. Без Vercel. Первый прогон: 8 961 → 8 506 строк. Docs `admin_panel`, `infra`.
 - 2026-11-11 (673): Раздел `/admin/summary` — текстовая сводка за N недель (4/8/12/24) для стратегического чата. Один RPC `admin_summary_report`, один round-trip, считается при открытии. Оплаты/подписки/вебинары/рассылки/приложение/база рассылки. Без email и имён. Тестовые — env `ADMIN_SUMMARY_TEST_EMAILS`. Гранты отдельно от шлюзов. Миграции `20261111020000` + `20261111030000` (база рассылки тоже исключает test-аккаунты). Docs `admin_panel`.
 - 2026-11-11 (672): Экран «Доставляемость» обрезался на PostgREST `max-rows=1000`: при рассылке 06.11 на 13 905 адресов «Отправлено» показывало 1 531, а «Получает письма» — 1000 при 14 927 контактах. Send-строки переведены на `fetchAllPostgrestRows`, `contact_status` — на 4 HEAD-count. Без миграции. Docs `marketing_email`.

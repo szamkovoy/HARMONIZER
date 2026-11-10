@@ -33,8 +33,10 @@ type SummaryReport = {
       oracle: number;
       master: number;
       book: number;
+      other: number;
       yookassa: number;
       lava: number;
+      first_time: number;
     }>;
     first_time_payers: number;
     refunds: { count: number; sum_rub: number };
@@ -69,7 +71,7 @@ type SummaryReport = {
       bounced: number;
       complained: number;
     }>;
-    automations: { sends: number; sent: number; opened: number; clicked: number };
+    automations: { sends: number; sent: number };
   };
   app: {
     registrations_by_week: Array<{ week: string; count: number }>;
@@ -124,9 +126,13 @@ export async function POST(req: Request) {
 }
 
 function fmtDate(iso: string): string {
-  // Week labels come as timestamptz of Monday 00:00 MSK; show just the date.
   const d = new Date(iso);
   return d.toISOString().slice(0, 10);
+}
+
+/** Week labels are already the Moscow Monday as YYYY-MM-DD. Do not reparse via UTC. */
+function fmtWeek(week: string): string {
+  return week;
 }
 
 function fmtDateTime(iso: string): string {
@@ -160,14 +166,14 @@ function buildMarkdown(r: SummaryReport): string {
   // 1. Payments
   L(`## 1. Оплаты по неделям`);
   L(``);
-  L(`| Неделя | Оплат | Сумма, ₽ (net) | Вебинар | Наставник | Мастер | Книга | ЮKassa | Lava | Впервые |`);
-  L(`|---|---|---|---|---|---|---|---|---|---|`);
+  L(`| Неделя | Оплат | Сумма, ₽ (net) | Вебинар | Наставник | Мастер | Книга | Другое | ЮKassa | Lava | Впервые |`);
+  L(`|---|---|---|---|---|---|---|---|---|---|---|`);
   for (const w of r.payments.by_week) {
-    L(`| ${fmtDate(w.week)} | ${w.count} | ${rub(w.sum_rub)} | ${w.webinar} | ${w.oracle} | ${w.master} | ${w.book} | ${w.yookassa} | ${w.lava} | — |`);
+    L(`| ${fmtWeek(w.week)} | ${w.count} | ${rub(w.sum_rub)} | ${w.webinar} | ${w.oracle} | ${w.master} | ${w.book} | ${w.other} | ${w.yookassa} | ${w.lava} | ${w.first_time} |`);
   }
   const totalPay = r.payments.by_week.reduce((a, w) => a + w.count, 0);
   const totalRub = r.payments.by_week.reduce((a, w) => a + Number(w.sum_rub ?? 0), 0);
-  L(`| **Итого** | **${totalPay}** | **${rub(totalRub)}** | | | | | | | **${r.payments.first_time_payers}** |`);
+  L(`| **Итого** | **${totalPay}** | **${rub(totalRub)}** | | | | | | | | **${r.payments.first_time_payers}** |`);
   L(``);
   L(`> Возвратов за период: ${r.payments.refunds.count} на сумму ${rub(r.payments.refunds.sum_rub)} ₽. Гранты (${c("payments.source=manual")}) показаны отдельно в разделе 2 и не входят в эту таблицу.`);
   L(``);
@@ -218,7 +224,7 @@ function buildMarkdown(r: SummaryReport): string {
     L(``);
   }
   const a = r.mailings.automations;
-  L(`**Цепочки (итог за период):** писем отправлено ${a.sends}, из них принято ${a.sent}, открыто ${a.opened}, кликов ${a.clicked}.`);
+  L(`**Цепочки (итог за период):** писем отправлено ${a.sends}, из них принято ${a.sent}.`);
   L(``);
 
   // 5. App
@@ -229,7 +235,7 @@ function buildMarkdown(r: SummaryReport): string {
   L(`| Неделя | Регистраций |`);
   L(`|---|---|`);
   for (const w of r.app.registrations_by_week) {
-    L(`| ${fmtDate(w.week)} | ${w.count} |`);
+    L(`| ${fmtWeek(w.week)} | ${w.count} |`);
   }
   const totalReg = r.app.registrations_by_week.reduce((a, w) => a + w.count, 0);
   L(`| **Итого** | **${totalReg}** |`);
@@ -250,12 +256,12 @@ function buildMarkdown(r: SummaryReport): string {
   // 7. Definitions
   L(`## 7. Определения`);
   L(``);
-  L(`- **Оплаты (раздел 1):** ${c("payment_settlements")} (net, ${c("refunded_at IS NULL")}) join ${c("payment_contracts")} по ${c("tier")}/${c("product_kind")}. Недели — с понедельника, МСК. «Впервые» = первая успешная оплата человека в базе за период.`);
+  L(`- **Оплаты (раздел 1):** ${c("payment_settlements")} (net, ${c("refunded_at IS NULL")}) join ${c("payment_contracts")}. Неделя — понедельник по МСК, в таблице дата этого понедельника. Категории: Вебинар (${c("webinar")} + ${c("one_time")}), Наставник (${c("oracle")} + ${c("subscription")}), Мастер (${c("master")} + ${c("subscription")}), Книга (${c("tier='book'")}), Другое — всё остальное. Сумма пяти категорий равна числу оплат. «Впервые» в строке недели — люди, чья первая успешная оплата в базе пришлась на эту неделю; в итоге — за весь период.`);
   L(`- **Подписки активные:** ${c("payment_contracts")} ${c("product_kind='subscription', status='active'")}. Гранты — ${c("payments.source='manual'")} с действующим ${c("paid_until")}.`);
-  L(`- **Новые/продления/отмены:** ${c("payment_contracts")} за период. «Новые» = первый контракт по ${c("(user_id, tier)")}. «Продления» = контракт с более ранним контрактом того же тарифа. «Отменили» = ${c("cancelled_at")} в периоде. «Истёк» = ${c("status='cancelled'")} и ${c("current_period_end")} в периоде в прошлом.`);
+  L(`- **Новые:** люди, чей первый успешный settlement подписки этого тарифа попал в период. **Продления:** settlement'ы подписки в периоде, перед которыми у человека уже был успешный settlement подписки того же тарифа. **Отменили** = ${c("cancelled_at")} в периоде (контракт создан в периоде). **Истёк** = ${c("status='cancelled'")} и ${c("current_period_end")} в периоде в прошлом (контракт создан в периоде).`);
   L(`- **Месяцев платит:** число успешных ${c("payment_settlements")} на активном контракте, по ${c("(user_id, tier)")}, бакеты 1 / 2 / 3+.`);
-  L(`- **Вебинары:** ${c("webinars.starts_at")} в периоде. «Разовых» = ${c("payment_contracts")} ${c("one_time, tier='webinar', product_ref=webinar_id")}, ${c("status in ('active','cancelled')")}. «Мастеров» = активные ${c("master")}-подписки на дату. «Покупали раньше» = у этого пользователя есть более ранний ${c("webinar")}-контракт на другой вебинар.`);
-  L(`- **Рассылки:** ${c("email_campaigns")} ${c("status='sent'")}, счётчики из колонок кампании. Цепочки — ${c("email_automation_sends")}.`);
+  L(`- **Вебинары:** все с ${c("starts_at")} в периоде и, если есть, один ближайший будущий. Разовая покупка (${c("one_time")}, ${c("tier='webinar'")}, есть settlement, ${c("refunded_at IS NULL")}, ${c("product_ref")} может быть пустым) относится к ближайшему вебинару с ${c("starts_at >= paid_at")}. «Мастеров» = активные подписки Мастер на эту дату плюс ручные гранты ${c("source='manual', tier='master'")}; один человек считается один раз. «Покупали раньше» = есть более ранний webinar-контракт, отнесённый к другому вебинару.`);
+  L(`- **Рассылки:** ${c("email_campaigns")} ${c("status='sent'")}, счётчики из колонок кампании. Цепочки — ${c("email_automation_sends")}: сколько писем ушло и сколько из них приняты (${c("status='sent'")}). Открытия и клики цепочек не пишутся.`);
   L(`- **Регистрации:** ${c("users.onboarded_at")} (не ${c("created_at")} — там лежит и CRM-импорт).`);
   L(`- **Активные:** ${c("users.last_seen_at")} за 7/30 дней.`);
   L(`- **«Постоянные»:** ${c("user_event_log")} ${c("kind='app_open'")} в ≥3 из 4 последних недель (сканируются только 4 недели по индексу).`);
