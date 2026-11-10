@@ -7,9 +7,14 @@ depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
 
+## 2026-11-11 — Сводка для стратегического чата + retention `user_event_log`
+
+- **Сводка.** Новый раздел `/admin/summary` (навигация «Сводка», иконка `ClipboardList`): текстовый отчёт за последние N недель (4/8/12/24, по умолчанию 8; недели с понедельника, МСК) для стратегического чата владельца. Один RPC `admin_summary_report(p_weeks, p_test_emails)` (миграция `20261111020000`), один round-trip, считается только при открытии. Без крона, без кеша, без новых таблиц, без обращений к API Lava/ЮKassa/Resend. Разделы: оплаты по неделям (net ₽, по продуктам, шлюзы, впервые), подписки (активные/новые/продления/отмены/месяцы), вебинары, рассылки (кампании + цепочки итогом), приложение (регистрации по `onboarded_at`, активные 7/30д, «постоянные» ≥3 из 4 недель), база рассылки (HEAD-count). Ручные гранты (`payments.source='manual'`) — отдельной строкой, не смешиваются со шлюзами. API: `GET/POST /api/admin/summary?weeks=` (POST отдаёт готовый Markdown). Тестовые аккаунты — env `ADMIN_SUMMARY_TEST_EMAILS` (список email через запятую), резолвятся в `auth.users.id` внутри RPC и исключаются из всех подсчётов. Вывод — без email и имён, только числа. Кнопка «Скопировать всё».
+- **Retention `user_event_log`.** Миграция `20261111010000`: функция `cleanup_old_user_event_log(10000)` удаляет партиями по 10 000 строк; `dialog_turn`/`llm_prompt_size`/`llm_error`/`llm_timeout`/`api_error` — 90 дней, `app_open` — 365 дней, `practice_selected`/`calibration_suggested` не трогаются. pg_cron `cleanup_old_user_event_log_daily` в 00:30 UTC (03:30 МСК), без задач на Vercel. Зарегистрировано в `ensure_harmonizer_cron_jobs`. Первый прогон удалил 455 строк (8 961 → 8 506).
+
 ## 2026-11-09 — Метка подписка / разовая в списке платежей
 
-- В общем списке `/admin/payments` и в «Истории платежей» карточки пользователя рядом с тарифом показывается вид оплаты: «подписка», «30 дней без автопродления» (`product_ref=pass_30d`), «разовая оплата» (вебинар/книга) или «грант» (ручная запись). Поля `product_kind` / `product_ref` отдаёт `loadAdminPaymentLedger`.
+- В общем списке `/admin/payments` и в «Истории платежей» карточки пользователя рядом с тарифом показывается вид оплаты: «подписка», «разовый тариф» (`product_ref=pass_30d`), «разовая оплата» (вебинар/книга) или «грант» (ручная запись). Поля `product_kind` / `product_ref` отдаёт `loadAdminPaymentLedger`.
 
 ## Decision Log
 

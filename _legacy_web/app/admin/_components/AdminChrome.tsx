@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Video,
+  ClipboardList,
 } from "lucide-react";
 
 import { AdminApiError, adminFetch } from "../_lib/adminApi";
@@ -23,6 +24,7 @@ import { getBrowserSupabase, resetBrowserSupabase } from "../_lib/supabaseBrowse
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Дашборд", icon: Gauge },
+  { href: "/admin/summary", label: "Сводка", icon: ClipboardList },
   { href: "/admin/stories", label: "Сторис", icon: Sparkles },
   { href: "/admin/posts", label: "Видео", icon: Newspaper },
   { href: "/admin/webinars", label: "Вебинары", icon: Video },

@@ -3,6 +3,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { fetchAllPostgrestRows } from "./emailSegment";
+
 export type DeliverabilityPeriod = 7 | 30 | 90;
 
 export type DayBucket = {
@@ -90,7 +92,6 @@ export async function buildDeliverabilityReport(
     .order("created_at", { ascending: true })
     .limit(20000);
   if (error) throw error;
-
   const seriesMap = new Map<string, DayBucket>();
   for (let i = 0; i < days; i++) {
     const d = new Date(Date.now() - (days - 1 - i) * 86400_000);
@@ -136,12 +137,22 @@ export async function buildDeliverabilityReport(
   };
   const DELIVERED_STATUSES = new Set(["delivered", "opened", "clicked"]);
   const ACCEPTED_STATUSES = new Set(["sent", "delivered", "opened", "clicked", "bounced", "complained"]);
-  const { data: campaignSends } = await db
-    .from("email_campaign_sends")
-    .select("created_at, status")
-    .gte("created_at", since)
-    .limit(20000);
-  for (const row of campaignSends ?? []) {
+  // PostgREST caps any single response at max-rows (1000 on this project), so a
+  // plain .limit(20000) silently truncates large campaigns. Paginate the send
+  // rows; the by-day series and totals are derived from the full set.
+  const campaignSends = await fetchAllPostgrestRows<{ created_at: string; status: string }>(
+    async (from, to) => {
+      const { data, error: e } = await db
+        .from("email_campaign_sends")
+        .select("created_at, status")
+        .gte("created_at", since)
+        .order("created_at", { ascending: true })
+        .range(from, to);
+      if (e) throw e;
+      return (data ?? []) as { created_at: string; status: string }[];
+    },
+  );
+  for (const row of campaignSends) {
     if (!ACCEPTED_STATUSES.has(row.status)) continue;
     const bucket = bucketFor(row.created_at);
     totals.sent += 1;
@@ -151,13 +162,20 @@ export async function buildDeliverabilityReport(
       bucket.delivered += 1;
     }
   }
-  const { data: automationSends } = await db
-    .from("email_automation_sends")
-    .select("created_at, status")
-    .eq("status", "sent")
-    .gte("created_at", since)
-    .limit(20000);
-  for (const row of automationSends ?? []) {
+  const automationSends = await fetchAllPostgrestRows<{ created_at: string; status: string }>(
+    async (from, to) => {
+      const { data, error: e } = await db
+        .from("email_automation_sends")
+        .select("created_at, status")
+        .eq("status", "sent")
+        .gte("created_at", since)
+        .order("created_at", { ascending: true })
+        .range(from, to);
+      if (e) throw e;
+      return (data ?? []) as { created_at: string; status: string }[];
+    },
+  );
+  for (const row of automationSends) {
     const bucket = bucketFor(row.created_at);
     totals.sent += 1;
     bucket.sent += 1;
@@ -364,20 +382,26 @@ export async function buildDeliverabilityReport(
     };
   });
 
-  const { data: statusRows } = await db
-    .from("email_contacts")
-    .select("marketing_status")
-    .limit(20000);
+  // Count contacts per marketing_status with HEAD counts — a row fetch is
+  // truncated at PostgREST max-rows (1000), which made "Получает письма" freeze
+  // at 1000 on a 14k+ base. One count per status is 4 cheap round-trips.
   const contact_status: Record<string, number> = {
     active: 0,
     unsubscribed: 0,
     suppressed: 0,
     complained: 0,
   };
-  for (const row of statusRows ?? []) {
-    const s = row.marketing_status as string;
-    contact_status[s] = (contact_status[s] ?? 0) + 1;
-  }
+  const statusCounts = await Promise.all(
+    (["active", "unsubscribed", "suppressed", "complained"] as const).map(async (s) => {
+      const { count, error: e } = await db
+        .from("email_contacts")
+        .select("id", { count: "exact", head: true })
+        .eq("marketing_status", s);
+      if (e) throw e;
+      return [s, count ?? 0] as const;
+    }),
+  );
+  for (const [s, n] of statusCounts) contact_status[s] = n;
 
   const alerts: string[] = [];
   const bounceRate = rate(totals.bounced, Math.max(totals.sent, 1));
