@@ -126,8 +126,13 @@ export async function POST(req: Request) {
 }
 
 function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toISOString().slice(0, 10);
+  // Period bounds are timestamptz. Monday 00:00 MSK is the previous evening in UTC.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 /** Week labels are already the Moscow Monday as YYYY-MM-DD. Do not reparse via UTC. */
@@ -260,7 +265,7 @@ function buildMarkdown(r: SummaryReport): string {
   L(`- **Подписки активные:** ${c("payment_contracts")} ${c("product_kind='subscription', status='active'")}. Гранты — ${c("payments.source='manual'")} с действующим ${c("paid_until")}.`);
   L(`- **Новые:** люди, чей первый успешный settlement подписки этого тарифа попал в период. **Продления:** settlement'ы подписки в периоде, перед которыми у человека уже был успешный settlement подписки того же тарифа. **Отменили** = ${c("cancelled_at")} в периоде (контракт создан в периоде). **Истёк** = ${c("status='cancelled'")} и ${c("current_period_end")} в периоде в прошлом (контракт создан в периоде).`);
   L(`- **Месяцев платит:** число успешных ${c("payment_settlements")} на активном контракте, по ${c("(user_id, tier)")}, бакеты 1 / 2 / 3+.`);
-  L(`- **Вебинары:** все с ${c("starts_at")} в периоде и, если есть, один ближайший будущий. Разовая покупка (${c("one_time")}, ${c("tier='webinar'")}, есть settlement, ${c("refunded_at IS NULL")}, ${c("product_ref")} может быть пустым) относится к ближайшему вебинару с ${c("starts_at >= paid_at")}. «Мастеров» = активные подписки Мастер на эту дату плюс ручные гранты ${c("source='manual', tier='master'")}; один человек считается один раз. «Покупали раньше» = есть более ранний webinar-контракт, отнесённый к другому вебинару.`);
+  L(`- **Вебинары:** все с ${c("starts_at")} в периоде и, если есть, один ближайший будущий. Разовая покупка (${c("one_time")}, ${c("tier='webinar'")}, есть settlement, ${c("refunded_at IS NULL")}, ${c("product_ref")} может быть пустым) относится к ближайшему вебинару, у которого первый час ещё не кончился (${c("starts_at + 60 минут >= paid_at")}). Оплата в первый час после начала считается этим вебинаром, не следующим. «Мастеров» = активные подписки Мастер на эту дату плюс ручные гранты ${c("source='manual', tier='master'")}; один человек считается один раз. «Покупали раньше» = есть более ранний webinar-контракт, отнесённый к другому вебинару.`);
   L(`- **Рассылки:** ${c("email_campaigns")} ${c("status='sent'")}, счётчики из колонок кампании. Цепочки — ${c("email_automation_sends")}: сколько писем ушло и сколько из них приняты (${c("status='sent'")}). Открытия и клики цепочек не пишутся.`);
   L(`- **Регистрации:** ${c("users.onboarded_at")} (не ${c("created_at")} — там лежит и CRM-импорт).`);
   L(`- **Активные:** ${c("users.last_seen_at")} за 7/30 дней.`);

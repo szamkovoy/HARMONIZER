@@ -2,10 +2,14 @@
 id: 02_modules/webinars/history
 title: Webinars History
 version: 3.3
-updated: 2026-09-14
+updated: 2026-11-11
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708140000_webinars.sql]
 ---
+
+## 2026-11-11 — Первый час после старта всё ещё этот вебинар
+
+- Окно пропуска и выбор ближайшего вебинара при оплате включают вебинар, который начался меньше часа назад. Приглашение со ссылкой уходит так же, как при оплате до старта.
 
 ## Decision Log
 

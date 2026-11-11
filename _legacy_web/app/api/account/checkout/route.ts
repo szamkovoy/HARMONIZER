@@ -14,6 +14,7 @@ import {
 } from "../paymentGatewayProfile";
 import { startTierCheckout } from "../tierCheckout";
 import { createYookassaCheckout } from "../yookassaCheckout";
+import { WEBINAR_JOIN_GRACE_HOURS } from "@/modules/webinars/core/webinarTiming";
 
 // Создание платёжного контракта.
 // kind: subscription | pass (30 дней без автопродления) | webinar | book.
@@ -156,7 +157,7 @@ async function resolveWebinarId(
       .from("webinars")
       .select("id")
       .eq("is_published", true)
-      .gte("starts_at", new Date().toISOString())
+      .gte("starts_at", new Date(Date.now() - WEBINAR_JOIN_GRACE_HOURS * 60 * 60 * 1000).toISOString())
       .order("starts_at", { ascending: true })
       .limit(1)
       .maybeSingle();

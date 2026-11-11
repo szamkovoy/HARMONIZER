@@ -9,8 +9,10 @@ import { generateUnsubscribeToken } from "../_utils/emailUnsubscribe";
 import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
 import { purchaseLetterLocale, ownI18nText } from "../_utils/webinarNoticeCopy";
 import { asWidgetLocale } from "../../../lib/paymentWidget/copy";
+import { WEBINAR_JOIN_GRACE_HOURS } from "@/modules/webinars/core/webinarTiming";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const LATE_JOIN_MS = WEBINAR_JOIN_GRACE_HOURS * 60 * 60 * 1000;
 
 export function normalizeBuyerEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -166,9 +168,17 @@ export async function ensureWidgetBuyer(
 
 export type WebinarPassProduct = { credits: number; windowDays: number };
 
-/** Pass window: webinars with starts_at in [paidAt, paidAt + windowDays). */
+/**
+ * Pass window: webinars with starts_at in [paidAt − 1h, paidAt + windowDays).
+ * The hour is the join grace: paying in the first hour after a webinar started
+ * still covers that webinar, and the invite with the room link goes out
+ * the same way as a payment made before the start.
+ */
 export function webinarPassWindow(paidAt: Date, windowDays: number): { from: Date; until: Date } {
-  return { from: paidAt, until: new Date(paidAt.getTime() + windowDays * DAY_MS) };
+  return {
+    from: new Date(paidAt.getTime() - LATE_JOIN_MS),
+    until: new Date(paidAt.getTime() + windowDays * DAY_MS),
+  };
 }
 
 export async function loadWebinarPassProduct(
