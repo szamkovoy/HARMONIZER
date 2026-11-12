@@ -1,11 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.11
-updated: 2026-11-12
+version: 1.12
+updated: 2026-11-13
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-13 — Вкладка «Неуспешные» в платежах
+
+- `/admin/payments` показывает «Все» и «Неуспешные». Вторая вкладка: отказы (`failed`), закрытые продления (`cancelled` с причиной `renewal…` или `lapsed…`) и брошенные pending старше 30 минут. Отдельный статус в базе не появляется.
 
 ## 2026-11-11 — Сводка: час после старта вебинара и понедельник в шапке
 

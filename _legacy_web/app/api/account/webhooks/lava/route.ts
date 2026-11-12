@@ -4,6 +4,9 @@ import { createServiceSupabase, errorResponse, json } from "../../../_utils/supa
 import { settlePayment } from "../../fx";
 import { findPaymentContract, fulfillFirstPaymentSuccess, markContractFailed } from "../../fulfillPaymentContract";
 import { cancelLavaSubscription, nextPeriodEnd } from "../../lava";
+import { sendPaymentAlert } from "../../paymentAlerts";
+import { logPaymentEvent } from "../../paymentEvents";
+import { sendRenewalFailedNotice } from "../../renewalFailedNotice";
 import { resubscribeContactOnPurchase } from "../../widgetFulfillment";
 
 // Приём вебхуков Lava.top (оба типа: «Результат платежа» и «Регулярный платёж»).
@@ -65,16 +68,31 @@ function authorized(req: Request): boolean {
 }
 
 export async function POST(req: Request) {
+  let rawBody: unknown = null;
+  let eventName = "";
   try {
     if (!authorized(req)) {
       return json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = (await req.json().catch(() => null)) as LavaWebhookBody | null;
+    rawBody = body;
     const eventType = body?.eventType ?? "";
+    eventName = eventType;
     const contractId = body?.contractId?.trim();
     if (!body || !eventType || !contractId) {
-      return json({ error: "Malformed webhook body" }, { status: 400 });
+      const response = json({ error: "Malformed webhook body" }, { status: 400 });
+      scheduleAfterResponse(() =>
+        logPaymentEvent(webhookDb(), {
+          provider: "lavatop",
+          eventType: eventType || "malformed",
+          contractId,
+          raw: body,
+          errorMessage: "Malformed webhook body",
+          httpStatus: 400,
+        }),
+      );
+      return response;
     }
 
     console.log("[lava-webhook]", eventType, {
@@ -84,26 +102,46 @@ export async function POST(req: Request) {
       status: body.status ?? null,
     });
 
+    const parentContractId = body.parentContractId?.trim() || contractId;
+    let response: Response;
     switch (eventType) {
       case "payment.success":
-        return await handleFirstPaymentSuccess(contractId, body);
+        response = await handleFirstPaymentSuccess(contractId, body);
+        break;
       case "payment.failed":
-        return await handleFirstPaymentFailed(contractId, body);
+        response = await handleFirstPaymentFailed(contractId, body);
+        break;
       case "subscription.recurring.payment.success":
-        return await handleRenewal(body.parentContractId?.trim() || contractId, body);
+        response = await handleRenewal(parentContractId, body);
+        break;
       case "subscription.recurring.payment.failed":
         // Lava шлёт это событие только по ПОСЛЕДНЕЙ попытке списания
         // (status: subscription-failed); subscription.cancelled после него
         // не приходит. Поэтому событие терминально: закрываем контракт.
-        return await handleRenewalFailed(body.parentContractId?.trim() || contractId, body);
+        response = await handleRenewalFailed(parentContractId, body);
+        break;
       case "subscription.cancelled":
-        return await handleCancelled(body.parentContractId?.trim() || contractId);
+        response = await handleCancelled(parentContractId);
+        break;
       default:
-        return json({ ok: true, ignored: eventType });
+        response = json({ ok: true, ignored: eventType });
     }
+    const snapshot = response.clone();
+    scheduleAfterResponse(() => recordLavaWebhook(body, parentContractId, response.status, snapshot));
+    return response;
   } catch (error) {
     // 5xx -> Lava повторит доставку (до 20 попыток) — правильно для
     // транзиентных ошибок БД.
+    const message = error instanceof Error ? error.message : String(error);
+    scheduleAfterResponse(() =>
+      logPaymentEvent(webhookDb(), {
+        provider: "lavatop",
+        eventType: eventName || "lava.error",
+        errorMessage: message,
+        raw: rawBody,
+        httpStatus: 500,
+      }),
+    );
     return errorResponse(error);
   }
 }
@@ -116,12 +154,17 @@ type ContractRow = {
   current_period_end: string | null;
   product_kind: string | null;
   product_ref: string | null;
+  currency?: string | null;
+  provider?: string | null;
+  buyer_email?: string | null;
 };
 
 async function findContract(db: ReturnType<typeof createServiceSupabase>, contractId: string) {
   const { data, error } = await db
     .from("payment_contracts")
-    .select("user_id,contract_id,tier,status,current_period_end,product_kind,product_ref")
+    .select(
+      "user_id,contract_id,tier,status,current_period_end,product_kind,product_ref,currency,provider,buyer_email",
+    )
     .eq("contract_id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -294,7 +337,71 @@ async function handleRenewalFailed(parentContractId: string, body: LavaWebhookBo
       await cancelLavaSubscription({ contractId: contract.contract_id, email });
     });
   }
+  scheduleAfterResponse(() =>
+    sendRenewalFailedNotice(
+      webhookDb(),
+      {
+        user_id: contract.user_id,
+        contract_id: contract.contract_id,
+        tier: contract.tier,
+        currency: contract.currency,
+        provider: contract.provider ?? "lavatop",
+        buyer_email: contract.buyer_email ?? email ?? null,
+        current_period_end: contract.current_period_end,
+      },
+      email,
+    ),
+  );
   return json({ ok: true, lapsed: contract.contract_id });
+}
+
+async function recordLavaWebhook(
+  body: LavaWebhookBody,
+  parentContractId: string,
+  httpStatus: number,
+  snapshot: Response,
+): Promise<void> {
+  let handled: unknown = null;
+  try {
+    handled = await snapshot.json();
+  } catch {
+    handled = null;
+  }
+  const db = webhookDb();
+  const eventType = body.eventType ?? "unknown";
+  await logPaymentEvent(db, {
+    provider: "lavatop",
+    eventType,
+    contractId: body.contractId ?? parentContractId,
+    parentContractId: body.parentContractId,
+    buyerEmail: body.buyer?.email,
+    amount: typeof body.amount === "number" ? body.amount : null,
+    currency: body.currency,
+    status: body.status,
+    errorMessage: body.errorMessage,
+    raw: body,
+    handledResult: handled,
+    httpStatus,
+  });
+  if (eventType !== "payment.failed" && eventType !== "subscription.recurring.payment.failed") return;
+  const { data } = await db
+    .from("payment_contracts")
+    .select("user_id,tier,product_kind,amount,currency,buyer_email,failure_reason")
+    .eq("contract_id", parentContractId)
+    .maybeSingle();
+  await sendPaymentAlert(db, {
+    eventType,
+    contractId: parentContractId,
+    userId: (data?.user_id as string | null) ?? null,
+    buyerEmail: body.buyer?.email ?? (data?.buyer_email as string | null) ?? null,
+    tier: (data?.tier as string | null) ?? null,
+    productKind: (data?.product_kind as string | null) ?? null,
+    amount: typeof body.amount === "number" ? body.amount : ((data?.amount as number | null) ?? null),
+    currency: body.currency ?? (data?.currency as string | null) ?? null,
+    provider: "lavatop",
+    failureReason: (data?.failure_reason as string | null) ?? body.errorMessage ?? null,
+    raw: body,
+  });
 }
 
 async function handleCancelled(parentContractId: string): Promise<Response> {

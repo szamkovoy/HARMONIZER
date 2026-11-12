@@ -31,6 +31,9 @@ export type PayPageCopy = {
   reminderSubject: string;
   reminderBody: string;
   reminderButton: string;
+  renewalFailedSubject: string;
+  renewalFailedBody: string;
+  renewalFailedButton: string;
 };
 
 const COPY: Record<AppContentLocale, PayPageCopy> = {
@@ -61,6 +64,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "Здравствуйте!\n\nЧерез 12 часов заканчиваются оплаченные 30 дней тарифа «{tier}» в Гармонизаторе. Чтобы практики, прогнозы и диалоги продолжались без перерыва, продлите доступ сейчас — это займёт минуту.",
     reminderButton: "Продлить доступ",
+    renewalFailedSubject: "Продление подписки не прошло",
+    renewalFailedBody:
+      "Здравствуйте!\n\nСписать оплату за продление не получилось. Доступ к Гармонизатору сохраняется до {date}. Чтобы он не прервался, продлите его другой картой, через PayPal или на 30 дней.",
+    renewalFailedButton: "Продлить доступ",
   },
   en: {
     failedTitle: "Payment failed",
@@ -89,6 +96,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "Hello!\n\nYour 30 paid days of the “{tier}” plan in Harmonizer end in 12 hours. To keep your practices, forecasts and conversations going without a break, extend your access now — it takes a minute.",
     reminderButton: "Extend access",
+    renewalFailedSubject: "Your subscription renewal did not go through",
+    renewalFailedBody:
+      "Hello!\n\nThe renewal charge did not go through. Your Harmonizer access stays available until {date}. To keep it without a break, renew with another card, PayPal, or 30 days.",
+    renewalFailedButton: "Renew access",
   },
   de: {
     failedTitle: "Zahlung fehlgeschlagen",
@@ -117,6 +128,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "Hallo!\n\nIhre 30 bezahlten Tage im Tarif „{tier}“ im Harmonizer enden in 12 Stunden. Damit Ihre Übungen, Prognosen und Gespräche ohne Unterbrechung weitergehen, verlängern Sie den Zugang jetzt – das dauert nur eine Minute.",
     reminderButton: "Zugang verlängern",
+    renewalFailedSubject: "Die Verlängerung des Abonnements ist nicht gelungen",
+    renewalFailedBody:
+      "Guten Tag!\n\nDie Zahlung für die Verlängerung ist nicht durchgegangen. Ihr Zugang zu Harmonizer bleibt bis zum {date} bestehen. Damit er nicht abbricht, verlängern Sie ihn mit einer anderen Karte, über PayPal oder für 30 Tage.",
+    renewalFailedButton: "Zugang verlängern",
   },
   fr: {
     failedTitle: "Le paiement a échoué",
@@ -145,6 +160,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "Bonjour !\n\nVos 30 jours payés de l’offre « {tier} » dans Harmonizer se terminent dans 12 heures. Pour que vos pratiques, prévisions et dialogues continuent sans interruption, prolongez votre accès maintenant — cela prend une minute.",
     reminderButton: "Prolonger l’accès",
+    renewalFailedSubject: "Le renouvellement de l’abonnement n’a pas abouti",
+    renewalFailedBody:
+      "Bonjour !\n\nLe prélèvement du renouvellement n’est pas passé. Votre accès à Harmonizer reste ouvert jusqu’au {date}. Pour qu’il ne s’interrompe pas, prolongez-le avec une autre carte, via PayPal ou pour 30 jours.",
+    renewalFailedButton: "Prolonger l’accès",
   },
   it: {
     failedTitle: "Pagamento non riuscito",
@@ -173,6 +192,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "Ciao!\n\nI tuoi 30 giorni pagati del piano «{tier}» in Harmonizer terminano tra 12 ore. Perché pratiche, previsioni e dialoghi continuino senza interruzioni, rinnova l’accesso adesso: ci vuole un minuto.",
     reminderButton: "Rinnova l’accesso",
+    renewalFailedSubject: "Il rinnovo dell’abbonamento non è andato a buon fine",
+    renewalFailedBody:
+      "Buongiorno!\n\nL’addebito del rinnovo non è riuscito. L’accesso a Harmonizer resta disponibile fino al {date}. Perché non si interrompa, rinnovatelo con un’altra carta, con PayPal oppure per 30 giorni.",
+    renewalFailedButton: "Rinnova l’accesso",
   },
   es: {
     failedTitle: "El pago no se ha completado",
@@ -201,6 +224,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "¡Hola!\n\nTus 30 días pagados del plan «{tier}» en Harmonizer terminan en 12 horas. Para que tus prácticas, previsiones y diálogos sigan sin interrupción, amplía el acceso ahora: solo te llevará un minuto.",
     reminderButton: "Ampliar el acceso",
+    renewalFailedSubject: "La renovación de la suscripción no se ha completado",
+    renewalFailedBody:
+      "Hola:\n\nEl cobro de la renovación no se ha realizado. Tu acceso a Harmonizer sigue disponible hasta el {date}. Para que no se interrumpa, renuévalo con otra tarjeta, con PayPal o por 30 días.",
+    renewalFailedButton: "Renovar el acceso",
   },
   pt: {
     failedTitle: "O pagamento não foi concluído",
@@ -229,6 +256,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "Olá!\n\nOs seus 30 dias pagos do plano «{tier}» no Harmonizer terminam daqui a 12 horas. Para que as práticas, previsões e diálogos continuem sem interrupção, prolongue o acesso agora — leva um minuto.",
     reminderButton: "Prolongar o acesso",
+    renewalFailedSubject: "A renovação da subscrição não foi concluída",
+    renewalFailedBody:
+      "Olá!\n\nA cobrança da renovação não passou. O seu acesso ao Harmonizer mantém-se até {date}. Para não se interromper, renove-o com outro cartão, pelo PayPal ou por 30 dias.",
+    renewalFailedButton: "Prolongar o acesso",
   },
   nl: {
     failedTitle: "Betaling mislukt",
@@ -257,6 +288,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderBody:
       "Hallo!\n\nJe 30 betaalde dagen van het abonnement ‘{tier}’ in Harmonizer eindigen over 12 uur. Verleng je toegang nu, zodat je oefeningen, voorspellingen en gesprekken zonder onderbreking doorgaan — het kost maar een minuut.",
     reminderButton: "Toegang verlengen",
+    renewalFailedSubject: "De verlenging van het abonnement is niet gelukt",
+    renewalFailedBody:
+      "Hallo!\n\nDe afschrijving voor de verlenging is niet gelukt. Je toegang tot Harmonizer blijft tot {date}. Zodat die niet onderbreekt, verleng je hem met een andere kaart, via PayPal of voor 30 dagen.",
+    renewalFailedButton: "Toegang verlengen",
   },
 };
 

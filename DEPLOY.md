@@ -80,6 +80,7 @@ Required Vercel environment variables:
 - `GROQ_API_KEY` - Groq Whisper key for `/api/communicator/v2/transcribe` (primary STT).
 - `OPENAI_API_KEY` - OpenAI Whisper (`whisper-1`) fallback when Groq returns 429/5xx or circuit is open.
 - `SENTRY_DSN=https://fa0cbb049716d242310a11464f1684e2@o4511304250884096.ingest.de.sentry.io/4511304290533456` - Sentry project DSN for backend error monitoring.
+- `PAYMENT_ALERT_EMAIL` - inbox for a failed charge, a failed renewal, and an invoice that could not be created. Missing value skips the letter and does not fail the webhook.
 
 Optional environment variables:
 

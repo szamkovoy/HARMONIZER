@@ -1,4 +1,8 @@
+import { after } from "next/server";
+
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
+import { sendPaymentAlert, type PaymentAlertInput } from "../../paymentAlerts";
+import { logPaymentEvent } from "../../paymentEvents";
 import {
   findPaymentContract,
   fulfillFirstPaymentSuccess,
@@ -92,17 +96,70 @@ async function persistPaymentMethodIfAny(
   }
 }
 
+function noteYookassa(
+  response: Response,
+  input: {
+    eventType: string;
+    raw: unknown;
+    contractId?: string | null;
+    buyerEmail?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    status?: string | null;
+    errorMessage?: string | null;
+    alert?: PaymentAlertInput | null;
+  },
+): Response {
+  const snapshot = response.clone();
+  after(async () => {
+    try {
+      let handled: unknown = null;
+      try {
+        handled = await snapshot.json();
+      } catch {
+        handled = null;
+      }
+      const db = createServiceSupabase();
+      await logPaymentEvent(db, {
+        provider: "yookassa",
+        eventType: input.eventType,
+        contractId: input.contractId,
+        amount: input.amount,
+        currency: input.currency,
+        status: input.status,
+        errorMessage: input.errorMessage,
+        raw: input.raw,
+        handledResult: handled,
+        httpStatus: response.status,
+        buyerEmail: input.buyerEmail,
+      });
+      if (input.alert) await sendPaymentAlert(db, input.alert);
+    } catch (err) {
+      console.error("[yookassa-webhook] journal failed", err);
+    }
+  });
+  return response;
+}
+
 export async function POST(req: Request): Promise<Response> {
+  let rawBody: unknown = null;
+  let eventName = "";
   try {
     if (!authorized(req)) {
       return json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = (await req.json().catch(() => null)) as YookassaNotification | null;
+    rawBody = body;
     const event = body?.event ?? "";
+    eventName = event;
     const objectId = body?.object?.id?.trim();
     if (!body || !event || !objectId) {
-      return json({ error: "Malformed webhook body" }, { status: 400 });
+      return noteYookassa(json({ error: "Malformed webhook body" }, { status: 400 }), {
+        eventType: event || "malformed",
+        raw: body,
+        errorMessage: "Malformed webhook body",
+      });
     }
 
     if (event === "refund.succeeded") {
@@ -111,24 +168,51 @@ export async function POST(req: Request): Promise<Response> {
       const originalPaymentId = refundObj?.payment_id?.trim() || "";
       if (!originalPaymentId) {
         console.warn("[yookassa-webhook] refund.succeeded without payment_id", objectId);
-        return json({ ok: true, ignored: "refund_without_payment_id" });
+        return noteYookassa(json({ ok: true, ignored: "refund_without_payment_id" }), {
+          eventType: event,
+          raw: body,
+          errorMessage: "refund_without_payment_id",
+        });
       }
       const payment = await fetchYookassaPayment(originalPaymentId);
       const contractId = payment.metadata?.contractId?.trim() || "";
       if (!contractId) {
-        return json({ ok: true, unknownContract: true });
+        return noteYookassa(json({ ok: true, unknownContract: true }), {
+          eventType: event,
+          raw: body,
+          errorMessage: "unknownContract",
+        });
       }
       const db = createServiceSupabase();
       const contract = await findPaymentContract(db, contractId);
-      if (!contract) return json({ ok: true, unknownContract: true });
-      if (contract.status === "refunded") return json({ ok: true, already: true });
+      if (!contract) {
+        return noteYookassa(json({ ok: true, unknownContract: true }), {
+          eventType: event,
+          raw: body,
+          contractId,
+          errorMessage: "unknownContract",
+        });
+      }
+      if (contract.status === "refunded") {
+        return noteYookassa(json({ ok: true, already: true }), {
+          eventType: event,
+          raw: body,
+          contractId,
+          status: "refunded",
+        });
+      }
       await markContractAndSettlementsRefunded(db, {
         contract_id: contract.contract_id,
         user_id: contract.user_id,
         product_kind: contract.product_kind,
         tier: contract.tier,
       });
-      return json({ ok: true, refunded: contractId, refundId: refundObj?.id ?? objectId });
+      return noteYookassa(json({ ok: true, refunded: contractId, refundId: refundObj?.id ?? objectId }), {
+        eventType: event,
+        raw: body,
+        contractId,
+        status: "refunded",
+      });
     }
 
     const payment = await fetchYookassaPayment(objectId);
@@ -149,14 +233,25 @@ export async function POST(req: Request): Promise<Response> {
 
     if (!contractId) {
       console.warn("[yookassa-webhook] missing metadata.contractId", payment.id);
-      return json({ ok: true, unknownContract: true });
+      return noteYookassa(json({ ok: true, unknownContract: true }), {
+        eventType: event,
+        raw: body,
+        status: payment.status,
+        errorMessage: "missing contractId",
+      });
     }
 
     const db = createServiceSupabase();
     const contract = await findPaymentContract(db, contractId);
     if (!contract) {
       console.warn("[yookassa-webhook] unknown contract", contractId);
-      return json({ ok: true, unknownContract: true });
+      return noteYookassa(json({ ok: true, unknownContract: true }), {
+        eventType: event,
+        raw: body,
+        contractId,
+        status: payment.status,
+        errorMessage: "unknownContract",
+      });
     }
 
     if (payment.id) {
@@ -175,7 +270,12 @@ export async function POST(req: Request): Promise<Response> {
 
     if (event === "payment.succeeded" || payment.status === "succeeded") {
       if (payment.status !== "succeeded") {
-        return json({ ok: true, ignored: "notification ahead of status" });
+        return noteYookassa(json({ ok: true, ignored: "notification ahead of status" }), {
+          eventType: event,
+          raw: body,
+          contractId,
+          status: payment.status,
+        });
       }
 
       await persistPaymentMethodIfAny(db, contractId, contract.user_id, payment);
@@ -188,7 +288,15 @@ export async function POST(req: Request): Promise<Response> {
           paidAt: payment.created_at ?? new Date().toISOString(),
           logTag: "yookassa-webhook",
         });
-        return json(result);
+        return noteYookassa(json(result), {
+          eventType: event,
+          raw: body,
+          contractId,
+          amount: parseAmount(payment),
+          currency: payment.amount?.currency ?? "RUB",
+          status: payment.status,
+          buyerEmail: contract.buyer_email,
+        });
       }
 
       const result = await fulfillFirstPaymentSuccess(db, {
@@ -199,7 +307,15 @@ export async function POST(req: Request): Promise<Response> {
         provider: "yookassa",
         logTag: "yookassa-webhook",
       });
-      return json(result);
+      return noteYookassa(json(result), {
+        eventType: event,
+        raw: body,
+        contractId,
+        amount: parseAmount(payment),
+        currency: payment.amount?.currency ?? "RUB",
+        status: payment.status,
+        buyerEmail: contract.buyer_email,
+      });
     }
 
     if (event === "payment.canceled" || payment.status === "canceled") {
@@ -210,18 +326,79 @@ export async function POST(req: Request): Promise<Response> {
           paymentMethodId: payment.payment_method?.id ?? contract.payment_method_id,
           reason: payment.cancellation_details?.reason ?? "canceled",
         });
-        return json({ ok: true, renewalFailed: true, ...outcome });
+        const reason = payment.cancellation_details?.reason ?? "canceled";
+        return noteYookassa(json({ ok: true, renewalFailed: true, ...outcome }), {
+          eventType: "yookassa.renewal.failed",
+          raw: body,
+          contractId,
+          amount: parseAmount(payment),
+          currency: payment.amount?.currency ?? "RUB",
+          status: payment.status,
+          errorMessage: reason,
+          buyerEmail: contract.buyer_email,
+          alert: {
+            eventType: "yookassa.renewal.failed",
+            contractId,
+            userId: contract.user_id,
+            buyerEmail: contract.buyer_email,
+            tier: contract.tier,
+            productKind: contract.product_kind,
+            amount: parseAmount(payment),
+            currency: payment.amount?.currency ?? "RUB",
+            provider: "yookassa",
+            failureReason: reason,
+            raw: body,
+          },
+        });
       }
 
-      await markContractFailed(db, contractId, yookassaFailureReason(payment));
+      const failureReason = yookassaFailureReason(payment);
+      await markContractFailed(db, contractId, failureReason);
       if (contract.status === "active") {
         await markContractCancelled(db, contractId);
       }
-      return json({ ok: true, canceled: contractId });
+      return noteYookassa(json({ ok: true, canceled: contractId }), {
+        eventType: "payment.canceled",
+        raw: body,
+        contractId,
+        amount: parseAmount(payment),
+        currency: payment.amount?.currency ?? "RUB",
+        status: payment.status,
+        errorMessage: failureReason,
+        buyerEmail: contract.buyer_email,
+        alert: {
+          eventType: "payment.canceled",
+          contractId,
+          userId: contract.user_id,
+          buyerEmail: contract.buyer_email,
+          tier: contract.tier,
+          productKind: contract.product_kind,
+          amount: parseAmount(payment),
+          currency: payment.amount?.currency ?? "RUB",
+          provider: "yookassa",
+          failureReason,
+          raw: body,
+        },
+      });
     }
 
-    return json({ ok: true, ignored: event });
+    return noteYookassa(json({ ok: true, ignored: event }), {
+      eventType: event,
+      raw: body,
+      contractId,
+      status: payment.status,
+    });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    after(async () => {
+      await logPaymentEvent(createServiceSupabase(), {
+        provider: "yookassa",
+        eventType: eventName || "yookassa.error",
+        errorMessage: message,
+        raw: rawBody,
+        httpStatus: 500,
+      });
+    });
     return errorResponse(error);
   }
 }

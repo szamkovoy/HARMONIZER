@@ -4,6 +4,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { fulfillYookassaRenewal, markContractCancelled } from "./fulfillPaymentContract";
+import { sendPaymentAlert } from "./paymentAlerts";
+import { logPaymentEvent } from "./paymentEvents";
 import { chargeYookassaSavedMethod } from "./yookassa";
 
 const RENEW_WINDOW_MS = 36 * 60 * 60 * 1000;
@@ -177,6 +179,7 @@ export async function runYookassaRenewals(db: SupabaseClient): Promise<{
           paymentMethodId: methodId,
           reason,
         });
+        await noteYookassaRenewalFailure(db, contract, reason, payment);
         failed += 1;
       } else {
         // pending — wait for webhook
@@ -184,15 +187,47 @@ export async function runYookassaRenewals(db: SupabaseClient): Promise<{
       }
     } catch (err) {
       console.error("[yookassa-cron] charge failed", contract.contract_id, err);
+      const reason = err instanceof Error ? err.message : String(err);
       await handleYookassaRenewalFailure(db, {
         contractId: contract.contract_id,
         userId: contract.user_id,
         paymentMethodId: methodId,
-        reason: err instanceof Error ? err.message : String(err),
+        reason,
       });
+      await noteYookassaRenewalFailure(db, contract, reason, null);
       failed += 1;
     }
   }
 
   return { scanned: due.length, charged, succeeded, failed, skipped };
+}
+
+async function noteYookassaRenewalFailure(
+  db: SupabaseClient,
+  contract: DueContract,
+  reason: string,
+  raw: unknown,
+): Promise<void> {
+  await logPaymentEvent(db, {
+    provider: "yookassa",
+    eventType: "yookassa.renewal.failed",
+    contractId: contract.contract_id,
+    amount: contract.amount,
+    currency: contract.currency,
+    status: "canceled",
+    errorMessage: reason,
+    raw,
+  });
+  await sendPaymentAlert(db, {
+    eventType: "yookassa.renewal.failed",
+    contractId: contract.contract_id,
+    userId: contract.user_id,
+    tier: contract.tier,
+    productKind: "subscription",
+    amount: contract.amount,
+    currency: contract.currency,
+    provider: "yookassa",
+    failureReason: reason,
+    raw,
+  });
 }

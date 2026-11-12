@@ -7,11 +7,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { adminFetch } from "../_lib/adminApi";
 import { useAdminInfiniteScroll } from "../_lib/useAdminInfiniteScroll";
 import { PaymentHistorySection } from "./_components/PaymentHistorySection";
+import { UnsuccessfulPayments } from "./_components/UnsuccessfulPayments";
 import type { AdminPaymentRow } from "../users/_types/payments";
 
 const PAGE_SIZE = 50;
 
 export default function AdminPaymentsPage() {
+  const [tab, setTab] = useState<"all" | "unsuccessful">("all");
   const [payments, setPayments] = useState<AdminPaymentRow[] | null>(null);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -99,13 +101,32 @@ export default function AdminPaymentsPage() {
         </div>
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
-      {payments === null && !error ? (
+      <div className="mb-4 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setTab("all")}
+          className={`rounded-full px-3 py-1.5 text-sm ${tab === "all" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+        >
+          Все
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("unsuccessful")}
+          className={`rounded-full px-3 py-1.5 text-sm ${tab === "unsuccessful" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+        >
+          Неуспешные
+        </button>
+      </div>
+
+      {tab === "unsuccessful" ? <UnsuccessfulPayments /> : null}
+
+      {tab === "all" && error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {tab === "all" && payments === null && !error ? (
         <p className="flex items-center gap-2 text-sm text-zinc-500">
           <Loader2 size={16} className="animate-spin" /> Загружаю…
         </p>
       ) : null}
-      {payments ? (
+      {tab === "all" && payments ? (
         <>
           <PaymentHistorySection
             payments={payments}

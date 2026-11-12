@@ -1,9 +1,16 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.29
+version: 1.30
 updated: 2026-11-13
 ---
+
+## 2026-11-13 — Журнал оплат и письма о сбое
+
+- `payment_events` пишет каждое принятое событие Lava и ЮKassa после ответа, плюс сверку, cron продлений ЮKassa и отказ или ошибку создания счёта. Сбой записи не меняет ответ.
+- Письмо на `PAYMENT_ALERT_EMAIL` — после ответа, один раз на `contract_id` + `event_type` (`payment_alert_sends`). События: `payment.failed`, `subscription.recurring.payment.failed`, отмена ЮKassa и отказ её продления, ошибка создания счёта, `FAILED` сверки Lava. Зачистка SQL письмо не шлёт.
+- Покупателю при `recurring.payment.failed` после ответа уходит письмо на `users.locale`: доступ до `current_period_end`, кнопка `/pay/renew`.
+- Сверка Lava при `FAILED` пишет `failure_reason` = `reconcile: invoice FAILED`. Миграция `20261113093000` в репозитории, на базу ещё не накатывалась.
 
 ## 2026-11-13 — Подписка без продления перестаёт действовать
 
