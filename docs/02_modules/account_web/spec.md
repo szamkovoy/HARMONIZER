@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.25
+version: 1.26
 updated: 2026-11-13
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
@@ -210,6 +210,7 @@ else                                →  fail-closed
 - **Ограничения продажи**: 30 дней не продаём при активной подписке (её продление переписало бы `membership_*`) и при действующем более высоком тарифе; подписку не продаём ниже действующего оплаченного тарифа. Подписка того же тарифа поверх оплаченных 30 дней не укорачивает доступ.
 - **Причина отказа**: `payment_contracts.failure_reason` — Lava `errorMessage`, ЮKassa `party:reason` из `cancellation_details`.
 - **Напоминание**: раз в час (cron `send_pass_reminders_hourly`, :45; Postgres сначала проверяет, есть ли кому писать) — одно письмо за ≤12 часов до `current_period_end` (`pass_reminder_sent_at`): за три дня человек откладывает оплату. Миграция `20261108180153`. Ранняя оплата 30 дней того же тарифа считается от конца текущих, поэтому новое письмо придёт перед новым концом; старый контракт помечается без письма. Не уходит, если человек уже продлил (подписка или следующие 30 дней). Кнопка ведёт на `/pay/renew`. Язык — `users.locale`, даты — Luxon.
+- **Отказ первой оплаты тарифа**: cron `reconcile_lava_payments_every_10m` после сверки вызывает `runPaymentFailedNotices`. Postgres зовёт Vercel, только если есть pending-счёт Lava 10–22 минут или кандидат на это письмо. Кандидат: `failed`, tier oracle|master, подписка или `product_ref=pass_30d`, `user_id` есть, `failed_notice_sent_at` пуст, `updated_at` от 30 минут до 24 часов назад, `failure_reason` не начинается с `Cancelled by customer`. На пользователя уходит письмо только по самому свежему отказу; остальные кандидаты помечаются без письма. Письмо не уходит (но контракт помечается), если после отказа уже есть active-подписка или 30 дней того же круга «доступ», если `paidTierFromRow` не пуст, или если такое письмо уже уходило за 24 часа. Кнопка — `/pay/failed?t=`, токен на 10 дней, язык `users.locale`. Событие `notice.payment_failed` в `payment_events`. Миграция `20261113140000` в репозитории, на базу не накатывалась.
 - **Возврат** 30 дней пересчитывает тариф как возврат подписки (`revokeOrRestoreMembershipAfterRefund` учитывает и такие контракты). `purchases/last` их не отдаёт, чтобы не перекрыть благодарность за вебинар или книгу.
 
 ## 4. Конфигурация

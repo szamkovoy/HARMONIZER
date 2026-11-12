@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.87
+version: 3.88
 updated: 2026-11-13
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-13 (681): Письмо покупателю, если первая оплата тарифа (подписка или 30 дней) не прошла: одно на человека, кнопка на `/pay/failed`, не шлём при уже оплаченном доступе. Cron сверки Lava, Postgres зовёт его только когда есть работа. Миграция `20261113140000` в репозитории, на базу не накатывалась. Docs `account_web`.
 - 2026-11-13 (680): Письмо админу об отказе продления ЮKassa дедуплицируется по контракту и московской дате, а не один раз навсегда. Docs `account_web`.
 - 2026-11-13 (679): Журнал `payment_events`, письмо админу на `PAYMENT_ALERT_EMAIL` и письмо покупателю, если продление не прошло. В `/admin/payments` вкладка «Неуспешные» (отказ, закрытое продление, pending старше 30 минут). Сверка Lava при `FAILED` пишет `reconcile: invoice FAILED`. Миграция `20261113093000` в репозитории, на базу не накатывалась. Docs `account_web`, `admin_panel`.
 - 2026-11-13 (678): Подписка действует, только если `active` и `current_period_end + 48ч > now()`. `subscription.recurring.payment.failed` закрывает контракт (`cancelled`, `failure_reason` = `renewal: …`). `lapse_stale_subscriptions` (72ч) вызывается из hourly reconcile. Первая оплата Lava идёт только через `fulfillFirstPaymentSuccess`. Миграция `20261113090000`. Docs `account_web`, `subscription`.

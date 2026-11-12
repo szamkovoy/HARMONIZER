@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.11
+version: 1.12
 updated: 2026-11-13
 depends_on: [02_modules/account_web/spec]
 code_refs:
@@ -23,7 +23,7 @@ code_refs:
 - **`subscription`** — `baseTierFromRow` / `hasActiveTrial` / `TIER_ORDER` для детекта смены уровня; `VISIBLE_PAID_PRODUCT_TIERS` для `upgradeTiers` в overview. Сервер использует vendored-копию `_legacy_web/modules/access` (`scripts/sync-vercel-server-modules.mjs`).
 - **`i18n`** — тексты `gate.*` и `tier.*` из JSON-каталога; язык страницы кабинета передаётся параметром `lang` (из `getResponseLocale()`), словари страницы зашиты в `web_cabinet/cabinet/index.html` (8 локалей) и НЕ входят в i18n-sync gate.
 - **`infra`** — Vercel-роуты `/api/account/*` (общие утилиты `_legacy_web/app/api/_utils/supabase.ts`); Supabase-таблицы `web_ott_tokens`, `app_config`, `payment_contracts`, `payment_events`, `payment_alert_sends`; publication `supabase_realtime` для `users`.
-- **`marketing_email`** — письмо о конце оплаченных 30 дней тарифа уходит через `sendMarketingEmail` / `wrapMarketingEmailHtml` без футера отписки (письмо о покупке). `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
+- **`marketing_email`** — письма о конце оплаченных 30 дней, об отказе продления и об отказе первой оплаты тарифа уходят через `sendMarketingEmail` / `wrapMarketingEmailHtml` без футера отписки (письмо о покупке). `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
 - **`location`** — `resolveBillingGeo`: приоритет `users.country_code` (только GPS/Nominatim; не обнуляется при позднем отказе в гео), иначе эфемерный `GET /api/geo/ip-country` (VPN egress = страна VPN; **не** пишется в `users.country_code`). Таймаут 800 мс без sticky EUR/IP в SecureStore. Сервер: Vercel `x-vercel-ip-country`, fallback **ipwho.is**.
 - **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava или ЮKassa: вебхук успеха upsert `webinar_registrations`; `MembershipEventsBridge` детектит one_time `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground; кнопки «Отменить запись» нет.
 - **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice` (для тарифа — с `successful_return_url` / `failure_return_url` / `cancel_return_url` и при PayPal `paymentMethod: PAYPAL`), `GET /api/v1/invoices/{id}` (один-два раза, только если pending-счёт висит 10–22 минуты), `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions`, вебхуки `/api/account/webhooks/lava`. Маппинг — `payment_offers`. Используется при `PAYMENT_LAVATOP_ENABLED` + `REGION=INT` (или country-match). См. `lava_integration.md`, `docs/04_workspace/payment_gateways.md`.
