@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.9
-updated: 2026-09-14
+version: 1.10
+updated: 2026-11-08
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -23,11 +23,11 @@ code_refs:
 - **`subscription`** — `baseTierFromRow` / `hasActiveTrial` / `TIER_ORDER` для детекта смены уровня; `VISIBLE_PAID_PRODUCT_TIERS` для `upgradeTiers` в overview. Сервер использует vendored-копию `_legacy_web/modules/access` (`scripts/sync-vercel-server-modules.mjs`).
 - **`i18n`** — тексты `gate.*` и `tier.*` из JSON-каталога; язык страницы кабинета передаётся параметром `lang` (из `getResponseLocale()`), словари страницы зашиты в `web_cabinet/cabinet/index.html` (8 локалей) и НЕ входят в i18n-sync gate.
 - **`infra`** — Vercel-роуты `/api/account/*` (общие утилиты `_legacy_web/app/api/_utils/supabase.ts`); Supabase-таблицы `web_ott_tokens`, `app_config`, `payment_contracts`; publication `supabase_realtime` для `users`.
-- **`marketing_email`** — `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
+- **`marketing_email`** — письмо о конце оплаченных 30 дней тарифа уходит через `sendMarketingEmail` / `wrapMarketingEmailHtml` без футера отписки (письмо о покупке). `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
 - **`location`** — `resolveBillingGeo`: приоритет `users.country_code` (только GPS/Nominatim; не обнуляется при позднем отказе в гео), иначе эфемерный `GET /api/geo/ip-country` (VPN egress = страна VPN; **не** пишется в `users.country_code`). Таймаут 800 мс без sticky EUR/IP в SecureStore. Сервер: Vercel `x-vercel-ip-country`, fallback **ipwho.is**.
 - **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava или ЮKassa: вебхук успеха upsert `webinar_registrations`; `MembershipEventsBridge` детектит one_time `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground; кнопки «Отменить запись» нет.
-- **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice`, `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions`, вебхуки `/api/account/webhooks/lava`. Маппинг — `payment_offers`. Используется при `PAYMENT_LAVATOP_ENABLED` + `REGION=INT` (или country-match). См. `lava_integration.md`, `docs/04_workspace/payment_gateways.md`.
-- **ЮKassa (внешний)** — `api.yookassa.ru/v3`: create payment (redirect; подписки с `save_payment_method`, 403 → retry без save), charge saved method, GET payment, POST refund (админка); уведомления на `/api/account/webhooks/yookassa` (+ `refund.succeeded`). Цены RUB — `payment_catalog`. Выбор — `resolvePaymentGateway({ country })` (`PAYMENT_YOOKASSA_ENABLED` + `REGION`). Cron `/api/cron/yookassa-renewals`. Cancel/wipe → methods `inactive`. Fee 2.5% (`YANDEX_GATEWAY_FEE_RATE`). Ops: `docs/04_workspace/payment_gateways.md`.
+- **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v2/invoice` (для тарифа — с `successful_return_url` / `failure_return_url` / `cancel_return_url` и при PayPal `paymentMethod: PAYPAL`), `GET /api/v1/invoices/{id}` (один-два раза, только если pending-счёт висит 10–22 минуты), `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions`, вебхуки `/api/account/webhooks/lava`. Маппинг — `payment_offers`. Используется при `PAYMENT_LAVATOP_ENABLED` + `REGION=INT` (или country-match). См. `lava_integration.md`, `docs/04_workspace/payment_gateways.md`.
+- **ЮKassa (внешний)** — `api.yookassa.ru/v3`: create payment (redirect; подписки с `save_payment_method`, 403 → retry без save; тариф возвращается на `/pay/return`, статус читаем GET payment), charge saved method, GET payment, POST refund (админка); уведомления на `/api/account/webhooks/yookassa` (+ `refund.succeeded`). Цены RUB — `payment_catalog`. Выбор — `resolvePaymentGateway({ country })` (`PAYMENT_YOOKASSA_ENABLED` + `REGION`). Cron `/api/cron/yookassa-renewals`. Cancel/wipe → methods `inactive`. Fee 2.5% (`YANDEX_GATEWAY_FEE_RATE`). Ops: `docs/04_workspace/payment_gateways.md`.
 - **FX-источники (внешние, settlement)** — Т-Банк `GET https://api.tinkoff.ru/v1/currency_rates` (категория `DebitCardsOperations`); ЦБ через `https://www.cbr-xml-daily.ru/daily_json.js`. Цепочка T-Bank → CBR; суточный кэш `fx_daily_quotes` (дата по Москве); при сбое Т-Банка в этот день — только ЦБ до завтра. Результаты — `payment_settlements` + net-колонки на `payment_contracts`.
 
 ## 2. От него зависят
@@ -48,4 +48,5 @@ code_refs:
 - **Хостинг кабинета** — standalone HTML на том же origin (`https://zamkovoi.yoga`), иначе CORS сломает `session`/`overview`. После оплаты ЮKassa return без OTT опирается на `sessionStorage` кабинетной сессии.
 - **Маппинг `payment_offers`** — Lava: язык/тариф = строка + продукт в Lava. ЮKassa RUB — строки `payment_catalog`.
 - **Вебхуки Lava** — 2xx останавливает ретраи: «неизвестный контракт» → 200; транзиентные ошибки БД — 5xx. Смена `LAVATOP_WEBHOOK_SECRET` — одновременно в ЛК Lava и Vercel.
+- **Страницы `/pay/*`** — живут на `harmonizer.zamkovoi.yoga` (REG.RU-прокси; 303 и urlencoded-формы проходят). Токен подписан `ACCOUNT_CABINET_SECRET`: ротация секрета гасит ссылки «Оплата не удалась» (24 ч) и из писем о продлении (10 дней) — человек попадёт на «Ссылка устарела» → кабинет. Разовые продукты Lava «30 дней» — `payment_offers` `oracle_30d` / `master_30d`; цены в Lava задаются вручную в карточках.
 - **Вебхуки ЮKassa** — всегда перечитываем payment через API; опц. `YOOKASSA_WEBHOOK_SECRET`. URL уведомлений в кабинете ЮKassa должен совпадать с production Vercel origin.

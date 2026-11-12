@@ -11,7 +11,13 @@ export type { TransitProvider } from "./computeDailyForecast";
 export { AstronomiaTransitProvider, computeDailyForecastWithAstronomia } from "./ephemeris";
 export { computeActivation, computeImportance, effectiveNatalParams } from "./core/activation";
 export { findAspect } from "./core/aspects";
-export { chooseFinalPlanet, rankPlanets } from "./core/chooseFinalPlanet";
+export {
+  chooseFinalPlanet,
+  forecastRepeatsPreviousDays,
+  priorForecastDates,
+  rankPlanets,
+  recentPlanetsFromHistory,
+} from "./core/chooseFinalPlanet";
 export type {
   ActivationContribution,
   AspectType,

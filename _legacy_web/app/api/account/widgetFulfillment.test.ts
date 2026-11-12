@@ -16,7 +16,12 @@ describe("webinarPassWindow", () => {
     expect(counts("2026-10-03T15:00:00+03:00", "2026-10-31T11:00:00+03:00")).toBe(true);
     // Paid 3 Oct 10:00 → window ends 31 Oct 10:00, the 11:00 webinar is outside.
     expect(counts("2026-10-03T10:00:00+03:00", "2026-10-31T11:00:00+03:00")).toBe(false);
-    // A webinar that started before payment never counts.
+    // Paid 8 minutes after the start: still this webinar.
+    expect(counts("2026-11-07T11:08:00+03:00", "2026-11-07T11:00:00+03:00")).toBe(true);
+    // The grace is the first 60 minutes, inclusive of the boundary.
+    expect(counts("2026-11-07T12:00:00+03:00", "2026-11-07T11:00:00+03:00")).toBe(true);
+    expect(counts("2026-11-07T12:01:00+03:00", "2026-11-07T11:00:00+03:00")).toBe(false);
+    // A webinar that started hours earlier does not count.
     expect(counts("2026-10-03T15:00:00+03:00", "2026-10-03T11:00:00+03:00")).toBe(false);
   });
 });

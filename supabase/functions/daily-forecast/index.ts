@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { computeDailyForecast, dailyForecastToInsert } from "../_shared/dailyForecast.ts";
+import { alternativeChoiceNote } from "../_shared/alternativeChoiceNote.ts";
+import { computeDailyForecast, dailyForecastToInsert, priorForecastDates, recentPlanetsFromHistory } from "../_shared/dailyForecast.ts";
 
 /**
  * POST: дневной прогноз M2.
@@ -245,13 +246,18 @@ async function restUpsert(table: string, onConflict: string, payload: Record<str
   return Array.isArray(data) ? data[0] : data;
 }
 
-async function loadRecentPlanets(userId: string): Promise<string[]> {
-  const data = await maybeSingle(
-    "user_settings",
-    `select=preferences&user_id=eq.${encodeURIComponent(userId)}`,
+async function loadRecentPlanets(userId: string, forecastDate: string): Promise<string[]> {
+  const [yesterday, dayBefore] = priorForecastDates(forecastDate);
+  if (!yesterday || !dayBefore) return [];
+  const rows = await restSelect(
+    "user_daily_forecasts",
+    [
+      "select=forecast_date,planet_of_the_day",
+      `user_id=eq.${encodeURIComponent(userId)}`,
+      `forecast_date=in.(${yesterday},${dayBefore})`,
+    ].join("&"),
   );
-  const recent = data?.preferences?.recentPlanetsOfDay;
-  return Array.isArray(recent) ? recent.slice(0, 2) : [];
+  return recentPlanetsFromHistory(forecastDate, rows);
 }
 
 async function loadActiveCalibration(userId: string) {
@@ -332,6 +338,7 @@ Deno.serve(async (req) => {
       forecastDate?: string;
       userLocation?: { lat: number; lng: number; timezone: string };
       recentPlanetsOfDay?: string[];
+      responseLocale?: string;
       forceRefresh?: boolean;
     };
 
@@ -355,18 +362,21 @@ Deno.serve(async (req) => {
     const [natal, calibration, recentPlanetsOfDay] = await Promise.all([
       loadActiveNatalProfile(userId),
       loadActiveCalibration(userId),
-      body.recentPlanetsOfDay ? Promise.resolve(body.recentPlanetsOfDay.slice(0, 2)) : loadRecentPlanets(userId),
+      loadRecentPlanets(userId, forecastDate),
     ]);
 
     if (natal) {
       try {
-        const forecast = computeDailyForecast({
+        const computed = computeDailyForecast({
           natalProfile: natal.profile,
           calibration,
           forecastDate,
           userLocation: body.userLocation,
           recentPlanetsOfDay,
         });
+        const forecast = computed.isAlternativeChoice
+          ? { ...computed, alternativeReasonText: alternativeChoiceNote(body.responseLocale) }
+          : computed;
         const saved = await restUpsert(
           "user_daily_forecasts",
           "user_id,forecast_date",

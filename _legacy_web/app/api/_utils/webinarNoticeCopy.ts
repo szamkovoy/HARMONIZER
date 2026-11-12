@@ -1,7 +1,10 @@
 /**
  * Invitation and recording letters. One locale for the whole letter:
  * subject, greeting, body and sign-off. The body itself is the admin text.
+ * The invite also states when the webinar starts, in Moscow time.
  */
+import { DateTime } from "luxon";
+
 import { asWidgetLocale, type WidgetLocale } from "../../../lib/paymentWidget/copy";
 
 export type WebinarNoticeKind = "invite" | "recording";
@@ -17,6 +20,8 @@ export type WebinarNoticeCopy = {
   joinButton: string;
   /** Fixed room code, on the line directly under the join button. Same code in every locale; only the label is translated. */
   accessCode: string;
+  /** `when` is a localised date and clock time, without the timezone name. */
+  startsAt: (when: string) => string;
 };
 
 const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
@@ -29,6 +34,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Сергей Замковой",
     joinButton: "Перейти в вебинарную комнату",
     accessCode: "Код доступа: 123456",
+    startsAt: (when) => `Вебинар начнётся ${when} (московское время).`,
   },
   en: {
     inviteSubject: "I invite you to a webinar",
@@ -39,6 +45,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Sergei Zamkovoi",
     joinButton: "Go to the webinar room",
     accessCode: "Access code: 123456",
+    startsAt: (when) => `The webinar starts on ${when} (Moscow time).`,
   },
   de: {
     inviteSubject: "Ich lade Sie zum Webinar ein",
@@ -49,6 +56,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Sergei Zamkovoi",
     joinButton: "Zum Webinar-Raum",
     accessCode: "Zugangscode: 123456",
+    startsAt: (when) => `Das Webinar beginnt am ${when} (Moskauer Zeit).`,
   },
   fr: {
     inviteSubject: "Je vous invite au webinaire",
@@ -59,6 +67,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Sergei Zamkovoi",
     joinButton: "Accéder à la salle du webinaire",
     accessCode: "Code d'accès : 123456",
+    startsAt: (when) => `Le webinaire commence le ${when} (heure de Moscou).`,
   },
   it: {
     inviteSubject: "Ti invito al webinar",
@@ -69,6 +78,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Sergei Zamkovoi",
     joinButton: "Vai alla stanza del webinar",
     accessCode: "Codice di accesso: 123456",
+    startsAt: (when) => `Il webinar inizia il ${when} (ora di Mosca).`,
   },
   es: {
     inviteSubject: "Te invito al webinar",
@@ -79,6 +89,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Sergei Zamkovoi",
     joinButton: "Ir a la sala del webinar",
     accessCode: "Código de acceso: 123456",
+    startsAt: (when) => `El webinar empieza el ${when} (hora de Moscú).`,
   },
   pt: {
     inviteSubject: "Convido-o para o webinar",
@@ -89,6 +100,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Sergei Zamkovoi",
     joinButton: "Ir para a sala do webinar",
     accessCode: "Código de acesso: 123456",
+    startsAt: (when) => `O webinar começa a ${when} (hora de Moscovo).`,
   },
   nl: {
     inviteSubject: "Ik nodig je uit voor het webinar",
@@ -99,6 +111,7 @@ const COPY: Record<WidgetLocale, WebinarNoticeCopy> = {
     signature: "Sergei Zamkovoi",
     joinButton: "Naar de webinarruimte",
     accessCode: "Toegangscode: 123456",
+    startsAt: (when) => `Het webinar begint op ${when} (Moskouse tijd).`,
   },
 };
 
@@ -116,6 +129,23 @@ export const RECORDING_LETTER_BODY = `Здравствуйте, {{name}}!
 
 export function getWebinarNoticeCopy(locale: string | null | undefined): WebinarNoticeCopy {
   return COPY[asWidgetLocale(locale) ?? "ru"];
+}
+
+const MOSCOW = "Europe/Moscow";
+
+/** Date and clock time in Moscow, in the letter's language. The sentence adds the timezone name. */
+export function formatMoscowStart(startsAt: string, locale: WidgetLocale): string {
+  const dt = DateTime.fromISO(startsAt, { setZone: true }).setZone(MOSCOW).setLocale(locale);
+  if (!dt.isValid) return "";
+  return dt.toFormat("d MMMM, HH:mm");
+}
+
+/** One sentence for the invite. Empty when the start time cannot be read. */
+export function webinarStartSentence(locale: WidgetLocale, startsAt: string | null | undefined): string {
+  if (!startsAt) return "";
+  const when = formatMoscowStart(startsAt, locale);
+  if (!when) return "";
+  return getWebinarNoticeCopy(locale).startsAt(when);
 }
 
 /**
@@ -201,10 +231,14 @@ export function buildNoticePlainText(params: {
   name: string;
   body: string;
   joinUrl?: string | null;
+  startsAt?: string | null;
 }): { subject: string; text: string } {
   const copy = getWebinarNoticeCopy(params.locale);
   const greeting = params.name.trim() ? copy.greeting(params.name.trim()) : copy.greetingNoName;
-  const lines = [greeting, "", params.body.trim()];
+  const lines = [greeting, ""];
+  const startLine = params.kind === "invite" ? webinarStartSentence(params.locale, params.startsAt) : "";
+  if (startLine) lines.push(startLine, "");
+  lines.push(params.body.trim());
   if (params.kind === "invite" && params.joinUrl?.trim()) {
     lines.push("", copy.joinButton, params.joinUrl.trim(), copy.accessCode);
   }

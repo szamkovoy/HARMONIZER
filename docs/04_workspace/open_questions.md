@@ -3,10 +3,16 @@
 ## id: 04_workspace/open_questions
 
 title: Open Questions
-version: 1.45
-updated: 2026-10-06
+version: 1.46
+updated: 2026-11-08
 depends_on: [00_index/CHANGELOG]
 code_refs: []
+
+## `account_web` / 30 дней тарифа в кабинете (2026-11-08)
+
+- **Цены разовых продуктов Lava** (проверено 2026-11-08 после правки автора): «Наставник» 950 ₽ / 9,5 € / 9,5 $ — как подписка; «Мастер» 99 € / 99 $, но **9950 ₽** при 4950 ₽ у подписки и в ЮKassa — похоже на опечатку, ждём правки в карточке Lava.
+- **Кабинет не знает о 30 днях** — решение автора 2026-11-08: так и оставить. Кабинет предлагает подписку; если банк теперь её пропустит — лучше и человеку, и конверсии; если нет — снова страница отказа с 30 днями.
+- **PayPal для подписки.** `paymentMethod: PAYPAL` для MONTHLY-инвойса по OpenAPI Lava разрешён; на живой оплате не проверено.
 
 ## `assistant` / йога и практики как действия дня без practice-ветки (2026-09-14)
 
@@ -67,7 +73,7 @@ code_refs: []
 
 ## `account_web` / виджеты оплаты лендингов (2026-10-07)
 
-- **Catalog letters are drafts, and they go out only when no webinar is published yet.** **Context:** `payment_catalog.letter_*_i18n` for `webinar` and `webinar_pack`. Once a webinar is on the schedule, the buyer gets the invitation built from the announcement text instead. **Action:** the author writes the fallback texts in «Каталог продуктов» and clicks «Перевести с русского». Invitation and recording letters use the webinar texts already entered in the webinar editor.
+- **Catalog letters are the fallback, and they go out only when no webinar is published yet.** **Context:** `payment_catalog.letter_*_i18n` for `webinar` and `webinar_pack`. Once a webinar is on the schedule, the buyer gets the invitation (with the Moscow start time) instead. The one-webinar letter (2026-10-30) says the room link will arrive in a separate letter and a recording link after the webinar. **Action:** keep these letters free of a date and a room link. The author edits them in «Каталог продуктов». Invitation and recording letters use the webinar texts already entered in the webinar editor.
 - **Recording inside the app.** Closed 2026-10-08: the recording is only an email. The admin tab stores an unpublished post so the text can be translated and sent again; the feed and the home screen do not show it.
 - **Geo behind REG.RU.** **Context:** `X-Harmonizer-Client-Ip` from `deploy/reg-ru-harmonizer-proxy.php`. **Effect:** until the PHP file is re-uploaded, every visitor through `harmonizer.zamkovoi.yoga` gets an unknown country and the choice falls back to the browser time zone (an RU time zone means a Russian card). **Action:** upload the PHP file and check that a US visitor sees «Международная карта» and USD.
 - **1 or 4 webinars in the cabinet.** **Context:** the cabinet still sells one webinar with `product_ref`. **Action:** later, offer a choice of the pass (`webinar` / `webinar_pack`).
@@ -211,10 +217,7 @@ code_refs: []
 
 ## `daily_forecast`
 
-- **recentPlanetsOfDay не записывается клиентом — серверная логика повторов планеты дня неактивна**  
-**Контекст:** ТЗ MODULE_2 (см. архив `docs/05_archive/migrated/astrology/`) описывает стек двух последних планет дня для предотвращения повторов 3+ дня подряд. Сервер (`_legacy_web/app/api/astro/daily-forecast/route.ts`) читает `user_settings.preferences.recentPlanetsOfDay`, и `chooseFinalPlanet` использует его для альтернативного выбора. Однако клиент (`useDayContent` → `fetchDailyForecast`) не передаёт `recentPlanetsOfDay` в теле запроса и не записывает в `preferences` после показа дня. Стек на практике всегда пуст; альтернативная ветка `chooseFinalPlanet` по «недавности» не активируется.  
-**Проявление:** пользователь может три дня подряд получать одну и ту же планету дня (например Сатурн при сильно активном Сатурне в натале), и «альтернативный выбор» с пояснительным текстом не сработает.  
-**Действие:** при следующей работе с `daily_forecast` — либо реализовать запись стека (после показа forecast записывать в `user_settings`), либо удалить серверную логику стека как мёртвую (если продуктово решено, что повторы — норма). Зафиксировать решение явно.
+- **recentPlanetsOfDay из preferences — закрыто 2026-11-09.** Сервер берёт планеты двух предыдущих календарных дней из `user_daily_forecasts` и на третий одинаковый день выбирает вторую по важности. `user_settings.preferences.recentPlanetsOfDay` не используется.
 
 ## `admin_panel`
 

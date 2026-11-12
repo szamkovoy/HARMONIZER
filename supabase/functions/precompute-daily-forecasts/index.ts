@@ -3,12 +3,16 @@ import { DateTime } from "https://esm.sh/luxon@3.7.2";
 import { assertCronSecret, createServiceClient, daysAgo, isOptions, json } from "../_shared/supabase.ts";
 import { resolveGeminiModelIdFromTierEnv } from "../_shared/geminiModelIds.ts";
 import { generateGeminiJson } from "../_shared/llm.ts";
+import { alternativeChoiceMathReason, alternativeChoiceNote } from "../_shared/alternativeChoiceNote.ts";
 import {
   ASPECT_COEF,
   TRANSIT_WEIGHT,
   computeActivation,
   computeDailyForecast,
   dailyForecastToInsert,
+  forecastRepeatsPreviousDays,
+  priorForecastDates,
+  recentPlanetsFromHistory,
 } from "../_shared/dailyForecast.ts";
 import { getMathLevelStrings } from "../_shared/mathLevelI18n.ts";
 import { CONTENT_LENGTHS } from "../_shared/contentLengths.ts";
@@ -154,11 +158,16 @@ function hasPersonalForecastAccess(user: {
   return false;
 }
 
-async function loadRecentPlanets(db: any, userId: string): Promise<string[]> {
-  const { data, error } = await db.from("user_settings").select("preferences").eq("user_id", userId).maybeSingle();
+async function loadRecentPlanets(db: any, userId: string, forecastDate: string): Promise<string[]> {
+  const [yesterday, dayBefore] = priorForecastDates(forecastDate);
+  if (!yesterday || !dayBefore) return [];
+  const { data, error } = await db
+    .from("user_daily_forecasts")
+    .select("forecast_date, planet_of_the_day")
+    .eq("user_id", userId)
+    .in("forecast_date", [yesterday, dayBefore]);
   if (error) throw error;
-  const recent = data?.preferences?.recentPlanetsOfDay;
-  return Array.isArray(recent) ? recent.slice(0, 2) : [];
+  return recentPlanetsFromHistory(forecastDate, data ?? []);
 }
 
 async function loadActiveCalibration(db: any, userId: string) {
@@ -368,12 +377,7 @@ function buildMathLevelForCron(
   md.push(`\n${t.section4Title}`);
   md.push(t.winnerLine(t.planetLabel(planetOfTheDay), (forecast.importance?.[planetOfTheDay] ?? 0).toFixed(3)));
   if (forecast.isAlternativeChoice) {
-    md.push(
-      t.alternativeLine(
-        forecast.alternativeReasonText ??
-          (locale === "en" ? "diversity rule applied" : "сработало правило разнообразия тем"),
-      ),
-    );
+    md.push(t.alternativeLine(alternativeChoiceMathReason(locale)));
   }
   if (calibration) {
     md.push(t.section5Title);
@@ -593,13 +597,19 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
   if (!forecastDate) return { status: "skipped", reason: "invalid_date" };
   const locale = normalizeLocale(user.locale);
   const cachedForecast = !force ? await loadFreshForecastCache(db, user.id, forecastDate) : null;
+  const recentPlanetsOfDay = await loadRecentPlanets(db, user.id, forecastDate);
+  const storedPlanet = cachedForecast?.planet_of_the_day ?? cachedForecast?.planetOfTheDay;
+  const switchRepeatedPlanet = forecastRepeatsPreviousDays(
+    typeof storedPlanet === "string" ? storedPlanet : "",
+    cachedForecast?.is_alternative_choice === true || cachedForecast?.isAlternativeChoice === true,
+    recentPlanetsOfDay,
+  );
 
-  // Scheduled runs receive only users whose local-date cache is incomplete (SQL RPC
-  // `precompute_daily_forecast_candidates`), so there is no "local midnight" gate here:
-  // the job is "ensure today's cache exists", idempotent, retried every tick until it does.
-  // The re-check below is a cheap guard against a race with the app warming the same day.
+  // Scheduled runs receive only users whose local-date cache is incomplete, or whose
+  // saved planet repeats the two previous days (SQL RPC). The repeat is rewritten here,
+  // before the morning text, so the app never regenerates that text on open.
   const catchUp = !force && localNow.hour !== 0;
-  if (!force && cachedForecast) {
+  if (!force && cachedForecast && !switchRepeatedPlanet) {
     const cachedMorning = await loadFreshMorningCache(db, user.id, forecastDate, locale, promptConfig.expectedModel);
     if (cachedMorning) return { status: "skipped", reason: "cache_hit", forecastDate, locale, catchUp };
   }
@@ -607,17 +617,19 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
   const natalProfile = natalProfileFromRow(chart);
   const calibration = await loadActiveCalibration(db, user.id);
 
-  let forecast = cachedForecast;
-  let forecastStatus = cachedForecast ? "cache_hit" : "computed";
+  let forecast = switchRepeatedPlanet ? null : cachedForecast;
+  let forecastStatus = forecast ? "cache_hit" : "computed";
   if (!forecast) {
-    const recentPlanetsOfDay = await loadRecentPlanets(db, user.id);
-    const computed = computeDailyForecast({
+    const computedRaw = computeDailyForecast({
       natalProfile,
       calibration,
       forecastDate,
       userLocation,
       recentPlanetsOfDay,
     });
+    const computed = computedRaw.isAlternativeChoice
+      ? { ...computedRaw, alternativeReasonText: alternativeChoiceNote(locale) }
+      : computedRaw;
     const { error } = await db
       .from("user_daily_forecasts")
       .upsert(dailyForecastToInsert(user.id, userLocation.timezone, computed), { onConflict: "user_id,forecast_date" });
@@ -636,7 +648,7 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
     natalProfile,
     calibration,
     addressForm: user.address_form ?? null,
-    force,
+    force: force || switchRepeatedPlanet,
   });
 
   const extraLocales = await listRecentMorningLocales(db, user.id, locale);
@@ -653,7 +665,7 @@ async function processUser(db: any, chart: any, force: boolean, promptConfig: Aw
         natalProfile,
         calibration,
         addressForm: user.address_form ?? null,
-        force,
+        force: force || switchRepeatedPlanet,
       }),
     );
   }

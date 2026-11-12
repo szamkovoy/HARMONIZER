@@ -17,6 +17,8 @@ export type AdminPaymentRow = {
   contract_id?: string | null;
   status?: string | null;
   refundable?: boolean;
+  product_kind?: string | null;
+  product_ref?: string | null;
 };
 
 export type PaymentFormValues = {

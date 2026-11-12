@@ -22,6 +22,10 @@ export type AdminLedgerRow = {
   /** Gateway contract status (active|cancelled|refunded|…). */
   status?: string | null;
   refundable?: boolean;
+  /** `subscription` | `one_time` on gateway rows; null for manual grants. */
+  product_kind?: string | null;
+  /** e.g. `pass_30d` for tier without auto-renewal. */
+  product_ref?: string | null;
 };
 
 type Options = {
@@ -64,7 +68,7 @@ export async function loadAdminPaymentLedger(
   let contractsQuery = db
     .from("payment_contracts")
     .select(
-      "id, contract_id, user_id, amount, currency, tier, status, provider, product_kind, current_period_end, buyer_email, created_at, provider_payment_id, users(display_name)",
+      "id, contract_id, user_id, amount, currency, tier, status, provider, product_kind, product_ref, current_period_end, buyer_email, created_at, provider_payment_id, users(display_name)",
     )
     .in("status", ["active", "cancelled", "refunded"])
     .not("amount", "is", null)
@@ -164,6 +168,8 @@ export async function loadAdminPaymentLedger(
       contract_id: c.contract_id as string,
       status,
       refundable: status === "active" || status === "cancelled",
+      product_kind: (c.product_kind as string | null) ?? null,
+      product_ref: (c.product_ref as string | null) ?? null,
     };
   });
 

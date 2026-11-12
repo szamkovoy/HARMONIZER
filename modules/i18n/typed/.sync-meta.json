@@ -1868,7 +1868,10 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.moonPhaseDetail": "максимальная фаза",
+      "opportunityWindows.windowTitles.moonPhaseNew": "Новолуние",
+      "opportunityWindows.windowTitles.moonPhaseFull": "Полнолуние"
     },
     "fr": {
       "locale": "ru",
@@ -2004,7 +2007,10 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.moonPhaseDetail": "максимальная фаза",
+      "opportunityWindows.windowTitles.moonPhaseNew": "Новолуние",
+      "opportunityWindows.windowTitles.moonPhaseFull": "Полнолуние"
     },
     "it": {
       "locale": "ru",
@@ -2140,7 +2146,10 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.moonPhaseDetail": "максимальная фаза",
+      "opportunityWindows.windowTitles.moonPhaseNew": "Новолуние",
+      "opportunityWindows.windowTitles.moonPhaseFull": "Полнолуние"
     },
     "es": {
       "locale": "ru",
@@ -2276,7 +2285,10 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.moonPhaseDetail": "максимальная фаза",
+      "opportunityWindows.windowTitles.moonPhaseNew": "Новолуние",
+      "opportunityWindows.windowTitles.moonPhaseFull": "Полнолуние"
     },
     "pt": {
       "locale": "ru",
@@ -2412,7 +2424,10 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.moonPhaseDetail": "максимальная фаза",
+      "opportunityWindows.windowTitles.moonPhaseNew": "Новолуние",
+      "opportunityWindows.windowTitles.moonPhaseFull": "Полнолуние"
     },
     "nl": {
       "locale": "ru",
@@ -2548,7 +2563,10 @@
       "recommendation.discussOpening": "Открываю ассистента…",
       "enterBirthDataButton": "Введите дату рождения",
       "opportunityWindows.reminderExactAlarmTitle": "Нужны точные будильники",
-      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше."
+      "opportunityWindows.reminderExactAlarmMessage": "На Android напоминания об окнах срабатывают вовремя только если для {appName} включены «Будильники и напоминания». Без этого система может отложить уведомление на час и больше.",
+      "opportunityWindows.moonPhaseDetail": "максимальная фаза",
+      "opportunityWindows.windowTitles.moonPhaseNew": "Новолуние",
+      "opportunityWindows.windowTitles.moonPhaseFull": "Полнолуние"
     }
   },
   "mandala": {

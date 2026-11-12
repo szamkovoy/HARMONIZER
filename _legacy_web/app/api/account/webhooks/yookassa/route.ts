@@ -5,6 +5,7 @@ import {
   fulfillYookassaRenewal,
   markContractCancelled,
   markContractFailed,
+  yookassaFailureReason,
 } from "../../fulfillPaymentContract";
 import { handleYookassaRenewalFailure } from "../../yookassaRenewals";
 import { markContractAndSettlementsRefunded } from "../../refundPaymentContract";
@@ -125,6 +126,7 @@ export async function POST(req: Request): Promise<Response> {
         contract_id: contract.contract_id,
         user_id: contract.user_id,
         product_kind: contract.product_kind,
+        tier: contract.tier,
       });
       return json({ ok: true, refunded: contractId, refundId: refundObj?.id ?? objectId });
     }
@@ -211,7 +213,7 @@ export async function POST(req: Request): Promise<Response> {
         return json({ ok: true, renewalFailed: true, ...outcome });
       }
 
-      await markContractFailed(db, contractId);
+      await markContractFailed(db, contractId, yookassaFailureReason(payment));
       if (contract.status === "active") {
         await markContractCancelled(db, contractId);
       }

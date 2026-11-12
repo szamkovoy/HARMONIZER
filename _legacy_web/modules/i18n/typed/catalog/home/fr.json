@@ -75,7 +75,9 @@
     "windowTitles": {
       "sunrise": "Lever",
       "culmination": "Culmination",
-      "exactAspect": "Aspect exact"
+      "exactAspect": "Aspect exact",
+      "moonPhaseNew": "Nouvelle lune",
+      "moonPhaseFull": "Pleine lune"
     },
     "aspectLabels": {
       "conjunction": "conjonction",
@@ -105,6 +107,7 @@
     "sunriseDetailTemplate": "{planet} s'élève au-dessus de l'horizon",
     "culminationDetailTemplate": "{planet} est à sa force maximale",
     "exactAspectDetailTemplate": "{aspect} {transitPlanet} (transit) et {natalPlanet} (natal)",
+    "moonPhaseDetail": "phase maximale",
     "help": {
       "freeOpening": "La planète la plus forte du jour est {planet}. Le graphique montre quand {planet} se lève et atteint son zénith à votre emplacement.",
       "paidOpening": "La planète la plus forte de votre thème natal aujourd'hui est {natalPlanet}. Cette force vient en grande partie de l'interaction avec la planète de transit {transitPlanet}, dont le parcours dans le ciel ouvre pour vous des fenêtres d'opportunités particulières.",
@@ -132,6 +135,7 @@
   },
   "recommendation": {
     "title": "Recommandations du jour",
+    "alternativeChoiceNote": "Aujourd'hui, nous vous proposons de porter l'attention sur un autre thème. Cela diversifie vos efforts d'harmonisation.",
     "loading": "Chargement de la recommandation du jour…",
     "discussButton": "Que faire ?",
     "readMoreButton": "En savoir plus",

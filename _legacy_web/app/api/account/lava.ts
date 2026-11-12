@@ -211,13 +211,22 @@ export async function resolveLavaPrice(
   return null;
 }
 
-export async function createLavaSubscriptionInvoice(params: {
+/** UNLIMINT — карта (по умолчанию для EUR/USD), PAYPAL — без 3‑D Secure карты. RUB: только карта. */
+export type LavaPaymentMethod = "UNLIMINT" | "PAYPAL";
+
+type LavaInvoiceParams = {
   email: string;
   offerId: string;
   currency: LavaCurrency;
   locale: string;
+  /** Куда Lava вернёт покупателя после успешной оплаты; без него — страница Lava. */
   successUrl?: string | null;
-}): Promise<LavaInvoiceResponse> {
+  failureUrl?: string | null;
+  cancelUrl?: string | null;
+  paymentMethod?: LavaPaymentMethod | null;
+};
+
+export async function createLavaSubscriptionInvoice(params: LavaInvoiceParams): Promise<LavaInvoiceResponse> {
   return createLavaInvoice({ ...params, periodicity: "MONTHLY" });
 }
 
@@ -225,14 +234,7 @@ export async function createLavaSubscriptionInvoice(params: {
  * Разовый инвойс Lava (ONE_TIME): вебинар, книга. Не порождает рекуррентных
  * списаний; вебхук payment.success обрабатывается как разовая покупка.
  */
-export async function createLavaOneTimeInvoice(params: {
-  email: string;
-  offerId: string;
-  currency: LavaCurrency;
-  locale: string;
-  /** Куда Lava вернёт покупателя после успешной оплаты; без него — страница Lava. */
-  successUrl?: string | null;
-}): Promise<LavaInvoiceResponse> {
+export async function createLavaOneTimeInvoice(params: LavaInvoiceParams): Promise<LavaInvoiceResponse> {
   return createLavaInvoice({ ...params, periodicity: "ONE_TIME" });
 }
 
@@ -262,14 +264,9 @@ export class LavaInvoiceError extends Error {
   }
 }
 
-async function createLavaInvoice(params: {
-  email: string;
-  offerId: string;
-  currency: LavaCurrency;
-  locale: string;
-  periodicity: LavaPeriodicity;
-  successUrl?: string | null;
-}): Promise<LavaInvoiceResponse> {
+async function createLavaInvoice(
+  params: LavaInvoiceParams & { periodicity: LavaPeriodicity },
+): Promise<LavaInvoiceResponse> {
   const email = normalizeLavaBuyerEmail(params.email);
   if (!email || !email.includes("@")) {
     throw new LavaInvoiceError(400, JSON.stringify({ error: "Incorrect email to purchase" }));
@@ -288,6 +285,9 @@ async function createLavaInvoice(params: {
       periodicity: params.periodicity,
       buyerLanguage: lavaBuyerLanguage(params.locale),
       ...(params.successUrl ? { successful_return_url: params.successUrl } : {}),
+      ...(params.failureUrl ? { failure_return_url: params.failureUrl } : {}),
+      ...(params.cancelUrl ? { cancel_return_url: params.cancelUrl } : {}),
+      ...(params.paymentMethod && params.currency !== "RUB" ? { paymentMethod: params.paymentMethod } : {}),
     }),
   });
   const text = await res.text();
@@ -295,6 +295,29 @@ async function createLavaInvoice(params: {
     throw new LavaInvoiceError(res.status, text);
   }
   const data = JSON.parse(text) as LavaInvoiceResponse;
+  if (!data.id) throw new Error("Lava invoice: response has no id");
+  return data;
+}
+
+export type LavaInvoiceDetails = {
+  id: string;
+  status?: string | null;
+  datetime?: string | null;
+  receipt?: { amount?: number; currency?: string } | null;
+};
+
+/** Source of truth when the payment.success webhook never arrives. */
+export async function getLavaInvoice(invoiceId: string): Promise<LavaInvoiceDetails | null> {
+  const res = await fetch(`${LAVA_API_BASE}/api/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+    headers: {
+      "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),
+      Accept: "application/json",
+    },
+  });
+  if (res.status === 404) return null;
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Lava invoice HTTP ${res.status}: ${text.slice(0, 300)}`);
+  const data = JSON.parse(text) as LavaInvoiceDetails;
   if (!data.id) throw new Error("Lava invoice: response has no id");
   return data;
 }

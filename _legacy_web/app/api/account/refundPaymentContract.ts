@@ -6,6 +6,7 @@ import {
   explainYookassaPaymentAccessError,
   fetchYookassaPayment,
 } from "./yookassa";
+import { isTierPassContract } from "./tierPass";
 
 export type RefundMode = "lavatop_mark" | "yookassa_api" | "yookassa_mark" | "manual_mark";
 
@@ -22,6 +23,7 @@ type ContractRow = {
   amount: number | null;
   currency: string | null;
   product_kind: string | null;
+  tier: string | null;
 };
 
 /**
@@ -38,7 +40,7 @@ export async function refundPaymentContract(
   const { data: contract, error } = await db
     .from("payment_contracts")
     .select(
-      "contract_id,user_id,status,provider,provider_payment_id,amount,currency,product_kind",
+      "contract_id,user_id,status,provider,provider_payment_id,amount,currency,product_kind,tier",
     )
     .eq("contract_id", params.contractId)
     .maybeSingle();
@@ -164,7 +166,7 @@ export async function refundPaymentContract(
 /** DB side of refund (also used when YooKassa sends refund.succeeded webhook). */
 export async function markContractAndSettlementsRefunded(
   db: SupabaseClient,
-  contract: Pick<ContractRow, "contract_id" | "user_id" | "product_kind">,
+  contract: Pick<ContractRow, "contract_id" | "user_id" | "product_kind"> & { tier?: string | null },
 ): Promise<void> {
   const nowIso = new Date().toISOString();
 
@@ -208,6 +210,8 @@ export async function markContractAndSettlementsRefunded(
       .eq("user_id", contract.user_id)
       .in("status", ["active", "pending"]);
     await revokeOrRestoreMembershipAfterRefund(db, contract.user_id);
+  } else if (contract.user_id && isTierPassContract(contract)) {
+    await revokeOrRestoreMembershipAfterRefund(db, contract.user_id);
   }
 }
 
@@ -238,8 +242,9 @@ async function revokeWebinarPass(db: SupabaseClient, contractId: string): Promis
 }
 
 /**
- * После возврата подписки: лучший ещё действующий тариф среди оставшихся
- * subscription-контрактов (active/cancelled) и ручных грантов; иначе free.
+ * После возврата подписки или 30 дней тарифа: лучший ещё действующий тариф среди
+ * оставшихся subscription-контрактов и оплат 30 дней (active/cancelled) и ручных
+ * грантов; иначе free.
  * Пример: возврат Master при живом Mentor → Mentor; иначе Navigator/free.
  */
 async function revokeOrRestoreMembershipAfterRefund(
@@ -258,7 +263,7 @@ async function revokeOrRestoreMembershipAfterRefund(
   if (grantsRes.error) throw grantsRes.error;
 
   const fromContracts = (contractsRes.data ?? [])
-    .filter((c) => (c.product_kind ?? "subscription") === "subscription")
+    .filter((c) => (c.product_kind ?? "subscription") === "subscription" || isTierPassContract(c))
     .map((c) => ({
       tier: String(c.tier ?? ""),
       paid_until: (c.current_period_end as string | null) ?? null,

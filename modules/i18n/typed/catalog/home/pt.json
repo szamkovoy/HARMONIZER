@@ -75,7 +75,9 @@
     "windowTitles": {
       "sunrise": "Nascer",
       "culmination": "Culminação",
-      "exactAspect": "Aspecto exato"
+      "exactAspect": "Aspecto exato",
+      "moonPhaseNew": "Lua nova",
+      "moonPhaseFull": "Lua cheia"
     },
     "aspectLabels": {
       "conjunction": "conjunção",
@@ -105,6 +107,7 @@
     "sunriseDetailTemplate": "{planet} sobe acima do horizonte",
     "culminationDetailTemplate": "{planet} está na força máxima",
     "exactAspectDetailTemplate": "{aspect} {transitPlanet} (trânsito) e {natalPlanet} (natal)",
+    "moonPhaseDetail": "fase máxima",
     "help": {
       "freeOpening": "O planeta mais forte do dia é {planet}. O gráfico mostra quando {planet} nasce e atinge o zênite na sua localização.",
       "paidOpening": "O planeta mais forte do seu mapa natal hoje é {natalPlanet}. Essa força vem em grande parte da interação com o planeta de trânsito {transitPlanet}, cujo movimento no céu abre para você janelas especiais de oportunidades.",
@@ -132,6 +135,7 @@
   },
   "recommendation": {
     "title": "Recomendações do dia",
+    "alternativeChoiceNote": "Hoje propomos dirigir a atenção para outro tema. Assim, os seus esforços de harmonização ficam mais variados.",
     "loading": "Carregando a recomendação de hoje…",
     "discussButton": "O que fazer?",
     "readMoreButton": "Saiba mais",

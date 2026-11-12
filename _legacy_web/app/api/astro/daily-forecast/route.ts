@@ -1,10 +1,13 @@
 import {
   computeDailyForecastWithAstronomia,
+  priorForecastDates,
+  recentPlanetsFromHistory,
   type CalibrationLike,
   type DailyEngineInput,
   type DailyForecast,
   type Planet,
 } from "../../../../modules/daily-engine";
+import { alternativeChoiceNote } from "../../_utils/alternativeChoiceNote";
 import { asContentLocale } from "../../_utils/contentLocales";
 import { reportRouteError } from "../../_utils/monitoring";
 import { createServiceSupabase, errorResponse, json, requireUserId } from "../../_utils/supabase";
@@ -30,16 +33,23 @@ type Body = {
   responseLocale?: string;
 };
 
-async function loadRecentPlanets(db: ReturnType<typeof createServiceSupabase>, userId: string): Promise<Planet[]> {
+async function loadRecentPlanets(
+  db: ReturnType<typeof createServiceSupabase>,
+  userId: string,
+  forecastDate: string,
+): Promise<Planet[]> {
+  const [yesterday, dayBefore] = priorForecastDates(forecastDate);
+  if (!yesterday || !dayBefore) return [];
   const { data, error } = await db
-    .from("user_settings")
-    .select("preferences")
+    .from("user_daily_forecasts")
+    .select("forecast_date, planet_of_the_day")
     .eq("user_id", userId)
-    .maybeSingle();
+    .in("forecast_date", [yesterday, dayBefore]);
   if (error) throw error;
-
-  const preferences = (data as { preferences?: { recentPlanetsOfDay?: Planet[] } } | null)?.preferences;
-  return Array.isArray(preferences?.recentPlanetsOfDay) ? preferences.recentPlanetsOfDay.slice(0, 2) : [];
+  return recentPlanetsFromHistory(
+    forecastDate,
+    (data ?? []) as Array<{ forecast_date?: string; planet_of_the_day?: string }>,
+  );
 }
 
 async function loadActiveCalibration(db: ReturnType<typeof createServiceSupabase>, userId: string): Promise<CalibrationLike | null> {
@@ -148,9 +158,9 @@ export async function POST(req: Request) {
 
     if (!forceRefresh) {
       endpointStage = "load_cache";
-      // Warm path (cron pre-warmed day): both reads are independent — overlap them so the
-      // first Home paint costs ~2 sequential DB round trips instead of ~6 on a slow instance.
-      // On a cache miss the morning read is one wasted cheap SELECT.
+      // Warm path (cron pre-warmed day): both reads are independent. A three-day
+      // planet repeat is corrected in precompute, before this request, so a fresh
+      // row is served as-is and does not regenerate the morning text.
       const [cached, morning] = await Promise.all([
         cachedForecast(db, userId, forecastDate),
         loadCachedMorningRecommendation({
@@ -177,18 +187,18 @@ export async function POST(req: Request) {
     ]);
 
     endpointStage = "compute";
-    const recentPlanetsOfDay = body.recentPlanetsOfDay
-      ? body.recentPlanetsOfDay.slice(0, 2)
-      : await loadRecentPlanets(db, userId);
+    const recentPlanetsOfDay = await loadRecentPlanets(db, userId, forecastDate);
 
-    const forecast = await computeDailyForecastWithAstronomia({
+    const computed = await computeDailyForecastWithAstronomia({
       natalProfile,
       calibration,
       forecastDate,
       userLocation: body.userLocation,
       recentPlanetsOfDay,
     });
-
+    const forecast = computed.isAlternativeChoice
+      ? { ...computed, alternativeReasonText: alternativeChoiceNote(body.responseLocale) }
+      : computed;
     // Recomputing the forecast (e.g. after the user edits their birth date) must
     // NOT wipe a day recommendation already written by the planning dialog —
     // otherwise the Day tab shows the actions but loses the day-level focus.

@@ -433,8 +433,14 @@ function requestMethod(input: SupabaseFetchInput, init?: RequestInit): string {
  * and block the Supabase SDK's internal session lock, preventing
  * onAuthStateChange from emitting INITIAL_SESSION. Aborting the fetch lets the
  * SDK treat the failure as transient and fall back to the stored session.
+ *
+ * `/auth/v1/otp` gets its own shorter abort: on Android the response (HTTP 200,
+ * 2-byte body) can be delivered by the gateway while the JS promise never
+ * settles, so the wizard stays on «Отправляется…» after the letter is sent.
+ * `requestEmailOtpCode` treats that abort as "open the code screen".
  */
 const AUTH_FETCH_TIMEOUT_MS = 15_000;
+const AUTH_OTP_FETCH_TIMEOUT_MS = 10_000;
 
 async function loggedSupabaseFetch(
   input: URL | RequestInfo,
@@ -445,9 +451,14 @@ async function loggedSupabaseFetch(
   const startedAt = Date.now();
 
   let abortTimer: ReturnType<typeof setTimeout> | undefined;
-  if (url.includes("/auth/v1/token") && !init?.signal) {
+  const abortMs = url.includes("/auth/v1/otp")
+    ? AUTH_OTP_FETCH_TIMEOUT_MS
+    : url.includes("/auth/v1/token")
+      ? AUTH_FETCH_TIMEOUT_MS
+      : 0;
+  if (abortMs > 0 && !init?.signal) {
     const controller = new AbortController();
-    abortTimer = setTimeout(() => controller.abort(), AUTH_FETCH_TIMEOUT_MS);
+    abortTimer = setTimeout(() => controller.abort(), abortMs);
     init = { ...init, signal: controller.signal };
   }
 

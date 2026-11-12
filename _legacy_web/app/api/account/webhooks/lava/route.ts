@@ -1,6 +1,8 @@
+import { after } from "next/server";
+
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
 import { settlePayment } from "../../fx";
-import { findPaymentContract, fulfillFirstPaymentSuccess } from "../../fulfillPaymentContract";
+import { findPaymentContract, fulfillFirstPaymentSuccess, markContractFailed } from "../../fulfillPaymentContract";
 import { cancelLavaSubscription, nextPeriodEnd } from "../../lava";
 import { resubscribeContactOnPurchase } from "../../widgetFulfillment";
 
@@ -38,6 +40,23 @@ type LavaWebhookBody = {
   product?: { id?: string; title?: string };
 };
 
+/** Lava treats anything slower than 10s as a timeout. A stuck database call must not sit for 20s. */
+const WEBHOOK_DB_TIMEOUT_MS = 4_000;
+
+function webhookDb() {
+  return createServiceSupabase({ fetchTimeoutMs: WEBHOOK_DB_TIMEOUT_MS });
+}
+
+function scheduleAfterResponse(work: () => Promise<void>) {
+  after(async () => {
+    try {
+      await work();
+    } catch (error) {
+      console.error("[lava-webhook] deferred work failed", error);
+    }
+  });
+}
+
 function authorized(req: Request): boolean {
   const secret = process.env.LAVATOP_WEBHOOK_SECRET?.trim();
   if (!secret) return false;
@@ -68,7 +87,7 @@ export async function POST(req: Request) {
       case "payment.success":
         return await handleFirstPaymentSuccess(contractId, body);
       case "payment.failed":
-        return await handleFirstPaymentFailed(contractId);
+        return await handleFirstPaymentFailed(contractId, body);
       case "subscription.recurring.payment.success":
         return await handleRenewal(body.parentContractId?.trim() || contractId, body);
       case "subscription.recurring.payment.failed":
@@ -147,7 +166,7 @@ async function handleFirstPaymentSuccess(
   contractId: string,
   body: LavaWebhookBody,
 ): Promise<Response> {
-  const db = createServiceSupabase();
+  const db = webhookDb();
   const contract = await findContract(db, contractId);
   if (!contract) {
     // Контракт создан не через наш checkout (например, прямая ссылка Lava).
@@ -167,6 +186,7 @@ async function handleFirstPaymentSuccess(
       paidAt: body.timestamp ?? new Date().toISOString(),
       provider: "lavatop",
       logTag: "lava-webhook",
+      scheduleSlow: scheduleAfterResponse,
     });
     return json(result);
   }
@@ -229,19 +249,13 @@ async function handleFirstPaymentSuccess(
   return json({ ok: true, activated: contractId });
 }
 
-async function handleFirstPaymentFailed(contractId: string): Promise<Response> {
-  const db = createServiceSupabase();
-  const { error } = await db
-    .from("payment_contracts")
-    .update({ status: "failed", updated_at: new Date().toISOString() })
-    .eq("contract_id", contractId)
-    .eq("status", "pending");
-  if (error) throw error;
+async function handleFirstPaymentFailed(contractId: string, body: LavaWebhookBody): Promise<Response> {
+  await markContractFailed(webhookDb(), contractId, body.errorMessage);
   return json({ ok: true, failed: contractId });
 }
 
 async function handleRenewal(parentContractId: string, body: LavaWebhookBody): Promise<Response> {
-  const db = createServiceSupabase();
+  const db = webhookDb();
   const contract = await findContract(db, parentContractId);
   if (!contract) {
     console.warn("[lava-webhook] renewal for unknown contract", parentContractId);
@@ -288,7 +302,7 @@ async function handleRenewal(parentContractId: string, body: LavaWebhookBody): P
 }
 
 async function handleCancelled(parentContractId: string): Promise<Response> {
-  const db = createServiceSupabase();
+  const db = webhookDb();
   const contract = await findContract(db, parentContractId);
   if (!contract) {
     console.warn("[lava-webhook] cancellation for unknown contract", parentContractId);

@@ -38,6 +38,8 @@ Phones and browsers must not open Vercel anycast addresses. Some of them accept 
 
 The certificate is Let's Encrypt, name in the panel `harmonizer.zamkovoi.yoga_le`, valid until 2026-12-24. It was issued by DNS-01, so the panel will not renew it by itself. `/.well-known/acme-challenge/` is excluded from the proxy rewrite so a later HTTP-01 renewal can land on this vhost. Renew before 24 Dec 2026.
 
+Lava.top webhooks are the exception: they must use `https://harmonizer.zamkovoi.yoga/api/account/webhooks/lava`. Lava sends them from a Russian network, and on 2026-11-06 every delivery to `harmonizer-ten.vercel.app` (`*.131`) timed out before reaching the function.
+
 Do not point YooKassa, SES, Resend, or Supabase cron at this proxy. Those callers stay on `https://harmonizer-ten.vercel.app`. That alias stays attached in the Vercel project and must not 307-redirect. The custom name is not attached there: DNS does not point at Vercel, so the dashboard marks it invalid and emails about it. Removing `harmonizer.zamkovoi.yoga` from the project stops the mail. Do not add it back, and do not point its DNS at the Vercel CNAME.
 
 Since 2026-10-07 the proxy forwards the visitor address as `X-Harmonizer-Client-Ip` (any incoming copy is stripped). `ipCountry.ts` geolocates that address. A request coming from the proxy addresses without that header gets an unknown country, so the payment widgets fall back to the browser time zone and don't show every visitor as RU. Every change to the PHP file needs a manual re-upload to `/www/harmonizer.zamkovoi.yoga` on REG.RU.

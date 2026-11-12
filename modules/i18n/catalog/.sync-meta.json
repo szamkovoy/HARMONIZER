@@ -386,7 +386,9 @@
     "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геопозиции.",
     "home.opportunityWindows.enableLocationButton": "Включить геопозицию",
     "affirmation.manage.chartHint": "Чтобы аффирмация принесла результаты, используйте её как минимум 30 дней.",
-    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз."
+    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
+    "gate.accessExpired.title": "30 дней расширенного доступа истекли",
+    "gate.accessExpired.body": "Перейдите в Личный кабинет, чтобы продлить доступ."
   },
   "en": {
     "tabs.home": "Навигатор",
@@ -775,7 +777,9 @@
     "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геопозиции.",
     "home.opportunityWindows.enableLocationButton": "Включить геопозицию",
     "affirmation.manage.chartHint": "Чтобы аффирмация принесла результаты, используйте её как минимум 30 дней.",
-    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз."
+    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
+    "gate.accessExpired.title": "30 дней расширенного доступа истекли",
+    "gate.accessExpired.body": "Перейдите в Личный кабинет, чтобы продлить доступ."
   },
   "es": {
     "tabs.home": "Навигатор",
@@ -1164,7 +1168,9 @@
     "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геопозиции.",
     "home.opportunityWindows.enableLocationButton": "Включить геопозицию",
     "affirmation.manage.chartHint": "Чтобы аффирмация принесла результаты, используйте её как минимум 30 дней.",
-    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз."
+    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
+    "gate.accessExpired.title": "30 дней расширенного доступа истекли",
+    "gate.accessExpired.body": "Перейдите в Личный кабинет, чтобы продлить доступ."
   },
   "fr": {
     "tabs.home": "Навигатор",
@@ -1553,7 +1559,9 @@
     "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геопозиции.",
     "home.opportunityWindows.enableLocationButton": "Включить геопозицию",
     "affirmation.manage.chartHint": "Чтобы аффирмация принесла результаты, используйте её как минимум 30 дней.",
-    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз."
+    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
+    "gate.accessExpired.title": "30 дней расширенного доступа истекли",
+    "gate.accessExpired.body": "Перейдите в Личный кабинет, чтобы продлить доступ."
   },
   "it": {
     "tabs.home": "Навигатор",
@@ -1942,7 +1950,9 @@
     "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геопозиции.",
     "home.opportunityWindows.enableLocationButton": "Включить геопозицию",
     "affirmation.manage.chartHint": "Чтобы аффирмация принесла результаты, используйте её как минимум 30 дней.",
-    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз."
+    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
+    "gate.accessExpired.title": "30 дней расширенного доступа истекли",
+    "gate.accessExpired.body": "Перейдите в Личный кабинет, чтобы продлить доступ."
   },
   "nl": {
     "tabs.home": "Навигатор",
@@ -2331,7 +2341,9 @@
     "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геопозиции.",
     "home.opportunityWindows.enableLocationButton": "Включить геопозицию",
     "affirmation.manage.chartHint": "Чтобы аффирмация принесла результаты, используйте её как минимум 30 дней.",
-    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз."
+    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
+    "gate.accessExpired.title": "30 дней расширенного доступа истекли",
+    "gate.accessExpired.body": "Перейдите в Личный кабинет, чтобы продлить доступ."
   },
   "pt": {
     "tabs.home": "Навигатор",
@@ -2720,6 +2732,8 @@
     "home.opportunityWindows.needLocation": "Для использования данной функции разрешите доступ к вашей геопозиции.",
     "home.opportunityWindows.enableLocationButton": "Включить геопозицию",
     "affirmation.manage.chartHint": "Чтобы аффирмация принесла результаты, используйте её как минимум 30 дней.",
-    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз."
+    "book.access.unavailable": "Не удалось проверить доступ к книге. Проверьте соединение и попробуйте ещё раз.",
+    "gate.accessExpired.title": "30 дней расширенного доступа истекли",
+    "gate.accessExpired.body": "Перейдите в Личный кабинет, чтобы продлить доступ."
   }
 }

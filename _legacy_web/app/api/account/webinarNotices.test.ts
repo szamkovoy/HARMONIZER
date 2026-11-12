@@ -4,10 +4,12 @@ import {
   authoredRecordingLetter,
   buildNoticePlainText,
   fillLetterName,
+  formatMoscowStart,
   letterLocale,
   purchaseLetterLocale,
   RECORDING_LETTER_BODY,
   RECORDING_LETTER_SUBJECT,
+  webinarStartSentence,
 } from "../_utils/webinarNoticeCopy";
 import {
   instantInHalfOpenWindow,
@@ -23,6 +25,8 @@ import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
 import { marketingStatusAfterPurchase } from "./widgetFulfillment";
 
 const START = "2026-10-20T15:00:00.000Z";
+/** 31 October 2026, 11:00 Moscow. */
+const INVITE_START = "2026-10-31T08:00:00.000Z";
 
 describe("recording letter is the authored text", () => {
   it("keeps the Russian template as the whole letter", () => {
@@ -79,14 +83,16 @@ describe("letter language is never mixed", () => {
       name: "Anne",
       body: "Le texte du webinaire",
       joinUrl: "https://example.com/room",
+      startsAt: INVITE_START,
     });
     expect(subject).toBe("Je vous invite au webinaire");
     expect(text).toContain("Bonjour Anne !");
+    expect(text).toContain(webinarStartSentence("fr", INVITE_START));
     expect(text).toContain("Le texte du webinaire");
     expect(text).toContain(
       "Accéder à la salle du webinaire\nhttps://example.com/room\nCode d'accès : 123456\n\nÀ bientôt !",
     );
-    expect(text).not.toMatch(/Здравствуйте|До встречи|Приглашаю|Код доступа/);
+    expect(text).not.toMatch(/Здравствуйте|До встречи|Приглашаю|Код доступа|московское/);
   });
 
   it("builds the Russian letter with the greeting, the room link and the sign-off", () => {
@@ -96,11 +102,18 @@ describe("letter language is never mixed", () => {
       name: "Анна",
       body: "Описание вебинара",
       joinUrl: "https://example.com/room",
+      startsAt: INVITE_START,
     });
+    expect(formatMoscowStart(INVITE_START, "ru")).toBe("31 октября, 11:00");
+    expect(webinarStartSentence("ru", INVITE_START)).toBe(
+      "Вебинар начнётся 31 октября, 11:00 (московское время).",
+    );
     expect(subject).toBe("Приглашаю на вебинар");
     expect(text).toBe(
       [
         "Здравствуйте, Анна!",
+        "",
+        "Вебинар начнётся 31 октября, 11:00 (московское время).",
         "",
         "Описание вебинара",
         "",
@@ -118,8 +131,11 @@ describe("letter language is never mixed", () => {
       name: "Анна",
       body: "Описание вебинара",
       joinUrl: "https://example.com/room",
+      startsAt: INVITE_START,
     });
-    expect(html).toContain("</p>\n<p></p>\n<p>Описание вебинара</p>");
+    expect(html).toContain(
+      "</p>\n<p></p>\n<p>Вебинар начнётся 31 октября, 11:00 (московское время).</p>\n<p></p>\n<p>Описание вебинара</p>",
+    );
     expect(html).toContain(
       '</p>\n<p></p>\n<p><a href="https://example.com/room" style="display:inline-block;padding:12px 22px;background:#2E8B57;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Перейти в вебинарную комнату</a></p>\n<p>Код доступа: 123456</p>\n<p></p>\n<p>До встречи!<br />Сергей Замковой</p>',
     );
@@ -132,7 +148,7 @@ describe("letter language is never mixed", () => {
       lang: "ru",
       footer: null,
     });
-    expect(wrapped.match(/height:1\.55em/g)).toHaveLength(3);
+    expect(wrapped.match(/height:1\.55em/g)).toHaveLength(4);
     expect(wrapped).toContain("background:#2E8B57");
     expect(wrapped).not.toContain("отписаться");
     expect(wrapped).not.toContain("Вы получили это письмо");

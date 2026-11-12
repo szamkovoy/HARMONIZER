@@ -46,6 +46,27 @@ function isEditable(payment: AdminPaymentRow): boolean {
   return true;
 }
 
+/** Метка вида оплаты в списке: подписка vs разовая. */
+function paymentKindLabel(payment: AdminPaymentRow): string | null {
+  if (payment.kind === "grant") return "грант";
+  if (payment.product_kind === "subscription") return "подписка";
+  if (payment.product_kind === "one_time") {
+    if (payment.product_ref === "pass_30d") return "разовый тариф";
+    return "разовая оплата";
+  }
+  return null;
+}
+
+function paymentKindBadgeClass(payment: AdminPaymentRow): string {
+  if (payment.product_kind === "subscription") {
+    return "rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800";
+  }
+  if (payment.product_ref === "pass_30d") {
+    return "rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800";
+  }
+  return "rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600";
+}
+
 export function PaymentHistorySection({
   title = "История платежей",
   variant = "section",
@@ -190,6 +211,7 @@ export function PaymentHistorySection({
         {payments.map((payment) => {
           const editable = isEditable(payment);
           const name = payment.display_name ?? "Без имени";
+          const kindLabel = paymentKindLabel(payment);
           return (
             <div key={payment.id} className={rowClass}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -206,6 +228,7 @@ export function PaymentHistorySection({
                   )
                 ) : null}
                 <TierBadge tier={payment.tier} />
+                {kindLabel ? <span className={paymentKindBadgeClass(payment)}>{kindLabel}</span> : null}
                 <span className="font-semibold text-zinc-800">
                   {payment.amount > 0
                     ? `${payment.amount} ${payment.currency}`

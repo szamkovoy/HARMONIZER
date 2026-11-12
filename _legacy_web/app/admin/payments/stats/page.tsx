@@ -50,6 +50,10 @@ const TIER_LABELS: Record<string, string> = {
   book: "Книга",
   spb_practicum: "Практикум в Санкт-Петербурге",
   surcharge: "Доплата",
+  yoga_course: "Месячный курс йоги",
+  diagnostics: "Диагностика",
+  consultation: "Консультация",
+  healing_session: "Целительная сессия",
 };
 
 const SCROLL_LIST_CLASS =

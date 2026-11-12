@@ -116,6 +116,8 @@
   "common.cancel": "Annulla",
   "common.close": "Chiudi",
   "common.ok": "OK",
+  "gate.accessExpired.body": "Vai nella tua area personale per rinnovare l'accesso.",
+  "gate.accessExpired.title": "I 30 giorni di accesso esteso sono scaduti",
   "gate.body.affirmation": "Un'affermazione personale nella pratica di respirazione aiuta a consolidare delicatamente lo stato interiore desiderato. Per utilizzare questa funzione, puoi abilitare l'uso delle pratiche di respirazione nel tuo Profilo.",
   "gate.body.assistant": "Passare dai consigli astrologici al livello della psicologia e delle pratiche comportamentali volte ad ampliare la matrice biostocastica dei tuoi stati richiede un'elevata potenza di calcolo. Puoi attivarla in Il mio account.",
   "gate.body.book": "Non hai accesso a questo materiale. Per ottenerlo, vai su Il mio account.",

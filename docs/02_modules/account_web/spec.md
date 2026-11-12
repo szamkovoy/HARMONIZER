@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.21
-updated: 2026-09-30
+version: 1.22
+updated: 2026-11-08
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -35,6 +35,16 @@ code_refs:
     _legacy_web/app/api/account/session/route.ts,
     _legacy_web/app/api/account/overview/route.ts,
     _legacy_web/app/api/account/checkout/route.ts,
+    _legacy_web/app/api/account/tierCheckout.ts,
+    _legacy_web/app/api/account/tierPass.ts,
+    _legacy_web/app/api/account/yookassaCheckout.ts,
+    _legacy_web/app/api/account/payRetryToken.ts,
+    _legacy_web/app/api/account/payPages.ts,
+    _legacy_web/app/api/account/payPageCopy.ts,
+    _legacy_web/app/api/account/passReminders.ts,
+    _legacy_web/app/pay/,
+    _legacy_web/app/api/cron/pass-reminders/route.ts,
+    supabase/migrations/20261108170536_tier_pass_30d_and_failure_reason.sql,
     _legacy_web/app/api/account/subscription/route.ts,
     _legacy_web/app/api/account/delete/route.ts,
     _legacy_web/app/api/account/wipeUserAccount.ts,
@@ -64,7 +74,7 @@ code_refs:
 
 1. **OTT-переход** — безопасный одноразовый вход в веб-кабинет из приложения (системный браузер, не WebView).
 2. **Kill-switch** кнопок «Личный кабинет» на время App Review (`app_config.account_links_enabled`).
-3. **Подхват смены уровня** — Realtime на своей строке `users` + тихий foreground-refetch; модалки «Демонстрационный период завершён» и «Уровень профиля обновлён» (`MembershipEventsBridge`).
+3. **Подхват смены уровня** — Realtime на своей строке `users` + тихий foreground-refetch; модалки «Демонстрационный период завершён», «30 дней расширенного доступа истекли» (платный уровень истёк и не продлён: переход с платного на `free` по `lastTier`, один раз; «Закрыть» / «Личный кабинет» — просто открывает кабинет, без выбора тарифа; смена между платными уровнями модалку не вызывает) и «Уровень профиля обновлён» (`MembershipEventsBridge`).
 4. **Веб-страницу кабинета** — standalone HTML5 (`web_cabinet/cabinet/` → `https://zamkovoi.yoga/cabinet/`, без WordPress); UI-словари 8 локалей в файле; оферта — `public/cabinet/offer/{lang}.json` на Vercel, только по клику.
 
 ## 2. Публичный контракт
@@ -89,8 +99,13 @@ code_refs:
 | `POST /api/account/ott` | Bearer JWT Supabase (приложение) | Выдаёт OTT: 32 байта base64url, в БД только sha256-хэш, TTL 5 мин |
 | `POST /api/account/session` | без auth, body `{ ott }`, CORS = origin сайта | Атомарно гасит OTT (`UPDATE … WHERE used_at IS NULL`), возвращает `{ sessionToken, overview }` |
 | `GET /api/account/overview` | Bearer кабинетной сессии, query `?currency=&country=` | Свежий `overview`; `paymentGateway` (available/provider); цены по выбранному шлюзу. Нет шлюза → prices null + `payment_gateway_unavailable` |
-| `POST /api/account/checkout` | Bearer кабинетной сессии, body `{ kind, tier?, webinarId?, currency, country? }` | `resolvePaymentGateway({ country, currency })`. Нет шлюза → `503 payment_gateway_unavailable`. Lava / ЮKassa как раньше; ЮKassa всегда RUB. |
-| `GET /api/account/purchases/last` | Bearer JWT Supabase (приложение) | Последняя активная one_time-покупка (`{ kind, productRef, createdAt, contractId }` | null). Приложение благодарит за книгу/вебинар (`gate.bookPaid.*` / `gate.webinarPaid.*`) на cold start и foreground. Таблица `payment_contracts` закрыта для клиента — чтение только service role |
+| `POST /api/account/checkout` | Bearer кабинетной сессии, body `{ kind, tier?, webinarId?, currency, country? }` | `resolvePaymentGateway({ country, currency })`. Нет шлюза → `503 payment_gateway_unavailable`. Lava / ЮKassa как раньше; ЮKassa всегда RUB. `kind`: `subscription` \| `pass` (30 дней без автопродления, §3.5) \| `webinar` \| `book`. Тариф идёт через `startTierCheckout`; отказ — `409 { error, code }`, `code` ∈ `already_active` \| `has_subscription` \| `higher_access`. |
+| `GET /pay/failed?t=` | подписанный токен (HMAC `ACCOUNT_CABINET_SECRET`, 24 ч) | Страница «Оплата не удалась» (8 локалей): другой картой / PayPal / 30 дней без автопродления (§3.5) |
+| `GET /pay/renew?t=` | токен из письма (10 дней) | «Продлить доступ»: ещё 30 дней / PayPal / подписка |
+| `POST /pay/retry` | form `t`, `o` ∈ `card`\|`foreign`\|`paypal`\|`pass`\|`subscription` | Новый счёт без ввода email/имени → `303` на форму Lava/ЮKassa |
+| `GET /pay/return?t=&c=` | токен + id контракта | Возврат из ЮKassa: успех → кабинет `?paid=1`, отказ → «Оплата не удалась», pending → «Проверяем оплату…» (2×3 с), потом тоже «Оплата не удалась» |
+| `POST /api/cron/pass-reminders` | `x-cron-secret` | Письмо за 12 часов до конца оплаченных 30 дней (§3.5) |
+| `GET /api/account/purchases/last` | Bearer JWT Supabase (приложение) | Последняя активная one_time-покупка, кроме 30 дней тарифа (`{ kind, productRef, createdAt, contractId }` | null). Приложение благодарит за книгу/вебинар (`gate.bookPaid.*` / `gate.webinarPaid.*`) на cold start и foreground. Таблица `payment_contracts` закрыта для клиента — чтение только service role |
 | `GET /api/account/purchases/book` | Bearer JWT Supabase (приложение) | Ownership книги для ридера: `{ owned, contractId?, purchasedAt? }` (active one_time `tier=book`). Shared helper `bookOwnership.ts` с overview |
 | `GET /api/account/subscription` | Bearer кабинетной сессии | Последний контракт со статусом active/cancelled |
 | `DELETE /api/account/subscription` | Bearer кабинетной сессии | Отмена через `cancelActiveSubscriptionsForUser` (`lavatop` → Lava DELETE; `yookassa` → methods `inactive` + сброс `payment_method_id`) + статус cancelled; доступ до `current_period_end` / `membership_expires_at`. |
@@ -124,11 +139,13 @@ code_refs:
    - `payment.success` (subscription) — контракт → active, `current_period_end = +30 дней`; `users.membership_tier = tier`, `membership_expires_at = period_end + 48ч грейс`; все прочие active-контракты пользователя отменяются в Lava и в БД (политика A3); затем settlement (см. §3.2).
    - `payment.success` (one_time, tier=webinar) — контракт → active; `membership_*` НЕ трогается; upsert `webinar_registrations(webinar_id=product_ref, user_id)`; settlement.
    - `payment.success` (one_time, tier=book) — контракт → active; `membership_*` и регистрации НЕ трогаются; приложение благодарит через `purchases/last`; settlement.
-   - `payment.failed` — pending → failed;
+   - `payment.failed` — pending → failed, `errorMessage` Lava → `failure_reason` (напр. `Declined by 3-D Secure`);
    - `subscription.recurring.payment.success` — сдвиг периода и `membership_expires_at` (ключ — `parentContractId`) + settlement на сумму вебхука;
    - `subscription.recurring.payment.failed` — только лог (Lava ретраит сама);
    - `subscription.cancelled` — контракт → cancelled; `users.membership_*` не трогаем — доступ живёт до `membership_expires_at`, дальше `paidAccess` вернёт free.
    Неизвестный контракт — ответ 200 (ретраи бессмысленны), транзиентная ошибка БД — 5xx (Lava повторит, до 20 попыток). Сбой FX/settlement логируется, но **не** валит активацию (ответ всё равно 2xx).
+   Вебхук отвечает, как только оплата записана в базу (пропуск или тариф). Письмо, курсы и отмена старой подписки доделываются уже после ответа: Lava считает доставку неудачной, если ответа нет за 10 секунд. Запрос к базе на этом пути обрывается через 4 секунды, чтобы зависший вызов не съел весь лимит.
+   Если вебхук так и не дошёл, счёт остаётся `pending`. Планировщик раз в 10 минут смотрит, есть ли pending-счёт Lava возрастом от 10 до 22 минут. Таких нет — наружу никто не ходит. Такой есть — `GET /api/v1/invoices/{id}` только по нему (получается одна или две проверки, дальше окно закрывается). `COMPLETED` проводится тем же `fulfillFirstPaymentSuccess` (дата оплаты — `datetime` инвойса), `FAILED` → `failed`, незавершённый счёт остаётся `pending`.
 3. Подхват в приложении — Realtime/foreground `MembershipEventsBridge` (модалка «Уровень профиля обновлён»); для вебинара — `WebinarScreen` повторно проверяет `isRegistered` в foreground + модалка «Вы записаны на вебинар» (`gate.webinarPaid.*`); для книги — `purchases/last` + модалка «Спасибо за покупку книги» (`gate.bookPaid.*`).
 4. Даунгрейд = отмена + новая подписка после конца периода (в кабинете после отмены показываются все платные уровни).
 
@@ -169,14 +186,27 @@ else                                →  fail-closed
 
 Миграция `20261007190000_payment_widgets_webinar_passes.sql`.
 
-- **Единый каталог** `payment_catalog`: SKU ЮKassa (RUB) + `lava_offer_id` (оффер Lava, не продукт; цены Lava только читаются из API), `letter_subject_i18n` / `letter_body_i18n` (письмо покупателю с виджета, 8 локалей, plain text, `{{name}}`), `webinar_credits` / `webinar_window_days`, `sort_order`. Tier **`webinar_pack`**, **`spb_practicum`** и **`surcharge`** (CHECK на `payment_catalog` и `payment_contracts`). `spb_practicum` — «Практикум в Санкт-Петербурге», 2500 ₽; `surcharge` — «Доплата», 13000 ₽. Оба только ЮKassa (`lava_offer_id` пустой); в обзор кабинета приложения не входят (там только Наставник, Мастер, ближайший вебинар и книга). Покупка не меняет тариф и не даёт пропуск на вебинары. `resolveLavaOfferIdByName`: `payment_offers` (локаль) → `payment_catalog.lava_offer_id` → `payment_offers` `en`.
+- **Единый каталог** `payment_catalog`: SKU ЮKassa (RUB) + `lava_offer_id` (оффер Lava, не продукт; цены Lava только читаются из API), `letter_subject_i18n` / `letter_body_i18n` (письмо покупателю с виджета, 8 локалей, plain text, `{{name}}`), `webinar_credits` / `webinar_window_days`, `sort_order`. Tier **`webinar_pack`**, **`spb_practicum`**, **`surcharge`**, **`yoga_course`**, **`diagnostics`**, **`consultation`** и **`healing_session`** (CHECK на `payment_catalog` и `payment_contracts`). `spb_practicum` — «Практикум в Санкт-Петербурге», 2500 ₽; `surcharge` — «Доплата», 13000 ₽. Оба только ЮKassa (`lava_offer_id` пустой). `yoga_course` — «Месячный курс йоги с 20% скидкой», 24000 ₽ и оффер Lava `7c9bd26c-70a2-4d98-82b3-a29bbf07b498` (240 € / 269,26 $). `diagnostics` — «Диагностика», 3000 ₽, оффер Lava `282eb496-d561-49e2-8efc-5a14ad8a42f2` (30 € / 30 $). `consultation` — «Консультация», 10000 ₽, оффер `59afc5fe-c9b1-45e6-aea9-fe4a91cf7e6d` (100 € / 100 $). `healing_session` — «Целительная сессия», 30000 ₽, оффер `5284f95f-0aa9-4220-bd46-e7e141527948` (300 € / 300 $). У каждого свой виджет лендинга и письмо покупателю на 8 языках (`{{name}}`). Эти продукты в обзор кабинета приложения не входят (там только Наставник, Мастер, ближайший вебинар и книга). Покупка не меняет тариф и не даёт пропуск на вебинары. `resolveLavaOfferIdByName`: `payment_offers` (локаль) → `payment_catalog.lava_offer_id` → `payment_offers` `en`.
 - **`payment_widgets`** (`title`, `catalog_id`, `config` jsonb, `active`; RLS без политик). Конфиг — `_legacy_web/lib/paymentWidget/config.ts` (`normalizeWidgetConfig`): `paymentMode` `choice|ru|int`, `successUrl`, `requireName`, порядок/видимость 8 элементов (email и кнопка всегда видимы), стиль, `texts[locale]` поверх дефолтов `lib/paymentWidget/copy.ts` (8 локалей + системные ошибки).
 - **Скрипт** `_legacy_web/public/widget.js` (код вставки: `<script src="https://harmonizer.zamkovoi.yoga/widget.js" data-id="…" data-lang="ru|…|auto" async>`): Shadow DOM, каждый `<script>` — независимый экземпляр (несколько виджетов и копии на одной странице). Язык: `data-lang` или язык браузера; `resolveWidgetLocale` берёт его, только если там заполнены все тексты, написанные автором на основном языке (иначе весь виджет на `ru`). Метод по умолчанию: страна по IP RU → `ru`, иначе `int`; страна неизвестна → часовой пояс браузера из списка зон РФ. Валюта Lava: US → USD, иначе EUR (fallback на другую, если цены нет). Возврат из ЮKassa открывает `?hz_paid=<widgetId>`: этот заход показывает благодарность и сразу убирает параметр из адреса (`history.replaceState`). Обновление и любой следующий заход снова показывают форму, чтобы на том же лендинге можно было оплатить следующий вебинар. `window.HarmonizerWidget.render` — для предпросмотра в админке.
 - **Checkout** создаёт контракт `source=widget` с `buyer_email/name/locale`, `widget_id`, `catalog_id`; `user_id` — только если email уже известен (`email_contacts`). Для существующего пользователя подписка не ниже/не равна активной (`already_active`). ЮKassa: `return_url = successUrl || pageUrl?hz_paid=<id>`; Lava: `successful_return_url = successUrl` (без него — страница Lava).
 - **Fulfill** (`fulfillFirstPaymentSuccess`, ЮKassa и Lava — Lava для one_time и всех `source=widget` делегирует сюда): `ensureWidgetBuyer` (`widgetFulfillment.ts`) — существующий аккаунт по email или новый подтверждённый (`email_confirm`, `full_name`, `locale`), `trial_expires_at = null` (демо стартует при первом входе); контакт рассылки (`source=widget`). Если контакт был `unsubscribed`, покупка (любая, включая продление) возвращает его в `active`. `complained` и `suppressed` не меняются. Письма о покупке и о вебинаре уходят независимо от статуса контакта.
-- Tier `webinar` без `product_ref` и `webinar_pack` → `webinar_passes` (кредиты/окно из каталога, окно `[paid_at, paid_at + days)`) + `apply_webinar_passes(user)` один раз, не по крону. Если в окне уже есть опубликованный вебинар — уходит приглашение (`webinarNotices.ts`), а письмо из каталога не отправляется. Если вебинара ещё нет — отправляется письмо из каталога (`letter_*_i18n`). Покупка тарифа «Мастер» шлёт приглашения на уже опубликованные вебинары и не отменяет письмо каталога. Язык письма — `users.locale`, иначе язык контакта, иначе `buyer_locale`. Если на этом языке нет своего текста, всё письмо (тема и текст) уходит по-русски. Пустая строка в тексте каталога — пустая строка в письме. Футера «вы получили это письмо… отписаться» и заголовка List-Unsubscribe нет: это письмо о покупке, как код входа. Идемпотентность письма каталога — `buyer_letter_sent_at`; приглашений — `webinar_notice_sends`. Сбой письма не валит вебхук.
+- Tier `webinar` без `product_ref` и `webinar_pack` → `webinar_passes` (кредиты/окно из каталога, окно `[paid_at − 60 минут, paid_at + days)`) + `apply_webinar_passes(user)` один раз, не по крону. Час до оплаты — тот же допуск, что у входа на вебинар: оплата в первые 60 минут после начала относится к этому вебинару, и уходит приглашение со ссылкой на комнату, как если бы оплатили до старта. Если в окне уже есть опубликованный вебинар — уходит приглашение (`webinarNotices.ts`), а письмо из каталога не отправляется. Если вебинара ещё нет — отправляется письмо из каталога (`letter_*_i18n`). В нём нет даты и ссылки на комнату: ссылка придёт отдельным письмом, когда комната будет готова, после вебинара придёт ссылка на запись, и та же ссылка появится на баннере в приложении. Покупка тарифа «Мастер» шлёт приглашения на уже опубликованные вебинары и не отменяет письмо каталога. Язык письма — `users.locale`, иначе язык контакта, иначе `buyer_locale`. Если на этом языке нет своего текста, всё письмо (тема и текст) уходит по-русски. Пустая строка в тексте каталога — пустая строка в письме. Футера «вы получили это письмо… отписаться» и заголовка List-Unsubscribe нет: это письмо о покупке, как код входа. Идемпотентность письма каталога — `buyer_letter_sent_at`; приглашений — `webinar_notice_sends`. Сбой письма не валит вебхук.
 - **Возврат** one_time: `webinar_passes.status = revoked`, регистрации пропуска на ещё не начавшиеся вебинары удаляются.
 - **Гео за прокси** (`ipCountry.ts`): `X-Harmonizer-Client-Ip` от REG.RU-прокси → ipwho.is; запрос с адреса прокси без этого заголовка → страна неизвестна (не `x-vercel-ip-country`=RU прокси).
+
+### 3.5 Неудачная оплата тарифа и 30 дней без автопродления
+
+Миграция `20261108170536_tier_pass_30d_and_failure_reason.sql`. Повод: Lava отклоняет оформление подписки, когда банк не проходит полный 3‑D Secure (сохранение карты), хотя разовые платежи той же карты проходят.
+
+- **Счёт тарифа** (`startTierCheckout`, кабинет и `/pay/retry`): Lava получает `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=<токен>`, `cancel_return_url` = кабинет; для PayPal — `paymentMethod: PAYPAL` (только EUR/USD). ЮKassa: `return_url` = `/pay/return?t=&c=<contractId>` (у неё один адрес на успех и отказ, статус берём из API). При отказе банка ЮKassa оставляет человека на своей форме («Не сработало…») и даёт повторить в том же платеже; к нам он попадает по «Выйти из оплаты» или по истечении таймера, платёж ещё `pending` — после двух проверок показываем «Оплата не удалась».
+- **Токен** (`payRetryToken.ts`): userId, tier, вид (подписка / 30 дней), валюта, страна, язык. Хватает на новый счёт на email владельца аккаунта, больше ничего не даёт.
+- **Страница «Оплата не удалась»**: тот же вид оплаты другой картой; после ЮKassa (если Lava включена) — «Оплатить картой иностранного банка» (Lava, EUR без страны → профиль INT): ЮKassa не принимает зарубежные карты; PayPal — только если шлюз Lava и валюта не RUB; «30 дней без автопродления» — после отказа подписки, если 30 дней можно продать. Если оплата уже прошла (активная подписка того же или выше уровня) — сразу в кабинет `?paid=1`.
+- **30 дней тарифа** — `payment_contracts`: `product_kind=one_time`, `tier` oracle|master, `periodicity=ONE_TIME`, `product_ref=pass_30d`. Lava — отдельные разовые продукты (`payment_offers` `oracle_30d` / `master_30d`, `en`), ЮKassa — цена тарифа из `payment_catalog`, без `save_payment_method` и не только карта. Активация (`activateTierPass`): `current_period_end` = конец текущего доступа того же тарифа (если ещё действует) или дата оплаты, + 30 дней, без 48 ч запаса; `users.membership_*` ставятся, если нет более высокого оплаченного тарифа; подписки не отменяются; «Мастер» шлёт приглашения на вебинары и входит в рассылку записи.
+- **Ограничения продажи**: 30 дней не продаём при активной подписке (её продление переписало бы `membership_*`) и при действующем более высоком тарифе; подписку не продаём ниже действующего оплаченного тарифа. Подписка того же тарифа поверх оплаченных 30 дней не укорачивает доступ.
+- **Причина отказа**: `payment_contracts.failure_reason` — Lava `errorMessage`, ЮKassa `party:reason` из `cancellation_details`.
+- **Напоминание**: раз в час (cron `send_pass_reminders_hourly`, :45; Postgres сначала проверяет, есть ли кому писать) — одно письмо за ≤12 часов до `current_period_end` (`pass_reminder_sent_at`): за три дня человек откладывает оплату. Миграция `20261108180153`. Ранняя оплата 30 дней того же тарифа считается от конца текущих, поэтому новое письмо придёт перед новым концом; старый контракт помечается без письма. Не уходит, если человек уже продлил (подписка или следующие 30 дней). Кнопка ведёт на `/pay/renew`. Язык — `users.locale`, даты — Luxon.
+- **Возврат** 30 дней пересчитывает тариф как возврат подписки (`revokeOrRestoreMembershipAfterRefund` учитывает и такие контракты). `purchases/last` их не отдаёт, чтобы не перекрыть благодарность за вебинар или книгу.
 
 ## 4. Конфигурация
 

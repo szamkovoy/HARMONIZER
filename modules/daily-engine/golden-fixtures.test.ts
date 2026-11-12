@@ -61,7 +61,7 @@ const GOLDEN_FIXTURES: GoldenCase[] = [
     expected: {
       planetOfTheDay: "Venus",
       importanceSamples: { Mars: 0.9164, Venus: 0.6624 },
-      rankedFirst: "Mars",
+      rankedFirst: "Venus",
       alternative: true,
       todayTone: "harmonic",
     },

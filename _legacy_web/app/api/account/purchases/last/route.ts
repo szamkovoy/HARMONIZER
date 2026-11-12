@@ -10,6 +10,7 @@ import { createServiceSupabase, errorResponse, json, requireUserId } from "../..
 //   -> { purchase: { kind:"book"|"webinar"|..., productRef: string|null, createdAt: string } | null }
 //
 // `kind` — это tier из payment_contracts для one_time (webinar/book/...).
+// Оплата тарифа на 30 дней (one_time oracle|master) сюда не попадает.
 // Приложение сравнивает createdAt с временем визита в кабинет (cabinetVisit.ts)
 // и благодарит за покупку, появившуюся после визита.
 export const runtime = "nodejs";
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
       .select("tier,product_ref,created_at,contract_id")
       .eq("user_id", userId)
       .eq("product_kind", "one_time")
+      .not("tier", "in", "(oracle,master)")
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1)

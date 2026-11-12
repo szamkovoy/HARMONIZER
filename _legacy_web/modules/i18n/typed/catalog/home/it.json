@@ -75,7 +75,9 @@
     "windowTitles": {
       "sunrise": "Sorgere",
       "culmination": "Culminazione",
-      "exactAspect": "Aspetto esatto"
+      "exactAspect": "Aspetto esatto",
+      "moonPhaseNew": "Luna nuova",
+      "moonPhaseFull": "Luna piena"
     },
     "aspectLabels": {
       "conjunction": "congiunzione",
@@ -105,6 +107,7 @@
     "sunriseDetailTemplate": "{planet} sale sopra l'orizzonte",
     "culminationDetailTemplate": "{planet} è alla massima forza",
     "exactAspectDetailTemplate": "{aspect} {transitPlanet} (transito) e {natalPlanet} (natale)",
+    "moonPhaseDetail": "fase massima",
     "help": {
       "freeOpening": "Il pianeta più forte del giorno è {planet}. Il grafico mostra quando {planet} sorge e raggiunge lo zenit nella vostra posizione.",
       "paidOpening": "Il pianeta più forte della vostra carta natale oggi è {natalPlanet}. Questa forza è in gran parte dovuta all'interazione con il pianeta di transito {transitPlanet}, il cui movimento nel cielo apre per voi finestre di opportunità particolari.",
@@ -132,6 +135,7 @@
   },
   "recommendation": {
     "title": "Raccomandazioni del giorno",
+    "alternativeChoiceNote": "Oggi proponiamo di rivolgere l'attenzione a un altro tema. Così i vostri sforzi di armonizzazione restano vari.",
     "loading": "Caricamento della raccomandazione di oggi…",
     "discussButton": "Cosa fare?",
     "readMoreButton": "Leggi di più",
