@@ -9,6 +9,7 @@ import {
   resolvePaymentGateway,
   type PaymentProviderId,
 } from "./paymentGatewayProfile";
+import { subscriptionIsVisible } from "./subscriptionLiveness";
 import { computeMasterBonusDays } from "./upgradeCredit";
 
 /**
@@ -165,9 +166,12 @@ export async function buildAccountOverview(
     .in("status", ["active", "cancelled"])
     .order("created_at", { ascending: false })
     .limit(10);
+  // Истёкшие строки (active без продления, cancelled после конца периода) не показываем:
+  // человек на бесплатном уровне видит кабинет без блока подписки и все тарифы.
+  const visibleRows = (contractRows ?? []).filter((row) => subscriptionIsVisible(row));
   const contractRow =
-    (contractRows ?? []).find((row) => row.status === "active")
-    ?? (contractRows ?? [])[0]
+    visibleRows.find((row) => row.status === "active")
+    ?? visibleRows[0]
     ?? null;
   if (contractRow) {
     subscription = {

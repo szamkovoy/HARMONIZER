@@ -27,6 +27,7 @@ async function activeContract(userId: string): Promise<ContractRow | null> {
     .from("payment_contracts")
     .select("contract_id,tier,currency,amount,status,current_period_end,cancelled_at,created_at")
     .eq("user_id", userId)
+    .eq("product_kind", "subscription")
     .in("status", ["active", "cancelled"])
     .order("created_at", { ascending: false })
     .limit(1)

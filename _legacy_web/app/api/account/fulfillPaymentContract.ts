@@ -172,6 +172,9 @@ export async function fulfillFirstPaymentSuccess(
   }
 
   if (contract.status === "active") {
+    // Повтор после частичного первого прохода: контракт уже active, а users мог
+    // не обновиться (таймаут БД). Довыдаём доступ до ответа вебхуку.
+    await ensureMembershipForActiveContract(db, contract);
     const slow = async () => {
       await settleChargeSafe(db, {
         contractId,
@@ -340,6 +343,50 @@ export async function fulfillFirstPaymentSuccess(
   await slow();
   const result: Record<string, unknown> = { ok: true, activated: contractId, upgradeBonusDays: bonusDays };
   return result;
+}
+
+/**
+ * Идемпотентная довыдача доступа по уже активному контракту (подписка или
+ * 30 дней тарифа). Ничего не делает, если период истёк, доступ уже не короче
+ * оплаченного или действует более высокий тариф.
+ */
+export async function ensureMembershipForActiveContract(
+  db: SupabaseClient,
+  contract: FulfillContractRow,
+): Promise<boolean> {
+  if (!contract.user_id || !contract.current_period_end) return false;
+  const tier = contract.tier;
+  if (tier !== "oracle" && tier !== "master") return false;
+  const isPass = isTierPassContract(contract);
+  if (!isPass && (contract.product_kind ?? "subscription") !== "subscription") return false;
+
+  const endMs = new Date(contract.current_period_end).getTime();
+  if (!Number.isFinite(endMs)) return false;
+  const accessUntilMs = isPass ? endMs : endMs + RENEWAL_GRACE_MS;
+  if (accessUntilMs <= Date.now()) return false;
+
+  const { data: user, error } = await db
+    .from("users")
+    .select("membership_tier,membership_expires_at")
+    .eq("id", contract.user_id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!user) return false;
+  const currentTier = (user.membership_tier as string | null) ?? null;
+  const currentExpiresAt = (user.membership_expires_at as string | null) ?? null;
+  if (hasHigherPaidAccess({ tier, currentTier, currentExpiresAt })) return false;
+  if (currentTier === tier && currentExpiresAt) {
+    const currentMs = new Date(currentExpiresAt).getTime();
+    if (Number.isFinite(currentMs) && currentMs >= accessUntilMs) return false;
+  }
+
+  const { error: userError } = await db
+    .from("users")
+    .update({ membership_tier: tier, membership_expires_at: new Date(accessUntilMs).toISOString() })
+    .eq("id", contract.user_id);
+  if (userError) throw userError;
+  console.warn("[fulfill] membership re-granted for active contract", contract.contract_id);
+  return true;
 }
 
 /** 30 дней тарифа без автопродления: доступ без 48 ч запаса, подписки не трогаем. */

@@ -17,7 +17,8 @@ import { resubscribeContactOnPurchase } from "../../widgetFulfillment";
 //                                          апгрейд тарифа, отмена старой подписки;
 //   payment.failed                         первый платёж не прошёл -> failed;
 //   subscription.recurring.payment.success продление -> сдвиг периода;
-//   subscription.recurring.payment.failed  неудачное списание (Lava ретраит сама);
+//   subscription.recurring.payment.failed  финальный отказ продления -> cancelled
+//                                          (+ failure_reason), доступ до конца грейса;
 //   subscription.cancelled                 отмена -> cancelled, доступ до конца периода.
 export const runtime = "nodejs";
 
@@ -91,9 +92,10 @@ export async function POST(req: Request) {
       case "subscription.recurring.payment.success":
         return await handleRenewal(body.parentContractId?.trim() || contractId, body);
       case "subscription.recurring.payment.failed":
-        // Lava сама ретраит (8ч/24ч); при финальном провале придёт
-        // subscription.cancelled. Здесь только фиксируем факт.
-        return json({ ok: true, noted: "recurring failure, awaiting retries" });
+        // Lava шлёт это событие только по ПОСЛЕДНЕЙ попытке списания
+        // (status: subscription-failed); subscription.cancelled после него
+        // не приходит. Поэтому событие терминально: закрываем контракт.
+        return await handleRenewalFailed(body.parentContractId?.trim() || contractId, body);
       case "subscription.cancelled":
         return await handleCancelled(body.parentContractId?.trim() || contractId);
       default:
@@ -167,86 +169,26 @@ async function handleFirstPaymentSuccess(
   body: LavaWebhookBody,
 ): Promise<Response> {
   const db = webhookDb();
-  const contract = await findContract(db, contractId);
+  const contract = await findPaymentContract(db, contractId);
   if (!contract) {
     // Контракт создан не через наш checkout (например, прямая ссылка Lava).
     // Отвечаем 200, чтобы Lava не ретраила: привязать его не к кому.
     console.warn("[lava-webhook] payment.success for unknown contract", contractId);
     return json({ ok: true, unknownContract: true });
   }
-  // Разовая покупка (ONE_TIME) не меняет membership_*. Разовые покупки (вебинар,
-  // пропуск на вебинары, книга) и всё купленное с виджета лендинга (аккаунт
-  // покупателя создаётся здесь) — общая логика с ЮKassa.
-  const full = await findPaymentContract(db, contractId);
-  if (full && (full.product_kind === "one_time" || full.source === "widget")) {
-    const result = await fulfillFirstPaymentSuccess(db, {
-      contract: full,
-      amount: body.amount,
-      currency: body.currency,
-      paidAt: body.timestamp ?? new Date().toISOString(),
-      provider: "lavatop",
-      logTag: "lava-webhook",
-      scheduleSlow: scheduleAfterResponse,
-    });
-    return json(result);
-  }
-
-  if (contract.status === "active") {
-    // Идемпотентный ретрай вебхука: статус уже active, но settlement мог не записаться.
-    await settleLavaCharge(db, contractId, "payment.success", body, contract.user_id);
-    return json({ ok: true, alreadyActive: true });
-  }
-
-  const periodEnd = nextPeriodEnd();
-  const nowIso = new Date().toISOString();
-
-  const { error: contractError } = await db
-    .from("payment_contracts")
-    .update({ status: "active", current_period_end: periodEnd.toISOString(), updated_at: nowIso })
-    .eq("contract_id", contractId);
-  if (contractError) throw contractError;
-
-  await settleLavaCharge(db, contractId, "payment.success", body, contract.user_id);
-
-  // Апгрейд тарифа пользователя (политика A3: немедленно, без пересчёта).
-  const { error: userError } = await db
-    .from("users")
-    .update({
-      membership_tier: contract.tier,
-      membership_expires_at: new Date(periodEnd.getTime() + RENEWAL_GRACE_MS).toISOString(),
-    })
-    .eq("id", contract.user_id);
-  if (userError) throw userError;
-
-  // Отменяем прежние активные подписки пользователя (остаток — в пользу автора).
-  const { data: others, error: othersError } = await db
-    .from("payment_contracts")
-    .select("contract_id")
-    .eq("user_id", contract.user_id)
-    .eq("status", "active")
-    .neq("contract_id", contractId);
-  if (othersError) throw othersError;
-
-  if (others?.length) {
-    const { data: authData } = await db.auth.admin.getUserById(contract.user_id);
-    const email = authData?.user?.email;
-    for (const other of others) {
-      try {
-        if (email) await cancelLavaSubscription({ contractId: other.contract_id, email });
-        const { error: cancelError } = await db
-          .from("payment_contracts")
-          .update({ status: "cancelled", cancelled_at: nowIso, updated_at: nowIso })
-          .eq("contract_id", other.contract_id);
-        if (cancelError) throw cancelError;
-      } catch (cancelIssue) {
-        // Не валим активацию нового тарифа: старый контракт можно отменить
-        // повторно вручную/через ЛК Lava. Логируем для разбора.
-        console.error("[lava-webhook] failed to cancel prior contract", other.contract_id, cancelIssue);
-      }
-    }
-  }
-
-  return json({ ok: true, activated: contractId });
+  // Единая активация для подписки, 30 дней, разовых покупок и виджета (общая с
+  // ЮKassa): доступ пишется до ответа, расчёт курса / отмена прежней подписки /
+  // письма — после. Прежние разовые покупки при этом не трогаются.
+  const result = await fulfillFirstPaymentSuccess(db, {
+    contract,
+    amount: body.amount,
+    currency: body.currency,
+    paidAt: body.timestamp ?? new Date().toISOString(),
+    provider: "lavatop",
+    logTag: "lava-webhook",
+    scheduleSlow: scheduleAfterResponse,
+  });
+  return json(result);
 }
 
 async function handleFirstPaymentFailed(contractId: string, body: LavaWebhookBody): Promise<Response> {
@@ -272,14 +214,6 @@ async function handleRenewal(parentContractId: string, body: LavaWebhookBody): P
     .eq("contract_id", contract.contract_id);
   if (contractError) throw contractError;
 
-  await settleLavaCharge(
-    db,
-    contract.contract_id,
-    "subscription.recurring.payment.success",
-    body,
-    contract.user_id,
-  );
-
   const { error: userError } = await db
     .from("users")
     .update({
@@ -289,16 +223,78 @@ async function handleRenewal(parentContractId: string, body: LavaWebhookBody): P
     .eq("id", contract.user_id);
   if (userError) throw userError;
 
-  try {
-    await resubscribeContactOnPurchase(db, {
-      email: body.buyer?.email ?? null,
-      userId: contract.user_id,
-    });
-  } catch (err) {
-    console.error("[lava-webhook] resubscribe failed", contract.contract_id, err);
+  // Курс (внешний запрос) и рассылочный контакт — после ответа: Lava ждёт 10 секунд.
+  scheduleAfterResponse(async () => {
+    await settleLavaCharge(
+      db,
+      contract.contract_id,
+      "subscription.recurring.payment.success",
+      body,
+      contract.user_id,
+    );
+    try {
+      await resubscribeContactOnPurchase(db, {
+        email: body.buyer?.email ?? null,
+        userId: contract.user_id,
+      });
+    } catch (err) {
+      console.error("[lava-webhook] resubscribe failed", contract.contract_id, err);
+    }
+  });
+
+  return json({ ok: true, renewed: contract.contract_id, deferred: true });
+}
+
+/** Оплаченный период ещё далеко впереди — отказ продления к этому периоду не относится. */
+const RENEWAL_FAILED_MAX_AHEAD_MS = 5 * 24 * 60 * 60 * 1000;
+
+async function handleRenewalFailed(parentContractId: string, body: LavaWebhookBody): Promise<Response> {
+  const db = webhookDb();
+  const contract = await findContract(db, parentContractId);
+  if (!contract) {
+    console.warn("[lava-webhook] renewal failure for unknown contract", parentContractId);
+    return json({ ok: true, unknownContract: true });
+  }
+  if ((contract.product_kind ?? "subscription") !== "subscription") {
+    return json({ ok: true, ignored: "not a subscription" });
+  }
+  if (contract.status !== "active") {
+    return json({ ok: true, alreadyClosed: contract.status });
+  }
+  const endMs = contract.current_period_end ? new Date(contract.current_period_end).getTime() : NaN;
+  if (Number.isFinite(endMs) && endMs - Date.now() > RENEWAL_FAILED_MAX_AHEAD_MS) {
+    console.warn("[lava-webhook] renewal failure ignored: period still ahead", contract.contract_id);
+    return json({ ok: true, ignored: "period still ahead" });
   }
 
-  return json({ ok: true, renewed: contract.contract_id });
+  const nowIso = new Date().toISOString();
+  const detail = (body.errorMessage ?? body.status ?? "failed").toString().trim() || "failed";
+  const { error } = await db
+    .from("payment_contracts")
+    .update({
+      status: "cancelled",
+      cancelled_at: nowIso,
+      updated_at: nowIso,
+      failure_reason: `renewal: ${detail}`.slice(0, 500),
+    })
+    .eq("contract_id", contract.contract_id)
+    .eq("status", "active");
+  if (error) throw error;
+  console.warn("[lava-webhook] subscription lapsed after failed renewal", {
+    contractId: contract.contract_id,
+    email: body.buyer?.email ?? null,
+    reason: detail,
+  });
+
+  // users.membership_* не трогаем: доступ доживает до membership_expires_at.
+  // На стороне Lava закрываем подписку явно, чтобы не было позднего списания.
+  const email = body.buyer?.email?.trim();
+  if (email) {
+    scheduleAfterResponse(async () => {
+      await cancelLavaSubscription({ contractId: contract.contract_id, email });
+    });
+  }
+  return json({ ok: true, lapsed: contract.contract_id });
 }
 
 async function handleCancelled(parentContractId: string): Promise<Response> {

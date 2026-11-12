@@ -13,6 +13,7 @@ import {
   type LavaPaymentMethod,
 } from "./lava";
 import { resolvePaymentGateway, type PaymentProviderId } from "./paymentGatewayProfile";
+import { subscriptionIsLive } from "./subscriptionLiveness";
 import { PAY_FAILED_TOKEN_TTL_MS, signPayRetryToken, type PayRetryKind } from "./payRetryToken";
 import { hasHigherPaidAccess, lavaPassOfferName, TIER_PASS_REF, type PassTier } from "./tierPass";
 import { createYookassaCheckout } from "./yookassaCheckout";
@@ -91,16 +92,17 @@ async function blockedReason(
   db: SupabaseClient,
   params: { userId: string; tier: PassTier; kind: PayRetryKind },
 ): Promise<TierCheckoutBlock | null> {
-  const { data: active, error } = await db
+  const { data: activeRows, error } = await db
     .from("payment_contracts")
-    .select("tier")
+    .select("tier,status,current_period_end")
     .eq("user_id", params.userId)
     .eq("status", "active")
     .eq("product_kind", "subscription")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
   if (error) throw error;
+  // Подписка без продления (period_end + грейс в прошлом) покупку не блокирует.
+  const active = (activeRows ?? []).find((row) => subscriptionIsLive(row)) ?? null;
   if (active && TIER_ORDER[params.tier] <= TIER_ORDER[active.tier as keyof typeof TIER_ORDER]) {
     return "already_active";
   }
