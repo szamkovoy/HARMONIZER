@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { classifyUnsuccessful, isLapsedFailureReason } from "../admin/_utils/unsuccessfulPayments";
 import { RECONCILE_FAILED_REASON } from "./lavaReconcile";
-import { buildPaymentAlertLetter, claimPaymentAlert, formatAlertMoscowTime } from "./paymentAlerts";
+import {
+  buildPaymentAlertLetter,
+  claimPaymentAlert,
+  formatAlertMoscowTime,
+  paymentAlertDedupEventType,
+} from "./paymentAlerts";
 import { logPaymentEvent } from "./paymentEvents";
 import { buildRenewalFailedEmail } from "./renewalFailedNotice";
 import { formatPayDate, getPayPageCopy } from "./payPageCopy";
@@ -115,5 +120,17 @@ describe("payment journal and alert claim", () => {
 
   it("uses the reconcile failure reason", () => {
     expect(RECONCILE_FAILED_REASON).toBe("reconcile: invoice FAILED");
+  });
+
+  it("adds the Moscow date only to a YooKassa renewal failure", () => {
+    const nextDay = new Date("2026-11-12T21:30:00.000Z");
+    const sameDay = new Date("2026-11-12T20:30:00.000Z");
+    expect(paymentAlertDedupEventType("payment.failed", nextDay)).toBe("payment.failed");
+    expect(paymentAlertDedupEventType("yookassa.renewal.failed", nextDay)).toBe(
+      "yookassa.renewal.failed:2026-11-13",
+    );
+    expect(paymentAlertDedupEventType("yookassa.renewal.failed", sameDay)).toBe(
+      "yookassa.renewal.failed:2026-11-12",
+    );
   });
 });

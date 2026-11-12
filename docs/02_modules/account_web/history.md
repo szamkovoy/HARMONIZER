@@ -1,9 +1,13 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.30
+version: 1.31
 updated: 2026-11-13
 ---
+
+## 2026-11-13 — Дедуп отказа продления ЮKassa по дню
+
+- Письмо `yookassa.renewal.failed` больше не одно на контракт навсегда. В ключ `payment_alert_sends` дописывается дата Europe/Moscow (`YYYY-MM-DD`). Остальные типы событий по-прежнему один раз на контракт.
 
 ## 2026-11-13 — Журнал оплат и письма о сбое
 

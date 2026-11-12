@@ -1,6 +1,7 @@
 /**
  * Письмо админу о сбое оплаты. Отправка не должна ронять вебхук.
  * Дедуп: одна отправка на contract_id + event_type.
+ * Для yookassa.renewal.failed в ключ входит ещё дата по Москве.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
@@ -16,6 +17,15 @@ export function paymentAlertRecipient(): string | null {
 
 export function formatAlertMoscowTime(date: Date): string {
   return DateTime.fromJSDate(date, { zone: "utc" }).setZone("Europe/Moscow").toFormat("dd.MM.yyyy HH:mm");
+}
+
+const YOOKASSA_RENEWAL_FAILED = "yookassa.renewal.failed";
+
+/** Ключ дедупа. Отказ продления ЮKassa повторяется каждый московский день, остальные события — один раз на контракт. */
+export function paymentAlertDedupEventType(eventType: string, at: Date = new Date()): string {
+  if (eventType !== YOOKASSA_RENEWAL_FAILED) return eventType;
+  const day = DateTime.fromJSDate(at, { zone: "utc" }).setZone("Europe/Moscow").toFormat("yyyy-MM-dd");
+  return `${eventType}:${day}`;
 }
 
 export type PaymentAlertInput = {
@@ -97,7 +107,8 @@ export async function sendPaymentAlert(db: SupabaseClient, input: PaymentAlertIn
       console.error("[payment-alert] PAYMENT_ALERT_EMAIL is not set");
       return;
     }
-    if (!(await claimPaymentAlert(db, input.contractId, input.eventType))) return;
+    const dedupType = paymentAlertDedupEventType(input.eventType, input.at ?? new Date());
+    if (!(await claimPaymentAlert(db, input.contractId, dedupType))) return;
     const letter = buildPaymentAlertLetter(input);
     const sent = await sendMarketingEmail({
       to,
