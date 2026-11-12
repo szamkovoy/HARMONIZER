@@ -1,9 +1,16 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.28
-updated: 2026-11-12
+version: 1.29
+updated: 2026-11-13
 ---
+
+## 2026-11-13 — Подписка без продления перестаёт действовать
+
+- Подписка действует, только если `status = active` и `current_period_end + 48ч > now()` (`subscriptionLiveness.ts`). Иначе checkout не отвечает `already_active`, а кабинет не показывает блок подписки.
+- `subscription.recurring.payment.failed` терминален: контракт → `cancelled`, `failure_reason` = `renewal: …`. Доступ в `users` этим событием не снимается. После ответа подписка закрывается в Lava.
+- Первая оплата Lava (подписка, 30 дней, разовая, виджет) идёт только через `fulfillFirstPaymentSuccess`. Повтор по уже active-контракту довыдаёт доступ, если срок в `users` короче оплаченного, и не затирает более высокий тариф.
+- Миграция `20261113090000`: `restore_membership_from_ledger` учитывает то же правило и оплаченные 30 дней; `lapse_stale_subscriptions()` закрывает active-подписку старше 72ч (`lapsed: no renewal`). Hourly reconcile вызывает зачистку первой.
 
 ## 2026-11-11 — Оплата вебинара в первый час после начала
 

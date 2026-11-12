@@ -2,13 +2,14 @@
 id: 00_index/CHANGELOG
 title: Documentation Changelog
 version: 3.85
-updated: 2026-11-12
+updated: 2026-11-13
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-11-13 (678): Подписка действует, только если `active` и `current_period_end + 48ч > now()`. `subscription.recurring.payment.failed` закрывает контракт (`cancelled`, `failure_reason` = `renewal: …`). `lapse_stale_subscriptions` (72ч) вызывается из hourly reconcile. Первая оплата Lava идёт только через `fulfillFirstPaymentSuccess`. Миграция `20261113090000`. Docs `account_web`, `subscription`.
 - 2026-11-12 (677): Три разовых продукта с виджета лендинга: диагностика (3000 ₽), консультация (10000 ₽), целительная сессия (30000 ₽). ЮKassa и оффер Lava с той же карточки, письмо покупателю на 8 языках, тариф приложения не меняется. Миграция `20261112175514`. Docs `account_web`, `admin_panel`.
 - 2026-11-11 (676): Оплата вебинара в первые 60 минут после начала относится к этому вебинару и получает приглашение со ссылкой, как оплата до старта. В шапке сводки начало периода — понедельник по Москве. Миграция `20261111050000`. Docs `admin_panel`, `account_web`, `webinars`.
 - 2026-11-11 (675): Сводка `/admin/summary`: вебинары привязываются к ближайшему старту (включая пустой `product_ref`), «новые» и продления — только успешные settlement'ы, в неделях колонка «Другое» и «Впервые», подпись недели — понедельник МСК, у цепочек убраны открытия/клики. Миграция `20261111040000`. Docs `admin_panel`.

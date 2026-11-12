@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.4
-updated: 2026-11-08
+version: 1.5
+updated: 2026-11-13
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -81,7 +81,7 @@ Lava не поддерживает несколько языков у одног
 1. Кабинет: `hzStartUpgrade(tier, purchase)` → `POST /api/account/checkout { kind:"subscription", tier, currency }`.
 2. Сервер: `resolveLavaOfferId(db, tier, userLocale)` (fallback en) → `POST /api/v2/invoice` (MONTHLY) → строка `payment_contracts` (pending, product_kind=subscription) → ответ `{ paymentUrl, contractId }`.
 3. Кабинет: redirect на `paymentUrl` Lava. По `visibilitychange` (возврат с оплаты) — `GET /api/account/overview?currency=` и перерисовка.
-4. Вебхук `payment.success` → контракт active, `users.membership_tier/expires_at` обновлены (период 30 дней + 48ч грейс), прежние active-подписки пользователя отменены в Lava и БД (политика A3); параллельно `settlePayment` пишет net в `payment_settlements` (см. `spec.md` §3.2).
+4. Вебхук `payment.success` идёт только через `fulfillFirstPaymentSuccess` (общий с ЮKassa): контракт active, `users.membership_tier/expires_at` обновлены (период 30 дней + 48ч грейс), прежние active-подписки пользователя отменены в Lava и БД (политика A3); параллельно `settlePayment` пишет net в `payment_settlements` (см. `spec.md` §3.2). Повторный вебхук по уже active-контракту довыдаёт доступ, если в `users` срок короче оплаченного.
 5. Приложение подхватывает смену уровня через Realtime/foreground (`MembershipEventsBridge`).
 
 ### 5.1a Отказ банка и 30 дней без автопродления
@@ -115,7 +115,8 @@ Lava не поддерживает несколько языков у одног
 ## 6. Политики апгрейда/отмены
 
 - **Апгрейд (A3, решение 2026-07-15):** немедленно, без пересчёта остатка. Новый контракт активируется сразу, старая active-подписка отменяется сервером (остаток периода — в пользу автора). В кабинете — пояснение `upgradeNote`: «Новый уровень активируется сразу; стоимость текущего периода не пересчитывается».
-- **Даунгрейд:** только через отмену (доступ до конца периода) + новую подписку после. При активной подписке checkout отклоняет уровень ≤ текущего (409).
+- **Даунгрейд:** только через отмену (доступ до конца периода) + новую подписку после. Checkout отклоняет уровень ≤ текущего (409), только если подписка действует: `status = active` и `current_period_end + 48ч > now()`.
+- **Продление не прошло:** `subscription.recurring.payment.failed` терминален. Контракт → `cancelled`, `failure_reason` = `renewal: …`. Доступ в `users` не снимается этим событием. Страховочно `lapse_stale_subscriptions()` (миграция `20261113090000`) закрывает active-подписку, у которой период кончился больше 72ч назад.
 - **Отмена:** `DELETE /api/account/subscription` → `DELETE /api/v1/subscriptions` в Lava + статус cancelled. `users.membership_*` не трогаем — доступ живёт до `membership_expires_at`, дальше `paidAccess` вернёт free. В кабинете — текст «доступ сохранится до конца оплаченного периода».
 
 ## 7. Конфигурация (env)
