@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.10
-updated: 2026-11-08
+version: 1.11
+updated: 2026-11-13
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -22,7 +22,7 @@ code_refs:
 - **`profile` (auth)** — `useAuth()` даёт `authUser`, `profile`, `refreshProfile`, `signOut`; OTT-запрос и `deleteAccountRemote` подписываются `getSupabaseAccessToken()`. `MembershipEventsBridge` монтируется в `app/_layout.tsx` строго под `AuthProvider`. Профиль вызывает `DELETE /api/account/delete` при «Удалить аккаунт».
 - **`subscription`** — `baseTierFromRow` / `hasActiveTrial` / `TIER_ORDER` для детекта смены уровня; `VISIBLE_PAID_PRODUCT_TIERS` для `upgradeTiers` в overview. Сервер использует vendored-копию `_legacy_web/modules/access` (`scripts/sync-vercel-server-modules.mjs`).
 - **`i18n`** — тексты `gate.*` и `tier.*` из JSON-каталога; язык страницы кабинета передаётся параметром `lang` (из `getResponseLocale()`), словари страницы зашиты в `web_cabinet/cabinet/index.html` (8 локалей) и НЕ входят в i18n-sync gate.
-- **`infra`** — Vercel-роуты `/api/account/*` (общие утилиты `_legacy_web/app/api/_utils/supabase.ts`); Supabase-таблицы `web_ott_tokens`, `app_config`, `payment_contracts`; publication `supabase_realtime` для `users`.
+- **`infra`** — Vercel-роуты `/api/account/*` (общие утилиты `_legacy_web/app/api/_utils/supabase.ts`); Supabase-таблицы `web_ott_tokens`, `app_config`, `payment_contracts`, `payment_events`, `payment_alert_sends`; publication `supabase_realtime` для `users`.
 - **`marketing_email`** — письмо о конце оплаченных 30 дней тарифа уходит через `sendMarketingEmail` / `wrapMarketingEmailHtml` без футера отписки (письмо о покупке). `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
 - **`location`** — `resolveBillingGeo`: приоритет `users.country_code` (только GPS/Nominatim; не обнуляется при позднем отказе в гео), иначе эфемерный `GET /api/geo/ip-country` (VPN egress = страна VPN; **не** пишется в `users.country_code`). Таймаут 800 мс без sticky EUR/IP в SecureStore. Сервер: Vercel `x-vercel-ip-country`, fallback **ipwho.is**.
 - **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava или ЮKassa: вебхук успеха upsert `webinar_registrations`; `MembershipEventsBridge` детектит one_time `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground; кнопки «Отменить запись» нет.

@@ -11,6 +11,8 @@ import { createServiceSupabase } from "../_utils/supabase";
 import { accountCabinetUrl } from "./_utils";
 import { LavaInvoiceError } from "./lava";
 import { getPayPageCopy, fillPayCopy, formatPayDate, payTierName, type PayPageCopy } from "./payPageCopy";
+import { sendPaymentAlert } from "./paymentAlerts";
+import { logPaymentEvent } from "./paymentEvents";
 import { isPaymentProviderEnabled, resolvePaymentGateway } from "./paymentGatewayProfile";
 import { markContractFailed, yookassaFailureReason } from "./fulfillPaymentContract";
 import { verifyPayRetryToken, type PayRetryKind, type PayRetryPayload } from "./payRetryToken";
@@ -290,12 +292,26 @@ export async function handlePayRetryPost(req: Request): Promise<Response> {
       paymentMethod: choice.paypal ? "PAYPAL" : null,
     });
     if (out.ok) return redirect(out.paymentUrl);
-    if (out.error === "already_active") return redirect(accountCabinetUrl({ paid: true }));
-    if (out.error === "has_subscription" || out.error === "higher_access") return alreadyPage(copy);
+    if (out.error === "already_active") {
+      await notePayRetryIssue(token, out.error, out.status, false);
+      return redirect(accountCabinetUrl({ paid: true }));
+    }
+    if (out.error === "has_subscription" || out.error === "higher_access") {
+      await notePayRetryIssue(token, out.error, out.status, false);
+      return alreadyPage(copy);
+    }
     console.error("[pay/retry] checkout refused", out.error, token.userId);
+    await notePayRetryIssue(token, out.error, out.status, out.status >= 500);
   } catch (error) {
     const detail = error instanceof LavaInvoiceError ? error.lavaBody.slice(0, 300) : error;
     console.error("[pay/retry] checkout failed", token.userId, detail);
+    await notePayRetryIssue(
+      token,
+      error instanceof Error ? error.message : "checkout_failed",
+      502,
+      true,
+      detail,
+    );
   }
   return renderPayPage({
     lang: copy.lang,
@@ -345,4 +361,39 @@ export async function handlePayReturnGet(req: Request): Promise<Response> {
     body: copy.checkingBody,
     refreshUrl: `${url.pathname}?${next}`,
   });
+}
+
+async function notePayRetryIssue(
+  token: PayRetryPayload,
+  error: string,
+  httpStatus: number,
+  alert: boolean,
+  raw?: unknown,
+): Promise<void> {
+  try {
+    const db = createServiceSupabase();
+    const eventType = alert ? "checkout.create_failed" : "checkout.refused";
+    await logPaymentEvent(db, {
+      provider: token.country === "RU" ? "yookassa" : "lavatop",
+      eventType,
+      buyerEmail: null,
+      currency: token.currency,
+      errorMessage: error,
+      raw,
+      httpStatus,
+    });
+    if (!alert) return;
+    await sendPaymentAlert(db, {
+      eventType,
+      userId: token.userId,
+      tier: token.tier,
+      productKind: token.kind,
+      currency: token.currency,
+      provider: token.country === "RU" ? "yookassa" : "lavatop",
+      failureReason: error,
+      raw,
+    });
+  } catch (err) {
+    console.error("[pay/retry] journal failed", err);
+  }
 }

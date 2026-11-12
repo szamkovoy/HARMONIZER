@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { findPaymentContract, fulfillFirstPaymentSuccess } from "./fulfillPaymentContract";
 import { getLavaInvoice } from "./lava";
+import { sendPaymentAlert } from "./paymentAlerts";
+import { logPaymentEvent } from "./paymentEvents";
 
 /** First look ~10 min after checkout, second ~20 min, then stop. */
 export const LAVA_RECONCILE_MIN_AGE_MS = 10 * 60 * 1000;
@@ -12,6 +14,8 @@ export function lavaReconcileDue(createdAtMs: number, nowMs: number): boolean {
   const age = nowMs - createdAtMs;
   return age >= LAVA_RECONCILE_MIN_AGE_MS && age <= LAVA_RECONCILE_MAX_AGE_MS;
 }
+
+export const RECONCILE_FAILED_REASON = "reconcile: invoice FAILED";
 
 export type LavaReconcileDecision = "fulfill" | "fail" | "wait";
 
@@ -79,10 +83,30 @@ export async function reconcilePendingLavaPayments(
       if (decision === "fail") {
         const { error: failError } = await db
           .from("payment_contracts")
-          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .update({
+            status: "failed",
+            failure_reason: RECONCILE_FAILED_REASON,
+            updated_at: new Date().toISOString(),
+          })
           .eq("contract_id", contractId)
           .eq("status", "pending");
         if (failError) throw failError;
+        await logPaymentEvent(db, {
+          provider: "lavatop",
+          eventType: "lava.reconcile.failed",
+          contractId,
+          status: "failed",
+          errorMessage: RECONCILE_FAILED_REASON,
+          raw: invoice,
+          httpStatus: 200,
+        });
+        await sendPaymentAlert(db, {
+          eventType: "lava.reconcile.failed",
+          contractId,
+          provider: "lavatop",
+          failureReason: RECONCILE_FAILED_REASON,
+          raw: invoice,
+        });
         result.failed.push(contractId);
         continue;
       }

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.5
+version: 1.6
 updated: 2026-11-13
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
@@ -116,7 +116,8 @@ Lava не поддерживает несколько языков у одног
 
 - **Апгрейд (A3, решение 2026-07-15):** немедленно, без пересчёта остатка. Новый контракт активируется сразу, старая active-подписка отменяется сервером (остаток периода — в пользу автора). В кабинете — пояснение `upgradeNote`: «Новый уровень активируется сразу; стоимость текущего периода не пересчитывается».
 - **Даунгрейд:** только через отмену (доступ до конца периода) + новую подписку после. Checkout отклоняет уровень ≤ текущего (409), только если подписка действует: `status = active` и `current_period_end + 48ч > now()`.
-- **Продление не прошло:** `subscription.recurring.payment.failed` терминален. Контракт → `cancelled`, `failure_reason` = `renewal: …`. Доступ в `users` не снимается этим событием. Страховочно `lapse_stale_subscriptions()` (миграция `20261113090000`) закрывает active-подписку, у которой период кончился больше 72ч назад.
+- **Продление не прошло:** `subscription.recurring.payment.failed` терминален. Контракт → `cancelled`, `failure_reason` = `renewal: …`. Доступ в `users` не снимается этим событием. После ответа — отмена в Lava и письмо покупателю (доступ до `current_period_end`, кнопка `/pay/renew`, язык `users.locale`). Страховочно `lapse_stale_subscriptions()` (миграция `20261113090000`) закрывает active-подписку, у которой период кончился больше 72ч назад; эта зачистка писем не шлёт.
+- **Журнал:** принятое событие пишется в `payment_events` после ответа. `FAILED` сверки ставит `failure_reason` = `reconcile: invoice FAILED`. Письмо админу (`PAYMENT_ALERT_EMAIL`) уходит на `payment.failed`, отказ продления и `FAILED` сверки, один раз на контракт и тип события.
 - **Отмена:** `DELETE /api/account/subscription` → `DELETE /api/v1/subscriptions` в Lava + статус cancelled. `users.membership_*` не трогаем — доступ живёт до `membership_expires_at`, дальше `paidAccess` вернёт free. В кабинете — текст «доступ сохранится до конца оплаченного периода».
 
 ## 7. Конфигурация (env)
@@ -126,6 +127,7 @@ Lava не поддерживает несколько языков у одног
 | `LAVATOP_API_KEY` | Авторизация API-вызовов к Lava. |
 | `LAVATOP_WEBHOOK_SECRET` | Проверка заголовка `X-Api-Key` вебхука. Смена = синхронная правка в ЛК Lava. |
 | `LAVATOP_TARIFF_2_ID` / `LAVATOP_TARIFF_3_ID` | (Legacy) изначальные offerId Advisor/Master. После `payment_offers` не используются сервером — маппинг берётся из БД. Оставлены для совместимости/бэкапа. |
+| `PAYMENT_ALERT_EMAIL` | Письмо о сбое оплаты. Нет переменной — письмо пропускается. |
 
 offerId не секретны; хранятся в `payment_offers` (БД), не в env. Цены — из Lava, не в коде/БД.
 

@@ -12,6 +12,8 @@ import {
   resolvePaymentGateway,
   type PaymentProviderId,
 } from "../paymentGatewayProfile";
+import { sendPaymentAlert } from "../paymentAlerts";
+import { logPaymentEvent } from "../paymentEvents";
 import { startTierCheckout } from "../tierCheckout";
 import { createYookassaCheckout } from "../yookassaCheckout";
 import { WEBINAR_JOIN_GRACE_HOURS } from "@/modules/webinars/core/webinarTiming";
@@ -28,6 +30,48 @@ export function OPTIONS() {
   return corsPreflight();
 }
 
+async function noteCheckoutIssue(
+  db: ReturnType<typeof createServiceSupabase>,
+  input: {
+    userId: string;
+    email?: string | null;
+    tier?: string | null;
+    kind?: string | null;
+    currency?: string | null;
+    provider?: string | null;
+    contractId?: string | null;
+    httpStatus: number;
+    error: string;
+    raw?: unknown;
+    alert: boolean;
+  },
+): Promise<void> {
+  const eventType = input.alert ? "checkout.create_failed" : "checkout.refused";
+  await logPaymentEvent(db, {
+    provider: input.provider ?? "unknown",
+    eventType,
+    contractId: input.contractId,
+    buyerEmail: input.email,
+    currency: input.currency,
+    errorMessage: input.error,
+    raw: input.raw,
+    httpStatus: input.httpStatus,
+  });
+  if (!input.alert) return;
+  await sendPaymentAlert(db, {
+    eventType,
+    contractId: input.contractId,
+    userId: input.userId,
+    buyerEmail: input.email,
+    tier: input.tier,
+    productKind: input.kind,
+    currency: input.currency,
+    provider: input.provider,
+    failureReason: input.error,
+    raw: input.raw,
+  });
+}
+
 type CheckoutBody = {
   kind?: string;
   tier?: string;
@@ -37,17 +81,26 @@ type CheckoutBody = {
 };
 
 export async function POST(req: Request) {
+  const ctx: {
+    userId: string;
+    email?: string;
+    tier?: string;
+    kind?: string;
+    currency?: string;
+    provider?: string;
+  } = { userId: "" };
   try {
     const userId = cabinetBearerUserId(req);
+    ctx.userId = userId ?? "";
     if (!userId) return corsJson({ error: "Unauthorized" }, { status: 401 });
 
     const body = (await req.json().catch(() => null)) as CheckoutBody | null;
-    const kind = (body?.kind?.trim().toLowerCase() || "subscription") as
+    const kind = (ctx.kind = body?.kind?.trim().toLowerCase() || "subscription") as
       | "subscription"
       | "pass"
       | "webinar"
       | "book";
-    const currency = body?.currency?.trim().toUpperCase() ?? "";
+    const currency = (ctx.currency = body?.currency?.trim().toUpperCase() ?? "");
     if (!isLavaCurrency(currency)) {
       return corsJson({ error: "currency must be one of: RUB, USD, EUR" }, { status: 400 });
     }
@@ -65,7 +118,7 @@ export async function POST(req: Request) {
     const { data: authData } = await db.auth.admin.getUserById(userId);
     const emailRaw = authData?.user?.email;
     if (!emailRaw) return corsJson({ error: "User has no email" }, { status: 409 });
-    const email = normalizeLavaBuyerEmail(emailRaw);
+    const email = (ctx.email = normalizeLavaBuyerEmail(emailRaw));
     if (!email.includes("@")) {
       return corsJson(
         {
@@ -80,6 +133,15 @@ export async function POST(req: Request) {
     const userLocale = typeof row.locale === "string" && row.locale.trim() ? row.locale : "ru";
     const gateway = resolvePaymentGateway({ country, currency });
     if (!gateway.ok) {
+      await noteCheckoutIssue(db, {
+        userId,
+        email,
+        kind,
+        currency,
+        httpStatus: 503,
+        error: "payment_gateway_unavailable",
+        alert: true,
+      });
       return corsJson(
         {
           error: "payment_gateway_unavailable",
@@ -88,7 +150,7 @@ export async function POST(req: Request) {
         { status: 503 },
       );
     }
-    const provider = gateway.provider;
+    const provider = (ctx.provider = gateway.provider);
     const checkoutCurrency =
       provider === "yookassa" ? ("RUB" as const) : (currency as "RUB" | "USD" | "EUR");
 
@@ -107,7 +169,7 @@ export async function POST(req: Request) {
       return await startBookCheckout(db, userId, email, userLocale, checkoutCurrency, provider);
     }
 
-    const tier = body?.tier?.trim().toLowerCase() as SellableTier | undefined;
+    const tier = (ctx.tier = body?.tier?.trim().toLowerCase()) as SellableTier | undefined;
     if (!tier || !SELLABLE_TIERS.includes(tier)) {
       return corsJson({ error: "tier must be one of: oracle, master" }, { status: 400 });
     }
@@ -128,11 +190,33 @@ export async function POST(req: Request) {
             : out.error === "has_subscription"
               ? "Cancel the active subscription before paying for 30 days"
               : out.error;
+      await noteCheckoutIssue(db, {
+        userId,
+        email,
+        tier,
+        kind,
+        currency,
+        provider,
+        httpStatus: out.status,
+        error: out.error,
+        alert: out.status >= 500,
+      });
       return corsJson({ error: message, code: out.error }, { status: out.status });
     }
     return corsJson({ paymentUrl: out.paymentUrl, contractId: out.contractId });
   } catch (error) {
     if (error instanceof LavaInvoiceError && error.code === "lava_buyer_email_rejected") {
+      try {
+        await noteCheckoutIssue(createServiceSupabase(), {
+          ...ctx,
+          httpStatus: 400,
+          error: error.code,
+          raw: error.lavaBody.slice(0, 300),
+          alert: true,
+        });
+      } catch {
+        /* journal must not replace the checkout error */
+      }
       return corsJson(
         {
           error: "lava_buyer_email_rejected",
@@ -142,6 +226,16 @@ export async function POST(req: Request) {
         },
         { status: 400 },
       );
+    }
+    try {
+      await noteCheckoutIssue(createServiceSupabase(), {
+        ...ctx,
+        httpStatus: 500,
+        error: error instanceof Error ? error.message : "checkout_failed",
+        alert: true,
+      });
+    } catch {
+      /* journal must not replace the checkout error */
     }
     return withCors(errorResponse(error));
   }
