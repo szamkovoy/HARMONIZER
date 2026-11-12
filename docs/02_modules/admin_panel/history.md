@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.10
-updated: 2026-11-11
+version: 1.11
+updated: 2026-11-12
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
@@ -25,6 +25,8 @@ code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 - В общем списке `/admin/payments` и в «Истории платежей» карточки пользователя рядом с тарифом показывается вид оплаты: «подписка», «разовый тариф» (`product_ref=pass_30d`), «разовая оплата» (вебинар/книга) или «грант» (ручная запись). Поля `product_kind` / `product_ref` отдаёт `loadAdminPaymentLedger`.
 
 ## Decision Log
+
+- **2026-11-12 (диагностика, консультация, сессия):** В каталоге три разовых продукта с оффером Lava и ценой ЮKassa с той же карточки: «Диагностика» 3000 ₽, «Консультация» 10000 ₽, «Целительная сессия» 30000 ₽. У каждого свой виджет лендинга и письмо после оплаты. Кабинет приложения их не показывает.
 
 - **2026-11-06 (месячный курс йоги):** В каталоге `yoga_course`, 24000 ₽ и оффер Lava. Виджет лендинга продаёт его российской и международной картой. Кабинет приложения его не показывает.
 

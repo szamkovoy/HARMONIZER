@@ -14,6 +14,9 @@ export const TIER_LABELS: Record<string, string> = {
   spb_practicum: "Практикум в Санкт-Петербурге",
   surcharge: "Доплата",
   yoga_course: "Месячный курс йоги",
+  diagnostics: "Диагностика",
+  consultation: "Консультация",
+  healing_session: "Целительная сессия",
 };
 
 const TIER_BADGE: Record<string, string> = {
@@ -27,6 +30,9 @@ const TIER_BADGE: Record<string, string> = {
   spb_practicum: "bg-teal-500/15 text-teal-700",
   surcharge: "bg-orange-500/15 text-orange-700",
   yoga_course: "bg-indigo-500/15 text-indigo-700",
+  diagnostics: "bg-cyan-500/15 text-cyan-700",
+  consultation: "bg-violet-500/15 text-violet-700",
+  healing_session: "bg-rose-500/15 text-rose-700",
 };
 
 const ACCESS_NOW_BADGE: Record<AccessNowSeg, string> = {
