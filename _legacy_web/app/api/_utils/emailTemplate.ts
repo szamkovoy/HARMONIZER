@@ -160,6 +160,145 @@ function escapeHref(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+/**
+ * Inbox-list snippet after the subject. Pulled from the first visible text of
+ * the body so the preview reads "Здравствуйте, …", not a repeat of the subject.
+ * Strips tags, entities, and the unsubscribe footer; collapses whitespace.
+ */
+export function emailBodyPreheader(bodyHtml: string): string {
+  if (!bodyHtml) return "";
+  const text = bodyHtml
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text;
+}
+
+/**
+ * A link is one word: if it fits on the next line, the whole link moves there.
+ * `word-break:break-all` (the old rule on every `<a>`) instead chops the URL
+ * at whatever character fills the current line — "zamkovoi" became "zamko / voi".
+ *
+ * A URL longer than the column (a narrow phone) may break, but only at URL
+ * boundaries, and the break must not insert a character that is copied with
+ * the address. `<wbr>` is that hint. It would also let the line breaker chop
+ * a short URL early, so a URL-shaped label is an atomic box
+ * (`inline-block; max-width:100%`): the hints apply only once the address
+ * itself is wider than the column.
+ *
+ * Chicago Manual of Style / usual HTML-email practice:
+ * break after `://` and `/`; before `. , ~ - _ ? # %`; after `=` and `&`.
+ */
+const LINK_WRAP_STYLE =
+  "word-break:normal;overflow-wrap:break-word;word-wrap:break-word;";
+const URL_LINK_WRAP_STYLE =
+  "display:inline-block;max-width:100%;vertical-align:baseline;word-break:normal;overflow-wrap:break-word;word-wrap:break-word;";
+
+const URL_LABEL_RE = /^(?:https?:\/\/|www\.)\S+$/i;
+
+function anchorVisibleText(inner: string): string {
+  return inner
+    .replace(/<wbr\s*\/?>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikeUrlLabel(text: string): boolean {
+  return URL_LABEL_RE.test(text);
+}
+
+/** Soft breaks inside a URL label. Idempotent. Never touches markup. */
+export function insertUrlSoftBreaks(text: string): string {
+  if (!/https?:\/\/|www\./i.test(text)) return text;
+  const src = text.replace(/<wbr\s*\/?>/gi, "");
+  let out = "";
+  for (let i = 0; i < src.length; i++) {
+    if (src.startsWith("://", i)) {
+      out += "://<wbr>";
+      i += 2;
+      continue;
+    }
+    const entity = /^&(?:#x[\da-fA-F]+|#\d+|[a-zA-Z]+);/.exec(src.slice(i));
+    if (entity) {
+      const token = entity[0];
+      out += token.toLowerCase() === "&amp;" ? `${token}<wbr>` : token;
+      i += token.length - 1;
+      continue;
+    }
+    const ch = src[i] ?? "";
+    if (ch === "/" || ch === "&" || ch === "=") {
+      out += `${ch}<wbr>`;
+      continue;
+    }
+    if (out.length > 0 && !out.endsWith("<wbr>") && ".,~-_?#%".includes(ch)) {
+      out += `<wbr>${ch}`;
+      continue;
+    }
+    out += ch;
+  }
+  return out.replace(/(?:<wbr>)+$/g, "").replace(/(?:<wbr>){2,}/g, "<wbr>");
+}
+
+function mergeAnchorStyle(attrs: string, add: string): string {
+  const apply = (prev: string) => {
+    const cleaned = prev
+      .replace(
+        /(?:^|;)\s*(?:display|max-width|vertical-align|word-break|overflow-wrap|word-wrap)\s*:[^;]*/gi,
+        "",
+      )
+      .replace(/;;+/g, ";")
+      .replace(/^;+|;+$/g, "")
+      .trim();
+    return cleaned ? `${cleaned};${add}` : add;
+  };
+  if (/\sstyle\s*=\s*"/i.test(attrs)) {
+    return attrs.replace(
+      /\sstyle\s*=\s*"([^"]*)"/i,
+      (_m, prev: string) => ` style="${apply(prev)}"`,
+    );
+  }
+  if (/\sstyle\s*=\s*'/i.test(attrs)) {
+    return attrs.replace(
+      /\sstyle\s*=\s*'([^']*)'/i,
+      (_m, prev: string) => ` style="${apply(prev)}"`,
+    );
+  }
+  return `${attrs} style="${add}"`;
+}
+
+function softenAnchorInner(inner: string): string {
+  return inner.replace(/(^|>)([^<]+)/g, (_full, lead: string, text: string) => {
+    return `${lead}${insertUrlSoftBreaks(text)}`;
+  });
+}
+
+/**
+ * Render-time only (preview and send). Stored editor HTML stays untouched,
+ * so a draft picks this up without a re-save, and `<wbr>` is not written
+ * back into the contenteditable.
+ */
+export function softenEmailLinkBreaks(html: string): string {
+  if (!html || !/<a\b/i.test(html)) return html;
+  return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (full, attrs: string, inner: string) => {
+    if (/<img\b/i.test(inner)) return full;
+    if (/white-space\s*:\s*nowrap/i.test(attrs)) return full;
+    if (/background(?:-color)?\s*:/i.test(attrs)) return full;
+    const label = anchorVisibleText(inner);
+    if (!label) return full;
+    if (looksLikeUrlLabel(label)) {
+      return `<a${mergeAnchorStyle(attrs, URL_LINK_WRAP_STYLE)}>${softenAnchorInner(inner)}</a>`;
+    }
+    return `<a${mergeAnchorStyle(attrs, LINK_WRAP_STYLE)}>${inner}</a>`;
+  });
+}
+
 function hrefLooksLikeUnsubscribePlaceholder(href: string): boolean {
   const h = href.trim();
   if (!h) return false;
@@ -205,12 +344,21 @@ export function bindUnsubscribeLinks(html: string, unsubscribeUrl: string): stri
 }
 
 export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
-  const preview = (opts.previewText ?? "").replace(/</g, "&lt;").slice(0, 140);
+  // Preheader is the inbox-list snippet after the subject. It must be the
+  // opening of the body, never the subject itself — otherwise iOS Mail shows
+  // "subject subject body…". Callers used to pass `previewText: subject`,
+  // which duplicated the subject; an explicit preview still wins when set.
+  const explicitPreview = (opts.previewText ?? "").trim();
+  const preview = (explicitPreview || emailBodyPreheader(opts.bodyHtml))
+    .replace(/</g, "&lt;")
+    .slice(0, 140);
   const unsubscribeUrl = opts.unsubscribeUrl ?? "";
-  const body = wrapEmailTextWithFontTag(
-    bindUnsubscribeLinks(
-      normalizeEmailBodyHtml(opts.bodyHtml.trim() || "<p style=\"margin:0;padding:0;\"></p>"),
-      unsubscribeUrl,
+  const body = softenEmailLinkBreaks(
+    wrapEmailTextWithFontTag(
+      bindUnsubscribeLinks(
+        normalizeEmailBodyHtml(opts.bodyHtml.trim() || "<p style=\"margin:0;padding:0;\"></p>"),
+        unsubscribeUrl,
+      ),
     ),
   );
   const cellFont =
@@ -242,7 +390,7 @@ export function wrapMarketingEmailHtml(opts: WrapEmailOptions): string {
     html,body{margin:0;padding:0;width:100%;${TEXT_SIZE_ADJUST}}
     body,table,td,p,a,li{${TEXT_SIZE_ADJUST}font-family:${BODY_FONT};${WORD_BREAK}}
     img{max-width:100%;height:auto;}
-    a{word-break:break-all;}
+    a{word-break:normal;overflow-wrap:break-word;word-wrap:break-word;}
   </style>
 </head>
 <body style="margin:0;padding:0;width:100%;background:#f4f6f5;${cellFont}color:#1a1a1a;">

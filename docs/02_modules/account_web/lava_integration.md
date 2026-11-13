@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.7
+version: 1.8
 updated: 2026-11-13
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
@@ -118,6 +118,7 @@ Lava не поддерживает несколько языков у одног
 - **Даунгрейд:** только через отмену (доступ до конца периода) + новую подписку после. Checkout отклоняет уровень ≤ текущего (409), только если подписка действует: `status = active` и `current_period_end + 48ч > now()`.
 - **Продление не прошло:** `subscription.recurring.payment.failed` терминален. Контракт → `cancelled`, `failure_reason` = `renewal: …`. Доступ в `users` не снимается этим событием. После ответа — отмена в Lava и письмо покупателю (доступ до `current_period_end`, кнопка `/pay/renew`, язык `users.locale`). Страховочно `lapse_stale_subscriptions()` (миграция `20261113090000`) закрывает active-подписку, у которой период кончился больше 72ч назад; эта зачистка писем не шлёт.
 - **Журнал:** принятое событие пишется в `payment_events` после ответа. `FAILED` сверки ставит `failure_reason` = `reconcile: invoice FAILED`. Письмо админу (`PAYMENT_ALERT_EMAIL`) уходит на `payment.failed`, отказ продления и `FAILED` сверки, один раз на контракт и тип события. У отказа продления ЮKassa в ключ входит ещё дата по Москве.
+- **Отказ первой оплаты:** тот же cron раз в 10 минут после сверки шлёт покупателю письмо, если отказ тарифа (подписка или 30 дней) старше 30 минут и младше суток. Postgres не зовёт Vercel, когда нет ни зависшего счёта, ни такого кандидата. Миграция `20261113140000`.
 - **Отмена:** `DELETE /api/account/subscription` → `DELETE /api/v1/subscriptions` в Lava + статус cancelled. `users.membership_*` не трогаем — доступ живёт до `membership_expires_at`, дальше `paidAccess` вернёт free. В кабинете — текст «доступ сохранится до конца оплаченного периода».
 
 ## 7. Конфигурация (env)

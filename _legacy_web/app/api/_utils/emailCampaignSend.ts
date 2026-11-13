@@ -397,7 +397,6 @@ async function sendOneBatch(
     const html = await prepareTrackedMarketingEmailHtml({
       bodyHtml,
       unsubscribeUrl,
-      previewText: subject,
       trackId,
     });
     items.push({

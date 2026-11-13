@@ -110,7 +110,6 @@ export async function POST(req: Request, ctx: Ctx) {
     const html = await prepareTrackedMarketingEmailHtml({
       bodyHtml,
       unsubscribeUrl,
-      previewText: subject,
       trackId,
     });
     const result = await sendMarketingEmail({

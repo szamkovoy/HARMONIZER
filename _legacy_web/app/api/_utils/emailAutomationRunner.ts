@@ -802,7 +802,6 @@ export async function processDueAutomationSteps(
     const html = await prepareTrackedMarketingEmailHtml({
       bodyHtml,
       unsubscribeUrl,
-      previewText: subject,
       trackId,
     });
 

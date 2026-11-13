@@ -314,7 +314,6 @@ export async function sendWidgetPurchaseLetter(
   const bodyHtml = applyEmailPlaceholders(plainLetterToHtml(bodyRaw), { name });
   const html = wrapMarketingEmailHtml({
     bodyHtml,
-    previewText: subject,
     lang: locale,
     footer: null,
   });
