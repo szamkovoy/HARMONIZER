@@ -92,6 +92,16 @@ describe("pay retry token", () => {
     expect(verifyPayRetryToken(token, now + 1000)).toEqual({ ...payload, exp: now + DAY });
   });
 
+  it("adds c to the letter link and leaves a return link with only t", () => {
+    const token = signPayRetryToken(payload, DAY, Date.parse("2026-11-08T12:00:00Z"));
+    const letter = new URL(payFailedUrl(token, "abc"));
+    expect(letter.searchParams.get("t")).toBe(token);
+    expect(letter.searchParams.get("c")).toBe("abc");
+    const plain = new URL(payFailedUrl(token));
+    expect(plain.searchParams.get("t")).toBe(token);
+    expect(plain.searchParams.has("c")).toBe(false);
+  });
+
   it("sends a Lava cancel to the failed page with v=c and the same token", () => {
     const token = signPayRetryToken(payload, DAY, Date.parse("2026-11-08T12:00:00Z"));
     const failed = payFailedUrl(token);

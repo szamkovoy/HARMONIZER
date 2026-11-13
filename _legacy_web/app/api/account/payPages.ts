@@ -308,6 +308,26 @@ async function latestFailureView(db: SupabaseClient, token: AnyPayToken): Promis
   return reason ? paymentFailureKind(reason) : "declined";
 }
 
+/** Ссылка из письма называет счёт (c=): текст страницы — по причине его отказа. */
+async function contractFailureView(
+  db: SupabaseClient,
+  token: AnyPayToken,
+  contractId: string | null,
+): Promise<PaymentFailureKind | null> {
+  if (!contractId) return null;
+  const { data, error } = await db
+    .from("payment_contracts")
+    .select("user_id,failure_reason")
+    .eq("contract_id", contractId)
+    .maybeSingle();
+  if (error) {
+    console.error("[pay/failed] contract lookup", error.message ?? error);
+    return null;
+  }
+  if (!data || data.user_id !== token.payload.userId) return null;
+  return paymentFailureKind(data.failure_reason as string | null);
+}
+
 export async function handlePayFailedGet(req: Request): Promise<Response> {
   const params = new URL(req.url).searchParams;
   const raw = params.get("t") ?? "";
@@ -315,7 +335,10 @@ export async function handlePayFailedGet(req: Request): Promise<Response> {
   if (!token) return expiredPage(getPayPageCopy(null));
   const db = createServiceSupabase({ fetchTimeoutMs: 6_000 });
   // v=c — Lava cancel_return_url: покупатель сам закрыл форму.
-  const view = params.get("v") === "c" ? "abandoned" : await latestFailureView(db, token);
+  const view =
+    params.get("v") === "c"
+      ? "abandoned"
+      : ((await contractFailureView(db, token, params.get("c"))) ?? (await latestFailureView(db, token)));
   return renderAnyFailedPage(db, token, raw, view);
 }
 

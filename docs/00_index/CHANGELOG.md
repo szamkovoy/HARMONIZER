@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.94
+version: 3.95
 updated: 2026-11-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-14 (688): Ссылка из письма об отказе открывает `/pay/failed?t=&c=<contractId>`: текст страницы берётся по причине этого счёта. Docs `account_web`.
 - 2026-11-14 (687): Письмо об отказе из кабинета уходит и за вебинар, и за книгу; виджет его не получает. ЮKassa с виджета возвращает на `/pay/widget-return`: успех — `?hz_paid=`, отказ — `?hz_unpaid=` с `errUnpaid`. Миграция `20261114021000`. Docs `account_web`, `webinars`, `book`.
 - 2026-11-14 (686): Отмена на форме Lava из кабинета возвращает на `/pay/failed?t=&v=c` («Оплата не завершена»), а не в кабинет. Тариф, 30 дней, вебинар и книга. Docs `account_web`.
 - 2026-11-14 (685): Брошенная форма Lava (`Cancelled by customer`) больше не шлёт алерт админу. Запись в `payment_events` остаётся. Docs `account_web`.
