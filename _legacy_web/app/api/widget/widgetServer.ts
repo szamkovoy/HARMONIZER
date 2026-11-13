@@ -146,3 +146,22 @@ export function thanksReturnUrl(pageUrl: string | null, widgetId: string): strin
     return null;
   }
 }
+
+/**
+ * `pageUrl` with `hz_unpaid=<widgetId>`: the payment did not go through, the widget
+ * shows its form again with a short notice. The script removes the parameter.
+ */
+export function unpaidReturnUrl(pageUrl: string | null, widgetId: string): string | null {
+  if (!pageUrl) return null;
+  try {
+    const url = new URL(pageUrl);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    url.searchParams.delete("hz_paid");
+    url.searchParams.delete("hz_unpaid");
+    url.searchParams.set("hz_unpaid", widgetId);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}

@@ -18,10 +18,12 @@ import {
   loadWidget,
   resolveWidgetOffer,
   thanksReturnUrl,
+  unpaidReturnUrl,
   widgetCorsHeaders,
   widgetJson,
   widgetPreflight,
 } from "../../widgetServer";
+import { widgetReturnUrl } from "../../widgetReturn";
 
 export const runtime = "nodejs";
 
@@ -143,7 +145,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           tier: catalog.tier,
           kind: isSubscription ? "subscription" : "one_time",
           cardOnly: isSubscription,
-          returnUrl: successUrl || thanksReturnUrl(pageUrl, widget.id),
+          // Один return_url на успех и отказ: статус проверяет /pay/widget-return.
+          returnUrl: widgetReturnUrl({ contractId, widgetId: widget.id, pageUrl }),
         });
         await db
           .from("payment_contracts")
@@ -166,7 +169,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       offerId: intOffer.offerId,
       currency: intOffer.currency,
       locale,
-      successUrl,
+      successUrl: successUrl || thanksReturnUrl(pageUrl, widget.id),
+      failureUrl: unpaidReturnUrl(pageUrl, widget.id),
+      cancelUrl: unpaidReturnUrl(pageUrl, widget.id),
     };
     const invoice = isSubscription
       ? await createLavaSubscriptionInvoice(invoiceParams)

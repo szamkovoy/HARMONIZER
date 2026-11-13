@@ -1,13 +1,15 @@
 ---
 id: 02_modules/book/history
 title: Book History
-version: 1.2
+version: 1.3
 updated: 2026-11-14
 depends_on: [02_modules/book/spec]
 code_refs: [modules/book/index.ts, docs/04_workspace/book_reader_plan.md]
 ---
 
 ## Decision Log
+
+- **2026-11-14 (письмо, если оплата книги из кабинета не прошла):** Через 30 минут–24 часа после отказа уходит письмо со своей темой и текстом. Кнопка открывает `/pay/failed`. Покупка книги с виджета это письмо не получает.
 
 - **2026-11-14 (возврат после оплаты книги):** ЮKassa возвращает на `/pay/return`. Lava при успехе открывает кабинет `?paid=1`, при отказе — `/pay/failed`. Со страницы отказа можно оплатить книгу ещё раз.
 
