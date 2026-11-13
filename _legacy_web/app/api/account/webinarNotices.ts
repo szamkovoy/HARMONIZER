@@ -402,7 +402,6 @@ async function deliver(
   });
   const html = wrapMarketingEmailHtml({
     bodyHtml: applyEmailPlaceholders(bodyHtml, { name }),
-    previewText: subject,
     lang: letter.locale,
     footer: null,
   });
@@ -530,7 +529,6 @@ async function deliverAuthored(
   const bodyHtml = fillLetterName(plainLetterToHtml(letter.body), escapeHtml(name));
   const html = wrapMarketingEmailHtml({
     bodyHtml,
-    previewText: subject,
     lang: letter.locale,
     footer: null,
   });

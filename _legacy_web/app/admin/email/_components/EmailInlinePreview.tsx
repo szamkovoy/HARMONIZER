@@ -34,7 +34,6 @@ export function EmailInlinePreview({
     const html = wrapMarketingEmailHtml({
       bodyHtml: body,
       unsubscribeUrl: "#unsubscribe",
-      previewText: subject.trim() || undefined,
     });
     // Keep document height = content (not 100% of a tall iframe).
     return html.replace(

@@ -68,7 +68,6 @@ export function buildPaymentAlertLetter(input: PaymentAlertInput): { subject: st
   const subject = `Оплата: ${input.eventType}${input.contractId ? ` · ${input.contractId.slice(0, 8)}` : ""}`;
   const html = wrapMarketingEmailHtml({
     bodyHtml: `<pre style="white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:13px;">${escapeHtml(text)}</pre>`,
-    previewText: subject,
     lang: "ru",
     footer: null,
   });

@@ -103,7 +103,7 @@ export function buildPaymentFailedEmail(params: {
     plainLetterToHtml(fillPayCopy(copy.paymentFailedBody, vars)),
     `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:${NOTICE_BUTTON_COLOR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${label}</a></p>`,
   ].join("\n");
-  const html = wrapMarketingEmailHtml({ bodyHtml, previewText: subject, lang: copy.lang, footer: null });
+  const html = wrapMarketingEmailHtml({ bodyHtml, lang: copy.lang, footer: null });
   return { subject, html, text: `${htmlToPlaintext(bodyHtml)}\n\n${params.payUrl}`, lang: copy.lang };
 }
 
