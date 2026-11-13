@@ -5,6 +5,7 @@
  * Each <script> renders its own independent form right where it stands.
  * After YooKassa, the return URL has ?hz_paid=<widgetId>. That load shows
  * the thank-you text and drops the parameter, so a refresh shows the form.
+ * An unpaid return has ?hz_unpaid=<widgetId>: the form is shown with a notice.
  */
 (function () {
   "use strict";
@@ -45,6 +46,37 @@
   }
 
   var returnPaidId = consumePaidReturn();
+
+  var UNPAID_RETURN_SLOT = "__hzUnpaidReturnId";
+
+  /** Same as hz_paid, for ?hz_unpaid=: the payment did not go through. */
+  function consumeUnpaidReturn() {
+    if (Object.prototype.hasOwnProperty.call(window, UNPAID_RETURN_SLOT)) {
+      return window[UNPAID_RETURN_SLOT];
+    }
+    var id = null;
+    try {
+      var url = new URL(window.location.href);
+      var raw = url.searchParams.get("hz_unpaid");
+      if (raw) {
+        id = raw;
+        url.searchParams.delete("hz_unpaid");
+        if (window.history && typeof window.history.replaceState === "function") {
+          window.history.replaceState(window.history.state, "", url.toString());
+        }
+      }
+    } catch (e) {
+      id = null;
+    }
+    try {
+      window[UNPAID_RETURN_SLOT] = id;
+    } catch (e2) {
+      /* this load still uses `id` */
+    }
+    return id;
+  }
+
+  var returnUnpaidId = consumeUnpaidReturn();
 
   function pickLocale(dataLang) {
     var raw = String(dataLang || "").trim().toLowerCase();
@@ -154,7 +186,8 @@
   /**
    * Render a widget into `host` from config data (shape of GET /api/widget/:id).
    * opts.preview — admin preview: no submit, no thank-you redirect logic.
-   * opts.apiBase — origin for checkout; opts.thanks — render the thank-you state.
+   * opts.apiBase — origin for checkout; opts.thanks — render the thank-you state;
+   * opts.unpaid — show the "payment not completed" notice above the button.
    */
   function render(host, data, opts) {
     opts = opts || {};
@@ -341,6 +374,8 @@
         });
     }
 
+    if (opts.unpaid) showError(t.errUnpaid || t.errGeneric);
+
     button.addEventListener("click", submit);
     [nameInput, emailInput].forEach(function (input) {
       if (!input) return;
@@ -375,7 +410,7 @@
       })
       .then(function (data) {
         if (!data || !data.texts) return;
-        render(host, data, { apiBase: apiBase, thanks: returnPaidId === id });
+        render(host, data, { apiBase: apiBase, thanks: returnPaidId === id, unpaid: returnUnpaidId === id });
       })
       .catch(function () {
         /* widget stays empty; the landing page keeps working */

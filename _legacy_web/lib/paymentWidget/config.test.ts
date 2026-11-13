@@ -63,6 +63,8 @@ describe("resolveWidgetLocale", () => {
     const texts = resolveWidgetTexts(config, "en");
     expect(texts.title).toBe("Webinar");
     expect(texts.button).toBe("Pay");
+    expect(texts.errUnpaid).toBe(getWidgetSystemTexts("en").errUnpaid);
+    expect(resolveWidgetTexts(config, "de").errUnpaid).toBe(getWidgetSystemTexts("de").errUnpaid);
     expect(resolveWidgetTexts(config, "ru").button).toBe("Оплатить");
   });
 

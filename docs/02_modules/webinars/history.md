@@ -1,11 +1,15 @@
 ---
 id: 02_modules/webinars/history
 title: Webinars History
-version: 3.4
+version: 3.5
 updated: 2026-11-14
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708140000_webinars.sql]
 ---
+
+## 2026-11-14 — Письмо, если оплата вебинара из кабинета не прошла
+
+- Через 30 минут–24 часа после отказа уходит письмо со своей темой и текстом. Кнопка открывает `/pay/failed`. Покупка вебинара с виджета это письмо не получает.
 
 ## 2026-11-14 — Возврат после оплаты вебинара
 

@@ -32,7 +32,7 @@ function boot(href: string) {
     location: { href },
     navigator: { language: "ru", languages: ["ru"] },
     document,
-  } as Window & { __hzPaidReturnId?: string | null };
+  } as unknown as Window & { __hzPaidReturnId?: string | null; __hzUnpaidReturnId?: string | null };
   const context = createContext({
     window,
     document,
@@ -45,6 +45,7 @@ function boot(href: string) {
   return {
     replaced,
     paidId: window.__hzPaidReturnId,
+    unpaidId: window.__hzUnpaidReturnId,
     state: history.state,
     reload() {
       runInContext(source, context);
@@ -73,5 +74,11 @@ describe("widget paid return", () => {
   it("drops a lone hz_paid parameter without a trailing question mark", () => {
     const page = boot("https://site.ru/landing?hz_paid=w1");
     expect(page.replaced).toEqual(["https://site.ru/landing"]);
+  });
+
+  it("remembers hz_unpaid for this load and drops it from the address", () => {
+    const page = boot("https://site.ru/landing?utm=1&hz_unpaid=w1#form");
+    expect(page.unpaidId).toBe("w1");
+    expect(page.replaced).toEqual(["https://site.ru/landing?utm=1#form"]);
   });
 });

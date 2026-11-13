@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getPayPageCopy, payTierName } from "./payPageCopy";
+import { fillPayCopy, getPayPageCopy, payTierName } from "./payPageCopy";
 import {
   buildPaymentFailedEmail,
   groupFailedNoticeCandidates,
@@ -70,5 +70,26 @@ describe("buildPaymentFailedEmail", () => {
       subjects.add(letter.subject);
     }
     expect(subjects.size).toBe(LOCALES.length);
+  });
+
+  it("uses the webinar and book letters, and the tier letter for oracle", () => {
+    const url = "https://harmonizer.zamkovoi.yoga/pay/failed?t=abc";
+    for (const locale of LOCALES) {
+      const copy = getPayPageCopy(locale);
+      const webinar = buildPaymentFailedEmail({ locale, tier: "webinar", payUrl: url });
+      const book = buildPaymentFailedEmail({ locale, tier: "book", payUrl: url });
+      const oracle = buildPaymentFailedEmail({ locale, tier: "oracle", payUrl: url });
+      const webinarLine = copy.webinarFailedBody.split("\n").find((line) => line.trim().length > 20) ?? "";
+      const bookLine = copy.bookFailedBody.split("\n").find((line) => line.trim().length > 20) ?? "";
+      const oracleLine = copy.paymentFailedBody.split("\n").find((line) => line.trim().length > 20) ?? "";
+      expect(webinar.subject).toBe(copy.webinarFailedSubject);
+      expect(webinar.text).toContain(webinarLine);
+      expect(book.subject).toBe(copy.bookFailedSubject);
+      expect(book.text).toContain(bookLine);
+      expect(oracle.subject).toBe(fillPayCopy(copy.paymentFailedSubject, { tier: payTierName(copy, "oracle") }));
+      expect(oracle.text).toContain(fillPayCopy(oracleLine, { tier: payTierName(copy, "oracle") }));
+      expect(webinar.subject).not.toBe(oracle.subject);
+      expect(book.subject).not.toBe(oracle.subject);
+    }
   });
 });

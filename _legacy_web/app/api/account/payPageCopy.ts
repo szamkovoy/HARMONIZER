@@ -43,6 +43,11 @@ export type PayPageCopy = {
   paymentFailedSubject: string;
   paymentFailedBody: string;
   paymentFailedButton: string;
+  /** Письмо об отказе разовой покупки; кнопка — paymentFailedButton. */
+  webinarFailedSubject: string;
+  webinarFailedBody: string;
+  bookFailedSubject: string;
+  bookFailedBody: string;
 };
 
 const COPY: Record<AppContentLocale, PayPageCopy> = {
@@ -86,6 +91,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Здравствуйте!\n\nОплата уровня «{tier}» в Гармонизаторе не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно оплатить другой картой, через PayPal или оформить 30 дней без автопродления. Вводить данные заново не нужно.",
     paymentFailedButton: "Выбрать способ оплаты",
+    webinarFailedSubject: "Оплата участия в вебинаре не прошла",
+    webinarFailedBody:
+      "Здравствуйте!\n\nОплата участия в вебинаре не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно оплатить ещё раз или выбрать другой способ оплаты. Вводить данные заново не нужно.",
+    bookFailedSubject: "Оплата книги не прошла",
+    bookFailedBody:
+      "Здравствуйте!\n\nОплата книги не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно оплатить ещё раз или выбрать другой способ оплаты. Вводить данные заново не нужно.",
   },
   en: {
     failedTitle: "Payment failed",
@@ -127,6 +138,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Hello!\n\nPayment for the “{tier}” level in Harmonizer did not go through — this happens when the bank does not confirm the charge. No money was taken. The button below lets you pay with another card, via PayPal, or take 30 days without auto-renewal. You do not need to enter your details again.",
     paymentFailedButton: "Choose how to pay",
+    webinarFailedSubject: "Your webinar payment did not go through",
+    webinarFailedBody:
+      "Hello!\n\nYour payment for the webinar did not go through — this happens when the bank does not confirm the transaction. You have not been charged. Use the button below to pay again or choose another payment method. You will not need to enter your details again.",
+    bookFailedSubject: "Your book payment did not go through",
+    bookFailedBody:
+      "Hello!\n\nYour payment for the book did not go through — this happens when the bank does not confirm the transaction. You have not been charged. Use the button below to pay again or choose another payment method. You will not need to enter your details again.",
   },
   de: {
     failedTitle: "Zahlung fehlgeschlagen",
@@ -169,6 +186,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Guten Tag!\n\nDie Zahlung für die Stufe „{tier}“ im Harmonizer ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie mit einer anderen Karte, über PayPal oder für 30 Tage ohne automatische Verlängerung zahlen. Ihre Daten müssen Sie nicht erneut eingeben.",
     paymentFailedButton: "Zahlungsart wählen",
+    webinarFailedSubject: "Die Zahlung für die Teilnahme am Webinar ist nicht durchgegangen",
+    webinarFailedBody:
+      "Guten Tag!\n\nDie Zahlung für die Teilnahme am Webinar ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie erneut bezahlen oder eine andere Zahlungsart wählen. Ihre Daten müssen Sie nicht erneut eingeben.",
+    bookFailedSubject: "Die Zahlung für das Buch ist nicht durchgegangen",
+    bookFailedBody:
+      "Guten Tag!\n\nDie Zahlung für das Buch ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie erneut bezahlen oder eine andere Zahlungsart wählen. Ihre Daten müssen Sie nicht erneut eingeben.",
   },
   fr: {
     failedTitle: "Le paiement a échoué",
@@ -211,6 +234,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Bonjour !\n\nLe paiement du niveau « {tier} » dans Harmonizer n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous permet de payer avec une autre carte, via PayPal ou pour 30 jours sans renouvellement automatique. Vous n’avez pas à saisir vos données à nouveau.",
     paymentFailedButton: "Choisir le mode de paiement",
+    webinarFailedSubject: "Le paiement du webinaire n’est pas passé",
+    webinarFailedBody:
+      "Bonjour !\n\nLe paiement du webinaire n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous permet de payer à nouveau ou de choisir un autre mode de paiement. Vous n’avez pas à saisir vos données à nouveau.",
+    bookFailedSubject: "Le paiement du livre n’est pas passé",
+    bookFailedBody:
+      "Bonjour !\n\nLe paiement du livre n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous permet de payer à nouveau ou de choisir un autre mode de paiement. Vous n’avez pas à saisir vos données à nouveau.",
   },
   it: {
     failedTitle: "Pagamento non riuscito",
@@ -253,6 +282,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Buongiorno!\n\nIl pagamento del livello «{tier}» in Harmonizer non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi pagare con un’altra carta, con PayPal oppure per 30 giorni senza rinnovo automatico. Non devi inserire di nuovo i dati.",
     paymentFailedButton: "Scegli come pagare",
+    webinarFailedSubject: "Il pagamento del webinar non è andato a buon fine",
+    webinarFailedBody:
+      "Buongiorno!\n\nIl pagamento del webinar non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi pagare di nuovo o scegliere un altro metodo di pagamento. Non devi inserire di nuovo i dati.",
+    bookFailedSubject: "Il pagamento del libro non è andato a buon fine",
+    bookFailedBody:
+      "Buongiorno!\n\nIl pagamento del libro non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi pagare di nuovo o scegliere un altro metodo di pagamento. Non devi inserire di nuovo i dati.",
   },
   es: {
     failedTitle: "El pago no se ha completado",
@@ -294,6 +329,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Hola:\n\nEl pago del nivel «{tier}» en Harmonizer no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar con otra tarjeta, con PayPal o por 30 días sin renovación automática. No hace falta volver a introducir los datos.",
     paymentFailedButton: "Elegir la forma de pago",
+    webinarFailedSubject: "El pago del webinar no se ha completado",
+    webinarFailedBody:
+      "Hola:\n\nEl pago del webinar no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
+    bookFailedSubject: "El pago del libro no se ha completado",
+    bookFailedBody:
+      "Hola:\n\nEl pago del libro no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
   },
   pt: {
     failedTitle: "O pagamento não foi concluído",
@@ -336,6 +377,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Olá!\n\nO pagamento do nível «{tier}» no Harmonizer não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode pagar com outro cartão, pelo PayPal ou por 30 dias sem renovação automática. Não precisa de introduzir os dados outra vez.",
     paymentFailedButton: "Escolher a forma de pagamento",
+    webinarFailedSubject: "O pagamento do webinar não foi concluído",
+    webinarFailedBody:
+      "Olá!\n\nO pagamento do webinar não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode pagar novamente ou escolher outra forma de pagamento. Não precisa de introduzir os dados outra vez.",
+    bookFailedSubject: "O pagamento do livro não foi concluído",
+    bookFailedBody:
+      "Olá!\n\nO pagamento do livro não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode pagar novamente ou escolher outra forma de pagamento. Não precisa de introduzir os dados outra vez.",
   },
   nl: {
     failedTitle: "Betaling mislukt",
@@ -378,6 +425,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     paymentFailedBody:
       "Hallo!\n\nDe betaling voor het niveau «{tier}» in Harmonizer is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je met een andere kaart, via PayPal of voor 30 dagen zonder automatische verlenging betalen. Je gegevens hoef je niet opnieuw in te vullen.",
     paymentFailedButton: "Betaalwijze kiezen",
+    webinarFailedSubject: "De betaling voor het webinar is niet gelukt",
+    webinarFailedBody:
+      "Hallo!\n\nDe betaling voor het webinar is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je opnieuw betalen of een andere betaalwijze kiezen. Je gegevens hoef je niet opnieuw in te vullen.",
+    bookFailedSubject: "De betaling voor het boek is niet gelukt",
+    bookFailedBody:
+      "Hallo!\n\nDe betaling voor het boek is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je opnieuw betalen of een andere betaalwijze kiezen. Je gegevens hoef je niet opnieuw in te vullen.",
   },
 };
 

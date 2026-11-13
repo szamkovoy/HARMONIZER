@@ -26,6 +26,8 @@ export type WidgetSystemTexts = {
   errEmailRejected: string;
   errAlreadyActive: string;
   errUnavailable: string;
+  /** Shown above the form after an unpaid return (hz_unpaid). */
+  errUnpaid: string;
   processing: string;
 };
 
@@ -158,6 +160,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Платёжная система не принимает этот email. Укажите другой.",
     errAlreadyActive: "У вас уже есть активный доступ этого или более высокого уровня.",
     errUnavailable: "Оплата временно недоступна.",
+    errUnpaid: "Оплата не завершена, деньги не списаны. Попробуйте ещё раз или выберите другой способ.",
     processing: "Переходим к оплате…",
   },
   en: {
@@ -167,6 +170,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "The payment provider does not accept this email. Please use another one.",
     errAlreadyActive: "You already have active access of this or a higher level.",
     errUnavailable: "Payment is temporarily unavailable.",
+    errUnpaid: "The payment was not completed and you have not been charged. Try again or choose another method.",
     processing: "Redirecting to payment…",
   },
   de: {
@@ -176,6 +180,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Der Zahlungsanbieter akzeptiert diese E-Mail nicht. Bitte verwenden Sie eine andere.",
     errAlreadyActive: "Sie haben bereits einen aktiven Zugang dieser oder einer höheren Stufe.",
     errUnavailable: "Die Zahlung ist vorübergehend nicht verfügbar.",
+    errUnpaid: "Die Zahlung wurde nicht abgeschlossen, es wurde kein Geld abgebucht. Versuchen Sie es erneut oder wählen Sie eine andere Zahlungsart.",
     processing: "Weiterleitung zur Zahlung…",
   },
   fr: {
@@ -185,6 +190,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Le prestataire de paiement n'accepte pas cette adresse. Veuillez en utiliser une autre.",
     errAlreadyActive: "Vous disposez déjà d'un accès actif de ce niveau ou d'un niveau supérieur.",
     errUnavailable: "Le paiement est temporairement indisponible.",
+    errUnpaid: "Le paiement n’a pas été terminé, aucun montant n’a été débité. Réessayez ou choisissez un autre mode de paiement.",
     processing: "Redirection vers le paiement…",
   },
   it: {
@@ -194,6 +200,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Il sistema di pagamento non accetta questa email. Usane un'altra.",
     errAlreadyActive: "Hai già un accesso attivo di questo livello o superiore.",
     errUnavailable: "Il pagamento non è al momento disponibile.",
+    errUnpaid: "Il pagamento non è stato completato e non è stato addebitato alcun importo. Riprova o scegli un altro metodo.",
     processing: "Reindirizzamento al pagamento…",
   },
   es: {
@@ -203,6 +210,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "El sistema de pago no acepta este correo. Usa otro.",
     errAlreadyActive: "Ya tienes un acceso activo de este nivel o superior.",
     errUnavailable: "El pago no está disponible temporalmente.",
+    errUnpaid: "El pago no se ha completado y no se ha cobrado nada. Inténtalo de nuevo o elige otro método.",
     processing: "Redirigiendo al pago…",
   },
   pt: {
@@ -212,6 +220,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "O sistema de pagamento não aceita este e-mail. Use outro.",
     errAlreadyActive: "Já tem um acesso ativo deste nível ou superior.",
     errUnavailable: "O pagamento está temporariamente indisponível.",
+    errUnpaid: "O pagamento não foi concluído e não foi cobrado qualquer valor. Tente novamente ou escolha outro método.",
     processing: "A redirecionar para o pagamento…",
   },
   nl: {
@@ -221,6 +230,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "De betaalprovider accepteert dit e-mailadres niet. Gebruik een ander adres.",
     errAlreadyActive: "Je hebt al actieve toegang op dit of een hoger niveau.",
     errUnavailable: "Betalen is tijdelijk niet mogelijk.",
+    errUnpaid: "De betaling is niet afgerond en er is geen geld afgeschreven. Probeer het opnieuw of kies een andere betaalwijze.",
     processing: "Doorsturen naar de betaling…",
   },
 };

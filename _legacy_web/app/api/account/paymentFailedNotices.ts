@@ -1,16 +1,25 @@
 /**
- * Письмо покупателю: первая оплата тарифа (подписка или 30 дней) не прошла.
- * Кнопка ведёт на /pay/failed. Язык — users.locale.
+ * Письмо покупателю: первая оплата из кабинета не прошла — тариф (подписка или
+ * 30 дней), вебинар или книга. Кнопка ведёт на /pay/failed. Язык — users.locale.
+ * Брошенная форма письмом не считается. Покупки через виджет сюда не входят.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { paidTierFromRow } from "@/modules/access/core/paidAccess";
+import { WEBINAR_JOIN_GRACE_HOURS } from "@/modules/webinars/core/webinarTiming";
 import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
 import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
 import { logPaymentEvent } from "./paymentEvents";
 import { isAbandonedFailure } from "./paymentFailureKind";
 import { fillPayCopy, getPayPageCopy, payTierName } from "./payPageCopy";
-import { PAY_RENEW_TOKEN_TTL_MS, signPayRetryToken, type PayRetryKind } from "./payRetryToken";
+import { oneTimeAlreadyPaid } from "./oneTimeCheckout";
+import {
+  PAY_RENEW_TOKEN_TTL_MS,
+  signOneTimeRetryToken,
+  signPayRetryToken,
+  type OneTimeRetryProduct,
+  type PayRetryKind,
+} from "./payRetryToken";
 import { isPassTier } from "./tierPass";
 import { payFailedUrl } from "./tierCheckout";
 import { plainLetterToHtml } from "./widgetFulfillment";
@@ -84,7 +93,19 @@ type ContractRow = {
   product_ref: string | null;
   failure_reason: string | null;
   updated_at: string;
+  source?: string | null;
 };
+
+function isOneTimeProduct(tier: string): tier is OneTimeRetryProduct {
+  return tier === "webinar" || tier === "book";
+}
+
+/** Кабинетные покупки, по которым шлём письмо: доступ по тарифу, вебинар, книга. */
+function isNoticeProduct(row: ContractRow): boolean {
+  if (row.source === "widget") return false;
+  if (isOneTimeProduct(row.tier)) return row.product_kind === "one_time";
+  return isPassTier(row.tier) && isAccessProduct(row);
+}
 
 function isAccessProduct(row: { product_kind: string | null; product_ref: string | null }): boolean {
   return row.product_kind === "subscription" || row.product_ref === "pass_30d";
@@ -97,11 +118,23 @@ export function buildPaymentFailedEmail(params: {
 }): { subject: string; html: string; text: string; lang: string } {
   const copy = getPayPageCopy(params.locale);
   const vars = { tier: payTierName(copy, params.tier) };
-  const subject = fillPayCopy(copy.paymentFailedSubject, vars);
+  const subjectText =
+    params.tier === "webinar"
+      ? copy.webinarFailedSubject
+      : params.tier === "book"
+        ? copy.bookFailedSubject
+        : copy.paymentFailedSubject;
+  const bodyText =
+    params.tier === "webinar"
+      ? copy.webinarFailedBody
+      : params.tier === "book"
+        ? copy.bookFailedBody
+        : copy.paymentFailedBody;
+  const subject = fillPayCopy(subjectText, vars);
   const href = params.payUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   const label = copy.paymentFailedButton.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const bodyHtml = [
-    plainLetterToHtml(fillPayCopy(copy.paymentFailedBody, vars)),
+    plainLetterToHtml(fillPayCopy(bodyText, vars)),
     `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:${NOTICE_BUTTON_COLOR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${label}</a></p>`,
   ].join("\n");
   const html = wrapMarketingEmailHtml({ bodyHtml, lang: copy.lang, footer: null });
@@ -117,21 +150,20 @@ export async function runPaymentFailedNotices(
   const { data, error } = await db
     .from("payment_contracts")
     .select(
-      "contract_id,user_id,tier,currency,provider,buyer_email,product_kind,product_ref,failure_reason,updated_at",
+      "contract_id,user_id,tier,currency,provider,buyer_email,product_kind,product_ref,failure_reason,updated_at,source",
     )
     .eq("status", "failed")
-    .in("tier", ["oracle", "master"])
+    .in("tier", ["oracle", "master", "webinar", "book"])
     .not("user_id", "is", null)
     .is("failed_notice_sent_at", null)
     .gte("updated_at", minUpdated)
     .lte("updated_at", maxUpdated)
-    .or("product_kind.eq.subscription,product_ref.eq.pass_30d")
     .order("updated_at", { ascending: false })
     .limit(BATCH_LIMIT);
   if (error) throw error;
 
   const rows = ((data ?? []) as ContractRow[]).filter(
-    (row) => isAccessProduct(row) && !isAbandonedFailure(row.failure_reason),
+    (row) => isNoticeProduct(row) && !isAbandonedFailure(row.failure_reason),
   );
   const result: PaymentFailedNoticeResult = {
     candidates: rows.length,
@@ -163,40 +195,76 @@ export async function runPaymentFailedNotices(
   return result;
 }
 
+/** Вебинар из контракта ещё можно купить: опубликован и не закончился. */
+async function webinarStillOpen(db: SupabaseClient, webinarId: string | null, now: Date): Promise<boolean> {
+  if (!webinarId) return false;
+  const { data, error } = await db
+    .from("webinars")
+    .select("starts_at,is_published")
+    .eq("id", webinarId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.is_published !== true) return false;
+  const startsMs = new Date(data.starts_at as string).getTime();
+  return Number.isFinite(startsMs) && startsMs + WEBINAR_JOIN_GRACE_HOURS * 60 * 60 * 1000 > now.getTime();
+}
+
+/** Покупка уже не нужна: оплачена после отказа, тариф действует, вебинар прошёл. */
+async function purchaseSettled(
+  db: SupabaseClient,
+  contract: ContractRow & NoticeCandidate,
+  user: Parameters<typeof paidTierFromRow>[0],
+  now: Date,
+): Promise<{ laterPaidAccess: boolean; hasPaidTier: boolean }> {
+  const { data: later, error } = await db
+    .from("payment_contracts")
+    .select("contract_id,product_kind,product_ref,tier")
+    .eq("user_id", contract.userId)
+    .eq("status", "active")
+    .in("tier", isOneTimeProduct(contract.tier) ? [contract.tier] : ["oracle", "master"])
+    .gt("created_at", contract.updatedAt);
+  if (error) throw error;
+  const rows = (later ?? []) as { product_kind: string | null; product_ref: string | null }[];
+
+  if (isOneTimeProduct(contract.tier)) {
+    if (rows.length > 0) return { laterPaidAccess: true, hasPaidTier: false };
+    const paid = await oneTimeAlreadyPaid(db, {
+      userId: contract.userId,
+      product: contract.tier,
+      webinarId: contract.product_ref,
+    });
+    if (paid) return { laterPaidAccess: true, hasPaidTier: false };
+    if (contract.tier === "webinar" && !(await webinarStillOpen(db, contract.product_ref, now))) {
+      return { laterPaidAccess: true, hasPaidTier: false };
+    }
+    return { laterPaidAccess: false, hasPaidTier: false };
+  }
+  return { laterPaidAccess: rows.some(isAccessProduct), hasPaidTier: paidTierFromRow(user) != null };
+}
+
 async function noticeOne(
   db: SupabaseClient,
   contract: ContractRow & NoticeCandidate,
   now: Date,
 ): Promise<"sent" | "skipped"> {
-  if (!isPassTier(contract.tier)) return "skipped";
-  const [userRes, laterRes, recentRes] = await Promise.all([
+  if (!isPassTier(contract.tier) && !isOneTimeProduct(contract.tier)) return "skipped";
+  const [userRes, recentRes] = await Promise.all([
     db
       .from("users")
       .select("locale,membership_tier,membership_expires_at")
       .eq("id", contract.userId)
       .maybeSingle(),
-    db
-      .from("payment_contracts")
-      .select("contract_id,created_at,product_kind,product_ref,tier,status")
-      .eq("user_id", contract.userId)
-      .eq("status", "active")
-      .in("tier", ["oracle", "master"])
-      .gt("created_at", contract.updatedAt),
     stampedContractIds(db, contract.userId, now),
   ]);
   if (userRes.error) throw userRes.error;
-  if (laterRes.error) throw laterRes.error;
 
-  const laterPaidAccess = ((laterRes.data ?? []) as { product_kind: string | null; product_ref: string | null }[]).some(
-    isAccessProduct,
-  );
-  const hasPaidTier = paidTierFromRow(userRes.data) != null;
+  const settled = await purchaseSettled(db, contract, userRes.data, now);
   const noticeSentWithin24h = await hasNoticeEvent(db, recentRes, now);
   if (
     !shouldSendFailedNotice({
       failureReason: contract.failure_reason,
-      laterPaidAccess,
-      hasPaidTier,
+      laterPaidAccess: settled.laterPaidAccess,
+      hasPaidTier: settled.hasPaidTier,
       noticeSentWithin24h,
     })
   ) {
@@ -214,18 +282,30 @@ async function noticeOne(
 
   const locale = (userRes.data?.locale as string | null) ?? "ru";
   const currency = contract.currency === "USD" || contract.currency === "EUR" ? contract.currency : "RUB";
-  const kind: PayRetryKind = contract.product_kind === "subscription" ? "subscription" : "pass";
-  const token = signPayRetryToken(
-    {
-      userId: contract.userId,
-      tier: contract.tier,
-      kind,
-      currency,
-      country: contract.provider === "yookassa" ? "RU" : null,
-      locale,
-    },
-    PAY_RENEW_TOKEN_TTL_MS,
-  );
+  const country = contract.provider === "yookassa" ? "RU" : null;
+  const token = isOneTimeProduct(contract.tier)
+    ? signOneTimeRetryToken(
+        {
+          userId: contract.userId,
+          product: contract.tier,
+          webinarId: contract.tier === "webinar" ? contract.product_ref : null,
+          currency,
+          country,
+          locale,
+        },
+        PAY_RENEW_TOKEN_TTL_MS,
+      )
+    : signPayRetryToken(
+        {
+          userId: contract.userId,
+          tier: contract.tier as "oracle" | "master",
+          kind: (contract.product_kind === "subscription" ? "subscription" : "pass") satisfies PayRetryKind,
+          currency,
+          country,
+          locale,
+        },
+        PAY_RENEW_TOKEN_TTL_MS,
+      );
   const payUrl = payFailedUrl(token);
   const letter = buildPaymentFailedEmail({ locale, tier: contract.tier, payUrl });
   const sent = await sendMarketingEmail({
