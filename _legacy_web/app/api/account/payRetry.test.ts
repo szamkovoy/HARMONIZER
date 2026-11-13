@@ -18,6 +18,7 @@ import {
   verifyPayRetryToken,
   type PayRetryPayload,
 } from "./payRetryToken";
+import { payCancelledUrl, payFailedUrl } from "./tierCheckout";
 import { hasHigherPaidAccess, tierPassPeriodEnd } from "./tierPass";
 
 const LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
@@ -89,6 +90,15 @@ describe("pay retry token", () => {
     const now = Date.parse("2026-11-08T12:00:00Z");
     const token = signPayRetryToken(payload, DAY, now);
     expect(verifyPayRetryToken(token, now + 1000)).toEqual({ ...payload, exp: now + DAY });
+  });
+
+  it("sends a Lava cancel to the failed page with v=c and the same token", () => {
+    const token = signPayRetryToken(payload, DAY, Date.parse("2026-11-08T12:00:00Z"));
+    const failed = payFailedUrl(token);
+    const cancelled = payCancelledUrl(token);
+    expect(cancelled).toBe(`${failed}&v=c`);
+    expect(new URL(cancelled).searchParams.get("t")).toBe(token);
+    expect(new URL(failed).searchParams.get("t")).toBe(token);
   });
 
   it("still reads a tier token, and does not read it as a one-time purchase", () => {

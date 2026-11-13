@@ -309,11 +309,14 @@ async function latestFailureView(db: SupabaseClient, token: AnyPayToken): Promis
 }
 
 export async function handlePayFailedGet(req: Request): Promise<Response> {
-  const raw = new URL(req.url).searchParams.get("t") ?? "";
+  const params = new URL(req.url).searchParams;
+  const raw = params.get("t") ?? "";
   const token = readPayToken(raw);
   if (!token) return expiredPage(getPayPageCopy(null));
   const db = createServiceSupabase({ fetchTimeoutMs: 6_000 });
-  return renderAnyFailedPage(db, token, raw, await latestFailureView(db, token));
+  // v=c — Lava cancel_return_url: покупатель сам закрыл форму.
+  const view = params.get("v") === "c" ? "abandoned" : await latestFailureView(db, token);
+  return renderAnyFailedPage(db, token, raw, view);
 }
 
 export async function handlePayRenewGet(req: Request): Promise<Response> {
