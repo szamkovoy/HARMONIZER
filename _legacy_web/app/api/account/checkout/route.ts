@@ -1,22 +1,11 @@
 import { createServiceSupabase, errorResponse } from "../../_utils/supabase";
 import { cabinetBearerUserId, corsJson, corsPreflight, withCors } from "../_utils";
-import {
-  createLavaOneTimeInvoice,
-  isLavaCurrency,
-  LavaInvoiceError,
-  normalizeLavaBuyerEmail,
-  resolveLavaOfferIdByName,
-  type SellableTier,
-} from "../lava";
-import {
-  resolvePaymentGateway,
-  type PaymentProviderId,
-} from "../paymentGatewayProfile";
+import { isLavaCurrency, LavaInvoiceError, normalizeLavaBuyerEmail, type SellableTier } from "../lava";
+import { startOneTimeCheckout } from "../oneTimeCheckout";
+import { resolvePaymentGateway } from "../paymentGatewayProfile";
 import { sendPaymentAlert } from "../paymentAlerts";
 import { logPaymentEvent } from "../paymentEvents";
 import { startTierCheckout } from "../tierCheckout";
-import { createYookassaCheckout } from "../yookassaCheckout";
-import { WEBINAR_JOIN_GRACE_HOURS } from "@/modules/webinars/core/webinarTiming";
 
 // Создание платёжного контракта.
 // kind: subscription | pass (30 дней без автопродления) | webinar | book.
@@ -151,22 +140,32 @@ export async function POST(req: Request) {
       );
     }
     const provider = (ctx.provider = gateway.provider);
-    const checkoutCurrency =
-      provider === "yookassa" ? ("RUB" as const) : (currency as "RUB" | "USD" | "EUR");
-
-    if (kind === "webinar") {
-      return await startWebinarCheckout(
-        db,
+    if (kind === "webinar" || kind === "book") {
+      const out = await startOneTimeCheckout(db, {
         userId,
-        email,
-        userLocale,
-        checkoutCurrency,
-        provider,
-        body?.webinarId,
-      );
-    }
-    if (kind === "book") {
-      return await startBookCheckout(db, userId, email, userLocale, checkoutCurrency, provider);
+        product: kind,
+        webinarId: kind === "webinar" ? body?.webinarId : null,
+        currency,
+        country: country ?? null,
+        buyer: { email, locale: userLocale },
+      });
+      if (out.ok) {
+        return corsJson({
+          paymentUrl: out.paymentUrl,
+          contractId: out.contractId,
+          ...(out.webinarId ? { webinarId: out.webinarId } : {}),
+        });
+      }
+      if (out.error === "already_registered") {
+        return corsJson({ alreadyRegistered: true, webinarId: out.webinarId });
+      }
+      const message =
+        out.error === "no_upcoming_webinar"
+          ? "No upcoming webinar to register for"
+          : out.error === "webinar_not_found"
+            ? "Webinar not found"
+            : out.error;
+      return corsJson({ error: message, code: out.error }, { status: out.status });
     }
 
     const tier = (ctx.tier = body?.tier?.trim().toLowerCase()) as SellableTier | undefined;
@@ -239,146 +238,4 @@ export async function POST(req: Request) {
     }
     return withCors(errorResponse(error));
   }
-}
-
-async function resolveWebinarId(
-  db: ReturnType<typeof createServiceSupabase>,
-  webinarIdRaw?: string,
-): Promise<{ webinarId: string } | Response> {
-  let webinarId = webinarIdRaw?.trim() || "";
-  if (!webinarId) {
-    const { data: nearest, error: nearestError } = await db
-      .from("webinars")
-      .select("id")
-      .eq("is_published", true)
-      .gte("starts_at", new Date(Date.now() - WEBINAR_JOIN_GRACE_HOURS * 60 * 60 * 1000).toISOString())
-      .order("starts_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (nearestError) throw nearestError;
-    if (!nearest) return corsJson({ error: "No upcoming webinar to register for" }, { status: 409 });
-    webinarId = nearest.id;
-  } else {
-    const { data: w, error: wError } = await db
-      .from("webinars")
-      .select("id")
-      .eq("id", webinarId)
-      .eq("is_published", true)
-      .maybeSingle();
-    if (wError) throw wError;
-    if (!w) return corsJson({ error: "Webinar not found" }, { status: 404 });
-  }
-  return { webinarId };
-}
-
-async function startWebinarCheckout(
-  db: ReturnType<typeof createServiceSupabase>,
-  userId: string,
-  email: string,
-  userLocale: string,
-  currency: "RUB" | "USD" | "EUR",
-  provider: PaymentProviderId,
-  webinarIdRaw?: string,
-): Promise<Response> {
-  const resolved = await resolveWebinarId(db, webinarIdRaw);
-  if (resolved instanceof Response) return resolved;
-  const { webinarId } = resolved;
-
-  const { data: reg } = await db
-    .from("webinar_registrations")
-    .select("webinar_id")
-    .eq("webinar_id", webinarId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (reg) return corsJson({ alreadyRegistered: true, webinarId });
-
-  if (provider === "yookassa") {
-    const out = await createYookassaCheckout(db, {
-      userId,
-      email,
-      currency,
-      tier: "webinar",
-      kind: "one_time",
-      productKind: "one_time",
-      productRef: webinarId,
-      periodicity: "ONE_TIME",
-      webinarId,
-    });
-    return corsJson({ ...out, webinarId });
-  }
-
-  const offerId = await resolveLavaOfferIdByName(db, "webinar", userLocale);
-  const invoice = await createLavaOneTimeInvoice({
-    email,
-    offerId,
-    currency,
-    locale: userLocale,
-  });
-  if (!invoice.paymentUrl) throw new Error("Lava invoice created without paymentUrl");
-
-  const { error: insertError } = await db.from("payment_contracts").insert({
-    user_id: userId,
-    buyer_email: email,
-    contract_id: invoice.id,
-    provider: "lavatop",
-    tier: "webinar",
-    currency,
-    amount: invoice.amountTotal?.amount ?? null,
-    periodicity: "ONE_TIME",
-    product_kind: "one_time",
-    product_ref: webinarId,
-    status: "pending",
-  });
-  if (insertError) throw insertError;
-
-  return corsJson({ paymentUrl: invoice.paymentUrl, contractId: invoice.id, webinarId });
-}
-
-async function startBookCheckout(
-  db: ReturnType<typeof createServiceSupabase>,
-  userId: string,
-  email: string,
-  userLocale: string,
-  currency: "RUB" | "USD" | "EUR",
-  provider: PaymentProviderId,
-): Promise<Response> {
-  if (provider === "yookassa") {
-    const out = await createYookassaCheckout(db, {
-      userId,
-      email,
-      currency,
-      tier: "book",
-      kind: "one_time",
-      productKind: "one_time",
-      productRef: null,
-      periodicity: "ONE_TIME",
-    });
-    return corsJson(out);
-  }
-
-  const offerId = await resolveLavaOfferIdByName(db, "book", userLocale);
-  const invoice = await createLavaOneTimeInvoice({
-    email,
-    offerId,
-    currency,
-    locale: userLocale,
-  });
-  if (!invoice.paymentUrl) throw new Error("Lava invoice created without paymentUrl");
-
-  const { error: insertError } = await db.from("payment_contracts").insert({
-    user_id: userId,
-    buyer_email: email,
-    contract_id: invoice.id,
-    provider: "lavatop",
-    tier: "book",
-    currency,
-    amount: invoice.amountTotal?.amount ?? null,
-    periodicity: "ONE_TIME",
-    product_kind: "one_time",
-    product_ref: null,
-    status: "pending",
-  });
-  if (insertError) throw insertError;
-
-  return corsJson({ paymentUrl: invoice.paymentUrl, contractId: invoice.id });
 }

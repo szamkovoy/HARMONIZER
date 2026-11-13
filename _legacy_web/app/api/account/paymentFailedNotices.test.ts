@@ -38,6 +38,10 @@ describe("shouldSendFailedNotice", () => {
     expect(shouldSendFailedNotice({ ...OPEN, failureReason: "Cancelled by customer" })).toBe(false);
     expect(shouldSendFailedNotice({ ...OPEN, failureReason: "Cancelled by customer at checkout" })).toBe(false);
   });
+
+  it("does not send when the YooKassa form expired without a charge", () => {
+    expect(shouldSendFailedNotice({ ...OPEN, failureReason: "yoo_money:expired_on_confirmation" })).toBe(false);
+  });
 });
 
 describe("groupFailedNoticeCandidates", () => {

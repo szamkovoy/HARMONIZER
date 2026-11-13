@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.8
-updated: 2026-11-13
+version: 1.9
+updated: 2026-11-14
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -91,7 +91,7 @@ Lava не поддерживает несколько языков у одног
 ### 5.2 Разовая оплата вебинара (ONE_TIME)
 
 1. Кабинет: `hzStartWebinar(purchase)` → `POST /api/account/checkout { kind:"webinar", webinarId?, currency }`. `webinarId` берётся из `ctx=webinar:<id>` (пришёл из приложения с экрана вебинара); если нет — ближайший опубликованный вебинар.
-2. Сервер: проверка что вебинар опубликован и пользователь ещё не записан (иначе `{alreadyRegistered:true}`); `resolveLavaOfferIdByName(db,"webinar",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) → строка `payment_contracts` (pending, product_kind=one_time, tier=webinar, product_ref=<webinarId>).
+2. Сервер: проверка что вебинар опубликован и пользователь ещё не записан (иначе `{alreadyRegistered:true}`); `resolveLavaOfferIdByName(db,"webinar",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = кабинет → строка `payment_contracts` (pending, product_kind=one_time, tier=webinar, product_ref=<webinarId>).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time webinar: контракт active, `membership_*` НЕ трогается, upsert `webinar_registrations(webinar_id=product_ref, user_id)`.
 5. Приложение: `WebinarScreen` при возврате в foreground повторно проверяет `isRegistered` (экран обновляется: «Записаться» → «Вы записаны» + ссылка); `MembershipEventsBridge` показывает модалку «Вы записаны на вебинар» (`gate.webinarPaid.*`) при обнаружении последней one_time-покупки `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx (ретрай 10с на случай задержки вебхука). Кнопки «Отменить запись» на экране вебинара нет.
@@ -99,7 +99,7 @@ Lava не поддерживает несколько языков у одног
 ### 5.4 Разовая покупка книги (ONE_TIME)
 
 1. Кабинет: `hzStartBook(purchase)` → `POST /api/account/checkout { kind:"book", currency }`.
-2. Сервер: `resolveLavaOfferIdByName(db,"book",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) → строка `payment_contracts` (pending, product_kind=one_time, tier=book, product_ref=null).
+2. Сервер: `resolveLavaOfferIdByName(db,"book",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = кабинет → строка `payment_contracts` (pending, product_kind=one_time, tier=book, product_ref=null).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time book: контракт → active; `membership_*` и регистрации НЕ трогаются.
 5. Приложение: на foreground после визита в кабинет (с **любым** ctx) `MembershipEventsBridge` зовёт `GET /api/account/purchases/last` (Bearer JWT, service role — `payment_contracts` закрыта для клиента), сверяет `createdAt` покупки с `cabinetVisit.ts` и показывает модалку «Спасибо за покупку книги» (`gate.bookPaid.*`, ретрай 10с; флаг `purchaseThanksShown.<uid>.<contractId>`). Тот же механизм детектит и вебинар (`kind=webinar` → `gate.webinarPaid.*`). Читалка книги в приложении — следующий этап (покупка уже фиксируется в БД).

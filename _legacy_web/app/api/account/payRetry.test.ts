@@ -3,8 +3,21 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { yookassaFailureReason } from "./fulfillPaymentContract";
 import { buildPassReminderEmail } from "./passReminders";
 import { fillPayCopy, formatPayDate, getPayPageCopy } from "./payPageCopy";
-import { buildFailedActions, buildRenewActions, renderPayPage, retryChoice } from "./payPages";
-import { signPayRetryToken, verifyPayRetryToken, type PayRetryPayload } from "./payRetryToken";
+import {
+  buildFailedActions,
+  buildOneTimeActions,
+  buildRenewActions,
+  failedPageText,
+  renderPayPage,
+  retryChoice,
+} from "./payPages";
+import {
+  signOneTimeRetryToken,
+  signPayRetryToken,
+  verifyOneTimeRetryToken,
+  verifyPayRetryToken,
+  type PayRetryPayload,
+} from "./payRetryToken";
 import { hasHigherPaidAccess, tierPassPeriodEnd } from "./tierPass";
 
 const LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
@@ -78,6 +91,39 @@ describe("pay retry token", () => {
     expect(verifyPayRetryToken(token, now + 1000)).toEqual({ ...payload, exp: now + DAY });
   });
 
+  it("still reads a tier token, and does not read it as a one-time purchase", () => {
+    const now = Date.parse("2026-11-08T12:00:00Z");
+    const token = signPayRetryToken(payload, DAY, now);
+    expect(verifyPayRetryToken(token, now + 1000)).toEqual({ ...payload, exp: now + DAY });
+    expect(verifyOneTimeRetryToken(token, now + 1000)).toBeNull();
+  });
+
+  it("round-trips a webinar and a book, and rejects them as a tier token", () => {
+    const now = Date.parse("2026-11-08T12:00:00Z");
+    const webinar = {
+      userId: payload.userId,
+      product: "webinar" as const,
+      webinarId: "9c1e0b2a-1111-4222-8333-444444444444",
+      currency: "RUB" as const,
+      country: "RU",
+      locale: "ru",
+    };
+    const book = {
+      userId: payload.userId,
+      product: "book" as const,
+      webinarId: null,
+      currency: "EUR" as const,
+      country: null,
+      locale: "en",
+    };
+    const webinarToken = signOneTimeRetryToken(webinar, DAY, now);
+    const bookToken = signOneTimeRetryToken(book, DAY, now);
+    expect(verifyOneTimeRetryToken(webinarToken, now + 1000)).toEqual({ ...webinar, exp: now + DAY });
+    expect(verifyOneTimeRetryToken(bookToken, now + 1000)).toEqual({ ...book, exp: now + DAY });
+    expect(verifyPayRetryToken(webinarToken, now + 1000)).toBeNull();
+    expect(verifyPayRetryToken(bookToken, now + 1000)).toBeNull();
+  });
+
   it("rejects a tampered or expired token", () => {
     const now = Date.parse("2026-11-08T12:00:00Z");
     const token = signPayRetryToken(payload, DAY, now);
@@ -111,6 +157,51 @@ describe("failure page options", () => {
       { label: "Оплатить другой картой", option: "card" },
       { label: "Оплатить через PayPal", option: "paypal" },
     ]);
+  });
+
+  it("uses the given label on the first retry button", () => {
+    expect(
+      buildFailedActions({
+        kind: "subscription",
+        blocks: NO_BLOCKS,
+        paypal: false,
+        copy,
+        retryLabel: copy.payAgain,
+      }),
+    ).toEqual([
+      { label: "Оплатить ещё раз", option: "card" },
+      { label: "Оплатить 30 дней без автопродления", option: "pass" },
+    ]);
+  });
+
+  it("offers pay again, a foreign card and PayPal for a one-time purchase", () => {
+    expect(buildOneTimeActions({ paypal: false, foreignCard: false, copy })).toEqual([
+      { label: "Оплатить ещё раз", option: "card" },
+    ]);
+    expect(buildOneTimeActions({ paypal: true, foreignCard: false, copy })).toEqual([
+      { label: "Оплатить ещё раз", option: "card" },
+      { label: "Оплатить через PayPal", option: "paypal" },
+    ]);
+    expect(buildOneTimeActions({ paypal: true, foreignCard: true, copy })).toEqual([
+      { label: "Оплатить ещё раз", option: "card" },
+      { label: "Оплатить картой иностранного банка", option: "foreign" },
+      { label: "Оплатить через PayPal", option: "paypal" },
+    ]);
+  });
+
+  it("picks the page text from how the attempt ended", () => {
+    expect(failedPageText(copy, "abandoned")).toEqual({
+      title: copy.incompleteTitle,
+      body: copy.incompleteBody,
+    });
+    expect(failedPageText(copy, "declined_3ds")).toEqual({
+      title: copy.failedTitle,
+      body: copy.failedBody,
+    });
+    expect(failedPageText(copy, "declined")).toEqual({
+      title: copy.failedTitle,
+      body: copy.failedBodyGeneric,
+    });
   });
 
   it("offers a foreign-bank card after a YooKassa decline", () => {

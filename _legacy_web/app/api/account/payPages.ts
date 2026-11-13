@@ -15,13 +15,42 @@ import { sendPaymentAlert } from "./paymentAlerts";
 import { logPaymentEvent } from "./paymentEvents";
 import { isPaymentProviderEnabled, resolvePaymentGateway } from "./paymentGatewayProfile";
 import { markContractFailed, yookassaFailureReason } from "./fulfillPaymentContract";
-import { verifyPayRetryToken, type PayRetryKind, type PayRetryPayload } from "./payRetryToken";
-import { startTierCheckout, tierCheckoutBlocks } from "./tierCheckout";
+import { oneTimeAlreadyPaid, startOneTimeCheckout } from "./oneTimeCheckout";
+import { paymentFailureKind, type PaymentFailureKind } from "./paymentFailureKind";
+import {
+  verifyOneTimeRetryToken,
+  verifyPayRetryToken,
+  type OneTimeRetryPayload,
+  type PayRetryKind,
+  type PayRetryPayload,
+} from "./payRetryToken";
+import { loadBuyer, startTierCheckout, tierCheckoutBlocks } from "./tierCheckout";
 import { fetchYookassaPayment } from "./yookassa";
 
 export type PayOption = "card" | "foreign" | "paypal" | "pass" | "subscription";
 
 type PageAction = { label: string; option: PayOption };
+
+/** Токен тарифа (подписка, 30 дней) или разовой покупки (вебинар, книга). */
+type AnyPayToken =
+  | { type: "tier"; payload: PayRetryPayload }
+  | { type: "one_time"; payload: OneTimeRetryPayload };
+
+function readPayToken(raw: string | null | undefined): AnyPayToken | null {
+  const tier = verifyPayRetryToken(raw);
+  if (tier) return { type: "tier", payload: tier };
+  const oneTime = verifyOneTimeRetryToken(raw);
+  if (oneTime) return { type: "one_time", payload: oneTime };
+  return null;
+}
+
+type GatewayHint = { country: string | null; currency: "RUB" | "USD" | "EUR" };
+
+/** Заголовок и текст страницы по тому, чем закончилась попытка. */
+export function failedPageText(copy: PayPageCopy, view: PaymentFailureKind): { title: string; body: string } {
+  if (view === "abandoned") return { title: copy.incompleteTitle, body: copy.incompleteBody };
+  return { title: copy.failedTitle, body: view === "declined_3ds" ? copy.failedBody : copy.failedBodyGeneric };
+}
 
 /**
  * ЮKassa держит покупателя на своей форме при отказе банка и возвращает его
@@ -142,12 +171,12 @@ function alreadyPage(copy: PayPageCopy & { lang: string }): Response {
 }
 
 /** ЮKassa не принимает карты зарубежных банков — им нужна Lava (EUR). */
-function foreignCardAvailable(token: PayRetryPayload): boolean {
+function foreignCardAvailable(token: GatewayHint): boolean {
   const gateway = resolvePaymentGateway({ country: token.country, currency: token.currency });
   return gateway.ok && gateway.provider === "yookassa" && isPaymentProviderEnabled("lavatop");
 }
 
-function paypalAvailable(token: PayRetryPayload): boolean {
+function paypalAvailable(token: GatewayHint): boolean {
   if (token.currency === "RUB") return false;
   const gateway = resolvePaymentGateway({ country: token.country, currency: token.currency });
   return gateway.ok && gateway.provider === "lavatop";
@@ -160,12 +189,14 @@ export function buildFailedActions(params: {
   paypal: boolean;
   foreignCard?: boolean;
   copy: PayPageCopy;
+  /** Подпись первой кнопки; по умолчанию «Оплатить другой картой». */
+  retryLabel?: string;
 }): PageAction[] | "already_active" {
   const { blocks, copy } = params;
   if (blocks.subscription === "already_active") return "already_active";
   const actions: PageAction[] = [];
   if (!blocks[params.kind]) {
-    actions.push({ label: copy.payOtherCard, option: "card" });
+    actions.push({ label: params.retryLabel ?? copy.payOtherCard, option: "card" });
     if (params.foreignCard) actions.push({ label: copy.payForeignCard, option: "foreign" });
     if (params.paypal) actions.push({ label: copy.payPaypal, option: "paypal" });
   }
@@ -192,7 +223,20 @@ export function buildRenewActions(params: {
   return actions;
 }
 
-export async function renderFailedPage(db: SupabaseClient, token: PayRetryPayload, rawToken: string): Promise<Response> {
+/** Разовая покупка: повторить тем же способом, иностранная карта, PayPal. */
+export function buildOneTimeActions(params: { paypal: boolean; foreignCard: boolean; copy: PayPageCopy }): PageAction[] {
+  const actions: PageAction[] = [{ label: params.copy.payAgain, option: "card" }];
+  if (params.foreignCard) actions.push({ label: params.copy.payForeignCard, option: "foreign" });
+  if (params.paypal) actions.push({ label: params.copy.payPaypal, option: "paypal" });
+  return actions;
+}
+
+export async function renderFailedPage(
+  db: SupabaseClient,
+  token: PayRetryPayload,
+  rawToken: string,
+  view: PaymentFailureKind = "declined",
+): Promise<Response> {
   const copy = getPayPageCopy(token.locale);
   const actions = buildFailedActions({
     kind: token.kind,
@@ -200,24 +244,76 @@ export async function renderFailedPage(db: SupabaseClient, token: PayRetryPayloa
     paypal: paypalAvailable(token),
     foreignCard: foreignCardAvailable(token),
     copy,
+    ...(view === "abandoned" ? { retryLabel: copy.payAgain } : {}),
   });
   if (actions === "already_active") return redirect(accountCabinetUrl({ paid: true }));
   if (actions.length === 0) return alreadyPage(copy);
   return renderPayPage({
     lang: copy.lang,
-    title: copy.failedTitle,
-    body: copy.failedBody,
+    ...failedPageText(copy, view),
     token: rawToken,
     actions,
     cabinetLabel: copy.toCabinet,
   });
 }
 
+async function renderOneTimeFailedPage(
+  db: SupabaseClient,
+  token: OneTimeRetryPayload,
+  rawToken: string,
+  view: PaymentFailureKind,
+): Promise<Response> {
+  if (await oneTimeAlreadyPaid(db, token)) return redirect(accountCabinetUrl({ paid: true }));
+  const copy = getPayPageCopy(token.locale);
+  return renderPayPage({
+    lang: copy.lang,
+    ...failedPageText(copy, view),
+    token: rawToken,
+    actions: buildOneTimeActions({
+      paypal: paypalAvailable(token),
+      foreignCard: foreignCardAvailable(token),
+      copy,
+    }),
+    cabinetLabel: copy.toCabinet,
+  });
+}
+
+function renderAnyFailedPage(
+  db: SupabaseClient,
+  token: AnyPayToken,
+  rawToken: string,
+  view: PaymentFailureKind,
+): Promise<Response> {
+  return token.type === "tier"
+    ? renderFailedPage(db, token.payload, rawToken, view)
+    : renderOneTimeFailedPage(db, token.payload, rawToken, view);
+}
+
+/** Причина последнего отказа по этому продукту: от неё зависит текст страницы. */
+async function latestFailureView(db: SupabaseClient, token: AnyPayToken): Promise<PaymentFailureKind> {
+  const tier = token.type === "tier" ? token.payload.tier : token.payload.product;
+  const { data, error } = await db
+    .from("payment_contracts")
+    .select("failure_reason")
+    .eq("user_id", token.payload.userId)
+    .eq("tier", tier)
+    .eq("status", "failed")
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    console.error("[pay/failed] failure reason lookup", error.message ?? error);
+    return "declined";
+  }
+  const reason = (data?.[0]?.failure_reason as string | null | undefined) ?? null;
+  return reason ? paymentFailureKind(reason) : "declined";
+}
+
 export async function handlePayFailedGet(req: Request): Promise<Response> {
   const raw = new URL(req.url).searchParams.get("t") ?? "";
-  const token = verifyPayRetryToken(raw);
+  const token = readPayToken(raw);
   if (!token) return expiredPage(getPayPageCopy(null));
-  return renderFailedPage(createServiceSupabase({ fetchTimeoutMs: 6_000 }), token, raw);
+  const db = createServiceSupabase({ fetchTimeoutMs: 6_000 });
+  return renderAnyFailedPage(db, token, raw, await latestFailureView(db, token));
 }
 
 export async function handlePayRenewGet(req: Request): Promise<Response> {
@@ -275,43 +371,56 @@ export function retryChoice(token: PayRetryPayload, option: string): RetryChoice
 
 export async function handlePayRetryPost(req: Request): Promise<Response> {
   const form = new URLSearchParams(await req.text());
-  const token = verifyPayRetryToken(form.get("t"));
+  const token = readPayToken(form.get("t"));
   if (!token) return expiredPage(getPayPageCopy(null));
-  const copy = getPayPageCopy(token.locale);
-  const choice = retryChoice(token, form.get("o") ?? "");
-  if (!choice) return expiredPage(copy);
+  const copy = getPayPageCopy(token.payload.locale);
+  const option = form.get("o") ?? "";
+  const issue = retryIssueContext(token);
 
   try {
+    if (token.type === "one_time") {
+      const redirectTo = await retryOneTime(token.payload, option);
+      if (redirectTo) return redirect(redirectTo);
+      return expiredPage(copy);
+    }
+
+    const choice = retryChoice(token.payload, option);
+    if (!choice) return expiredPage(copy);
     const out = await startTierCheckout(createServiceSupabase(), {
-      userId: token.userId,
-      tier: token.tier,
+      userId: token.payload.userId,
+      tier: token.payload.tier,
       kind: choice.kind,
       // Lava, международная карта: EUR без страны → профиль INT.
-      currency: choice.foreign ? "EUR" : token.currency,
-      country: choice.foreign ? null : token.country,
+      currency: choice.foreign ? "EUR" : token.payload.currency,
+      country: choice.foreign ? null : token.payload.country,
       paymentMethod: choice.paypal ? "PAYPAL" : null,
     });
     if (out.ok) return redirect(out.paymentUrl);
     if (out.error === "already_active") {
-      await notePayRetryIssue(token, out.error, out.status, false);
+      await notePayRetryIssue(issue, out.error, out.status, false);
       return redirect(accountCabinetUrl({ paid: true }));
     }
     if (out.error === "has_subscription" || out.error === "higher_access") {
-      await notePayRetryIssue(token, out.error, out.status, false);
+      await notePayRetryIssue(issue, out.error, out.status, false);
       return alreadyPage(copy);
     }
-    console.error("[pay/retry] checkout refused", out.error, token.userId);
-    await notePayRetryIssue(token, out.error, out.status, out.status >= 500);
+    console.error("[pay/retry] checkout refused", out.error, token.payload.userId);
+    await notePayRetryIssue(issue, out.error, out.status, out.status >= 500);
   } catch (error) {
-    const detail = error instanceof LavaInvoiceError ? error.lavaBody.slice(0, 300) : error;
-    console.error("[pay/retry] checkout failed", token.userId, detail);
-    await notePayRetryIssue(
-      token,
-      error instanceof Error ? error.message : "checkout_failed",
-      502,
-      true,
-      detail,
-    );
+    if (error instanceof PayRetryRefused) {
+      console.error("[pay/retry] checkout refused", error.message, token.payload.userId);
+      await notePayRetryIssue(issue, error.message, error.status, error.status >= 500);
+    } else {
+      const detail = error instanceof LavaInvoiceError ? error.lavaBody.slice(0, 300) : error;
+      console.error("[pay/retry] checkout failed", token.payload.userId, detail);
+      await notePayRetryIssue(
+        issue,
+        error instanceof Error ? error.message : "checkout_failed",
+        502,
+        true,
+        detail,
+      );
+    }
   }
   return renderPayPage({
     lang: copy.lang,
@@ -322,25 +431,66 @@ export async function handlePayRetryPost(req: Request): Promise<Response> {
   });
 }
 
+class PayRetryRefused extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Новый счёт на вебинар или книгу. Возвращает адрес, куда отправить покупателя,
+ * или null, если кнопка не распознана. Отказ шлюза — PayRetryRefused.
+ */
+async function retryOneTime(token: OneTimeRetryPayload, option: string): Promise<string | null> {
+  if (option !== "card" && option !== "foreign" && option !== "paypal") return null;
+  const db = createServiceSupabase();
+  const buyer = await loadBuyer(db, token.userId);
+  if (typeof buyer === "string") throw new PayRetryRefused(buyer, buyer === "user_not_found" ? 404 : 409);
+
+  const start = (webinarId: string | null) =>
+    startOneTimeCheckout(db, {
+      userId: token.userId,
+      product: token.product,
+      webinarId,
+      // Lava, международная карта: EUR без страны → профиль INT.
+      currency: option === "foreign" ? "EUR" : token.currency,
+      country: option === "foreign" ? null : token.country,
+      paymentMethod: option === "paypal" ? "PAYPAL" : null,
+      buyer,
+    });
+
+  let out = await start(token.webinarId);
+  // Вебинар из ссылки снят с публикации — записываем на ближайший.
+  if (!out.ok && out.error === "webinar_not_found") out = await start(null);
+  if (out.ok) return out.paymentUrl;
+  if (out.error === "already_registered") return accountCabinetUrl({ paid: true });
+  throw new PayRetryRefused(out.error, out.status);
+}
+
 export async function handlePayReturnGet(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const raw = url.searchParams.get("t") ?? "";
   const contractId = url.searchParams.get("c") ?? "";
   const attempt = Number(url.searchParams.get("n") ?? "0") || 0;
-  const token = verifyPayRetryToken(raw);
+  const token = readPayToken(raw);
   if (!token || !contractId) return redirect(accountCabinetUrl());
-  const copy = getPayPageCopy(token.locale);
+  const copy = getPayPageCopy(token.payload.locale);
   const db = createServiceSupabase({ fetchTimeoutMs: 6_000 });
 
   const { data: contract, error } = await db
     .from("payment_contracts")
-    .select("contract_id,user_id,status,provider,provider_payment_id")
+    .select("contract_id,user_id,status,provider,provider_payment_id,failure_reason")
     .eq("contract_id", contractId)
     .maybeSingle();
   if (error) throw error;
-  if (!contract || contract.user_id !== token.userId) return redirect(accountCabinetUrl());
+  if (!contract || contract.user_id !== token.payload.userId) return redirect(accountCabinetUrl());
   if (contract.status === "active") return redirect(accountCabinetUrl({ paid: true }));
-  if (contract.status === "failed") return renderFailedPage(db, token, raw);
+  if (contract.status === "failed") {
+    return renderAnyFailedPage(db, token, raw, paymentFailureKind(contract.failure_reason as string | null));
+  }
 
   if (contract.provider === "yookassa" && contract.provider_payment_id) {
     const payment = await fetchYookassaPayment(contract.provider_payment_id as string);
@@ -348,12 +498,14 @@ export async function handlePayReturnGet(req: Request): Promise<Response> {
       return redirect(accountCabinetUrl({ paid: true }));
     }
     if (payment.status === "canceled") {
-      await markContractFailed(db, contractId, yookassaFailureReason(payment));
-      return renderFailedPage(db, token, raw);
+      const reason = yookassaFailureReason(payment);
+      await markContractFailed(db, contractId, reason);
+      return renderAnyFailedPage(db, token, raw, paymentFailureKind(reason));
     }
   }
 
-  if (attempt >= RETURN_POLL_MAX) return renderFailedPage(db, token, raw);
+  // Платёж всё ещё pending: человек вышел с формы, не оплатив.
+  if (attempt >= RETURN_POLL_MAX) return renderAnyFailedPage(db, token, raw, "abandoned");
   const next = new URLSearchParams({ t: raw, c: contractId, n: String(attempt + 1) });
   return renderPayPage({
     lang: copy.lang,
@@ -363,8 +515,34 @@ export async function handlePayReturnGet(req: Request): Promise<Response> {
   });
 }
 
+type RetryIssueContext = {
+  userId: string;
+  product: string;
+  kind: string;
+  currency: string;
+  provider: "yookassa" | "lavatop";
+};
+
+/** Шлюз, в который ушёл бы повторный счёт: то же правило, что и при создании счёта. */
+function retryIssueProvider(hint: GatewayHint): "yookassa" | "lavatop" {
+  const gateway = resolvePaymentGateway({ country: hint.country, currency: hint.currency });
+  if (gateway.ok) return gateway.provider;
+  return hint.country === "RU" ? "yookassa" : "lavatop";
+}
+
+function retryIssueContext(token: AnyPayToken): RetryIssueContext {
+  const { payload } = token;
+  return {
+    userId: payload.userId,
+    product: token.type === "tier" ? token.payload.tier : token.payload.product,
+    kind: token.type === "tier" ? token.payload.kind : "one_time",
+    currency: payload.currency,
+    provider: retryIssueProvider(payload),
+  };
+}
+
 async function notePayRetryIssue(
-  token: PayRetryPayload,
+  ctx: RetryIssueContext,
   error: string,
   httpStatus: number,
   alert: boolean,
@@ -374,10 +552,10 @@ async function notePayRetryIssue(
     const db = createServiceSupabase();
     const eventType = alert ? "checkout.create_failed" : "checkout.refused";
     await logPaymentEvent(db, {
-      provider: token.country === "RU" ? "yookassa" : "lavatop",
+      provider: ctx.provider,
       eventType,
       buyerEmail: null,
-      currency: token.currency,
+      currency: ctx.currency,
       errorMessage: error,
       raw,
       httpStatus,
@@ -385,11 +563,11 @@ async function notePayRetryIssue(
     if (!alert) return;
     await sendPaymentAlert(db, {
       eventType,
-      userId: token.userId,
-      tier: token.tier,
-      productKind: token.kind,
-      currency: token.currency,
-      provider: token.country === "RU" ? "yookassa" : "lavatop",
+      userId: ctx.userId,
+      tier: ctx.product,
+      productKind: ctx.kind,
+      currency: ctx.currency,
+      provider: ctx.provider,
       failureReason: error,
       raw,
     });

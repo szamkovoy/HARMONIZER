@@ -9,6 +9,12 @@ import { asContentLocale, type AppContentLocale } from "../_utils/contentLocales
 export type PayPageCopy = {
   failedTitle: string;
   failedBody: string;
+  /** Отказ без известной причины 3‑D Secure. */
+  failedBodyGeneric: string;
+  /** Человек вернулся с формы, не оплатив. */
+  incompleteTitle: string;
+  incompleteBody: string;
+  payAgain: string;
   payOtherCard: string;
   payForeignCard: string;
   payPaypal: string;
@@ -44,6 +50,11 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "Оплата не удалась",
     failedBody:
       "К сожалению, оплата не была проведена. Так бывает, если код подтверждения платежа введён неверно, либо ваша банковская карта не поддерживает 3‑D Secure (то есть подтверждение платежей). Выберите, как вы хотите продолжить:",
+    failedBodyGeneric:
+      "К сожалению, оплата не прошла. Деньги не списаны. Выберите, как вы хотите продолжить:",
+    incompleteTitle: "Оплата не завершена",
+    incompleteBody: "Платёж не был завершён, деньги не списаны. Выберите, как вы хотите продолжить:",
+    payAgain: "Оплатить ещё раз",
     payOtherCard: "Оплатить другой картой",
     payForeignCard: "Оплатить картой иностранного банка",
     payPaypal: "Оплатить через PayPal",
@@ -80,6 +91,11 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "Payment failed",
     failedBody:
       "Unfortunately, the payment did not go through. This happens when the payment confirmation code was entered incorrectly, or when your bank card does not support 3‑D Secure (payment confirmation). Choose how you would like to continue:",
+    failedBodyGeneric:
+      "Unfortunately, the payment did not go through. You have not been charged. Choose how you would like to continue:",
+    incompleteTitle: "Payment not completed",
+    incompleteBody: "The payment was not completed and you have not been charged. Choose how you would like to continue:",
+    payAgain: "Try paying again",
     payOtherCard: "Pay with another card",
     payForeignCard: "Pay with a card from a non-Russian bank",
     payPaypal: "Pay with PayPal",
@@ -116,6 +132,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "Zahlung fehlgeschlagen",
     failedBody:
       "Leider wurde die Zahlung nicht durchgeführt. Das passiert, wenn der Bestätigungscode falsch eingegeben wurde oder Ihre Bankkarte 3‑D Secure (die Bestätigung von Zahlungen) nicht unterstützt. Wählen Sie, wie Sie fortfahren möchten:",
+    failedBodyGeneric:
+      "Leider ist die Zahlung nicht durchgegangen. Es wurde kein Geld abgebucht. Wählen Sie, wie Sie fortfahren möchten:",
+    incompleteTitle: "Zahlung nicht abgeschlossen",
+    incompleteBody:
+      "Die Zahlung wurde nicht abgeschlossen, es wurde kein Geld abgebucht. Wählen Sie, wie Sie fortfahren möchten:",
+    payAgain: "Erneut bezahlen",
     payOtherCard: "Mit einer anderen Karte bezahlen",
     payForeignCard: "Mit einer Karte einer ausländischen Bank bezahlen",
     payPaypal: "Mit PayPal bezahlen",
@@ -152,6 +174,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "Le paiement a échoué",
     failedBody:
       "Malheureusement, le paiement n’a pas abouti. Cela arrive lorsque le code de confirmation a été saisi de façon incorrecte, ou lorsque votre carte bancaire ne prend pas en charge 3‑D Secure (la confirmation des paiements). Choisissez comment vous souhaitez continuer :",
+    failedBodyGeneric:
+      "Malheureusement, le paiement n’a pas abouti. Aucun montant n’a été débité. Choisissez comment vous souhaitez continuer :",
+    incompleteTitle: "Paiement non terminé",
+    incompleteBody:
+      "Le paiement n’a pas été terminé, aucun montant n’a été débité. Choisissez comment vous souhaitez continuer :",
+    payAgain: "Payer à nouveau",
     payOtherCard: "Payer avec une autre carte",
     payForeignCard: "Payer avec une carte d’une banque étrangère",
     payPaypal: "Payer avec PayPal",
@@ -188,6 +216,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "Pagamento non riuscito",
     failedBody:
       "Purtroppo il pagamento non è andato a buon fine. Succede quando il codice di conferma è stato inserito in modo errato, oppure quando la tua carta non supporta 3‑D Secure (la conferma dei pagamenti). Scegli come vuoi procedere:",
+    failedBodyGeneric:
+      "Purtroppo il pagamento non è andato a buon fine. Non è stato addebitato alcun importo. Scegli come vuoi procedere:",
+    incompleteTitle: "Pagamento non completato",
+    incompleteBody:
+      "Il pagamento non è stato completato e non è stato addebitato alcun importo. Scegli come vuoi procedere:",
+    payAgain: "Paga di nuovo",
     payOtherCard: "Paga con un’altra carta",
     payForeignCard: "Paga con una carta di una banca estera",
     payPaypal: "Paga con PayPal",
@@ -224,6 +258,11 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "El pago no se ha completado",
     failedBody:
       "Lamentablemente, el pago no se ha realizado. Esto ocurre cuando el código de confirmación se introdujo mal o cuando tu tarjeta bancaria no admite 3‑D Secure (la confirmación de pagos). Elige cómo quieres continuar:",
+    failedBodyGeneric:
+      "Lamentablemente, el pago no se ha realizado. No se ha cobrado nada. Elige cómo quieres continuar:",
+    incompleteTitle: "Pago no completado",
+    incompleteBody: "El pago no se ha completado y no se ha cobrado nada. Elige cómo quieres continuar:",
+    payAgain: "Pagar de nuevo",
     payOtherCard: "Pagar con otra tarjeta",
     payForeignCard: "Pagar con una tarjeta de un banco extranjero",
     payPaypal: "Pagar con PayPal",
@@ -260,6 +299,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "O pagamento não foi concluído",
     failedBody:
       "Infelizmente, o pagamento não foi efetuado. Isso acontece quando o código de confirmação foi digitado incorretamente ou quando o seu cartão bancário não é compatível com 3‑D Secure (a confirmação de pagamentos). Escolha como deseja continuar:",
+    failedBodyGeneric:
+      "Infelizmente, o pagamento não foi efetuado. Não foi cobrado qualquer valor. Escolha como deseja continuar:",
+    incompleteTitle: "Pagamento não concluído",
+    incompleteBody:
+      "O pagamento não foi concluído e não foi cobrado qualquer valor. Escolha como deseja continuar:",
+    payAgain: "Pagar novamente",
     payOtherCard: "Pagar com outro cartão",
     payForeignCard: "Pagar com um cartão de um banco estrangeiro",
     payPaypal: "Pagar com PayPal",
@@ -296,6 +341,12 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     failedTitle: "Betaling mislukt",
     failedBody:
       "Helaas is de betaling niet gelukt. Dat gebeurt als de bevestigingscode verkeerd is ingevoerd, of als je bankkaart 3‑D Secure (bevestiging van betalingen) niet ondersteunt. Kies hoe je verder wilt gaan:",
+    failedBodyGeneric:
+      "Helaas is de betaling niet gelukt. Er is geen geld afgeschreven. Kies hoe je verder wilt gaan:",
+    incompleteTitle: "Betaling niet afgerond",
+    incompleteBody:
+      "De betaling is niet afgerond en er is geen geld afgeschreven. Kies hoe je verder wilt gaan:",
+    payAgain: "Opnieuw betalen",
     payOtherCard: "Betalen met een andere kaart",
     payForeignCard: "Betalen met een kaart van een buitenlandse bank",
     payPaypal: "Betalen met PayPal",

@@ -6,6 +6,7 @@ import { findPaymentContract, fulfillFirstPaymentSuccess, markContractFailed } f
 import { cancelLavaSubscription, nextPeriodEnd } from "../../lava";
 import { sendPaymentAlert } from "../../paymentAlerts";
 import { logPaymentEvent } from "../../paymentEvents";
+import { isAbandonedFailure } from "../../paymentFailureKind";
 import { sendRenewalFailedNotice } from "../../renewalFailedNotice";
 import { resubscribeContactOnPurchase } from "../../widgetFulfillment";
 
@@ -389,6 +390,9 @@ async function recordLavaWebhook(
     .select("user_id,tier,product_kind,amount,currency,buyer_email,failure_reason")
     .eq("contract_id", parentContractId)
     .maybeSingle();
+  const failureReason = (data?.failure_reason as string | null) ?? body.errorMessage ?? null;
+  // Покупатель сам закрыл форму первой оплаты — в журнале остаётся, письмо админу не шлём.
+  if (eventType === "payment.failed" && isAbandonedFailure(failureReason)) return;
   await sendPaymentAlert(db, {
     eventType,
     contractId: parentContractId,
@@ -399,7 +403,7 @@ async function recordLavaWebhook(
     amount: typeof body.amount === "number" ? body.amount : ((data?.amount as number | null) ?? null),
     currency: body.currency ?? (data?.currency as string | null) ?? null,
     provider: "lavatop",
-    failureReason: (data?.failure_reason as string | null) ?? body.errorMessage ?? null,
+    failureReason,
     raw: body,
   });
 }
