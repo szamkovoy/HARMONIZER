@@ -523,6 +523,13 @@ type RetryIssueContext = {
   provider: "yookassa" | "lavatop";
 };
 
+/** Шлюз, в который ушёл бы повторный счёт: то же правило, что и при создании счёта. */
+function retryIssueProvider(hint: GatewayHint): "yookassa" | "lavatop" {
+  const gateway = resolvePaymentGateway({ country: hint.country, currency: hint.currency });
+  if (gateway.ok) return gateway.provider;
+  return hint.country === "RU" ? "yookassa" : "lavatop";
+}
+
 function retryIssueContext(token: AnyPayToken): RetryIssueContext {
   const { payload } = token;
   return {
@@ -530,7 +537,7 @@ function retryIssueContext(token: AnyPayToken): RetryIssueContext {
     product: token.type === "tier" ? token.payload.tier : token.payload.product,
     kind: token.type === "tier" ? token.payload.kind : "one_time",
     currency: payload.currency,
-    provider: payload.country === "RU" ? "yookassa" : "lavatop",
+    provider: retryIssueProvider(payload),
   };
 }
 
