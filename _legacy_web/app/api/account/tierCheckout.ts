@@ -59,9 +59,11 @@ export async function tierCheckoutBlocks(
 }
 
 /** Куда Lava/ЮKassa вернут покупателя после неудачной оплаты. */
-export function payFailedUrl(token: string): string {
+export function payFailedUrl(token: string, contractId?: string | null): string {
   const url = new URL("/pay/failed", WIDGET_PUBLIC_ORIGIN);
   url.searchParams.set("t", token);
+  // Ссылка из письма: текст страницы берётся по причине отказа именно этого счёта.
+  if (contractId) url.searchParams.set("c", contractId);
   return url.toString();
 }
 

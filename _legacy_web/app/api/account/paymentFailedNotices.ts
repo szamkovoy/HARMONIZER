@@ -306,7 +306,7 @@ async function noticeOne(
         },
         PAY_RENEW_TOKEN_TTL_MS,
       );
-  const payUrl = payFailedUrl(token);
+  const payUrl = payFailedUrl(token, contract.contractId);
   const letter = buildPaymentFailedEmail({ locale, tier: contract.tier, payUrl });
   const sent = await sendMarketingEmail({
     to,
