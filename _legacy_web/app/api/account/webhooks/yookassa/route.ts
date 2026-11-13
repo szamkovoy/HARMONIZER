@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
 import { sendPaymentAlert, type PaymentAlertInput } from "../../paymentAlerts";
 import { logPaymentEvent } from "../../paymentEvents";
+import { isAbandonedFailure } from "../../paymentFailureKind";
 import {
   findPaymentContract,
   fulfillFirstPaymentSuccess,
@@ -366,7 +367,8 @@ export async function POST(req: Request): Promise<Response> {
         status: payment.status,
         errorMessage: failureReason,
         buyerEmail: contract.buyer_email,
-        alert: {
+        // Истёкшая форма без оплаты — человек ушёл сам; в журнале остаётся, письмо админу не шлём.
+        alert: isAbandonedFailure(failureReason) ? null : {
           eventType: "payment.canceled",
           contractId,
           userId: contract.user_id,

@@ -8,6 +8,7 @@ import { paidTierFromRow } from "@/modules/access/core/paidAccess";
 import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
 import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
 import { logPaymentEvent } from "./paymentEvents";
+import { isAbandonedFailure } from "./paymentFailureKind";
 import { fillPayCopy, getPayPageCopy, payTierName } from "./payPageCopy";
 import { PAY_RENEW_TOKEN_TTL_MS, signPayRetryToken, type PayRetryKind } from "./payRetryToken";
 import { isPassTier } from "./tierPass";
@@ -43,7 +44,7 @@ export type FailedNoticeFacts = {
  * oracle/master/подписка/30 дней — одна группа «доступ».
  */
 export function shouldSendFailedNotice(facts: FailedNoticeFacts): boolean {
-  if ((facts.failureReason ?? "").startsWith("Cancelled by customer")) return false;
+  if (isAbandonedFailure(facts.failureReason)) return false;
   if (facts.laterPaidAccess) return false;
   if (facts.hasPaidTier) return false;
   if (facts.noticeSentWithin24h) return false;
@@ -130,7 +131,7 @@ export async function runPaymentFailedNotices(
   if (error) throw error;
 
   const rows = ((data ?? []) as ContractRow[]).filter(
-    (row) => isAccessProduct(row) && !((row.failure_reason ?? "").startsWith("Cancelled by customer")),
+    (row) => isAccessProduct(row) && !isAbandonedFailure(row.failure_reason),
   );
   const result: PaymentFailedNoticeResult = {
     candidates: rows.length,

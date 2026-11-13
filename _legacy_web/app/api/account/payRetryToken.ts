@@ -25,7 +25,21 @@ export const PAY_FAILED_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 /** Ссылка из письма о конце 30 дней живёт до окончания доступа и чуть после. */
 export const PAY_RENEW_TOKEN_TTL_MS = 10 * 24 * 60 * 60 * 1000;
 
-type Wire = { s: string; t: string; k: "s" | "p"; c: string; y?: string; l: string; e: number };
+/** Разовая покупка: вебинар (с id вебинара) или книга. */
+export type OneTimeRetryProduct = "webinar" | "book";
+
+export type OneTimeRetryPayload = {
+  userId: string;
+  product: OneTimeRetryProduct;
+  webinarId: string | null;
+  currency: "RUB" | "USD" | "EUR";
+  country: string | null;
+  locale: string;
+  exp: number;
+};
+
+/** k: s — подписка, p — 30 дней тарифа, o — разовая покупка (t = webinar|book, r = id вебинара). */
+type Wire = { s: string; t: string; k: "s" | "p" | "o"; r?: string; c: string; y?: string; l: string; e: number };
 
 function secret(): string {
   const value = process.env.ACCOUNT_CABINET_SECRET?.trim();
@@ -51,7 +65,27 @@ export function signPayRetryToken(payload: Omit<PayRetryPayload, "exp">, ttlMs: 
   return `${body}.${sign(body).toString("base64url")}`;
 }
 
-export function verifyPayRetryToken(token: string | null | undefined, now = Date.now()): PayRetryPayload | null {
+export function signOneTimeRetryToken(
+  payload: Omit<OneTimeRetryPayload, "exp">,
+  ttlMs: number,
+  now = Date.now(),
+): string {
+  const wire: Wire = {
+    s: payload.userId,
+    t: payload.product,
+    k: "o",
+    ...(payload.webinarId ? { r: payload.webinarId } : {}),
+    c: payload.currency,
+    ...(payload.country ? { y: payload.country } : {}),
+    l: payload.locale,
+    e: now + ttlMs,
+  };
+  const body = Buffer.from(JSON.stringify(wire)).toString("base64url");
+  return `${body}.${sign(body).toString("base64url")}`;
+}
+
+/** Подпись и срок верны → содержимое токена, иначе null. */
+function readWire(token: string | null | undefined, now: number): Wire | null {
   if (!token) return null;
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
@@ -61,18 +95,42 @@ export function verifyPayRetryToken(token: string | null | undefined, now = Date
   try {
     const wire = JSON.parse(Buffer.from(body, "base64url").toString()) as Wire;
     if (typeof wire.s !== "string" || typeof wire.e !== "number" || wire.e <= now) return null;
-    if (!isPassTier(wire.t)) return null;
     if (wire.c !== "RUB" && wire.c !== "USD" && wire.c !== "EUR") return null;
-    return {
-      userId: wire.s,
-      tier: wire.t,
-      kind: wire.k === "p" ? "pass" : "subscription",
-      currency: wire.c,
-      country: typeof wire.y === "string" && wire.y ? wire.y : null,
-      locale: typeof wire.l === "string" && wire.l ? wire.l : "ru",
-      exp: wire.e,
-    };
+    return wire;
   } catch {
     return null;
   }
+}
+
+export function verifyOneTimeRetryToken(
+  token: string | null | undefined,
+  now = Date.now(),
+): OneTimeRetryPayload | null {
+  const wire = readWire(token, now);
+  if (!wire || wire.k !== "o") return null;
+  if (wire.t !== "webinar" && wire.t !== "book") return null;
+  return {
+    userId: wire.s,
+    product: wire.t,
+    webinarId: wire.t === "webinar" && typeof wire.r === "string" && wire.r ? wire.r : null,
+    currency: wire.c as OneTimeRetryPayload["currency"],
+    country: typeof wire.y === "string" && wire.y ? wire.y : null,
+    locale: typeof wire.l === "string" && wire.l ? wire.l : "ru",
+    exp: wire.e,
+  };
+}
+
+export function verifyPayRetryToken(token: string | null | undefined, now = Date.now()): PayRetryPayload | null {
+  const wire = readWire(token, now);
+  if (!wire || wire.k === "o") return null;
+  if (!isPassTier(wire.t)) return null;
+  return {
+    userId: wire.s,
+    tier: wire.t,
+    kind: wire.k === "p" ? "pass" : "subscription",
+    currency: wire.c as PayRetryPayload["currency"],
+    country: typeof wire.y === "string" && wire.y ? wire.y : null,
+    locale: typeof wire.l === "string" && wire.l ? wire.l : "ru",
+    exp: wire.e,
+  };
 }

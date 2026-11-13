@@ -72,7 +72,8 @@ export function payReturnUrl(token: string, contractId: string): string {
   return url.toString();
 }
 
-async function loadBuyer(
+/** Email и язык владельца аккаунта для нового счёта. */
+export async function loadBuyer(
   db: SupabaseClient,
   userId: string,
 ): Promise<{ email: string; locale: string } | "user_not_found" | "no_email" | "lava_buyer_email_rejected"> {

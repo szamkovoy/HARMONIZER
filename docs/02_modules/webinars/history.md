@@ -1,11 +1,15 @@
 ---
 id: 02_modules/webinars/history
 title: Webinars History
-version: 3.3
-updated: 2026-11-11
+version: 3.4
+updated: 2026-11-14
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708140000_webinars.sql]
 ---
+
+## 2026-11-14 — Возврат после оплаты вебинара
+
+- ЮKassa возвращает на `/pay/return`. Lava при успехе открывает кабинет `?paid=1`, при отказе — `/pay/failed`. С этой страницы можно оплатить тот же вебинар ещё раз.
 
 ## 2026-11-11 — Первый час после старта всё ещё этот вебинар
 
