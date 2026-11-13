@@ -6,7 +6,7 @@ import { hasActiveBookPurchase } from "./bookOwnership";
 import { createLavaOneTimeInvoice, resolveLavaOfferIdByName, type LavaPaymentMethod } from "./lava";
 import { resolvePaymentGateway, type PaymentProviderId } from "./paymentGatewayProfile";
 import { PAY_FAILED_TOKEN_TTL_MS, signOneTimeRetryToken, type OneTimeRetryProduct } from "./payRetryToken";
-import { payFailedUrl, payReturnUrl } from "./tierCheckout";
+import { payCancelledUrl, payFailedUrl, payReturnUrl } from "./tierCheckout";
 import { createYookassaCheckout } from "./yookassaCheckout";
 
 export type OneTimeCheckoutParams = {
@@ -148,7 +148,7 @@ export async function startOneTimeCheckout(
     locale: params.buyer.locale,
     successUrl: accountCabinetUrl({ paid: true }),
     failureUrl: payFailedUrl(token),
-    cancelUrl: accountCabinetUrl(),
+    cancelUrl: payCancelledUrl(token),
     paymentMethod: params.paymentMethod ?? null,
   });
   if (!invoice.paymentUrl) throw new Error("Lava invoice created without paymentUrl");

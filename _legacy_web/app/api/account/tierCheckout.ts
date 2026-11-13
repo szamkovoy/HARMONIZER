@@ -65,6 +65,13 @@ export function payFailedUrl(token: string): string {
   return url.toString();
 }
 
+/** Куда Lava вернёт покупателя, если он сам закрыл форму: те же варианты, текст «Оплата не завершена». */
+export function payCancelledUrl(token: string): string {
+  const url = new URL(payFailedUrl(token));
+  url.searchParams.set("v", "c");
+  return url.toString();
+}
+
 export function payReturnUrl(token: string, contractId: string): string {
   const url = new URL("/pay/return", WIDGET_PUBLIC_ORIGIN);
   url.searchParams.set("t", token);
@@ -179,7 +186,7 @@ export async function startTierCheckout(
   const urls = {
     successUrl: accountCabinetUrl({ paid: true }),
     failureUrl: payFailedUrl(token),
-    cancelUrl: accountCabinetUrl(),
+    cancelUrl: payCancelledUrl(token),
     paymentMethod: params.paymentMethod ?? null,
   };
   const invoice = isPass

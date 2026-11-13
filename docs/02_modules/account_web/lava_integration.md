@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.9
+version: 1.10
 updated: 2026-11-14
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
@@ -86,12 +86,12 @@ Lava не поддерживает несколько языков у одног
 
 ### 5.1a Отказ банка и 30 дней без автопродления
 
-Подписка сохраняет карту, и банк требует полный 3‑D Secure. Карты без него (или неверный код) дают `payment.failed` с `errorMessage: "Declined by 3-D Secure"`, хотя разовые платежи той же карты проходят. Поэтому счёт тарифа из кабинета передаёт `failure_return_url` = `https://harmonizer.zamkovoi.yoga/pay/failed?t=<токен>`: Lava сразу возвращает человека на страницу «Оплата не удалась» с кнопками «Оплатить другой картой», «Оплатить через PayPal» (EUR/USD) и «Оплатить 30 дней без автопродления». Кнопка создаёт новый счёт на тот же email и открывает форму Lava без повторного ввода данных. 30 дней — отдельные разовые продукты Lava «Гармонизатор (тариф Наставник)» (`oracle_30d`, оффер `8df24276-c186-4637-a89a-3e4bf85bc0b6`) и «Гармонизатор (тариф Мастер)» (`master_30d`, оффер `dba6b70c-8222-4cf6-b5e8-6c725132e994`). Подробно — `spec.md` §3.5. `errorMessage` сохраняется в `payment_contracts.failure_reason`.
+Подписка сохраняет карту, и банк требует полный 3‑D Secure. Карты без него (или неверный код) дают `payment.failed` с `errorMessage: "Declined by 3-D Secure"`, хотя разовые платежи той же карты проходят. Поэтому счёт тарифа из кабинета передаёт `failure_return_url` = `https://harmonizer.zamkovoi.yoga/pay/failed?t=<токен>`, а `cancel_return_url` = тот же адрес с `v=c` («Оплата не завершена»): Lava сразу возвращает человека на страницу «Оплата не удалась» с кнопками «Оплатить другой картой», «Оплатить через PayPal» (EUR/USD) и «Оплатить 30 дней без автопродления». Кнопка создаёт новый счёт на тот же email и открывает форму Lava без повторного ввода данных. 30 дней — отдельные разовые продукты Lava «Гармонизатор (тариф Наставник)» (`oracle_30d`, оффер `8df24276-c186-4637-a89a-3e4bf85bc0b6`) и «Гармонизатор (тариф Мастер)» (`master_30d`, оффер `dba6b70c-8222-4cf6-b5e8-6c725132e994`). Подробно — `spec.md` §3.5. `errorMessage` сохраняется в `payment_contracts.failure_reason`.
 
 ### 5.2 Разовая оплата вебинара (ONE_TIME)
 
 1. Кабинет: `hzStartWebinar(purchase)` → `POST /api/account/checkout { kind:"webinar", webinarId?, currency }`. `webinarId` берётся из `ctx=webinar:<id>` (пришёл из приложения с экрана вебинара); если нет — ближайший опубликованный вебинар.
-2. Сервер: проверка что вебинар опубликован и пользователь ещё не записан (иначе `{alreadyRegistered:true}`); `resolveLavaOfferIdByName(db,"webinar",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = кабинет → строка `payment_contracts` (pending, product_kind=one_time, tier=webinar, product_ref=<webinarId>).
+2. Сервер: проверка что вебинар опубликован и пользователь ещё не записан (иначе `{alreadyRegistered:true}`); `resolveLavaOfferIdByName(db,"webinar",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = `/pay/failed?t=&v=c` → строка `payment_contracts` (pending, product_kind=one_time, tier=webinar, product_ref=<webinarId>).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time webinar: контракт active, `membership_*` НЕ трогается, upsert `webinar_registrations(webinar_id=product_ref, user_id)`.
 5. Приложение: `WebinarScreen` при возврате в foreground повторно проверяет `isRegistered` (экран обновляется: «Записаться» → «Вы записаны» + ссылка); `MembershipEventsBridge` показывает модалку «Вы записаны на вебинар» (`gate.webinarPaid.*`) при обнаружении последней one_time-покупки `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx (ретрай 10с на случай задержки вебхука). Кнопки «Отменить запись» на экране вебинара нет.
@@ -99,7 +99,7 @@ Lava не поддерживает несколько языков у одног
 ### 5.4 Разовая покупка книги (ONE_TIME)
 
 1. Кабинет: `hzStartBook(purchase)` → `POST /api/account/checkout { kind:"book", currency }`.
-2. Сервер: `resolveLavaOfferIdByName(db,"book",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = кабинет → строка `payment_contracts` (pending, product_kind=one_time, tier=book, product_ref=null).
+2. Сервер: `resolveLavaOfferIdByName(db,"book",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = `/pay/failed?t=&v=c` → строка `payment_contracts` (pending, product_kind=one_time, tier=book, product_ref=null).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time book: контракт → active; `membership_*` и регистрации НЕ трогаются.
 5. Приложение: на foreground после визита в кабинет (с **любым** ctx) `MembershipEventsBridge` зовёт `GET /api/account/purchases/last` (Bearer JWT, service role — `payment_contracts` закрыта для клиента), сверяет `createdAt` покупки с `cabinetVisit.ts` и показывает модалку «Спасибо за покупку книги» (`gate.bookPaid.*`, ретрай 10с; флаг `purchaseThanksShown.<uid>.<contractId>`). Тот же механизм детектит и вебинар (`kind=webinar` → `gate.webinarPaid.*`). Читалка книги в приложении — следующий этап (покупка уже фиксируется в БД).
