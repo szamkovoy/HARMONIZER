@@ -2,8 +2,13 @@
  * Клиент Lava.top для серверных роутов кабинета.
  *
  * Контракт API (проверен по официальным SDK lava-top-sdk):
- *   - POST /api/v2/invoice  { email, offerId, currency, periodicity, buyerLanguage? }
- *       -> { id, status, amountTotal, paymentUrl } — первый платёж по подписке.
+ *   - POST /api/v3/invoice  { email, offerId, currency, periodicity, buyerLanguage?,
+ *       successful_return_url?, failure_return_url?, cancel_return_url?, paymentProvider? }
+ *       -> { id, status, amountTotal, paymentUrl }. Основной способ создать счёт.
+ *       paymentProvider (UNLIMINT | PAYPAL) только для EUR/USD; для RUB поле не шлём.
+ *       Цена берётся из карточки оффера, amount от клиента не передаём.
+ *   - POST /api/v2/invoice  то же тело, но провайдер в paymentMethod.
+ *       Запасной вызов, если v3 ответил не-2xx и это не отказ по email.
  *   - GET  /api/v2/products?feedVisibility=ALL -> { items: [{ id, title, description, offers: [{ id, name, prices: [{ currency, amount, periodicity }] }] }] }
  *       — источник правды для цен и offerId. feedVisibility=ALL обязателен: по
  *       умолчанию возвращаются только продукты, видимые в общей ленте, а наши
@@ -243,14 +248,17 @@ export function normalizeLavaBuyerEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function isLavaEmailRejection(lavaBody: string): boolean {
+  return /incorrect email/i.test(lavaBody);
+}
+
 export class LavaInvoiceError extends Error {
   readonly status: number;
   readonly lavaBody: string;
   readonly code: "lava_buyer_email_rejected" | "lava_invoice_failed";
 
   constructor(status: number, lavaBody: string) {
-    const isEmail =
-      /incorrect email to purchase/i.test(lavaBody) || /incorrect email/i.test(lavaBody);
+    const isEmail = isLavaEmailRejection(lavaBody);
     const code = isEmail ? "lava_buyer_email_rejected" : "lava_invoice_failed";
     super(
       isEmail
@@ -271,26 +279,38 @@ async function createLavaInvoice(
   if (!email || !email.includes("@")) {
     throw new LavaInvoiceError(400, JSON.stringify({ error: "Incorrect email to purchase" }));
   }
-  const res = await fetch(`${LAVA_API_BASE}/api/v2/invoice`, {
-    method: "POST",
-    headers: {
-      "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      email,
-      offerId: params.offerId,
-      currency: params.currency,
-      periodicity: params.periodicity,
-      buyerLanguage: lavaBuyerLanguage(params.locale),
-      ...(params.successUrl ? { successful_return_url: params.successUrl } : {}),
-      ...(params.failureUrl ? { failure_return_url: params.failureUrl } : {}),
-      ...(params.cancelUrl ? { cancel_return_url: params.cancelUrl } : {}),
-      ...(params.paymentMethod && params.currency !== "RUB" ? { paymentMethod: params.paymentMethod } : {}),
-    }),
-  });
-  const text = await res.text();
+  const common = {
+    email,
+    offerId: params.offerId,
+    currency: params.currency,
+    periodicity: params.periodicity,
+    buyerLanguage: lavaBuyerLanguage(params.locale),
+    ...(params.successUrl ? { successful_return_url: params.successUrl } : {}),
+    ...(params.failureUrl ? { failure_return_url: params.failureUrl } : {}),
+    ...(params.cancelUrl ? { cancel_return_url: params.cancelUrl } : {}),
+  };
+  // Провайдер (UNLIMINT карта, PAYPAL) задаётся только для EUR/USD.
+  const provider = params.paymentMethod && params.currency !== "RUB" ? params.paymentMethod : null;
+  const post = (path: string, body: Record<string, unknown>) =>
+    fetch(`${LAVA_API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+  // v3 — актуальный метод Lava: провайдер в поле paymentProvider.
+  let res = await post("/api/v3/invoice", { ...common, ...(provider ? { paymentProvider: provider } : {}) });
+  let text = await res.text();
+  if (!res.ok && !isLavaEmailRejection(text)) {
+    // v2 помечен устаревшим, но ещё работает: счёт не должен сорваться из-за новой версии.
+    console.warn("[lava] v3 invoice failed, falling back to v2", res.status, text.slice(0, 300));
+    res = await post("/api/v2/invoice", { ...common, ...(provider ? { paymentMethod: provider } : {}) });
+    text = await res.text();
+  }
   if (!res.ok) {
     throw new LavaInvoiceError(res.status, text);
   }

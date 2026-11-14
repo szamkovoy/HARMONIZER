@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.31
+version: 1.32
 updated: 2026-11-14
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
@@ -204,7 +204,7 @@ else                                →  fail-closed
 
 Миграция `20261108170536_tier_pass_30d_and_failure_reason.sql`. Повод: Lava отклоняет оформление подписки, когда банк не проходит полный 3‑D Secure (сохранение карты), хотя разовые платежи той же карты проходят.
 
-- **Счёт тарифа** (`startTierCheckout`, кабинет и `/pay/retry`): Lava получает `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=<токен>`, `cancel_return_url` = `/pay/failed?t=<токен>&v=c`; для PayPal — `paymentMethod: PAYPAL` (только EUR/USD). ЮKassa: `return_url` = `/pay/return?t=&c=<contractId>` (у неё один адрес на успех и отказ, статус берём из API). При отказе банка ЮKassa оставляет человека на своей форме («Не сработало…») и даёт повторить в том же платеже; к нам он попадает по «Выйти из оплаты» или по истечении таймера, платёж ещё `pending` — после двух проверок показываем «Оплата не завершена».
+- **Счёт тарифа** (`startTierCheckout`, кабинет и `/pay/retry`): Lava получает `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=<токен>`, `cancel_return_url` = `/pay/failed?t=<токен>&v=c`; для PayPal — `paymentProvider: PAYPAL` в v3, в запасном v2 — `paymentMethod: PAYPAL` (только EUR/USD). ЮKassa: `return_url` = `/pay/return?t=&c=<contractId>` (у неё один адрес на успех и отказ, статус берём из API). При отказе банка ЮKassa оставляет человека на своей форме («Не сработало…») и даёт повторить в том же платеже; к нам он попадает по «Выйти из оплаты» или по истечении таймера, платёж ещё `pending` — после двух проверок показываем «Оплата не завершена».
 - **Счёт вебинара и книги** (`startOneTimeCheckout`): ЮKassa возвращает на `/pay/return?t=&c=`. Lava: `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = `/pay/failed?t=&v=c`. Токен разовой покупки — `k="o"` (`t` = webinar|book, `r` = id вебинара). `v=c` показывает «Оплата не завершена».
 - **Токен** (`payRetryToken.ts`): для тарифа — userId, tier, вид (подписка / 30 дней), валюта, страна, язык. Для вебинара и книги — userId, продукт, id вебинара, валюта, страна, язык. Хватает на новый счёт на email владельца аккаунта, больше ничего не даёт.
 - **Страница после отказа**: три текста — «Оплата не завершена» (человек ушёл с формы), «Оплата не удалась» с пояснением про 3‑D Secure, и тот же заголовок без этого пояснения для прочего отказа. Кнопки тарифа: тот же вид оплаты другой картой (на «не завершена» подпись «Оплатить ещё раз»); после ЮKassa (если Lava включена) — «Оплатить картой иностранного банка» (Lava, EUR без страны → профиль INT): ЮKassa не принимает зарубежные карты; PayPal — только если шлюз Lava и валюта не RUB; «30 дней без автопродления» — после отказа подписки, если 30 дней можно продать. Вебинар и книга: «Оплатить ещё раз», иностранная карта и PayPal, без 30 дней. Если оплата уже прошла — сразу в кабинет `?paid=1`.
