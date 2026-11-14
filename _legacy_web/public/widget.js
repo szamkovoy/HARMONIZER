@@ -173,7 +173,9 @@
       "button.pay.busy::before{content:'';display:inline-block;width:1em;height:1em;margin-right:.55em;vertical-align:-.15em;",
       "border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:hz-spin .7s linear infinite;}",
       "@keyframes hz-spin{to{transform:rotate(360deg);}}",
-      ".err{color:#dc2626;font-size:.88em;}",
+      // Own light plate: the message stays readable on any card color the author picks.
+      ".err{background:#fff7ed;color:#9a3412;border:1px solid #fdba74;border-radius:" + style.controlRadius + "px;",
+      "padding:10px 12px;font-size:.88em;line-height:1.4;text-align:left;}",
       ".hp{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden;}",
       ".thanks .title{margin-bottom:4px;}",
     ].join("");
