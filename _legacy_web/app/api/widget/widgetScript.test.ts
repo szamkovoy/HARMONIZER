@@ -148,6 +148,18 @@ function miniNode(tag: string): MiniNode {
   return self;
 }
 
+function buttonClasses(host: MiniNode): string[] {
+  const classes: string[] = [];
+  const walk = (node: MiniNode | null) => {
+    if (!node) return;
+    if (node.tag === "button") classes.push(node.className);
+    node.children.forEach(walk);
+    walk(node.shadow);
+  };
+  walk(host);
+  return classes;
+}
+
 function methodLabels(host: MiniNode): string[] {
   const labels: string[] = [];
   const walk = (node: MiniNode | null) => {
@@ -234,6 +246,18 @@ describe("widget payment method rows", () => {
   it("hides Apple Pay for a subscription", () => {
     const host = renderMethods({ ...METHOD_DATA, kind: "subscription" }, true);
     expect(methodLabels(host)).toEqual(["Российская карта", "Международная карта", "PayPal"]);
+  });
+
+  it("renders the pay button with class pay before it is pressed", () => {
+    const host = renderMethods(
+      {
+        ...METHOD_DATA,
+        texts: { ...METHOD_DATA.texts, button: "Оплатить" },
+        elements: [...METHOD_DATA.elements, { type: "button", visible: true }],
+      },
+      false,
+    );
+    expect(buttonClasses(host)).toEqual(["pay"]);
   });
 
   it("keeps only the international gateway when the widget is not in choice mode", () => {

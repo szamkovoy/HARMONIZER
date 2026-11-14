@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.102
+version: 3.103
 updated: 2026-11-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-14 (696): На кнопке виджета, пока создаётся счёт, крутится колёсико и стоит `processing`. Checkout пишет накопительный замер `[widget-checkout] timing ms`. Docs `account_web`.
 - 2026-11-14 (695): Первая попытка оплаты предлагает способ. Виджет: строки без рамок, `via` (`paypal` | `applepay`) в `POST /api/widget/:id/checkout`. Кабинет при Lava раскрывает меню под кнопкой и шлёт `method` в `POST /api/account/checkout`. Apple Pay — разовые покупки и 30 дней, не подписка. Docs `account_web`.
 - 2026-11-14 (694): Тесты книги вынесены в `npm run test:book` (`tsx --test`) и исключены из vitest. Португальская подпись пульта: «Comando TV». Docs `testing`.
 - 2026-11-14 (693): В контракте `POST /pay/retry` зафиксированы опции `applepay` и `pass_applepay` (Lava `APPLE_PAY` для ONE_TIME EUR/USD). Docs `account_web`.

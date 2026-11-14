@@ -58,8 +58,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!body) return widgetJson({ error: "bad_request" }, { status: 400 });
     if ((body.website ?? "").trim()) return widgetJson({ error: "bad_request" }, { status: 400 });
 
+    // Покупатель ждёт ответа на кнопке виджета: пишем, на что уходит время.
+    const startedAt = Date.now();
+    const steps: string[] = [];
+    const mark = (name: string) => steps.push(`${name}=${Date.now() - startedAt}`);
+    const done = (provider: string) => console.info("[widget-checkout] timing ms", provider, steps.join(" "));
+
     const db = createServiceSupabase();
     const widget = await loadWidget(db, id);
+    mark("widget");
     if (!widget?.catalog) return widgetJson({ error: "unavailable" }, { status: 404 });
     const catalog = widget.catalog;
 
@@ -75,7 +82,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     const locale = resolveWidgetLocale(widget.config, asWidgetLocale(body.lang));
     const geo = await resolveIpCountry(req.headers);
+    mark("geo");
     const offer = await resolveWidgetOffer(widget, geo.country || null);
+    mark("offer");
     const method = body.method === "ru" || body.method === "int" ? body.method : null;
     if (!method || !offer[method]) return widgetJson({ error: "unavailable" }, { status: 409 });
 
@@ -89,7 +98,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (recentErr) throw recentErr;
     if ((recent ?? 0) >= RECENT_MAX) return widgetJson({ error: "too_many" }, { status: 429 });
 
+    mark("recent");
     const existingUserId = await userIdFromContact(db, email);
+    mark("contact");
     const isSubscription = catalog.product_kind === "subscription";
     if (isSubscription && existingUserId) {
       const { data: active, error: activeErr } = await db
@@ -154,6 +165,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           .from("payment_contracts")
           .update({ provider_payment_id: payment.id, updated_at: new Date().toISOString() })
           .eq("contract_id", contractId);
+        mark("yookassa");
+        done("yookassa");
         return widgetJson({ paymentUrl: confirmationUrl });
       } catch (err) {
         await db
@@ -194,6 +207,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       amount: invoice.amountTotal?.amount ?? intOffer.amount,
     });
     if (insertErr) throw insertErr;
+    mark("lava");
+    done("lavatop");
     return widgetJson({ paymentUrl: invoice.paymentUrl });
   } catch (error) {
     if (error instanceof LavaInvoiceError && error.code === "lava_buyer_email_rejected") {
