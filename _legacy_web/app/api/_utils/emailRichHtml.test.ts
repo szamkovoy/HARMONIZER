@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { MARKETING_EMAIL_BODY_FONT } from "./emailTemplate";
 import { sanitizeEmailRichHtml, sanitizeInlineStyle } from "./emailRichHtml";
 
 describe("sanitizeInlineStyle", () => {
@@ -25,10 +26,11 @@ describe("sanitizeEmailRichHtml", () => {
     expect(out).toContain("<i>курсивом</i>");
     expect(out).toContain("<b>жирным</b>");
     expect(out).not.toContain("class=");
-    expect(out).not.toContain("Helvetica");
+    expect(out).not.toContain("Helvetica Neue");
+    expect(out).toContain(MARKETING_EMAIL_BODY_FONT);
     expect(out).not.toContain("font-size-adjust");
     expect(out).not.toContain("min-height");
-    expect(out.length).toBeLessThan(input.length / 2);
+    expect(out.length).toBeLessThan(input.length);
   });
 
   it("keeps anchor href", () => {
@@ -38,6 +40,8 @@ describe("sanitizeEmailRichHtml", () => {
     expect(out).toContain('href="https://example.com"');
     expect(out).toContain("color:#0f3d2e");
     expect(out).not.toContain("class=");
-    expect(out).not.toContain("Arial");
+    expect(out).not.toContain("font-family: Arial");
+    expect(out).not.toContain("font-family:Arial;");
+    expect(out).toContain(MARKETING_EMAIL_BODY_FONT);
   });
 });
