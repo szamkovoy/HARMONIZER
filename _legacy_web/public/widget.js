@@ -156,9 +156,9 @@
       ".title{font-size:" + style.titleSize + "px;font-weight:700;line-height:1.2;margin:0;}",
       ".text,.footer{white-space:normal;}",
       ".footer{font-size:0.82em;opacity:0.75;}",
-      ".methods{display:flex;flex-direction:column;gap:8px;text-align:left;}",
-      ".method{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(127,127,127,.35);border-radius:" + style.controlRadius + "px;cursor:pointer;}",
-      ".method.on{border-color:" + style.accentColor + ";box-shadow:0 0 0 1px " + style.accentColor + " inset;}",
+      ".methods{display:inline-flex;flex-direction:column;gap:2px;text-align:left;}",
+      ".method{display:flex;align-items:center;gap:10px;padding:5px 2px;cursor:pointer;}",
+      ".method.on{font-weight:600;}",
       ".method input{accent-color:" + style.accentColor + ";margin:0;width:18px;height:18px;flex:none;}",
       ".price{font-size:1.5em;font-weight:700;}",
       ".price small{font-size:0.6em;font-weight:400;opacity:.75;margin-left:6px;}",
@@ -173,6 +173,15 @@
       ".hp{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden;}",
       ".thanks .title{margin-bottom:4px;}",
     ].join("");
+  }
+
+  /** Apple Pay is offered only where the browser says the device can pay with it. */
+  function applePayAvailable() {
+    try {
+      return !!(window.ApplePaySession && window.ApplePaySession.canMakePayments());
+    } catch (e) {
+      return false;
+    }
   }
 
   var ERROR_TEXT = {
@@ -213,8 +222,27 @@
 
     var uid = "hz" + ++counter;
     var methods = data.methods || [];
-    var state = { method: data.defaultMethod || methods[0] || null };
-    var showChoice = data.paymentMode === "choice" && methods.length > 1;
+    var state = { method: data.defaultMethod || methods[0] || null, via: null };
+    // One row per way to pay. The international gateway also takes PayPal and,
+    // for one-time products on Apple devices, Apple Pay (same price as the card).
+    var options = [];
+    methods.forEach(function (m) {
+      if (m === "ru") {
+        options.push({ method: "ru", via: null, label: t.methodRu });
+        return;
+      }
+      options.push({ method: m, via: null, label: t.methodInt });
+      if (data.kind !== "subscription" && applePayAvailable()) {
+        options.push({ method: m, via: "applepay", label: "Apple Pay" });
+      }
+      options.push({ method: m, via: "paypal", label: "PayPal" });
+    });
+    if (data.paymentMode !== "choice") {
+      options = options.filter(function (o) {
+        return o.method === state.method;
+      });
+    }
+    var showChoice = options.length > 1;
     var priceNode = null;
     var radioRows = [];
     var nameInput = null;
@@ -241,7 +269,8 @@
         priceNode.appendChild(el("small", { text: t.perMonth }));
       }
       radioRows.forEach(function (row) {
-        row.node.className = "method" + (row.method === state.method ? " on" : "");
+        var on = row.option.method === state.method && row.option.via === state.via;
+        row.node.className = "method" + (on ? " on" : "");
       });
     }
 
@@ -263,22 +292,20 @@
         case "method":
           if (!showChoice) break;
           var group = el("div", { className: "methods", role: "radiogroup" });
-          methods.forEach(function (m) {
+          options.forEach(function (o, i) {
             var input = el("input", {
               type: "radio",
               name: uid + "-method",
-              value: m,
-              checked: m === state.method,
+              value: o.method + (o.via ? ":" + o.via : ""),
+              checked: o.method === state.method && o.via === state.via,
             });
             input.addEventListener("change", function () {
-              state.method = m;
+              state.method = o.method;
+              state.via = o.via;
               updatePrice();
             });
-            var row = el("label", { className: "method" }, [
-              input,
-              el("span", { text: m === "ru" ? t.methodRu : t.methodInt }),
-            ]);
-            radioRows.push({ method: m, node: row });
+            var row = el("label", { className: "method" }, [input, el("span", { text: o.label })]);
+            radioRows.push({ option: o, node: row });
             group.appendChild(row);
           });
           card.appendChild(group);
@@ -345,6 +372,7 @@
           name: name,
           email: email,
           method: state.method,
+          via: state.via || undefined,
           lang: data.locale,
           pageUrl: window.location.href,
           website: honeypot.value,

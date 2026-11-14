@@ -1,9 +1,14 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.42
+version: 1.43
 updated: 2026-11-14
 ---
+
+## 2026-11-14 — Способ оплаты при первой попытке
+
+- Виджет при `paymentMode=choice` показывает строки без рамок. Международный шлюз добавляет Apple Pay (разовый продукт, если браузер умеет) и PayPal. В checkout уходит `via`: `paypal` → `PAYPAL`, `applepay` на разовом продукте → `APPLE_PAY`. Подписка Apple Pay не получает.
+- Кабинет при `paymentGateway.provider = lavatop` раскрывает меню под кнопкой: карта (`payCard`, 8 языков), для вебинара и книги Apple Pay, PayPal. Повторное нажатие сворачивает; открыто одно меню. ЮKassa идёт на оплату сразу. `POST /api/account/checkout` принимает `method`. Apple Pay — разовые покупки и `kind: pass`.
 
 ## 2026-11-14 — Apple Pay и вторая группа на странице отказа
 

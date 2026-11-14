@@ -67,6 +67,8 @@ type CheckoutBody = {
   webinarId?: string;
   currency?: string;
   country?: string;
+  /** Только Lava (EUR/USD): paypal | applepay; пусто — карта. Apple Pay — только разовые покупки. */
+  method?: string;
 };
 
 export async function POST(req: Request) {
@@ -94,6 +96,9 @@ export async function POST(req: Request) {
       return corsJson({ error: "currency must be one of: RUB, USD, EUR" }, { status: 400 });
     }
     const country = body?.country?.trim().toUpperCase() || undefined;
+    const methodRaw = body?.method?.trim().toLowerCase();
+    const paypal = methodRaw === "paypal";
+    const applePay = methodRaw === "applepay";
 
     const db = createServiceSupabase();
     const { data: row, error } = await db
@@ -147,6 +152,7 @@ export async function POST(req: Request) {
         webinarId: kind === "webinar" ? body?.webinarId : null,
         currency,
         country: country ?? null,
+        paymentMethod: paypal ? "PAYPAL" : applePay ? "APPLE_PAY" : null,
         buyer: { email, locale: userLocale },
       });
       if (out.ok) {
@@ -178,6 +184,7 @@ export async function POST(req: Request) {
       kind: kind === "pass" ? "pass" : "subscription",
       currency,
       country: country ?? null,
+      paymentMethod: paypal ? "PAYPAL" : applePay && kind === "pass" ? "APPLE_PAY" : null,
       buyer: { email, locale: userLocale },
     });
     if (!out.ok) {
