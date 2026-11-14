@@ -17,6 +17,8 @@ export type PayPageCopy = {
   payAgain: string;
   payOtherCard: string;
   payForeignCard: string;
+  /** Показывается только русскоязычным покупателям на странице счёта Lava. */
+  payRussianCard: string;
   payPaypal: string;
   payApplePay: string;
   /** Вторая группа на странице отказа подписки: разовая оплата 30 дней. */
@@ -54,6 +56,10 @@ export type PayPageCopy = {
   bookFailedBody: string;
   /** Подпись под кнопкой во всех письмах об оплате: две строки. */
   letterSignature: string;
+  /** Письмо об отказе оплаты через виджет на лендинге; кнопка ведёт обратно на лендинг. */
+  widgetFailedSubject: string;
+  widgetFailedBody: string;
+  widgetFailedButton: string;
 };
 
 const COPY: Record<AppContentLocale, PayPageCopy> = {
@@ -68,6 +74,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Оплатить ещё раз",
     payOtherCard: "Оплатить другой картой",
     payForeignCard: "Оплатить картой иностранного банка",
+    payRussianCard: "Оплатить российской картой",
     payPaypal: "Оплатить через PayPal",
     payApplePay: "Оплатить через Apple Pay",
     passGroupHeading: "Или оплатите только 30 дней, без подписки:",
@@ -107,6 +114,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Здравствуйте!\n\nОплата книги не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно оплатить ещё раз или выбрать другой способ оплаты. Вводить данные заново не нужно.",
     letterSignature: "Всех благ!\nСергей Замковой",
+    widgetFailedSubject: "Оплата не прошла",
+    widgetFailedBody:
+      "Здравствуйте!\n\nВаша оплата не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно вернуться на страницу и оплатить ещё раз или выбрать другой способ оплаты.",
+    widgetFailedButton: "Вернуться к оплате",
   },
   en: {
     failedTitle: "Payment failed",
@@ -119,6 +130,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Try paying again",
     payOtherCard: "Pay with another card",
     payForeignCard: "Pay with a card from a non-Russian bank",
+    payRussianCard: "Pay with a Russian card",
     payPaypal: "Pay with PayPal",
     payApplePay: "Pay with Apple Pay",
     passGroupHeading: "Or pay for 30 days only, without a subscription:",
@@ -158,6 +170,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Hello!\n\nYour payment for the book did not go through — this happens when the bank does not confirm the transaction. You have not been charged. Use the button below to pay again or choose another payment method. You will not need to enter your details again.",
     letterSignature: "All the best,\nSergei Zamkovoi",
+    widgetFailedSubject: "Your payment did not go through",
+    widgetFailedBody:
+      "Hello!\n\nYour payment did not go through — this happens when the bank does not confirm the transaction. You have not been charged. Use the button below to return to the page and pay again or choose another payment method.",
+    widgetFailedButton: "Return to payment",
   },
   de: {
     failedTitle: "Zahlung fehlgeschlagen",
@@ -170,6 +186,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Erneut bezahlen",
     payOtherCard: "Mit einer anderen Karte bezahlen",
     payForeignCard: "Mit einer Karte einer ausländischen Bank bezahlen",
+    payRussianCard: "Mit einer russischen Karte bezahlen",
     payPaypal: "Mit PayPal bezahlen",
     payApplePay: "Mit Apple Pay bezahlen",
     passGroupHeading: "Oder zahlen Sie nur 30 Tage, ohne Abonnement:",
@@ -209,6 +226,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Guten Tag!\n\nDie Zahlung für das Buch ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie erneut bezahlen oder eine andere Zahlungsart wählen. Ihre Daten müssen Sie nicht erneut eingeben.",
     letterSignature: "Alles Gute!\nSergei Zamkovoi",
+    widgetFailedSubject: "Ihre Zahlung ist nicht durchgegangen",
+    widgetFailedBody:
+      "Guten Tag!\n\nIhre Zahlung ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie zur Seite zurückkehren und erneut bezahlen oder eine andere Zahlungsart wählen.",
+    widgetFailedButton: "Zurück zur Zahlung",
   },
   fr: {
     failedTitle: "Le paiement a échoué",
@@ -221,6 +242,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Payer à nouveau",
     payOtherCard: "Payer avec une autre carte",
     payForeignCard: "Payer avec une carte d’une banque étrangère",
+    payRussianCard: "Payer avec une carte russe",
     payPaypal: "Payer avec PayPal",
     payApplePay: "Payer avec Apple Pay",
     passGroupHeading: "Ou payez seulement 30 jours, sans abonnement :",
@@ -260,6 +282,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Bonjour !\n\nLe paiement du livre n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous permet de payer à nouveau ou de choisir un autre mode de paiement. Vous n’avez pas à saisir vos données à nouveau.",
     letterSignature: "Tous mes vœux !\nSergei Zamkovoi",
+    widgetFailedSubject: "Votre paiement n’est pas passé",
+    widgetFailedBody:
+      "Bonjour !\n\nVotre paiement n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous vous ramène sur la page pour payer à nouveau ou choisir un autre mode de paiement.",
+    widgetFailedButton: "Revenir au paiement",
   },
   it: {
     failedTitle: "Pagamento non riuscito",
@@ -272,6 +298,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Paga di nuovo",
     payOtherCard: "Paga con un’altra carta",
     payForeignCard: "Paga con una carta di una banca estera",
+    payRussianCard: "Paga con una carta russa",
     payPaypal: "Paga con PayPal",
     payApplePay: "Paga con Apple Pay",
     passGroupHeading: "Oppure paga solo 30 giorni, senza abbonamento:",
@@ -311,6 +338,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Buongiorno!\n\nIl pagamento del libro non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi pagare di nuovo o scegliere un altro metodo di pagamento. Non devi inserire di nuovo i dati.",
     letterSignature: "I migliori auguri!\nSergei Zamkovoi",
+    widgetFailedSubject: "Il pagamento non è andato a buon fine",
+    widgetFailedBody:
+      "Buongiorno!\n\nIl pagamento non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi tornare alla pagina e pagare di nuovo o scegliere un altro metodo di pagamento.",
+    widgetFailedButton: "Torna al pagamento",
   },
   es: {
     failedTitle: "El pago no se ha completado",
@@ -323,6 +354,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Pagar de nuevo",
     payOtherCard: "Pagar con otra tarjeta",
     payForeignCard: "Pagar con una tarjeta de un banco extranjero",
+    payRussianCard: "Pagar con una tarjeta rusa",
     payPaypal: "Pagar con PayPal",
     payApplePay: "Pagar con Apple Pay",
     passGroupHeading: "O paga solo 30 días, sin suscripción:",
@@ -362,6 +394,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Hola:\n\nEl pago del libro no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
     letterSignature: "Mis mejores deseos,\nSergei Zamkovoi",
+    widgetFailedSubject: "El pago no se ha completado",
+    widgetFailedBody:
+      "Hola:\n\nTu pago no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes volver a la página y pagar de nuevo o elegir otra forma de pago.",
+    widgetFailedButton: "Volver al pago",
   },
   pt: {
     failedTitle: "O pagamento não foi concluído",
@@ -374,6 +410,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Pagar novamente",
     payOtherCard: "Pagar com outro cartão",
     payForeignCard: "Pagar com um cartão de um banco estrangeiro",
+    payRussianCard: "Pagar com um cartão russo",
     payPaypal: "Pagar com PayPal",
     payApplePay: "Pagar com Apple Pay",
     passGroupHeading: "Ou pague apenas 30 dias, sem assinatura:",
@@ -413,6 +450,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Olá!\n\nO pagamento do livro não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode pagar novamente ou escolher outra forma de pagamento. Não precisa de introduzir os dados outra vez.",
     letterSignature: "Tudo de bom!\nSergei Zamkovoi",
+    widgetFailedSubject: "O pagamento não foi concluído",
+    widgetFailedBody:
+      "Olá!\n\nO seu pagamento não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode voltar à página e pagar novamente ou escolher outra forma de pagamento.",
+    widgetFailedButton: "Voltar ao pagamento",
   },
   nl: {
     failedTitle: "Betaling mislukt",
@@ -425,6 +466,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     payAgain: "Opnieuw betalen",
     payOtherCard: "Betalen met een andere kaart",
     payForeignCard: "Betalen met een kaart van een buitenlandse bank",
+    payRussianCard: "Betalen met een Russische kaart",
     payPaypal: "Betalen met PayPal",
     payApplePay: "Betalen met Apple Pay",
     passGroupHeading: "Of betaal alleen 30 dagen, zonder abonnement:",
@@ -464,6 +506,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Hallo!\n\nDe betaling voor het boek is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je opnieuw betalen of een andere betaalwijze kiezen. Je gegevens hoef je niet opnieuw in te vullen.",
     letterSignature: "Alle goeds!\nSergei Zamkovoi",
+    widgetFailedSubject: "Uw betaling is niet gelukt",
+    widgetFailedBody:
+      "Hallo!\n\nUw betaling is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je terug naar de pagina om opnieuw te betalen of een andere betaalwijze te kiezen.",
+    widgetFailedButton: "Terug naar betalen",
   },
 };
 

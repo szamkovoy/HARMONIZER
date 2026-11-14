@@ -1,5 +1,6 @@
 import { reconcilePendingLavaPayments } from "../../account/lavaReconcile";
 import { runPaymentFailedNotices } from "../../account/paymentFailedNotices";
+import { runWidgetFailedNotices } from "../../account/widgetFailedNotices";
 import { createServiceSupabase, errorResponse, json } from "../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -32,7 +33,15 @@ export async function POST(req: Request) {
       console.error("[payment-failed-notice]", error);
       notices = { error: error instanceof Error ? error.message : "notice failed" };
     }
-    return json({ ok: true, ...result, notices });
+    let widgetNotices: unknown = null;
+    try {
+      widgetNotices = await runWidgetFailedNotices(db);
+      console.log("[widget-failed-notice]", widgetNotices);
+    } catch (error) {
+      console.error("[widget-failed-notice]", error);
+      widgetNotices = { error: error instanceof Error ? error.message : "notice failed" };
+    }
+    return json({ ok: true, ...result, notices, widgetNotices });
   } catch (error) {
     return errorResponse(error);
   }

@@ -13,7 +13,7 @@
  *   3) иначе fail-closed (payment_gateway_unavailable)
  *
  * Credentials ЮKassa (не флаги маршрутизации): YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY,
- * YOOKASSA_RETURN_URL, опц. YOOKASSA_WEBHOOK_SECRET.
+ * YOOKASSA_RETURN_URL. Уведомления ЮKassa не подписываются: вебхук перечитывает платёж через API.
  *
  * Автоплатежи ЮKassa: для подписок всегда запрашиваем save_payment_method;
  * если магазин ещё не разрешил recurring — create падает обратно в обычный платёж

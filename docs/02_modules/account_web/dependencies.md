@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.16
-updated: 2026-11-14
+version: 1.17
+updated: 2026-11-15
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -49,4 +49,4 @@ code_refs:
 - **Маппинг `payment_offers`** — Lava: язык/тариф = строка + продукт в Lava. ЮKassa RUB — строки `payment_catalog`.
 - **Вебхуки Lava** — 2xx останавливает ретраи: «неизвестный контракт» → 200; транзиентные ошибки БД — 5xx. Смена `LAVATOP_WEBHOOK_SECRET` — одновременно в ЛК Lava и Vercel.
 - **Страницы `/pay/*`** — живут на `harmonizer.zamkovoi.yoga` (REG.RU-прокси; 303 и urlencoded-формы проходят). Токен подписан `ACCOUNT_CABINET_SECRET`: ротация секрета гасит ссылки «Оплата не удалась» (24 ч) и из писем о продлении (10 дней) — человек попадёт на «Ссылка устарела» → кабинет. Разовые продукты Lava «30 дней» — `payment_offers` `oracle_30d` / `master_30d`; цены в Lava задаются вручную в карточках.
-- **Вебхуки ЮKassa** — всегда перечитываем payment через API; опц. `YOOKASSA_WEBHOOK_SECRET`. URL уведомлений в кабинете ЮKassa должен совпадать с production Vercel origin.
+- **Вебхуки ЮKassa** — секрета нет: ЮKassa не подписывает тело и не шлёт своих заголовков. Перед любым изменением контракта платёж перечитывается `GET /v3/payments/{id}`. URL уведомлений в кабинете ЮKassa должен совпадать с production Vercel origin.
