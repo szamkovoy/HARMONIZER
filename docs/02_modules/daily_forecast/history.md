@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.52
-updated: 2026-09-27
+version: 2.53
+updated: 2026-11-15
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -23,6 +23,8 @@ code_refs:
 ---
 
 ## Decision Log
+
+- **2026-11-15 (Edge fallback cacheValidUntil):** fallback в `supabase/functions/daily-forecast/index.ts` больше не ставит `now+24h`; TTL = конец календарного дня прогноза в TZ пользователя (та же формула, что `endOfForecastDateUtc` в `modules/daily-engine`). Функция задеплоена.
 
 - **2026-11-09 (alternative-choice ranked-planets reorder):** Когда правило трёх дней выбирает вторую планету (`isAlternativeChoice = true`), `planetOfTheDay` (Сатурн) отличается от `rankedPlanets[0]` (топ по важности — Солнце). Утренний текст (`buildTopPetals`) читал `rankedPlanets` и описывал топ-по-важности (Солнце), а не выбранную планету дня (Сатурн) — рассогласование «навигатор=Сатурн, рекомендации=Солнце». Фикс: при `isAlternativeChoice` `rankedPlanets` переупорядочивается так, что `planetOfTheDay` идёт первым. Применено к Node (`modules/daily-engine/computeDailyForecast.ts` + vendored mirror) и Edge (`supabase/functions/_shared/dailyForecast.ts`). Тесты обновлены. Для Сергея 9 ноября принудительно пересчитан — теперь Сатурн везде.
 

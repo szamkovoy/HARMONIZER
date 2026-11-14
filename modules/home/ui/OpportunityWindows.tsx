@@ -639,7 +639,8 @@ export function OpportunityWindows({
     const pendingTarget = reminderTarget;
     const pendingMode = reminderMode;
     const pendingTitleText = reminderTitleText;
-    const eventDate = new Date(pendingTarget.time);
+    const eventTime = pendingTarget.time as string;
+    const eventDate = new Date(eventTime);
     const triggerDate = new Date(eventDate.getTime() - (pendingMode === "before5" ? 5 * 60_000 : 0));
     if (triggerDate.getTime() <= Date.now()) {
       Alert.alert(t.reminderPastTitle, t.reminderPastMessage);
@@ -712,7 +713,7 @@ export function OpportunityWindows({
         0,
         REMINDER_NOTIFICATION_TITLE_MAX,
       );
-      const timeStr = strings.formatTime(pendingTarget.time);
+      const timeStr = strings.formatTime(eventTime);
       const opener =
         pendingMode === "before5" ? `${t.reminderBodyFiveMinPrefix} ${timeStr}` : timeStr;
       const detailSuffix = pendingTarget.detail ? ` · ${pendingTarget.detail}` : "";

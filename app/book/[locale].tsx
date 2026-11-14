@@ -30,7 +30,6 @@ export default function BookReaderRoute() {
       <Stack.Screen
         options={{
           headerShown: false,
-          headerBackTitleVisible: false,
           headerBackTitle: "",
           animation: "slide_from_right",
           // Horizontal page turn must not trigger iOS interactive pop → Profile.
