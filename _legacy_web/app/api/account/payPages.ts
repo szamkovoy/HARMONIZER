@@ -27,7 +27,14 @@ import {
 import { loadBuyer, startTierCheckout, tierCheckoutBlocks } from "./tierCheckout";
 import { fetchYookassaPayment } from "./yookassa";
 
-export type PayOption = "card" | "foreign" | "paypal" | "pass" | "subscription";
+export type PayOption =
+  | "card"
+  | "foreign"
+  | "paypal"
+  | "applepay"
+  | "pass"
+  | "pass_applepay"
+  | "subscription";
 
 type PageAction = { label: string; option: PayOption };
 
@@ -90,19 +97,23 @@ export function renderPayPage(params: {
   body: string;
   token?: string;
   actions?: PageAction[];
+  /** Вторая группа кнопок под своим подзаголовком (разовая оплата вместо подписки). */
+  moreHeading?: string;
+  moreActions?: PageAction[];
   cabinetLabel?: string;
   refreshUrl?: string;
   status?: number;
 }): Response {
-  const forms = (params.actions ?? [])
-    .map(
-      (a, i) => `<form method="post" action="/pay/retry">
+  const form = (a: PageAction, primary: boolean) => `<form method="post" action="/pay/retry">
       <input type="hidden" name="t" value="${escapeHtml(params.token ?? "")}" />
       <input type="hidden" name="o" value="${a.option}" />
-      <button type="submit" class="${i === 0 ? "primary" : "secondary"}">${escapeHtml(a.label)}</button>
-    </form>`,
-    )
-    .join("\n");
+      <button type="submit" class="${primary ? "primary" : "secondary"}">${escapeHtml(a.label)}</button>
+    </form>`;
+  const more =
+    params.moreActions && params.moreActions.length > 0
+      ? `<p class="or">${escapeHtml(params.moreHeading ?? "")}</p>\n${params.moreActions.map((a) => form(a, false)).join("\n")}`
+      : "";
+  const forms = [(params.actions ?? []).map((a, i) => form(a, i === 0)).join("\n"), more].filter(Boolean).join("\n");
   const cabinet = params.cabinetLabel
     ? `<a class="link" href="${escapeHtml(accountCabinetUrl())}">${escapeHtml(params.cabinetLabel)}</a>`
     : "";
@@ -125,6 +136,7 @@ export function renderPayPage(params: {
       box-shadow: 0 8px 30px rgba(0,0,0,.06); text-align: center; }
     h1 { font-size: 1.75rem; font-weight: 800; margin: 0 0 1rem; }
     p { margin: 0 0 1.5rem; color: #4b5563; line-height: 1.55; font-size: 1rem; }
+    p.or { margin: 1.5rem 0 .9rem; font-size: .95rem; }
     form { margin: 0 0 .75rem; }
     button { width: 100%; padding: .95rem 1rem; border-radius: 12px; font-size: 1rem; font-weight: 600;
       cursor: pointer; border: 1px solid #2f6f5e; }
@@ -239,12 +251,55 @@ export function buildRenewActions(params: {
   return actions;
 }
 
-/** Разовая покупка: повторить тем же способом, иностранная карта, PayPal. */
-export function buildOneTimeActions(params: { paypal: boolean; foreignCard: boolean; copy: PayPageCopy }): PageAction[] {
+/** Apple Pay: iPhone и iPad в любом браузере, Mac — только Safari. */
+export function isApplePayDevice(userAgent: string | null | undefined): boolean {
+  const ua = userAgent ?? "";
+  if (/Android/i.test(ua)) return false;
+  if (/iPhone|iPad|iPod/.test(ua)) return true;
+  return /Macintosh/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg\/|Firefox|OPR\//.test(ua);
+}
+
+/** Разовая покупка: повторить тем же способом, иностранная карта, Apple Pay, PayPal. */
+export function buildOneTimeActions(params: {
+  paypal: boolean;
+  foreignCard: boolean;
+  applePay?: boolean;
+  copy: PayPageCopy;
+}): PageAction[] {
   const actions: PageAction[] = [{ label: params.copy.payAgain, option: "card" }];
   if (params.foreignCard) actions.push({ label: params.copy.payForeignCard, option: "foreign" });
+  if (params.applePay) actions.push({ label: params.copy.payApplePay, option: "applepay" });
   if (params.paypal) actions.push({ label: params.copy.payPaypal, option: "paypal" });
   return actions;
+}
+
+/**
+ * Страница отказа тарифа: сверху — повтор того же вида оплаты, ниже отдельной группой —
+ * разовая оплата 30 дней (картой, на устройствах Apple ещё и Apple Pay).
+ */
+export function splitFailedActions(params: {
+  actions: PageAction[];
+  kind: PayRetryKind;
+  applePay: boolean;
+  copy: PayPageCopy;
+}): { main: PageAction[]; moreHeading?: string; more: PageAction[] } {
+  const { copy } = params;
+  const applePass: PageAction = { label: copy.payApplePay, option: "pass_applepay" };
+  if (params.kind === "pass") {
+    // 30 дней — разовая оплата: Apple Pay встаёт сразу после карты.
+    const main = [...params.actions];
+    if (params.applePay && main.some((a) => a.option === "card")) {
+      main.splice(main.findIndex((a) => a.option === "card") + 1, 0, applePass);
+    }
+    return { main, more: [] };
+  }
+  const main = params.actions.filter((a) => a.option !== "pass");
+  if (main.length === params.actions.length) return { main, more: [] };
+  const more: PageAction[] = [{ label: copy.passCard, option: "pass" }];
+  if (params.applePay) more.push(applePass);
+  // Подписку оформить нельзя (уже есть ниже тарифом и т.п.) — 30 дней остаются единственным вариантом.
+  if (main.length === 0) return { main: more, more: [] };
+  return { main, moreHeading: copy.passGroupHeading, more };
 }
 
 export async function renderFailedPage(
@@ -252,6 +307,7 @@ export async function renderFailedPage(
   token: PayRetryPayload,
   rawToken: string,
   view: PaymentFailureKind = "declined",
+  appleDevice = false,
 ): Promise<Response> {
   const copy = getPayPageCopy(token.locale);
   const actions = buildFailedActions({
@@ -264,11 +320,20 @@ export async function renderFailedPage(
   });
   if (actions === "already_active") return redirect(accountCabinetUrl({ paid: true }));
   if (actions.length === 0) return alreadyPage(copy);
+  const groups = splitFailedActions({
+    actions,
+    kind: token.kind,
+    // Apple Pay идёт через Lava (EUR/USD) — там же, где доступен PayPal.
+    applePay: appleDevice && paypalAvailable(token),
+    copy,
+  });
   return renderPayPage({
     lang: copy.lang,
     ...failedPageText(copy, view),
     token: rawToken,
-    actions,
+    actions: groups.main,
+    moreHeading: groups.moreHeading,
+    moreActions: groups.more,
     cabinetLabel: copy.toCabinet,
   });
 }
@@ -278,6 +343,7 @@ async function renderOneTimeFailedPage(
   token: OneTimeRetryPayload,
   rawToken: string,
   view: PaymentFailureKind,
+  appleDevice: boolean,
 ): Promise<Response> {
   if (await oneTimeAlreadyPaid(db, token)) return redirect(accountCabinetUrl({ paid: true }));
   const copy = getPayPageCopy(token.locale);
@@ -288,6 +354,8 @@ async function renderOneTimeFailedPage(
     actions: buildOneTimeActions({
       paypal: paypalAvailable(token),
       foreignCard: foreignCardAvailable(token),
+      // Apple Pay идёт через Lava (EUR/USD) — там же, где доступен PayPal.
+      applePay: appleDevice && paypalAvailable(token),
       copy,
     }),
     cabinetLabel: copy.toCabinet,
@@ -299,10 +367,12 @@ function renderAnyFailedPage(
   token: AnyPayToken,
   rawToken: string,
   view: PaymentFailureKind,
+  req: Request,
 ): Promise<Response> {
+  const appleDevice = isApplePayDevice(req.headers.get("user-agent"));
   return token.type === "tier"
-    ? renderFailedPage(db, token.payload, rawToken, view)
-    : renderOneTimeFailedPage(db, token.payload, rawToken, view);
+    ? renderFailedPage(db, token.payload, rawToken, view, appleDevice)
+    : renderOneTimeFailedPage(db, token.payload, rawToken, view, appleDevice);
 }
 
 /** Причина последнего отказа по этому продукту: от неё зависит текст страницы. */
@@ -355,7 +425,7 @@ export async function handlePayFailedGet(req: Request): Promise<Response> {
     params.get("v") === "c"
       ? "abandoned"
       : ((await contractFailureView(db, token, params.get("c"))) ?? (await latestFailureView(db, token)));
-  return renderAnyFailedPage(db, token, raw, view);
+  return renderAnyFailedPage(db, token, raw, view, req);
 }
 
 export async function handlePayRenewGet(req: Request): Promise<Response> {
@@ -392,7 +462,7 @@ export async function handlePayRenewGet(req: Request): Promise<Response> {
   });
 }
 
-export type RetryChoice = { kind: PayRetryKind; paypal: boolean; foreign?: boolean };
+export type RetryChoice = { kind: PayRetryKind; paypal: boolean; foreign?: boolean; applePay?: boolean };
 
 export function retryChoice(token: PayRetryPayload, option: string): RetryChoice | null {
   switch (option) {
@@ -404,6 +474,8 @@ export function retryChoice(token: PayRetryPayload, option: string): RetryChoice
       return { kind: token.kind, paypal: true };
     case "pass":
       return { kind: "pass", paypal: false };
+    case "pass_applepay":
+      return { kind: "pass", paypal: false, applePay: true };
     case "subscription":
       return { kind: "subscription", paypal: false };
     default:
@@ -435,7 +507,7 @@ export async function handlePayRetryPost(req: Request): Promise<Response> {
       // Lava, международная карта: EUR без страны → профиль INT.
       currency: choice.foreign ? "EUR" : token.payload.currency,
       country: choice.foreign ? null : token.payload.country,
-      paymentMethod: choice.paypal ? "PAYPAL" : null,
+      paymentMethod: choice.paypal ? "PAYPAL" : choice.applePay ? "APPLE_PAY" : null,
     });
     if (out.ok) return redirect(out.paymentUrl);
     if (out.error === "already_active") {
@@ -487,7 +559,7 @@ class PayRetryRefused extends Error {
  * или null, если кнопка не распознана. Отказ шлюза — PayRetryRefused.
  */
 async function retryOneTime(token: OneTimeRetryPayload, option: string): Promise<string | null> {
-  if (option !== "card" && option !== "foreign" && option !== "paypal") return null;
+  if (option !== "card" && option !== "foreign" && option !== "paypal" && option !== "applepay") return null;
   const db = createServiceSupabase();
   const buyer = await loadBuyer(db, token.userId);
   if (typeof buyer === "string") throw new PayRetryRefused(buyer, buyer === "user_not_found" ? 404 : 409);
@@ -500,7 +572,7 @@ async function retryOneTime(token: OneTimeRetryPayload, option: string): Promise
       // Lava, международная карта: EUR без страны → профиль INT.
       currency: option === "foreign" ? "EUR" : token.currency,
       country: option === "foreign" ? null : token.country,
-      paymentMethod: option === "paypal" ? "PAYPAL" : null,
+      paymentMethod: option === "paypal" ? "PAYPAL" : option === "applepay" ? "APPLE_PAY" : null,
       buyer,
     });
 
@@ -531,7 +603,7 @@ export async function handlePayReturnGet(req: Request): Promise<Response> {
   if (!contract || contract.user_id !== token.payload.userId) return redirect(accountCabinetUrl());
   if (contract.status === "active") return redirect(accountCabinetUrl({ paid: true }));
   if (contract.status === "failed") {
-    return renderAnyFailedPage(db, token, raw, paymentFailureKind(contract.failure_reason as string | null));
+    return renderAnyFailedPage(db, token, raw, paymentFailureKind(contract.failure_reason as string | null), req);
   }
 
   if (contract.provider === "yookassa" && contract.provider_payment_id) {
@@ -542,12 +614,12 @@ export async function handlePayReturnGet(req: Request): Promise<Response> {
     if (payment.status === "canceled") {
       const reason = yookassaFailureReason(payment);
       await markContractFailed(db, contractId, reason);
-      return renderAnyFailedPage(db, token, raw, paymentFailureKind(reason));
+      return renderAnyFailedPage(db, token, raw, paymentFailureKind(reason), req);
     }
   }
 
   // Платёж всё ещё pending: человек вышел с формы, не оплатив.
-  if (attempt >= RETURN_POLL_MAX) return renderAnyFailedPage(db, token, raw, "abandoned");
+  if (attempt >= RETURN_POLL_MAX) return renderAnyFailedPage(db, token, raw, "abandoned", req);
   const next = new URLSearchParams({ t: raw, c: contractId, n: String(attempt + 1) });
   return renderPayPage({
     lang: copy.lang,
