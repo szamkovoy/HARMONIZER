@@ -1,9 +1,13 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.37
+version: 1.38
 updated: 2026-11-14
 ---
+
+## 2026-11-14 — Счета Lava создаются через v3
+
+- `POST /api/v3/invoice` — основной вызов. Провайдер (карта `UNLIMINT` или `PAYPAL`) уходит в `paymentProvider` и только для EUR/USD. Если v3 ответил не-2xx и это не отказ по email, повтор — `POST /api/v2/invoice` с тем же телом и провайдером в `paymentMethod`. В лог пишется `[lava] v3 invoice failed, falling back to v2`.
 
 ## 2026-11-14 — Ссылка из письма открывает текст этого отказа
 

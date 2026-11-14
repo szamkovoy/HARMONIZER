@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.10
+version: 1.11
 updated: 2026-11-14
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
@@ -34,7 +34,8 @@ code_refs:
 
 | Метод | Путь | Назначение |
 | --- | --- | --- |
-| POST | `/api/v2/invoice` | Создание инвойса (первый платёж по подписке). Body: `{ email, offerId, currency, periodicity, buyerLanguage, successful_return_url?, failure_return_url?, cancel_return_url?, paymentMethod? }` (`paymentMethod`: `UNLIMINT` карта по умолчанию для EUR/USD, `PAYPAL`; для RUB не передаём). Ответ: `{ id, status, amountTotal, paymentUrl }`. `id` = contractId (он же `parentContractId` рекуррентных платежей). |
+| POST | `/api/v3/invoice` | Основной способ создать счёт (подписка и разовая покупка). Body: `{ email, offerId, currency, periodicity, buyerLanguage, successful_return_url?, failure_return_url?, cancel_return_url?, paymentProvider? }`. `paymentProvider`: `UNLIMINT` или `PAYPAL`, только EUR/USD; для RUB поле не передаём. Цена из карточки оффера, `amount` от клиента не шлём. Ответ: `{ id, status, amountTotal, paymentUrl }`. `id` = contractId (он же `parentContractId` рекуррентных платежей). |
+| POST | `/api/v2/invoice` | Запасной вызов, если v3 ответил не-2xx и тело не содержит отказ по email (`incorrect email`). То же тело, провайдер в `paymentMethod`. В лог пишется `[lava] v3 invoice failed, falling back to v2` со статусом и началом тела. |
 | GET | `/api/v2/products?feedVisibility=ALL&limit=100` | Список продуктов с офферами и ценами. Источник правды для цен. **`feedVisibility=ALL` обязателен**: по умолчанию возвращаются только продукты, видимые в общей ленте, а разовые товары (вебинар/книга) опубликованы как «Доступ только по ссылке» и без параметра не попадают в ответ. Ответ: `{ items: [{ id, title, description, offers: [{ id, name, prices: [{ currency, amount, periodicity }] }] }] }`. Кэшируется сервером 10 мин. |
 | DELETE | `/api/v1/subscriptions?contractId=&email=` | Отмена подписки. 404 = уже отменена (не ошибка для нас). |
 
@@ -66,7 +67,7 @@ Lava не поддерживает несколько языков у одног
 - **API (используется сервером):** `GET /api/v2/products?feedVisibility=ALL` → `items[].offers[].id` + `offers[].prices`. `feedVisibility=ALL` обязательно, иначе скрытые «Доступ только по ссылке» продукты (вебинар/книга) не возвращаются. Цены берутся отсюда же — единообразие, цены не дублируются в БД.
 - **UI Lava (для ручной проверки):** открыть страницу продукта в режиме инкогнито → нажать «Купить» → URL редиректа `app.lava.top/products/<productId>/<offerId>?currency=…` — второй UUID это offerId.
 
-«Цена по запросу API» (`/api/v3/invoice` с `amount` от клиента) **не используется**: разовые товары публикуются с фиксированными ценами в карточках Lava, оплата идёт через `POST /api/v2/invoice` (ONE_TIME), цены тянутся из карточек.
+«Цена по запросу API» (тело `/api/v3/invoice` с `amount` от клиента) **не используется**. Счёт создаётся `POST /api/v3/invoice` с `offerId` и ценой из карточки; если v3 ответил не-2xx и это не отказ по email, повтор — `POST /api/v2/invoice`.
 
 ## 4. Правило валюты
 
@@ -79,7 +80,7 @@ Lava не поддерживает несколько языков у одног
 ### 5.1 Подписка на тариф (MONTHLY)
 
 1. Кабинет: `hzStartUpgrade(tier, purchase)` → `POST /api/account/checkout { kind:"subscription", tier, currency }`.
-2. Сервер: `resolveLavaOfferId(db, tier, userLocale)` (fallback en) → `POST /api/v2/invoice` (MONTHLY) → строка `payment_contracts` (pending, product_kind=subscription) → ответ `{ paymentUrl, contractId }`.
+2. Сервер: `resolveLavaOfferId(db, tier, userLocale)` (fallback en) → `POST /api/v3/invoice` (MONTHLY; при сбое — v2) → строка `payment_contracts` (pending, product_kind=subscription) → ответ `{ paymentUrl, contractId }`.
 3. Кабинет: redirect на `paymentUrl` Lava. По `visibilitychange` (возврат с оплаты) — `GET /api/account/overview?currency=` и перерисовка.
 4. Вебхук `payment.success` идёт только через `fulfillFirstPaymentSuccess` (общий с ЮKassa): контракт active, `users.membership_tier/expires_at` обновлены (период 30 дней + 48ч грейс), прежние active-подписки пользователя отменены в Lava и БД (политика A3); параллельно `settlePayment` пишет net в `payment_settlements` (см. `spec.md` §3.2). Повторный вебхук по уже active-контракту довыдаёт доступ, если в `users` срок короче оплаченного.
 5. Приложение подхватывает смену уровня через Realtime/foreground (`MembershipEventsBridge`).
@@ -91,7 +92,7 @@ Lava не поддерживает несколько языков у одног
 ### 5.2 Разовая оплата вебинара (ONE_TIME)
 
 1. Кабинет: `hzStartWebinar(purchase)` → `POST /api/account/checkout { kind:"webinar", webinarId?, currency }`. `webinarId` берётся из `ctx=webinar:<id>` (пришёл из приложения с экрана вебинара); если нет — ближайший опубликованный вебинар.
-2. Сервер: проверка что вебинар опубликован и пользователь ещё не записан (иначе `{alreadyRegistered:true}`); `resolveLavaOfferIdByName(db,"webinar",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = `/pay/failed?t=&v=c` → строка `payment_contracts` (pending, product_kind=one_time, tier=webinar, product_ref=<webinarId>).
+2. Сервер: проверка что вебинар опубликован и пользователь ещё не записан (иначе `{alreadyRegistered:true}`); `resolveLavaOfferIdByName(db,"webinar",userLocale)` → `POST /api/v3/invoice` (ONE_TIME; при сбое — v2) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = `/pay/failed?t=&v=c` → строка `payment_contracts` (pending, product_kind=one_time, tier=webinar, product_ref=<webinarId>).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time webinar: контракт active, `membership_*` НЕ трогается, upsert `webinar_registrations(webinar_id=product_ref, user_id)`.
 5. Приложение: `WebinarScreen` при возврате в foreground повторно проверяет `isRegistered` (экран обновляется: «Записаться» → «Вы записаны» + ссылка); `MembershipEventsBridge` показывает модалку «Вы записаны на вебинар» (`gate.webinarPaid.*`) при обнаружении последней one_time-покупки `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx (ретрай 10с на случай задержки вебхука). Кнопки «Отменить запись» на экране вебинара нет.
@@ -99,7 +100,7 @@ Lava не поддерживает несколько языков у одног
 ### 5.4 Разовая покупка книги (ONE_TIME)
 
 1. Кабинет: `hzStartBook(purchase)` → `POST /api/account/checkout { kind:"book", currency }`.
-2. Сервер: `resolveLavaOfferIdByName(db,"book",userLocale)` → `POST /api/v2/invoice` (ONE_TIME) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = `/pay/failed?t=&v=c` → строка `payment_contracts` (pending, product_kind=one_time, tier=book, product_ref=null).
+2. Сервер: `resolveLavaOfferIdByName(db,"book",userLocale)` → `POST /api/v3/invoice` (ONE_TIME; при сбое — v2) с `successful_return_url` = кабинет `?paid=1`, `failure_return_url` = `/pay/failed?t=`, `cancel_return_url` = `/pay/failed?t=&v=c` → строка `payment_contracts` (pending, product_kind=one_time, tier=book, product_ref=null).
 3. Кабинет: redirect на `paymentUrl` Lava.
 4. Вебхук `payment.success` для one_time book: контракт → active; `membership_*` и регистрации НЕ трогаются.
 5. Приложение: на foreground после визита в кабинет (с **любым** ctx) `MembershipEventsBridge` зовёт `GET /api/account/purchases/last` (Bearer JWT, service role — `payment_contracts` закрыта для клиента), сверяет `createdAt` покупки с `cabinetVisit.ts` и показывает модалку «Спасибо за покупку книги» (`gate.bookPaid.*`, ретрай 10с; флаг `purchaseThanksShown.<uid>.<contractId>`). Тот же механизм детектит и вебинар (`kind=webinar` → `gate.webinarPaid.*`). Читалка книги в приложении — следующий этап (покупка уже фиксируется в БД).
@@ -147,4 +148,4 @@ offerId не секретны; хранятся в `payment_offers` (БД), не
 - Годовая периодичность: в Lava включить цену «Год» в оффере; добавить выбор месяц/год в кабинете + `periodicity` в checkout.
 - Ответ поддержки Lava о параллельных активных контрактах одного клиента на разных офферах (наша механика уже отменяет старую подписку при активации новой).
 - Переключатель «Lava ↔ российский эквайринг»: заложен как `purchase.mode` (`checkout`/`link`) в `overview`; остаётся тестовый тумблер + url из env для `mode:"link"` при `currency==="RUB"`.
-- **Lava-блокер (решён 2026-07-18):** продукты вебинара («Консультация») и книги («Цифровой продукт») опубликованы в Lava с фиксированными ценами и признаком «Доступ только по ссылке». Настоящие offerId получены через `GET /api/v2/products?feedVisibility=ALL` и заполнены в `payment_offers` миграцией `20260718230000_fix_webinar_book_offer_ids`. Оплата идёт через `POST /api/v2/invoice` (ONE_TIME), цены — из карточек Lava (без «Цена по запросу API» и без дублирования цен в БД). Ближайший вебинар в `webinars` (future `starts_at`, `is_published`) всё ещё нужен, иначе блок вебинара скрыт.
+- **Lava-блокер (решён 2026-07-18):** продукты вебинара («Консультация») и книги («Цифровой продукт») опубликованы в Lava с фиксированными ценами и признаком «Доступ только по ссылке». Настоящие offerId получены через `GET /api/v2/products?feedVisibility=ALL` и заполнены в `payment_offers` миграцией `20260718230000_fix_webinar_book_offer_ids`. Счёт создаётся через `POST /api/v3/invoice` (запасной v2), цены — из карточек Lava (без «Цена по запросу API» и без дублирования цен в БД). Ближайший вебинар в `webinars` (future `starts_at`, `is_published`) всё ещё нужен, иначе блок вебинара скрыт.
