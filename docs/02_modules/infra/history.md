@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.31
-updated: 2026-10-16
+version: 1.32
+updated: 2026-11-14
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-11-14 (функции в dub1):** Node-функции Vercel стояли в `iad1`, база Supabase — в `eu-west-1`. В `_legacy_web/vercel.json` задано `regions: ["dub1"]`. Панель проекта (`serverlessFunctionRegion` / `functionDefaultRegions`) остаётся `iad1`; у этого деплоя её перекрывает файл, и `x-vercel-id` показывает `dub1`. Два edge-маршрута (`/api/email/asset`, `/api/email/track/open`) своего `preferredRegion` не имеют и в `dub1` не переезжают. Замер с той же машины (Амстердам, AS216071), по 5 запросов, время ответа целиком, мс. До — 18:59:50Z, край `fra1`, функция `iad1`. После — 19:06:05Z, край `fra1`, функция `dub1`. `GET /api/widget/5313acc9-56d3-4b39-853e-4ea31a2efc00` (виджет + каталог, гео, прайс Lava): до 2721, 880, 829, 666, 1031; после 875, 730, 514, 815, 517. `GET /api/admin/login/health` (подряд PostgREST `user_roles` и Auth `/health`): до 2474, 896, 1510, 1309, 926; после 820, 616, 528, 590, 615. `GET /api/unsubscribe` с несуществующим токеном (один select `email_contacts`, без записи): до 721, 605, 1040, 990, 685; после 624, 445, 430, 571, 596. День и прогноз без сессии не вызывались: они пишут в базу. Логи production с 19:04:50Z по 19:21:00Z (15 минут после готовности деплоя): 50 запросов, статусы 200×45, 401×2, 303×2, 400×1. Ответов 5xx и сообщений о таймауте нет.
 
 - **2026-10-16 (Pro + Small):** Организация переведена на Pro, compute проекта — Small (2 ГБ RAM, `max_connections` 90, пулер 400). Это ответ на зависания рассылки на Nano, а не замена тормозов в коде. Порог крона рассылки поднят с 45 до 65 соединений. Вопрос «апгрейд не планируется» в `open_questions` закрыт.
 

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.27
-updated: 2026-10-16
+version: 1.28
+updated: 2026-11-14
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
@@ -68,6 +68,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 | Область | Параметр | Где задаётся |
 | --- | --- | --- |
 | Next.js / Vercel duration | `export const maxDuration` on long routes: dialog **300**, daily-forecast / monologue / greeting / recommendation-text / practice-interpretation / calibration extract **120**, transcribe / day / natal **60**. Stories `process` — **120** via `_legacy_web/vercel.json`. Missing export → platform default ~10–15s (`Gateway Timeout`). | route files under `_legacy_web/app/api/`; `vercel.json` |
+| Регион Node-функций | `regions: ["dub1"]` — Дублин, рядом с Supabase `eu-west-1`. В панели проекта `functionDefaultRegions` по-прежнему `iad1`; для деплоя её перекрывает этот ключ. `runtime = "edge"` (`/api/email/asset`, `/api/email/track/open`) ключ не переносит. | `_legacy_web/vercel.json` |
 | Server Sentry | `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE`, `VERCEL_ENV` | Vercel env + `sentry.server.config.ts` |
 | Клиент Sentry (RN) | `EXPO_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_APP_ENV`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Expo env + `sentry.client.config.ts` |
 | Next bundle tracing | `outputFileTracingRoot` | `_legacy_web/next.config.ts` |
