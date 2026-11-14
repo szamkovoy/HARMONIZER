@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createContext, runInContext } from "node:vm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const source = readFileSync(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../public/widget.js"),
@@ -266,5 +266,122 @@ describe("widget payment method rows", () => {
       false,
     );
     expect(methodLabels(host)).toEqual(["Международная карта", "PayPal"]);
+  });
+});
+
+const VPN_HINT = "Страница оплаты не открывается. Если у вас включён VPN, выключите его и нажмите кнопку ещё раз.";
+
+function walkNodes(host: MiniNode, visit: (node: MiniNode) => void) {
+  const walk = (node: MiniNode | null) => {
+    if (!node) return;
+    visit(node);
+    node.children.forEach(walk);
+    walk(node.shadow);
+  };
+  walk(host);
+}
+
+function findNode(host: MiniNode, pred: (node: MiniNode) => boolean): MiniNode | null {
+  let found: MiniNode | null = null;
+  walkNodes(host, (node) => {
+    if (!found && pred(node)) found = node;
+  });
+  return found;
+}
+
+function pressPay(host: MiniNode) {
+  const email = findNode(host, (node) => node.attrs.type === "email");
+  const button = findNode(host, (node) => node.tag === "button");
+  if (!email || !button) throw new Error("pay form did not render");
+  email.value = "sergei@zamkovoi.yoga";
+  for (const fn of button.listeners.click ?? []) fn({ preventDefault() {} });
+}
+
+function renderCheckout(data: Record<string, unknown>) {
+  vi.useFakeTimers();
+  const document = {
+    currentScript: null,
+    readyState: "complete",
+    addEventListener() {},
+    querySelectorAll() {
+      return [];
+    },
+    createElement: (tag: string) => miniNode(tag),
+    createTextNode: (text: string) => {
+      const node = miniNode("#text");
+      node.textContent = String(text);
+      return node;
+    },
+  };
+  const window = {
+    history: { state: null, replaceState() {} },
+    location: { href: "https://site.ru/landing" },
+    navigator: { language: "ru", languages: ["ru"] },
+    document,
+    addEventListener() {},
+  };
+  const context = createContext({
+    window,
+    document,
+    navigator: window.navigator,
+    history: window.history,
+    URL,
+    Intl,
+    setTimeout,
+    clearTimeout,
+    fetch: () => new Promise(() => {}),
+  });
+  runInContext(source, context);
+  const host = miniNode("div");
+  (window as { HarmonizerWidget?: { render: (host: MiniNode, data: unknown, opts: unknown) => void } }).HarmonizerWidget?.render(
+    host,
+    data,
+    { preview: false, apiBase: "https://api.test" },
+  );
+  return host;
+}
+
+const CHECKOUT_DATA = {
+  ...METHOD_DATA,
+  texts: {
+    ...METHOD_DATA.texts,
+    button: "Оплатить",
+    errVpn: VPN_HINT,
+  },
+  elements: [
+    { type: "method", visible: true },
+    { type: "email", visible: true },
+    { type: "button", visible: true },
+  ],
+};
+
+describe("widget VPN stall hint", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns the Russian pay button after 15s and shows errVpn", () => {
+    const host = renderCheckout({ ...CHECKOUT_DATA, defaultMethod: "ru" });
+    pressPay(host);
+    expect(buttonClasses(host)).toEqual(["pay busy"]);
+    expect(findNode(host, (node) => node.className === "err")?.textContent).toBe("");
+
+    vi.advanceTimersByTime(15_000);
+
+    expect(buttonClasses(host)).toEqual(["pay"]);
+    expect(findNode(host, (node) => node.className === "err")?.textContent).toBe(VPN_HINT);
+  });
+
+  it("leaves the international pay button waiting after 15s", () => {
+    const host = renderCheckout({ ...CHECKOUT_DATA, defaultMethod: "int" });
+    pressPay(host);
+    expect(buttonClasses(host)).toEqual(["pay busy"]);
+    const error = findNode(host, (node) => node.className === "err");
+
+    vi.advanceTimersByTime(15_000);
+
+    expect(buttonClasses(host)).toEqual(["pay busy"]);
+    expect(error?.textContent).toBe("");
+    expect(error?.style.display).toBe("none");
   });
 });

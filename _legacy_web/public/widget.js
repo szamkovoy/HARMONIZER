@@ -188,6 +188,9 @@
     }
   }
 
+  /** How long the Russian payment form may take to open before we suspect a VPN. */
+  var STALL_MS = 15000;
+
   var ERROR_TEXT = {
     invalid_email: "errEmail",
     invalid_name: "errName",
@@ -279,7 +282,12 @@
     }
 
     /** Creating the invoice takes several seconds: the button spins until the payment form opens. */
+    var stallTimer = null;
     function setBusy(on) {
+      if (stallTimer) {
+        clearTimeout(stallTimer);
+        stallTimer = null;
+      }
       button.disabled = on;
       button.textContent = on ? t.processing : t.button;
       button.className = on ? "pay busy" : "pay";
@@ -375,6 +383,15 @@
         return;
       }
       setBusy(true);
+      // The Russian payment form does not open through most VPNs: the browser keeps
+      // waiting and this page stays. Give the buyer the button back with a hint.
+      if (state.method === "ru") {
+        stallTimer = setTimeout(function () {
+          stallTimer = null;
+          setBusy(false);
+          showError(t.errVpn || t.errGeneric);
+        }, STALL_MS);
+      }
       fetch(opts.apiBase + "/api/widget/" + encodeURIComponent(data.id) + "/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

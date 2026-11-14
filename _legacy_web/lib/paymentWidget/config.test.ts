@@ -65,6 +65,8 @@ describe("resolveWidgetLocale", () => {
     expect(texts.button).toBe("Pay");
     expect(texts.errUnpaid).toBe(getWidgetSystemTexts("en").errUnpaid);
     expect(resolveWidgetTexts(config, "de").errUnpaid).toBe(getWidgetSystemTexts("de").errUnpaid);
+    expect(texts.errVpn).toBe(getWidgetSystemTexts("en").errVpn);
+    expect(resolveWidgetTexts(config, "ru").errVpn).toBe(getWidgetSystemTexts("ru").errVpn);
     expect(resolveWidgetTexts(config, "ru").button).toBe("Оплатить");
   });
 

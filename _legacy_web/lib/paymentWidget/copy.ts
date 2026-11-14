@@ -28,6 +28,8 @@ export type WidgetSystemTexts = {
   errUnavailable: string;
   /** Shown above the form after an unpaid return (hz_unpaid). */
   errUnpaid: string;
+  /** The Russian payment form did not open in time (usually a VPN). */
+  errVpn: string;
   processing: string;
 };
 
@@ -160,6 +162,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Платёжная система не принимает этот email. Укажите другой.",
     errAlreadyActive: "У вас уже есть активный доступ этого или более высокого уровня.",
     errUnavailable: "Оплата временно недоступна.",
+    errVpn: "Страница оплаты не открывается. Если у вас включён VPN, выключите его и нажмите кнопку ещё раз.",
     errUnpaid: "Оплата не завершена, деньги не списаны. Попробуйте ещё раз или выберите другой способ.",
     processing: "Переходим к оплате…",
   },
@@ -170,6 +173,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "The payment provider does not accept this email. Please use another one.",
     errAlreadyActive: "You already have active access of this or a higher level.",
     errUnavailable: "Payment is temporarily unavailable.",
+    errVpn: "The payment page is not opening. If you are using a VPN, turn it off and press the button again.",
     errUnpaid: "The payment was not completed and you have not been charged. Try again or choose another method.",
     processing: "Redirecting to payment…",
   },
@@ -180,6 +184,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Der Zahlungsanbieter akzeptiert diese E-Mail nicht. Bitte verwenden Sie eine andere.",
     errAlreadyActive: "Sie haben bereits einen aktiven Zugang dieser oder einer höheren Stufe.",
     errUnavailable: "Die Zahlung ist vorübergehend nicht verfügbar.",
+    errVpn: "Die Zahlungsseite öffnet sich nicht. Falls Sie ein VPN nutzen, schalten Sie es aus und drücken Sie die Schaltfläche erneut.",
     errUnpaid: "Die Zahlung wurde nicht abgeschlossen, es wurde kein Geld abgebucht. Versuchen Sie es erneut oder wählen Sie eine andere Zahlungsart.",
     processing: "Weiterleitung zur Zahlung…",
   },
@@ -190,6 +195,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Le prestataire de paiement n'accepte pas cette adresse. Veuillez en utiliser une autre.",
     errAlreadyActive: "Vous disposez déjà d'un accès actif de ce niveau ou d'un niveau supérieur.",
     errUnavailable: "Le paiement est temporairement indisponible.",
+    errVpn: "La page de paiement ne s’ouvre pas. Si vous utilisez un VPN, désactivez-le et appuyez de nouveau sur le bouton.",
     errUnpaid: "Le paiement n’a pas été terminé, aucun montant n’a été débité. Réessayez ou choisissez un autre mode de paiement.",
     processing: "Redirection vers le paiement…",
   },
@@ -200,6 +206,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "Il sistema di pagamento non accetta questa email. Usane un'altra.",
     errAlreadyActive: "Hai già un accesso attivo di questo livello o superiore.",
     errUnavailable: "Il pagamento non è al momento disponibile.",
+    errVpn: "La pagina di pagamento non si apre. Se usi una VPN, disattivala e premi di nuovo il pulsante.",
     errUnpaid: "Il pagamento non è stato completato e non è stato addebitato alcun importo. Riprova o scegli un altro metodo.",
     processing: "Reindirizzamento al pagamento…",
   },
@@ -210,6 +217,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "El sistema de pago no acepta este correo. Usa otro.",
     errAlreadyActive: "Ya tienes un acceso activo de este nivel o superior.",
     errUnavailable: "El pago no está disponible temporalmente.",
+    errVpn: "La página de pago no se abre. Si usas una VPN, desactívala y pulsa el botón de nuevo.",
     errUnpaid: "El pago no se ha completado y no se ha cobrado nada. Inténtalo de nuevo o elige otro método.",
     processing: "Redirigiendo al pago…",
   },
@@ -220,6 +228,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "O sistema de pagamento não aceita este e-mail. Use outro.",
     errAlreadyActive: "Já tem um acesso ativo deste nível ou superior.",
     errUnavailable: "O pagamento está temporariamente indisponível.",
+    errVpn: "A página de pagamento não abre. Se estiver a usar uma VPN, desligue-a e carregue novamente no botão.",
     errUnpaid: "O pagamento não foi concluído e não foi cobrado qualquer valor. Tente novamente ou escolha outro método.",
     processing: "A redirecionar para o pagamento…",
   },
@@ -230,6 +239,7 @@ const SYSTEM_TEXTS: Record<WidgetLocale, WidgetSystemTexts> = {
     errEmailRejected: "De betaalprovider accepteert dit e-mailadres niet. Gebruik een ander adres.",
     errAlreadyActive: "Je hebt al actieve toegang op dit of een hoger niveau.",
     errUnavailable: "Betalen is tijdelijk niet mogelijk.",
+    errVpn: "De betaalpagina wordt niet geopend. Gebruik je een VPN, zet die dan uit en druk opnieuw op de knop.",
     errUnpaid: "De betaling is niet afgerond en er is geen geld afgeschreven. Probeer het opnieuw of kies een andere betaalwijze.",
     processing: "Doorsturen naar de betaling…",
   },
