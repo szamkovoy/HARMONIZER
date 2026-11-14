@@ -5,12 +5,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
-import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
+import { sendMarketingEmail } from "../_utils/marketingMail";
+import { buildPayLetterBody } from "./payLetter";
 import { fillPayCopy, formatPayDate, getPayPageCopy, payTierName } from "./payPageCopy";
 import { payRenewUrl } from "./passReminders";
 import { PAY_RENEW_TOKEN_TTL_MS, signPayRetryToken } from "./payRetryToken";
 import { isPassTier } from "./tierPass";
-import { plainLetterToHtml } from "./widgetFulfillment";
 
 const RENEW_BUTTON_COLOR = "#2E8B57";
 
@@ -23,14 +23,15 @@ export function buildRenewalFailedEmail(params: {
   const copy = getPayPageCopy(params.locale);
   const vars = { tier: payTierName(copy, params.tier), date: formatPayDate(params.accessUntil, copy.lang) };
   const subject = fillPayCopy(copy.renewalFailedSubject, vars);
-  const href = params.renewUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-  const label = copy.renewalFailedButton.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const bodyHtml = [
-    plainLetterToHtml(fillPayCopy(copy.renewalFailedBody, vars)),
-    `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:${RENEW_BUTTON_COLOR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${label}</a></p>`,
-  ].join("\n");
+  const { bodyHtml, text } = buildPayLetterBody({
+    copy,
+    text: fillPayCopy(copy.renewalFailedBody, vars),
+    buttonLabel: copy.renewalFailedButton,
+    buttonUrl: params.renewUrl,
+    buttonColor: RENEW_BUTTON_COLOR,
+  });
   const html = wrapMarketingEmailHtml({ bodyHtml, lang: copy.lang, footer: null });
-  return { subject, html, text: `${htmlToPlaintext(bodyHtml)}\n\n${params.renewUrl}`, lang: copy.lang };
+  return { subject, html, text, lang: copy.lang };
 }
 
 type NoticeContract = {

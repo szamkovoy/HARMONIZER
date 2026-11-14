@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.96
+version: 3.97
 updated: 2026-11-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-14 (690): На страницах `/pay/*` нажатая кнопка показывает индикатор ожидания. Письма об оплате заканчиваются подписью автора под кнопкой. Docs `account_web`.
 - 2026-11-14 (689): Счета Lava создаются через `POST /api/v3/invoice` (`paymentProvider`). При не-2xx, кроме отказа по email, повтор — `POST /api/v2/invoice` (`paymentMethod`). Docs `account_web`.
 - 2026-11-14 (688): Ссылка из письма об отказе открывает `/pay/failed?t=&c=<contractId>`: текст страницы берётся по причине этого счёта. Docs `account_web`.
 - 2026-11-14 (687): Письмо об отказе из кабинета уходит и за вебинар, и за книгу; виджет его не получает. ЮKassa с виджета возвращает на `/pay/widget-return`: успех — `?hz_paid=`, отказ — `?hz_unpaid=` с `errUnpaid`. Миграция `20261114021000`. Docs `account_web`, `webinars`, `book`.

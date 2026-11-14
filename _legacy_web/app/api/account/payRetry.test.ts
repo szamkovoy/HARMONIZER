@@ -271,6 +271,8 @@ describe("failure page options", () => {
     expect(html).toContain('value="a&quot;b"');
     expect(html).toContain("&lt;x&gt;");
     expect(html).toContain("<h1>Оплата не удалась</h1>");
+    expect(html).toContain("button.busy");
+    expect(html).toContain('addEventListener("pageshow"');
   });
 });
 
