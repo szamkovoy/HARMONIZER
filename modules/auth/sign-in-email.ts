@@ -171,7 +171,7 @@ export async function requestEmailOtpCode(
         if (error) console.warn("set_signin_name_hint failed", error.message);
       });
     try {
-      const hinted = await raceBudget(hint, hintBudgetMs);
+      const hinted = await raceBudget(Promise.resolve(hint), hintBudgetMs);
       if (hinted === "timeout") console.warn("set_signin_name_hint timed out");
     } catch (e) {
       console.warn("set_signin_name_hint failed", e);

@@ -141,9 +141,9 @@ export async function fetchPostsFeedPage(params: {
   const limit = Math.max(1, Math.min(params.limit ?? POSTS_FEED_PAGE_SIZE, 30));
   const { data, error } = await supabase.rpc("get_posts_feed", {
     p_limit: limit,
-    p_locale: params.locale ?? null,
-    p_before_published_at: params.before?.publishedAt ?? null,
-    p_before_id: params.before?.id ?? null,
+    p_locale: params.locale ?? undefined,
+    p_before_published_at: params.before?.publishedAt ?? undefined,
+    p_before_id: params.before?.id ?? undefined,
   });
   if (error) {
     if (__DEV__) console.warn("[posts] feed page load failed", error.message);

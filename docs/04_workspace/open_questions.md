@@ -1,18 +1,17 @@
 ---
-
-## id: 04_workspace/open_questions
-
+id: 04_workspace/open_questions
 title: Open Questions
-version: 1.46
-updated: 2026-11-08
+version: 1.47
+updated: 2026-11-15
 depends_on: [00_index/CHANGELOG]
 code_refs: []
+---
 
 ## `account_web` / 30 дней тарифа в кабинете (2026-11-08)
 
-- **Цены разовых продуктов Lava** (проверено 2026-11-08 после правки автора): «Наставник» 950 ₽ / 9,5 € / 9,5 $ — как подписка; «Мастер» 99 € / 99 $, но **9950 ₽** при 4950 ₽ у подписки и в ЮKassa — похоже на опечатку, ждём правки в карточке Lava.
+- **~~Цены разовых продуктов Lava / Мастер 9950 ₽~~** — закрыто 2026-11-15: не опечатка; цена поднята намеренно, ближе к цене в евро (решение Сергея).
 - **Кабинет не знает о 30 днях** — решение автора 2026-11-08: так и оставить. Кабинет предлагает подписку; если банк теперь её пропустит — лучше и человеку, и конверсии; если нет — снова страница отказа с 30 днями.
-- **PayPal для подписки.** `paymentMethod: PAYPAL` для MONTHLY-инвойса по OpenAPI Lava разрешён; на живой оплате не проверено.
+- **PayPal для подписки.** `paymentMethod: PAYPAL` для MONTHLY-инвойса по OpenAPI Lava разрешён; на живой оплате не проверено. С 2026-11-14 PayPal предлагается при первой попытке (виджет, кабинет) и на странице отказа — живой smoke по-прежнему открыт.
 
 ## `assistant` / йога и практики как действия дня без practice-ветки (2026-09-14)
 
@@ -46,12 +45,10 @@ code_refs: []
 - **Факт:** перед сбоем 14:46 UTC 2026-10-06 на Nano было ~400 MB RAM и ~500 MB swap. Committed ~1.6 GB при commit limit ~1.3 GB. Триггер — баг рассылки (пересчёт сегмента каждые 5 мин), он исправлен (`infra/history.md`, `marketing_email/history.md`).
 - **Решение 2026-10-16:** compute поднят до Small (2 ГБ, 90 соединений) на плане Pro. Следить за соединениями и 504 во время большой рассылки; темп пачки — строка `email_send_pace`, не деплой. Рассылка того же дня дошла до конца на 100 письмах / 120 с без жёлтого сигнала; эта ступень оставлена в строке.
 
-## `infra` / cap pg_cron workers on Nano (2026-10-05) — закрыто 2026-10-06
+## `infra` / cap pg_cron workers on Nano (2026-10-05) — закрыто 2026-11-15
 
-- `ALTER SYSTEM SET cron.max_running_jobs` на Free недоступен (`permission denied`, не в allowlist `postgres-config`). Вместо капа — воркер рассылки сам отступает по латентности базы (см. `marketing_email/history.md` 2026-10-06). Рестарт 2026-10-06 ~01:50 MSK снял затор.
-- **Контекст:** `max_connections=60`, `cron.max_running_jobs=32` (context `postmaster`). 5 октября 15:51–16:54 UTC каждый cron падал с `job startup timeout`, PostgREST не грузил schema cache, OTP-шлюз ловил голый 504. Шлюз после этого ретраит permit и не ждёт 15 с, но кап воркеров сам затор не убирает.
-- **Проявление:** пока идёт большая рассылка, затор может повториться и снова занять пул соединений.
-- **Действие:** на ближайшем рестарте проекта выставить `cron.max_running_jobs=4`. Не рестартовать посреди активной кампании.
+- Исторический инцидент на Free/Nano (октябрь 2026): `job startup timeout` при `max_connections=60` / `cron.max_running_jobs=32`. Воркер рассылки сам отступает по латентности (`email_send_pace`).
+- **Аудит 2026-11-15:** compute Small, `max_connections=90`, `cron.max_running_jobs=32` (дефолт). Кап до 4 не выставляли — при текущей нагрузке и pace рассылки отдельный restart ради капа не нужен.
 
 ## `onboarding` / OTP App Check enforce (2026-07-30)
 
@@ -59,8 +56,8 @@ code_refs: []
 
 ## `infra` / store submission checklist (2026-07-29)
 
-- **Google Play / App Store — внекодовые декларации перед релизом.** Код: конфликт LOCATION `maxSdkVersion` закрыт (`with-android-location-permission-merge`); Privacy Manifest на iOS есть; `ITSAppUsesNonExemptEncryption=false`. Остаётся в консолях: (a) Play **Data safety** + declaration для location / Health Connect / mic / camera / Bluetooth; (b) Play **Health Connect** form (уже в open_questions communicator); (c) Play точное alarm / `SCHEDULE_EXACT_ALARM` use-case если спрашивает; (d) App Store privacy labels + HealthKit purpose strings review (локали — см. i18n open question); (e) залить **новый** AAB/IPA после prebuild, не старый артефакт. `SYSTEM_ALERT_WINDOW` может попасть из RN debug/dev-client tooling — при вопросе Play сверить, нужен ли overlay в production build.
-- **Store-review login (код 2026-08-05, UI 2026-08-06):** `STORE_REVIEW_EMAIL` + `STORE_REVIEW_OTP` на Vercel; email также в secrets edge `send-auth-email`. В Review Notes: email / Name Alex / OTP. Письмо не приходит — ожидаемо. Профиль: «Выйти» работает; «Удалить» показывает blocked-диалог (wipe 403); кабинет скрыт. После смены OTP — только secrets. Нужен store-билд с клиентским otp-verify + этим UI.
+- **~~Google Play / App Store — внекодовые декларации перед релизом~~** — закрыто 2026-11-15: декларации заполнены, замечаний в консолях нет (решение Сергея).
+- **Store-review login (код 2026-08-05, UI 2026-08-06):** `STORE_REVIEW_EMAIL` + `STORE_REVIEW_OTP` на Vercel; email также в secrets edge `send-auth-email`. В Review Notes: email / Name Alex / OTP. Письмо не приходит — ожидаемо. Профиль: «Выйти» работает; «Удалить» показывает blocked-диалог (wipe 403); кабинет скрыт. После смены OTP — только secrets.
 
 ## `notifications` / Android remote push (FCM, 2026-07-22)
 
@@ -75,19 +72,18 @@ code_refs: []
 
 - **Catalog letters are the fallback, and they go out only when no webinar is published yet.** **Context:** `payment_catalog.letter_*_i18n` for `webinar` and `webinar_pack`. Once a webinar is on the schedule, the buyer gets the invitation (with the Moscow start time) instead. The one-webinar letter (2026-10-30) says the room link will arrive in a separate letter and a recording link after the webinar. **Action:** keep these letters free of a date and a room link. The author edits them in «Каталог продуктов». Invitation and recording letters use the webinar texts already entered in the webinar editor.
 - **Recording inside the app.** Closed 2026-10-08: the recording is only an email. The admin tab stores an unpublished post so the text can be translated and sent again; the feed and the home screen do not show it.
-- **Geo behind REG.RU.** **Context:** `X-Harmonizer-Client-Ip` from `deploy/reg-ru-harmonizer-proxy.php`. **Effect:** until the PHP file is re-uploaded, every visitor through `harmonizer.zamkovoi.yoga` gets an unknown country and the choice falls back to the browser time zone (an RU time zone means a Russian card). **Action:** upload the PHP file and check that a US visitor sees «Международная карта» and USD.
+- **~~Geo behind REG.RU~~** — закрыто 2026-11-15 (аудит): запрос через `harmonizer.zamkovoi.yoga` отдаёт `X-Harmonizer-Proxy: reg.ru`; с NL-egress `defaultMethod=int` (без `tz`) — значит `X-Harmonizer-Client-Ip` доходит и geo не падает в «всё RU». Файл на хостинге вручную не скачан (нет доступа к docroot); в репозитории PHP выставляет Client-Ip из `REMOTE_ADDR`. Повторная выкладка PHP — только при правке `deploy/reg-ru-harmonizer-proxy.php`.
 - **1 or 4 webinars in the cabinet.** **Context:** the cabinet still sells one webinar with `product_ref`. **Action:** later, offer a choice of the pass (`webinar` / `webinar_pack`).
 - **The GetCourse option.** **Context:** we chose our own widget (option B); the contract and pass were built so a GetCourse integration (option C) can be added later. **Action:** come back to it if needed.
 - **Subscriptions through a widget** go through the same fulfill path but have no smoke test with a real payment yet; there is also no «Наставник»/«Мастер» widget so far.
 
 ## `account_web` / внешние платежи (отложено по решению продукта, 2026-07-14)
 
+- **~~Платёжная система~~** — закрыто 2026-11-15: Lava + ЮKassa в проде (виджет, кабинет, подписки, 30 дней, вебинар, книга); открытые хвосты живут отдельными пунктами (PayPal live, курсы m1..m7, годовая периодичность), а не этим блоком.
+- **`YOOKASSA_WEBHOOK_SECRET`** — 2026-11-15: **не задавать**. ЮKassa не подписывает уведомления; подлинность — перечитывание платежа через API после вебхука.
 - **Safari progress bar на `/cabinet/` (2026-07-20):** закрыто переходом на standalone HTML вне WP (см. `account_web/history` 2026-07-20). Если после выкладки на ISPManager полоска снова «залипает» — проверить, что URL не отдаётся темой WordPress.
-- **~~Ветка завершения диалога ИИ для уровня «Наставник»~~** — закрыто 2026-07-20: Oracle/Free без ветки `practice`; soft-close в planning finalize (чакра дня + мягкая отсылка к каталогу Мастера в Личном кабинете). См. `assistant/history`.
-- **Контент интро-экранов онбординга:** интро 3–7 и прогрев дня зафиксированы (2026-07-18); отдельный вопрос снят.
-- **Платёжная система (Lava.top подключена 2026-07-15, мультиязычность 2026-07-18, разовый вебинар 2026-07-18, разовая книга 2026-07-18):** подписки «Наставник»/«Мастер», разовая оплата вебинара (ONE_TIME → регистрация `webinar_registrations`) и разовая покупка книги (ONE_TIME → `payment_contracts` + модалка благодарности через `purchases/last`) работают. Маппинг локализованных продуктов — в `payment_offers` (fallback `en`); цены тянутся из Lava. Кабинет переделан под макет автора (блоки «Гармонизатор» / «Другие тарифы» / «Дополнительно» с вебинаром, книгой, интенсивами m1..m7); правки UI 2026-07-18 — email без дефиса, EN «Advisor», EN название книги «Yoga - the Way of Wisdom», футер-копирайт `© <год> <имя>`, кнопки «Купить/Записаться — <цена>», блок вебинара скрыт без ближайшего вебинара. Открыто: (a) читалка книги — Phase B в коде (ownership/CDN/progress); заливка EPUB всех 8 локалей на zamkovoi — **закрыто 2026-08-15** (`BOOK_EPUB_VERSION=2`); опциональный smoke QA; LitRes 3D curl — по запросу — канон `docs/04_workspace/book_reader_plan.md`; (b) курсы/интенсивы через Lava (`tier=course:<id>`; сейчас — внешние ссылки m1..m7); (c) годовая периодичность; (d) ответ поддержки Lava о параллельных контрактах; (e) ~~переключатель Lava ↔ RU-эквайринг~~ — закрыто 2026-07-31: профили `PAYMENT_*_ENABLED`/`_REGION` (RU→ЮKassa, INT→Lava, fail-closed); recurring (save method + cron + revoke на cancel/wipe). Осталось ops: `YOOKASSA_SECRET_KEY` на Vercel + smoke + выкладка `cabinet/` с `country`; чеки 54-ФЗ; (f) Lava-вебхук пишет в `payment_contracts`/`users.membership_*` напрямую, минуя админ-леджер `payments` — решить, нужна ли дублирующая запись (net уже в `payment_settlements`); (g) ~~Lava-блокер~~ — решён 2026-07-18: продукты вебинара/книги опубликованы с фиксированными ценами и «Доступ только по ссылке»; настоящие offerId получены через `GET /api/v2/products?feedVisibility=ALL` и записаны в `payment_offers` (миграция `20260718230000`); оплата через `POST /api/v2/invoice` ONE_TIME, цены из карточек Lava; нужен ближайший вебинар в `webinars` (future `starts_at`, `is_published`), иначе блок вебинара скрыт; (h) ~~резервный коммерческий банк~~ — закрыто 2026-07-22: Альфа/Газпром/Сравни.ру не дали стабильный JSON; цепочка Т-Банк→ЦБ + circuit на сбой Т-Банка; (i) **backfill net** для уже оплаченных `payment_contracts` без строк в `payment_settlements` — по желанию одноразовый скрипт; (j) **Lava `Incorrect email to purchase`** (2026-07-22): при checkout с email продавца Lava / тестовым аккаунтом автора API отвечает 400 — в коде теперь `lava_buyer_email_rejected` + текст в кабинете; продуктово: тестировать оплату с другого email (не email ЛК Lava продавца) либо включить ЮKassa для RUB.
 - **Карта под выбором города рождения** в `BirthPlacePicker` — по желанию, позже.
-- **Legacy-аккаунты Apple/Google:** существующие пользователи входят по email своей учётки через OTP (Supabase свяжет с той же auth-строкой); аккаунты с приватным relay-email Apple получают код через пересылку Apple — проверить на реальном аккаунте до релиза.
+- **~~Legacy-аккаунты Apple/Google / private relay~~** — закрыто 2026-11-15: проверено на реальном аккаунте Apple с relay-email, код приходит (решение Сергея).
 
 ## `i18n` (multilingual)
 
@@ -101,7 +97,7 @@ code_refs: []
 
 ## `author_presence`
 
-- Модуль **не реализован**; продуктовое решение (тарифы, UI сторис/баннеров поверх существующих таблиц) и реализация ожидаются.
+- **~~Модуль не реализован~~** — закрыто 2026-11-15: устарело. Stories + posts + комментарии + админка в проде (`modules/stories`, `modules/posts`, MAP `author_presence`).
 
 ## `communicator`
 
@@ -115,6 +111,8 @@ code_refs: []
 **Действие:** при изменении контракта SSE на стороне `assistant` — синхронно обновлять клиент и дымовой тест end-to-end.
 
 ## `assistant`
+
+**Решение владельца (Сергей, 2026-11-15): ассистента не трогать** — прежние усложнения давали противоречия. Пункты ниже — справка, не бэклог.
 
 - **Matrix-filtered day_target_chakra отключён (2026-07-12)**  
 **Контекст:** `chooseTargetChakra` раньше мог брать 2–3-ю планету top-3, если 1-я «переразвита» в `daily_matrices` (`matrix_filtered_by_strength`). Home «Рекомендации на день» всегда говорили про сильнейшую планету (напр. Moon → 1-я чакра), а диалог писал «вторая чакра».  
@@ -206,10 +204,7 @@ code_refs: []
 
 ## `astro` / `daily_forecast` (cache parity)
 
-- **Edge-функция daily-forecast использует устаревший fallback cacheValidUntil = now + 24h**  
-**Контекст:** основной путь (`modules/daily-engine/computeDailyForecast.ts`) задаёт `cacheValidUntil` через `endOfForecastDateUtc` — конец календарного дня прогноза в timezone пользователя. В `supabase/functions/daily-forecast/index.ts` для fallback-ответа используется `new Date(Date.now() + 24 * 60 * 60 * 1000)`, без привязки к локальному дню; это тот же класс расхождений с timezone-aware срезом кэша, который PATCH_3 адресовал для `/api/calibration/extract` и локальной даты (исторический текст: `docs/05_archive/migrated/daily_forecast/PATCH_3_forecast_cache_timezone.md`).  
-**Проявление:** краевые случаи около полуночи UTC, неконсистентный TTL кэша в зависимости от того, прошёл ли расчёт через Next.js API или Edge.  
-**Предложение:** parity-fix в Edge (та же формула, что в основном пути) или вынести расчёт `cacheValidUntil` в общий модуль, импортируемый Node и Deno (по духу PATCH_4 для M2). См. также `docs/02_modules/astro/caching_strategy.md`.
+- **~~Edge fallback cacheValidUntil = now + 24h~~** — закрыто 2026-11-15: fallback в `supabase/functions/daily-forecast/index.ts` использует ту же формулу, что `endOfForecastDateUtc` (Luxon `endOf("day")` в TZ пользователя). Parity-тест Node↔Deno по-прежнему не покрывает полный `DailyForecast` / этот fallback.
 - **Parity-тест Node↔Deno покрывает не весь прогноз**  
 **Контекст:** `supabase/functions/_shared/daily-engine-parity.test.ts` сравнивает `effectiveNatalParams`, `computeActivation`, `computeImportance` между `modules/daily-engine` и `_shared/dailyForecast.ts`.  
 **Пробел:** нет автоматической проверки полной цепочки в духе «одинаковый `DailyForecast`» включая `rankPlanets` / `chooseFinalPlanet`, синтетические окна и различия провайдеров транзитов между Next и Edge.  
@@ -238,10 +233,10 @@ code_refs: []
 - **Условие «premium ИЛИ trial» централизовано (решено 2026-07-08)**  
 **Контекст:** правило эффективного премиум-доступа дублировалось в 5 местах (клиент + сервер).  
 **Решение:** единый `modules/access/core/paidAccess.ts` (`hasEffectivePremium`, `accessModeFromRow`, `baseTierFromRow`), vendored-копия для Vercel через `scripts/sync-vercel-server-modules.mjs`. **Оставшееся намеренное зеркало:** Edge `precompute-daily-forecasts` (`hasPersonalForecastAccess`) — Deno bundler не резолвит `modules/`; при изменении правила синхронизировать вручную.
-- **Автооплата / store renewal при истечении срока**  
-**Контекст:** hourly `reconcile-expired-memberships` только пересчитывает `users.membership_*` из уже существующих строк `payments` (highest active tier → иначе free). Интеграции со сторами и автопродления нет.  
-**Проявление:** после истечения ручного/будущего store-платежа пользователь уходит на free (или на другой ещё действующий платёж), но следующий месяц сам не списывается.  
-**Действие:** при подключении платёжной системы — писать в тот же леджер `source=store` и решить, где живёт renewal (store webhook vs отдельный billing job), не смешивая с reconcile-downgrade.
+- **Автооплата / renewal (Lava + ЮKassa, 2026-11-15)**  
+**Контекст:** продление больше не через App Store / Play. Lava: подписка MONTHLY + вебхуки + `lava-reconcile`; ЮKassa: сохранённый метод + cron charge + revoke на cancel/wipe. Hourly `reconcile-expired-memberships` по-прежнему только приводит `users.membership_*` к леджеру (не списывает деньги).  
+**Проявление:** сбой renewal → письмо/алерты + статус контракта; доступ снимается после grace/lapse, а не «тихий» store.  
+**Открыто:** живой smoke PayPal на подписке; годовая периодичность; нужен ли дубль Lava-вебхука в админ-леджер `payments` (net уже в `payment_settlements`).
 - **Итоговые названия/число тарифов (временная схема free/oracle/practitioner/master)**  
 **Контекст:** владелец рассматривает схему «Навигатор / Советник / Учитель» (или иное); текущие четыре тира — временные.  
 **Проявление:** смена id/названий потребует миграции CHECK, SQL `recompute_user_membership`, матрицы `TIER_FEATURES` и i18n `tier.*`.  
@@ -291,7 +286,7 @@ code_refs: []
 ## Общее
 
 - **Supabase Auth POST `/token` 504 (2026-07-27):** при валидном apikey password/refresh давали gateway **504** (запросы не доходили до GoTrue), GET `/user` и REST работали — похоже на [silent freeze GoTrue](https://github.com/supabase/supabase/issues/46429). Админка: логин через `POST /api/admin/login`, `sb_*` не слать в `Authorization`. Если снова 504 — Restart project в Supabase Dashboard (`pause` через MCP может упасть на backup check).
-- **Техдолг тестов (не блокер):** `npx tsc --noEmit` в `_legacy_web` даёт 3 ошибки в `app/api/communicator/v2/dialog/practiceSelection.test.ts` (TS2783 ×2 строки 33–34, TS2339 строка 308). Ошибки ПРЕДсуществующие (не регресс HARMONIZER v2 / патча C.4), только в тест-файле, `next build` их фильтрует (runTypeCheck игнорирует `*.test.ts`), в прод-бандл не попадают. Безопасно для продакшена. Чистый фикс — ~3 строки в тесте (деструктуризация input в `breath()`; сужение типа на строке 308). Сделать при ближайшей уборке тестов.
+- **~~Техдолг тестов / 3 ошибки tsc в practiceSelection.test.ts~~** — закрыто 2026-11-15: сейчас 0 ошибок `tsc` в `_legacy_web` по этому файлу (аудит-batch-1).
 - На момент создания скелета дополнительных записей не требовалось; новые вопросы добавлять сюда по мере миграции остальных модулей.
 
 ## onboarding

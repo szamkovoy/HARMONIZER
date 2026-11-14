@@ -1,6 +1,12 @@
 // @ts-nocheck
+import { DateTime } from "https://esm.sh/luxon@3.7.2";
 import { alternativeChoiceNote } from "../_shared/alternativeChoiceNote.ts";
 import { computeDailyForecast, dailyForecastToInsert, priorForecastDates, recentPlanetsFromHistory } from "../_shared/dailyForecast.ts";
+
+/** Same as modules/daily-engine `endOfForecastDateUtc` — end of forecast calendar day in user TZ. */
+function endOfForecastDateUtc(date: string, timezone: string): string {
+  return DateTime.fromISO(date, { zone: timezone }).endOf("day").toUTC().toISO() ?? new Date(`${date}T23:59:59.999Z`).toISOString();
+}
 
 /**
  * POST: дневной прогноз M2.
@@ -155,7 +161,7 @@ function fallbackForecastPayload(params: {
       ),
     },
     computedAt: new Date().toISOString(),
-    cacheValidUntil: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    cacheValidUntil: endOfForecastDateUtc(params.forecastDate, params.timezone),
     recommendationShortText: shortText,
     recommendationLongText: longText,
   };

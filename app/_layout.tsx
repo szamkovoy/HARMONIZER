@@ -301,7 +301,6 @@ function RootLayoutNav() {
           screenOptions={{
             contentStyle: { backgroundColor: theme.colors.screenBg },
             // Prevent iOS "< PreviousTitle" (e.g. «Камера») leaking into modals/overlays.
-            headerBackTitleVisible: false,
             headerBackTitle: "",
           }}
         >

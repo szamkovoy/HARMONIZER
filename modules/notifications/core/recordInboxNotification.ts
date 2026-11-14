@@ -21,7 +21,7 @@ export async function recordInboxNotification(params: {
     p_kind: params.kind,
     p_title: title,
     p_body: params.body ?? "",
-    p_link_url: params.linkUrl ?? null,
+    p_link_url: params.linkUrl ?? undefined,
     p_source_key: params.sourceKey.trim(),
   });
   if (error) {

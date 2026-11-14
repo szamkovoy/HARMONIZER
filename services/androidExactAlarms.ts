@@ -27,7 +27,7 @@ export async function canScheduleAndroidExactAlarms(): Promise<boolean> {
 
   // Fallback для старого dev-client без native-модуля.
   try {
-    return await PermissionsAndroid.check(SCHEDULE_EXACT_ALARM);
+    return await PermissionsAndroid.check(SCHEDULE_EXACT_ALARM as Parameters<typeof PermissionsAndroid.check>[0]);
   } catch {
     return false;
   }
