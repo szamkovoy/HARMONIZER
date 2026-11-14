@@ -1,9 +1,14 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.43
+version: 1.44
 updated: 2026-11-14
 ---
+
+## 2026-11-14 — Колёсико на кнопке виджета и замер счёта
+
+- Пока создаётся счёт, кнопка виджета получает класс `busy`: крутится колёсико и стоит текст `processing`. Ошибка и возврат из кэша (`pageshow`) снимают его.
+- `POST /api/widget/:id/checkout` пишет `[widget-checkout] timing ms` с накопительными миллисекундами: `widget`, `geo`, `offer`, `recent`, `contact`, затем `yookassa` или `lava`.
 
 ## 2026-11-14 — Способ оплаты при первой попытке
 

@@ -169,6 +169,10 @@
       "button.pay{display:block;width:100%;padding:14px 16px;font:inherit;font-weight:600;cursor:pointer;",
       "background:" + style.accentColor + ";color:" + style.buttonTextColor + ";border:none;border-radius:" + style.controlRadius + "px;}",
       "button.pay[disabled]{opacity:.65;cursor:default;}",
+      "button.pay.busy[disabled]{opacity:.9;cursor:progress;}",
+      "button.pay.busy::before{content:'';display:inline-block;width:1em;height:1em;margin-right:.55em;vertical-align:-.15em;",
+      "border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:hz-spin .7s linear infinite;}",
+      "@keyframes hz-spin{to{transform:rotate(360deg);}}",
       ".err{color:#dc2626;font-size:.88em;}",
       ".hp{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden;}",
       ".thanks .title{margin-bottom:4px;}",
@@ -274,6 +278,13 @@
       });
     }
 
+    /** Creating the invoice takes several seconds: the button spins until the payment form opens. */
+    function setBusy(on) {
+      button.disabled = on;
+      button.textContent = on ? t.processing : t.button;
+      button.className = on ? "pay busy" : "pay";
+    }
+
     function showError(text) {
       errNode.textContent = text || "";
       errNode.style.display = text ? "" : "none";
@@ -363,8 +374,7 @@
         showError(t.errUnavailable);
         return;
       }
-      button.disabled = true;
-      button.textContent = t.processing;
+      setBusy(true);
       fetch(opts.apiBase + "/api/widget/" + encodeURIComponent(data.id) + "/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -392,13 +402,11 @@
           if (out && out.error === "invalid_email") emailInput.classList.add("bad");
           if (out && out.error === "invalid_name" && nameInput) nameInput.classList.add("bad");
           showError(t[key] || t.errGeneric);
-          button.disabled = false;
-          button.textContent = t.button;
+          setBusy(false);
         })
         .catch(function () {
           showError(t.errGeneric);
-          button.disabled = false;
-          button.textContent = t.button;
+          setBusy(false);
         });
     }
 
@@ -409,8 +417,7 @@
     if (typeof window.addEventListener === "function") {
       window.addEventListener("pageshow", function (ev) {
         if (!ev || !ev.persisted) return;
-        button.disabled = false;
-        button.textContent = t.button;
+        setBusy(false);
       });
     }
 
