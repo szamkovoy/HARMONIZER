@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.21
-updated: 2026-09-05
+version: 2.22
+updated: 2026-11-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -94,7 +94,7 @@ code_refs:
 
 - **Симметрия полей `DailyForecast` и snake_case в БД** — любое переименование ломает `normalizeForecast` и SQL mapping (`dailyForecastToInsert`).
 - **Новый серверный контракт `day_target_*`** — home и assistant уже начинают жить на этих полях; их удаление/переименование без синхронной правки dialog-route даст тихий разрыв между прогнозом дня и daily dialog.
-- **`cacheValidUntil` vs клиентский `expiresAt` в `dayContentCache`** — оба должны оставаться согласованы с локальным концом дня; расхождение Node/Edge см. open questions.
+- **`cacheValidUntil` vs клиентский `expiresAt` в `dayContentCache`** — оба должны оставаться согласованы с локальным концом дня (Node, Edge fallback и клиентский `expiresAt` — конец локального дня прогноза).
 - **Серия планеты дня** — правило срабатывает в прогреве, до утреннего текста. Если вчерашней строки ещё нет, третий повтор не срабатывает. Телефон, уже сохранивший сегодняшний день, показывает его до конца локальных суток.
 - **Дубли формул Node/Deno** — правки только в одной копии дадут расхождение; опора на `daily-engine-parity.test.ts` + ручная осторожность вне покрытия теста.
 - **`forceRefresh` и кэш SecureStore** — должны инвалидироваться согласованно (`clearDayContentCache` в хуке).

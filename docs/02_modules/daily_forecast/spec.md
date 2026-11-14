@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.47
-updated: 2026-09-27
+version: 2.48
+updated: 2026-11-14
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -112,7 +112,7 @@ code_refs:
 
 ## 5. Известные ограничения
 
-- **Edge fallback и `cacheValidUntil`:** в Edge-функции для части fallback-ответов TTL может задаваться как `now + 24h`, что расходится с timezone-aware правилом Node-движка; зафиксировано в `docs/04_workspace/open_questions.md` и в `caching_strategy.md` — в продуктовом spec не дублировать детали, только признать класс риска.
+- **Edge fallback и `cacheValidUntil`:** fallback в `supabase/functions/daily-forecast/index.ts` задаёт TTL через ту же формулу, что Node-движок (`endOfForecastDateUtc` — конец календарного дня прогноза в TZ пользователя); см. `caching_strategy.md`.
 - **`day_target_chakra` vs `windowsOfOpportunity`:** day-target уже фиксируется в `user_daily_forecasts`, но полный пересчёт `windows_of_opportunity` под новую цель дня пока не автоматизирован отдельным серверным шагом; home продолжает использовать текущие поля строки как есть.
 - **Дублирование реализации M2:** формулы поддерживаются в Node (`modules/daily-engine`) и в Deno (`supabase/functions/_shared/dailyForecast.ts`); есть **частичный** parity-тест (см. ниже и open questions).
 - **Parity-тест:** `supabase/functions/_shared/daily-engine-parity.test.ts` сравнивает Node и Deno для `effectiveNatalParams`, `computeActivation`, `computeImportance` (включая ветки `precisionMode`); не покрывает целиком `chooseFinalPlanet`, ранжирование после изменений в одной ветке без зеркала, ни полный `computeDailyForecast` с реальными окнами.

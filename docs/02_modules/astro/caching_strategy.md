@@ -1,8 +1,8 @@
 ---
 id: 02_modules/astro/caching_strategy
 title: Astro Caching Strategy
-version: 1.3
-updated: 2026-09-05
+version: 1.4
+updated: 2026-11-14
 depends_on: [01_foundation/architecture, 02_modules/infra/spec, 02_modules/daily_forecast/spec]
 code_refs:
   [
@@ -34,7 +34,7 @@ code_refs:
 - **`cache_valid_until` (в API — `cacheValidUntil`):**
   - **Основной путь (Next.js + `computeDailyForecast`):** конец **локального** календарного дня для `forecast.date` в TZ пользователя: `endOfForecastDateUtc` в `modules/daily-engine/computeDailyForecast.ts` (Luxon `endOf("day").toUTC()`).
   - **Проверка попадания в кэш:** `cachedForecast` в `daily-forecast/route.ts` — строка на нужную `forecast_date` и `cache_valid_until > now()`.
-  - **Edge / fallback:** в `supabase/functions/daily-forecast/index.ts` для упрощённого fallback-ответа встречается `cacheValidUntil: now + 24h` — это **не** тот же расчёт, что у Node-движка; при сравнении parity ориентироваться на Next.js + `daily-engine`.
+  - **Edge / fallback:** в `supabase/functions/daily-forecast/index.ts` fallback-ответ задаёт `cacheValidUntil` той же формулой (`endOfForecastDateUtc` / Luxon `endOf("day")` в TZ пользователя), что и Node-движок.
 - **Home LLM-тексты** (`slogan`, `short_text` / `long_explanation`, `math_level` для monologue `morning_recommendation`): хранятся в **`scenario_cache`**, не в `user_daily_forecasts`. `POST /api/astro/daily-forecast` на обычном load подмешивает их read-only через **`loadCachedMorningRecommendation`**; полная генерация — **`ensureMorningRecommendation`** (monologue route, cron `precompute-daily-forecasts`, или `forceRefresh`). Поля **`recommendation_short_text` / `recommendation_long_text`** в строке прогноза — артеfact **planning-диалога** (вкладка «День»); при пересчёте прогноза **не затираются**, если уже заданы диалогом.
 
 ## 3. Инвалидация дневного кэша при калибровке
