@@ -48,6 +48,8 @@ export type PayPageCopy = {
   webinarFailedBody: string;
   bookFailedSubject: string;
   bookFailedBody: string;
+  /** Подпись под кнопкой во всех письмах об оплате: две строки. */
+  letterSignature: string;
 };
 
 const COPY: Record<AppContentLocale, PayPageCopy> = {
@@ -97,6 +99,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "Оплата книги не прошла",
     bookFailedBody:
       "Здравствуйте!\n\nОплата книги не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно оплатить ещё раз или выбрать другой способ оплаты. Вводить данные заново не нужно.",
+    letterSignature: "Всех благ!\nСергей Замковой",
   },
   en: {
     failedTitle: "Payment failed",
@@ -144,6 +147,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "Your book payment did not go through",
     bookFailedBody:
       "Hello!\n\nYour payment for the book did not go through — this happens when the bank does not confirm the transaction. You have not been charged. Use the button below to pay again or choose another payment method. You will not need to enter your details again.",
+    letterSignature: "All the best,\nSergei Zamkovoi",
   },
   de: {
     failedTitle: "Zahlung fehlgeschlagen",
@@ -192,6 +196,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "Die Zahlung für das Buch ist nicht durchgegangen",
     bookFailedBody:
       "Guten Tag!\n\nDie Zahlung für das Buch ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie erneut bezahlen oder eine andere Zahlungsart wählen. Ihre Daten müssen Sie nicht erneut eingeben.",
+    letterSignature: "Alles Gute!\nSergei Zamkovoi",
   },
   fr: {
     failedTitle: "Le paiement a échoué",
@@ -240,6 +245,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "Le paiement du livre n’est pas passé",
     bookFailedBody:
       "Bonjour !\n\nLe paiement du livre n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous permet de payer à nouveau ou de choisir un autre mode de paiement. Vous n’avez pas à saisir vos données à nouveau.",
+    letterSignature: "Tous mes vœux !\nSergei Zamkovoi",
   },
   it: {
     failedTitle: "Pagamento non riuscito",
@@ -288,6 +294,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "Il pagamento del libro non è andato a buon fine",
     bookFailedBody:
       "Buongiorno!\n\nIl pagamento del libro non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi pagare di nuovo o scegliere un altro metodo di pagamento. Non devi inserire di nuovo i dati.",
+    letterSignature: "I migliori auguri!\nSergei Zamkovoi",
   },
   es: {
     failedTitle: "El pago no se ha completado",
@@ -335,6 +342,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "El pago del libro no se ha completado",
     bookFailedBody:
       "Hola:\n\nEl pago del libro no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
+    letterSignature: "Mis mejores deseos,\nSergei Zamkovoi",
   },
   pt: {
     failedTitle: "O pagamento não foi concluído",
@@ -383,6 +391,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "O pagamento do livro não foi concluído",
     bookFailedBody:
       "Olá!\n\nO pagamento do livro não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode pagar novamente ou escolher outra forma de pagamento. Não precisa de introduzir os dados outra vez.",
+    letterSignature: "Tudo de bom!\nSergei Zamkovoi",
   },
   nl: {
     failedTitle: "Betaling mislukt",
@@ -431,6 +440,7 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedSubject: "De betaling voor het boek is niet gelukt",
     bookFailedBody:
       "Hallo!\n\nDe betaling voor het boek is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je opnieuw betalen of een andere betaalwijze kiezen. Je gegevens hoef je niet opnieuw in te vullen.",
+    letterSignature: "Alle goeds!\nSergei Zamkovoi",
   },
 };
 

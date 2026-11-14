@@ -7,11 +7,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { WIDGET_PUBLIC_ORIGIN } from "../../../lib/paymentWidget/config";
 import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
-import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
+import { sendMarketingEmail } from "../_utils/marketingMail";
+import { buildPayLetterBody } from "./payLetter";
 import { fillPayCopy, formatPayDate, getPayPageCopy, payTierName } from "./payPageCopy";
 import { PAY_RENEW_TOKEN_TTL_MS, signPayRetryToken } from "./payRetryToken";
 import { isPassTier } from "./tierPass";
-import { plainLetterToHtml } from "./widgetFulfillment";
 
 export const PASS_REMINDER_HOURS_BEFORE = 12;
 const BATCH_LIMIT = 100;
@@ -44,14 +44,15 @@ export function buildPassReminderEmail(params: {
   const copy = getPayPageCopy(params.locale);
   const vars = { tier: payTierName(copy, params.tier), date: formatPayDate(params.expiresAt, copy.lang) };
   const subject = fillPayCopy(copy.reminderSubject, vars);
-  const href = params.renewUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-  const label = copy.reminderButton.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const bodyHtml = [
-    plainLetterToHtml(fillPayCopy(copy.reminderBody, vars)),
-    `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:${RENEW_BUTTON_COLOR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${label}</a></p>`,
-  ].join("\n");
+  const { bodyHtml, text } = buildPayLetterBody({
+    copy,
+    text: fillPayCopy(copy.reminderBody, vars),
+    buttonLabel: copy.reminderButton,
+    buttonUrl: params.renewUrl,
+    buttonColor: RENEW_BUTTON_COLOR,
+  });
   const html = wrapMarketingEmailHtml({ bodyHtml, lang: copy.lang, footer: null });
-  return { subject, html, text: `${htmlToPlaintext(bodyHtml)}\n\n${params.renewUrl}`, lang: copy.lang };
+  return { subject, html, text, lang: copy.lang };
 }
 
 export async function sendPassReminders(db: SupabaseClient, now = new Date()): Promise<PassReminderResult> {

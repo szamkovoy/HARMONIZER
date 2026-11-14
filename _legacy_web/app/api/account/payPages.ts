@@ -130,7 +130,13 @@ export function renderPayPage(params: {
       cursor: pointer; border: 1px solid #2f6f5e; }
     button.primary { background: #2f6f5e; color: #fff; }
     button.secondary { background: #fff; color: #2f6f5e; }
-    button[disabled] { opacity: .6; cursor: progress; }
+    button[disabled] { opacity: .5; cursor: progress; }
+    button.busy[disabled] { opacity: 1; }
+    button.busy::before { content: ""; display: inline-block; width: 1em; height: 1em; margin-right: .6em;
+      vertical-align: -.15em; border: 2px solid currentColor; border-right-color: transparent;
+      border-radius: 50%; animation: hz-spin .7s linear infinite; }
+    @keyframes hz-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { button.busy::before { animation-duration: 2s; } }
     .link { display: inline-block; margin-top: .5rem; color: #2f6f5e; font-size: .95rem; }
   </style>
 </head>
@@ -141,9 +147,19 @@ export function renderPayPage(params: {
   ${cabinet}
 </div>
 <script>
+  // Новый счёт создаётся несколько секунд: нажатая кнопка крутит индикатор, остальные гаснут.
   document.querySelectorAll("form").forEach(function (f) {
     f.addEventListener("submit", function () {
       document.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+      var own = f.querySelector("button");
+      if (own) own.classList.add("busy");
+    });
+  });
+  // Возврат кнопкой «назад» с формы оплаты: страница берётся из кэша — кнопки снова рабочие.
+  window.addEventListener("pageshow", function () {
+    document.querySelectorAll("button").forEach(function (b) {
+      b.disabled = false;
+      b.classList.remove("busy");
     });
   });
 </script>

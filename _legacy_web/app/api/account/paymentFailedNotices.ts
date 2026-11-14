@@ -8,9 +8,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { paidTierFromRow } from "@/modules/access/core/paidAccess";
 import { WEBINAR_JOIN_GRACE_HOURS } from "@/modules/webinars/core/webinarTiming";
 import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
-import { htmlToPlaintext, sendMarketingEmail } from "../_utils/marketingMail";
+import { sendMarketingEmail } from "../_utils/marketingMail";
 import { logPaymentEvent } from "./paymentEvents";
 import { isAbandonedFailure } from "./paymentFailureKind";
+import { buildPayLetterBody } from "./payLetter";
 import { fillPayCopy, getPayPageCopy, payTierName } from "./payPageCopy";
 import { oneTimeAlreadyPaid } from "./oneTimeCheckout";
 import {
@@ -22,7 +23,6 @@ import {
 } from "./payRetryToken";
 import { isPassTier } from "./tierPass";
 import { payFailedUrl } from "./tierCheckout";
-import { plainLetterToHtml } from "./widgetFulfillment";
 
 const NOTICE_BUTTON_COLOR = "#2E8B57";
 const MIN_AGE_MS = 30 * 60 * 1000;
@@ -131,14 +131,15 @@ export function buildPaymentFailedEmail(params: {
         ? copy.bookFailedBody
         : copy.paymentFailedBody;
   const subject = fillPayCopy(subjectText, vars);
-  const href = params.payUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-  const label = copy.paymentFailedButton.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const bodyHtml = [
-    plainLetterToHtml(fillPayCopy(bodyText, vars)),
-    `<p><a href="${href}" style="display:inline-block;padding:12px 22px;background:${NOTICE_BUTTON_COLOR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${label}</a></p>`,
-  ].join("\n");
+  const { bodyHtml, text } = buildPayLetterBody({
+    copy,
+    text: fillPayCopy(bodyText, vars),
+    buttonLabel: copy.paymentFailedButton,
+    buttonUrl: params.payUrl,
+    buttonColor: NOTICE_BUTTON_COLOR,
+  });
   const html = wrapMarketingEmailHtml({ bodyHtml, lang: copy.lang, footer: null });
-  return { subject, html, text: `${htmlToPlaintext(bodyHtml)}\n\n${params.payUrl}`, lang: copy.lang };
+  return { subject, html, text, lang: copy.lang };
 }
 
 export async function runPaymentFailedNotices(
