@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.98
+version: 3.99
 updated: 2026-11-14
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-14 (692): На странице отказа подписка сверху, 30 дней — отдельной группой. Разовая оплата Lava на Apple-устройствах предлагает Apple Pay (`UNLIMINT` + `APPLE_PAY` в v3). iDEAL проверен 14.11: счёт создаётся, оплата падает «Order not found or expired», в продукт не включён. Docs `account_web`.
 - 2026-11-14 (691): Возврат «назад» с формы оплаты снова включает кнопку виджета и перерисовывает кабинет. Docs `account_web`.
 - 2026-11-14 (690): На страницах `/pay/*` нажатая кнопка показывает индикатор ожидания. Письма об оплате заканчиваются подписью автора под кнопкой. Docs `account_web`.
 - 2026-11-14 (689): Счета Lava создаются через `POST /api/v3/invoice` (`paymentProvider`). При не-2xx, кроме отказа по email, повтор — `POST /api/v2/invoice` (`paymentMethod`). Docs `account_web`.

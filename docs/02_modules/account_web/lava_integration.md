@@ -1,7 +1,7 @@
 ---
 id: 02_modules/account_web/lava_integration
 title: Lava.top Payment Integration
-version: 1.11
+version: 1.12
 updated: 2026-11-14
 depends_on: [02_modules/account_web/spec, 02_modules/subscription/spec, 02_modules/i18n/spec]
 code_refs:
@@ -34,10 +34,12 @@ code_refs:
 
 | Метод | Путь | Назначение |
 | --- | --- | --- |
-| POST | `/api/v3/invoice` | Основной способ создать счёт (подписка и разовая покупка). Body: `{ email, offerId, currency, periodicity, buyerLanguage, successful_return_url?, failure_return_url?, cancel_return_url?, paymentProvider? }`. `paymentProvider`: `UNLIMINT` или `PAYPAL`, только EUR/USD; для RUB поле не передаём. Цена из карточки оффера, `amount` от клиента не шлём. Ответ: `{ id, status, amountTotal, paymentUrl }`. `id` = contractId (он же `parentContractId` рекуррентных платежей). |
-| POST | `/api/v2/invoice` | Запасной вызов, если v3 ответил не-2xx и тело не содержит отказ по email (`incorrect email`). То же тело, провайдер в `paymentMethod`. В лог пишется `[lava] v3 invoice failed, falling back to v2` со статусом и началом тела. |
+| POST | `/api/v3/invoice` | Основной способ создать счёт (подписка и разовая покупка). Body: `{ email, offerId, currency, periodicity, buyerLanguage, successful_return_url?, failure_return_url?, cancel_return_url?, paymentProvider?, paymentMethod? }`. `paymentProvider`: `UNLIMINT` или `PAYPAL`, только EUR/USD; для RUB поле не передаём. Apple Pay — только `ONE_TIME` не в RUB: `paymentProvider: UNLIMINT` и `paymentMethod: APPLE_PAY`. Цена из карточки оффера, `amount` от клиента не шлём. Ответ: `{ id, status, amountTotal, paymentUrl }`. `id` = contractId (он же `parentContractId` рекуррентных платежей). |
+| POST | `/api/v2/invoice` | Запасной вызов, если v3 ответил не-2xx и тело не содержит отказ по email (`incorrect email`). То же тело, провайдер в `paymentMethod`. Apple Pay при откате на v2 уходит обычной картой, без способа. В лог пишется `[lava] v3 invoice failed, falling back to v2` со статусом и началом тела. |
 | GET | `/api/v2/products?feedVisibility=ALL&limit=100` | Список продуктов с офферами и ценами. Источник правды для цен. **`feedVisibility=ALL` обязателен**: по умолчанию возвращаются только продукты, видимые в общей ленте, а разовые товары (вебинар/книга) опубликованы как «Доступ только по ссылке» и без параметра не попадают в ответ. Ответ: `{ items: [{ id, title, description, offers: [{ id, name, prices: [{ currency, amount, periodicity }] }] }] }`. Кэшируется сервером 10 мин. |
 | DELETE | `/api/v1/subscriptions?contractId=&email=` | Отмена подписки. 404 = уже отменена (не ошибка для нас). |
+
+Apple Pay включён для разовых счетов EUR/USD. iDEAL проверен 14.11.2026: `POST /api/v3/invoice` с `paymentMethod: IDEAL` создаёт счёт, но оплата на форме падает с «Order not found or expired». В продукт не включён.
 
 Вебхуки (настроены в ЛК автора, два эндпоинта на `POST /api/account/webhooks/lava`): «Результат платежа» (`payment.success`/`payment.failed`) и «Регулярный платёж» (`subscription.recurring.payment.success`/`.failed`, `subscription.cancelled`). Аутентификация вебхука — заголовок `X-Api-Key: $LAVATOP_WEBHOOK_SECRET`. Тело: `{ eventType, contractId, parentContractId?, buyer{email}, amount, currency, status, timestamp, errorMessage?, product{id,title} }`. Lava ретраит доставку до 20 раз, пока не получит 2xx.
 

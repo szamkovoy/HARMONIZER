@@ -18,6 +18,10 @@ export type PayPageCopy = {
   payOtherCard: string;
   payForeignCard: string;
   payPaypal: string;
+  payApplePay: string;
+  /** Вторая группа на странице отказа подписки: разовая оплата 30 дней. */
+  passGroupHeading: string;
+  passCard: string;
   payPass: string;
   renewTitle: string;
   renewBody: string;
@@ -56,15 +60,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   ru: {
     failedTitle: "Оплата не удалась",
     failedBody:
-      "К сожалению, оплата не была проведена. Так бывает, если код подтверждения платежа введён неверно, либо ваша банковская карта не поддерживает 3‑D Secure (то есть подтверждение платежей). Выберите, как вы хотите продолжить:",
+      "Банк не подтвердил платёж: неверный код подтверждения или карта не поддерживает 3‑D Secure. Деньги не списаны. Попробуйте ещё раз:",
     failedBodyGeneric:
-      "К сожалению, оплата не прошла. Деньги не списаны. Выберите, как вы хотите продолжить:",
+      "Оплата не прошла, деньги не списаны. Попробуйте ещё раз:",
     incompleteTitle: "Оплата не завершена",
-    incompleteBody: "Платёж не был завершён, деньги не списаны. Выберите, как вы хотите продолжить:",
+    incompleteBody: "Платёж не завершён, деньги не списаны. Попробуйте ещё раз:",
     payAgain: "Оплатить ещё раз",
     payOtherCard: "Оплатить другой картой",
     payForeignCard: "Оплатить картой иностранного банка",
     payPaypal: "Оплатить через PayPal",
+    payApplePay: "Оплатить через Apple Pay",
+    passGroupHeading: "Или оплатите только 30 дней, без подписки:",
+    passCard: "Оплатить картой",
     payPass: "Оплатить 30 дней без автопродления",
     renewTitle: "Продлить доступ к Гармонизатору",
     renewBody: "Оплаченные 30 дней тарифа «{tier}» заканчиваются {date}. Выберите, как вы хотите продолжить:",
@@ -104,15 +111,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   en: {
     failedTitle: "Payment failed",
     failedBody:
-      "Unfortunately, the payment did not go through. This happens when the payment confirmation code was entered incorrectly, or when your bank card does not support 3‑D Secure (payment confirmation). Choose how you would like to continue:",
+      "Your bank did not confirm the payment: the confirmation code was wrong or the card does not support 3‑D Secure. You have not been charged. Please try again:",
     failedBodyGeneric:
-      "Unfortunately, the payment did not go through. You have not been charged. Choose how you would like to continue:",
+      "The payment did not go through and you have not been charged. Please try again:",
     incompleteTitle: "Payment not completed",
-    incompleteBody: "The payment was not completed and you have not been charged. Choose how you would like to continue:",
+    incompleteBody: "The payment was not completed and you have not been charged. Please try again:",
     payAgain: "Try paying again",
     payOtherCard: "Pay with another card",
     payForeignCard: "Pay with a card from a non-Russian bank",
     payPaypal: "Pay with PayPal",
+    payApplePay: "Pay with Apple Pay",
+    passGroupHeading: "Or pay for 30 days only, without a subscription:",
+    passCard: "Pay by card",
     payPass: "Pay for 30 days without auto-renewal",
     renewTitle: "Extend your Harmonizer access",
     renewBody: "Your 30 paid days of the “{tier}” plan end on {date}. Choose how you would like to continue:",
@@ -152,16 +162,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   de: {
     failedTitle: "Zahlung fehlgeschlagen",
     failedBody:
-      "Leider wurde die Zahlung nicht durchgeführt. Das passiert, wenn der Bestätigungscode falsch eingegeben wurde oder Ihre Bankkarte 3‑D Secure (die Bestätigung von Zahlungen) nicht unterstützt. Wählen Sie, wie Sie fortfahren möchten:",
+      "Ihre Bank hat die Zahlung nicht bestätigt: der Bestätigungscode war falsch oder die Karte unterstützt kein 3‑D Secure. Es wurde kein Geld abgebucht. Versuchen Sie es noch einmal:",
     failedBodyGeneric:
-      "Leider ist die Zahlung nicht durchgegangen. Es wurde kein Geld abgebucht. Wählen Sie, wie Sie fortfahren möchten:",
+      "Die Zahlung ist nicht durchgegangen, es wurde kein Geld abgebucht. Versuchen Sie es noch einmal:",
     incompleteTitle: "Zahlung nicht abgeschlossen",
-    incompleteBody:
-      "Die Zahlung wurde nicht abgeschlossen, es wurde kein Geld abgebucht. Wählen Sie, wie Sie fortfahren möchten:",
+    incompleteBody: "Die Zahlung wurde nicht abgeschlossen, es wurde kein Geld abgebucht. Versuchen Sie es noch einmal:",
     payAgain: "Erneut bezahlen",
     payOtherCard: "Mit einer anderen Karte bezahlen",
     payForeignCard: "Mit einer Karte einer ausländischen Bank bezahlen",
     payPaypal: "Mit PayPal bezahlen",
+    payApplePay: "Mit Apple Pay bezahlen",
+    passGroupHeading: "Oder zahlen Sie nur 30 Tage, ohne Abonnement:",
+    passCard: "Mit Karte bezahlen",
     payPass: "30 Tage ohne automatische Verlängerung bezahlen",
     renewTitle: "Zugang zum Harmonizer verlängern",
     renewBody: "Ihre 30 bezahlten Tage im Tarif „{tier}“ enden am {date}. Wählen Sie, wie Sie fortfahren möchten:",
@@ -201,16 +213,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   fr: {
     failedTitle: "Le paiement a échoué",
     failedBody:
-      "Malheureusement, le paiement n’a pas abouti. Cela arrive lorsque le code de confirmation a été saisi de façon incorrecte, ou lorsque votre carte bancaire ne prend pas en charge 3‑D Secure (la confirmation des paiements). Choisissez comment vous souhaitez continuer :",
+      "Votre banque n’a pas confirmé le paiement : le code de confirmation était incorrect ou la carte ne prend pas en charge 3‑D Secure. Aucun montant n’a été débité. Réessayez :",
     failedBodyGeneric:
-      "Malheureusement, le paiement n’a pas abouti. Aucun montant n’a été débité. Choisissez comment vous souhaitez continuer :",
+      "Le paiement n’a pas abouti, aucun montant n’a été débité. Réessayez :",
     incompleteTitle: "Paiement non terminé",
-    incompleteBody:
-      "Le paiement n’a pas été terminé, aucun montant n’a été débité. Choisissez comment vous souhaitez continuer :",
+    incompleteBody: "Le paiement n’a pas été terminé, aucun montant n’a été débité. Réessayez :",
     payAgain: "Payer à nouveau",
     payOtherCard: "Payer avec une autre carte",
     payForeignCard: "Payer avec une carte d’une banque étrangère",
     payPaypal: "Payer avec PayPal",
+    payApplePay: "Payer avec Apple Pay",
+    passGroupHeading: "Ou payez seulement 30 jours, sans abonnement :",
+    passCard: "Payer par carte",
     payPass: "Payer 30 jours sans renouvellement automatique",
     renewTitle: "Prolonger votre accès à Harmonizer",
     renewBody: "Vos 30 jours payés de l’offre « {tier} » se terminent le {date}. Choisissez comment vous souhaitez continuer :",
@@ -250,16 +264,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   it: {
     failedTitle: "Pagamento non riuscito",
     failedBody:
-      "Purtroppo il pagamento non è andato a buon fine. Succede quando il codice di conferma è stato inserito in modo errato, oppure quando la tua carta non supporta 3‑D Secure (la conferma dei pagamenti). Scegli come vuoi procedere:",
+      "La banca non ha confermato il pagamento: il codice di conferma era errato oppure la carta non supporta 3‑D Secure. Non è stato addebitato alcun importo. Riprova:",
     failedBodyGeneric:
-      "Purtroppo il pagamento non è andato a buon fine. Non è stato addebitato alcun importo. Scegli come vuoi procedere:",
+      "Il pagamento non è andato a buon fine e non è stato addebitato alcun importo. Riprova:",
     incompleteTitle: "Pagamento non completato",
-    incompleteBody:
-      "Il pagamento non è stato completato e non è stato addebitato alcun importo. Scegli come vuoi procedere:",
+    incompleteBody: "Il pagamento non è stato completato e non è stato addebitato alcun importo. Riprova:",
     payAgain: "Paga di nuovo",
     payOtherCard: "Paga con un’altra carta",
     payForeignCard: "Paga con una carta di una banca estera",
     payPaypal: "Paga con PayPal",
+    payApplePay: "Paga con Apple Pay",
+    passGroupHeading: "Oppure paga solo 30 giorni, senza abbonamento:",
+    passCard: "Paga con carta",
     payPass: "Paga 30 giorni senza rinnovo automatico",
     renewTitle: "Rinnova l’accesso a Harmonizer",
     renewBody: "I tuoi 30 giorni pagati del piano «{tier}» terminano il {date}. Scegli come vuoi procedere:",
@@ -299,15 +315,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   es: {
     failedTitle: "El pago no se ha completado",
     failedBody:
-      "Lamentablemente, el pago no se ha realizado. Esto ocurre cuando el código de confirmación se introdujo mal o cuando tu tarjeta bancaria no admite 3‑D Secure (la confirmación de pagos). Elige cómo quieres continuar:",
+      "El banco no ha confirmado el pago: el código de confirmación era incorrecto o la tarjeta no admite 3‑D Secure. No se ha cobrado nada. Inténtalo de nuevo:",
     failedBodyGeneric:
-      "Lamentablemente, el pago no se ha realizado. No se ha cobrado nada. Elige cómo quieres continuar:",
+      "El pago no se ha realizado y no se ha cobrado nada. Inténtalo de nuevo:",
     incompleteTitle: "Pago no completado",
-    incompleteBody: "El pago no se ha completado y no se ha cobrado nada. Elige cómo quieres continuar:",
+    incompleteBody: "El pago no se ha completado y no se ha cobrado nada. Inténtalo de nuevo:",
     payAgain: "Pagar de nuevo",
     payOtherCard: "Pagar con otra tarjeta",
     payForeignCard: "Pagar con una tarjeta de un banco extranjero",
     payPaypal: "Pagar con PayPal",
+    payApplePay: "Pagar con Apple Pay",
+    passGroupHeading: "O paga solo 30 días, sin suscripción:",
+    passCard: "Pagar con tarjeta",
     payPass: "Pagar 30 días sin renovación automática",
     renewTitle: "Amplía tu acceso a Harmonizer",
     renewBody: "Tus 30 días pagados del plan «{tier}» terminan el {date}. Elige cómo quieres continuar:",
@@ -347,16 +366,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   pt: {
     failedTitle: "O pagamento não foi concluído",
     failedBody:
-      "Infelizmente, o pagamento não foi efetuado. Isso acontece quando o código de confirmação foi digitado incorretamente ou quando o seu cartão bancário não é compatível com 3‑D Secure (a confirmação de pagamentos). Escolha como deseja continuar:",
+      "O banco não confirmou o pagamento: o código de confirmação estava incorreto ou o cartão não é compatível com 3‑D Secure. Não foi cobrado qualquer valor. Tente novamente:",
     failedBodyGeneric:
-      "Infelizmente, o pagamento não foi efetuado. Não foi cobrado qualquer valor. Escolha como deseja continuar:",
+      "O pagamento não foi efetuado e não foi cobrado qualquer valor. Tente novamente:",
     incompleteTitle: "Pagamento não concluído",
-    incompleteBody:
-      "O pagamento não foi concluído e não foi cobrado qualquer valor. Escolha como deseja continuar:",
+    incompleteBody: "O pagamento não foi concluído e não foi cobrado qualquer valor. Tente novamente:",
     payAgain: "Pagar novamente",
     payOtherCard: "Pagar com outro cartão",
     payForeignCard: "Pagar com um cartão de um banco estrangeiro",
     payPaypal: "Pagar com PayPal",
+    payApplePay: "Pagar com Apple Pay",
+    passGroupHeading: "Ou pague apenas 30 dias, sem assinatura:",
+    passCard: "Pagar com cartão",
     payPass: "Pagar 30 dias sem renovação automática",
     renewTitle: "Prolongar o acesso ao Harmonizer",
     renewBody: "Os seus 30 dias pagos do plano «{tier}» terminam em {date}. Escolha como deseja continuar:",
@@ -396,16 +417,18 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
   nl: {
     failedTitle: "Betaling mislukt",
     failedBody:
-      "Helaas is de betaling niet gelukt. Dat gebeurt als de bevestigingscode verkeerd is ingevoerd, of als je bankkaart 3‑D Secure (bevestiging van betalingen) niet ondersteunt. Kies hoe je verder wilt gaan:",
+      "Je bank heeft de betaling niet bevestigd: de bevestigingscode was onjuist of de kaart ondersteunt geen 3‑D Secure. Er is geen geld afgeschreven. Probeer het opnieuw:",
     failedBodyGeneric:
-      "Helaas is de betaling niet gelukt. Er is geen geld afgeschreven. Kies hoe je verder wilt gaan:",
+      "De betaling is niet gelukt en er is geen geld afgeschreven. Probeer het opnieuw:",
     incompleteTitle: "Betaling niet afgerond",
-    incompleteBody:
-      "De betaling is niet afgerond en er is geen geld afgeschreven. Kies hoe je verder wilt gaan:",
+    incompleteBody: "De betaling is niet afgerond en er is geen geld afgeschreven. Probeer het opnieuw:",
     payAgain: "Opnieuw betalen",
     payOtherCard: "Betalen met een andere kaart",
     payForeignCard: "Betalen met een kaart van een buitenlandse bank",
     payPaypal: "Betalen met PayPal",
+    payApplePay: "Betalen met Apple Pay",
+    passGroupHeading: "Of betaal alleen 30 dagen, zonder abonnement:",
+    passCard: "Betalen met kaart",
     payPass: "30 dagen betalen zonder automatische verlenging",
     renewTitle: "Je toegang tot Harmonizer verlengen",
     renewBody: "Je 30 betaalde dagen van het abonnement ‘{tier}’ eindigen op {date}. Kies hoe je verder wilt gaan:",

@@ -123,6 +123,50 @@ describe("lava invoice v3", () => {
     expect(pathOf(1)).toBe("/api/v2/invoice");
   });
 
+  it("sends Apple Pay on v3 and drops the method when falling back to v2", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(500, "down"))
+      .mockResolvedValueOnce(jsonResponse(201, OK));
+    await createLavaOneTimeInvoice({
+      email: "a@example.com",
+      offerId: "offer-1",
+      currency: "EUR",
+      locale: "en",
+      paymentMethod: "APPLE_PAY",
+      ...RETURN_URLS,
+    });
+    expect(bodyOf(0).paymentProvider).toBe("UNLIMINT");
+    expect(bodyOf(0).paymentMethod).toBe("APPLE_PAY");
+    expect(bodyOf(1)).not.toHaveProperty("paymentProvider");
+    expect(bodyOf(1)).not.toHaveProperty("paymentMethod");
+    expect(bodyOf(1).periodicity).toBe("ONE_TIME");
+  });
+
+  it("omits the method for a monthly Apple Pay request and for RUB", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, OK)).mockResolvedValueOnce(jsonResponse(201, OK));
+    await createLavaSubscriptionInvoice({
+      email: "a@example.com",
+      offerId: "offer-1",
+      currency: "EUR",
+      locale: "en",
+      paymentMethod: "APPLE_PAY",
+    });
+    await createLavaOneTimeInvoice({
+      email: "a@example.com",
+      offerId: "offer-1",
+      currency: "RUB",
+      locale: "ru",
+      paymentMethod: "APPLE_PAY",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of [0, 1]) {
+      expect(bodyOf(call)).not.toHaveProperty("paymentProvider");
+      expect(bodyOf(call)).not.toHaveProperty("paymentMethod");
+    }
+    expect(bodyOf(0).periodicity).toBe("MONTHLY");
+    expect(bodyOf(1).periodicity).toBe("ONE_TIME");
+  });
+
   it("sends the return urls in both invoice calls", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(404, "missing"))

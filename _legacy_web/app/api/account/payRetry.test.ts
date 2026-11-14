@@ -8,8 +8,10 @@ import {
   buildOneTimeActions,
   buildRenewActions,
   failedPageText,
+  isApplePayDevice,
   renderPayPage,
   retryChoice,
+  splitFailedActions,
 } from "./payPages";
 import {
   signOneTimeRetryToken,
@@ -207,6 +209,54 @@ describe("failure page options", () => {
       { label: "Оплатить картой иностранного банка", option: "foreign" },
       { label: "Оплатить через PayPal", option: "paypal" },
     ]);
+    expect(buildOneTimeActions({ paypal: true, foreignCard: true, applePay: true, copy }).map((a) => a.option)).toEqual([
+      "card",
+      "foreign",
+      "applepay",
+      "paypal",
+    ]);
+  });
+
+  it("recognises Apple Pay devices", () => {
+    expect(isApplePayDevice("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1")).toBe(true);
+    expect(isApplePayDevice("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/119.0.6045.109 Mobile/15E148 Safari/604.1")).toBe(true);
+    expect(isApplePayDevice("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1")).toBe(true);
+    expect(isApplePayDevice("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15")).toBe(true);
+    expect(isApplePayDevice("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36")).toBe(false);
+    expect(isApplePayDevice("Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 Chrome/119.0.0.0 Mobile Safari/537.36")).toBe(false);
+    expect(isApplePayDevice("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36")).toBe(false);
+    expect(isApplePayDevice("")).toBe(false);
+    expect(isApplePayDevice(null)).toBe(false);
+  });
+
+  it("puts 30 days in a second group and Apple Pay next to the card for a pass", () => {
+    const subscription = buildFailedActions({ kind: "subscription", blocks: NO_BLOCKS, paypal: true, copy });
+    if (subscription === "already_active") throw new Error("expected actions");
+    expect(splitFailedActions({ actions: subscription, kind: "subscription", applePay: false, copy })).toEqual({
+      main: subscription.filter((a) => a.option !== "pass"),
+      moreHeading: copy.passGroupHeading,
+      more: [{ label: copy.passCard, option: "pass" }],
+    });
+    expect(splitFailedActions({ actions: subscription, kind: "subscription", applePay: true, copy }).more.map((a) => a.option)).toEqual([
+      "pass",
+      "pass_applepay",
+    ]);
+    const pass = buildFailedActions({ kind: "pass", blocks: NO_BLOCKS, paypal: true, copy });
+    if (pass === "already_active") throw new Error("expected actions");
+    const passSplit = splitFailedActions({ actions: pass, kind: "pass", applePay: true, copy });
+    expect(passSplit.more).toEqual([]);
+    expect(passSplit.main.map((a) => a.option)).toEqual(["card", "pass_applepay", "paypal"]);
+    const onlyPass = buildFailedActions({
+      kind: "subscription",
+      blocks: { subscription: "has_subscription", pass: null },
+      paypal: true,
+      copy,
+    });
+    if (onlyPass === "already_active") throw new Error("expected actions");
+    expect(splitFailedActions({ actions: onlyPass, kind: "subscription", applePay: false, copy })).toEqual({
+      main: [{ label: copy.passCard, option: "pass" }],
+      more: [],
+    });
   });
 
   it("picks the page text from how the attempt ended", () => {
@@ -252,6 +302,7 @@ describe("failure page options", () => {
     expect(retryChoice(token, "card")).toEqual({ kind: "subscription", paypal: false });
     expect(retryChoice(token, "paypal")).toEqual({ kind: "subscription", paypal: true });
     expect(retryChoice(token, "pass")).toEqual({ kind: "pass", paypal: false });
+    expect(retryChoice(token, "pass_applepay")).toEqual({ kind: "pass", paypal: false, applePay: true });
     expect(retryChoice({ kind: "pass" } as PayRetryPayload, "paypal")).toEqual({ kind: "pass", paypal: true });
     expect(retryChoice(token, "foreign")).toEqual({ kind: "subscription", paypal: false, foreign: true });
     expect(retryChoice(token, "anything")).toBeNull();
@@ -274,13 +325,32 @@ describe("failure page options", () => {
     expect(html).toContain("button.busy");
     expect(html).toContain('addEventListener("pageshow"');
   });
+
+  it("renders the second group under its heading", async () => {
+    const res = renderPayPage({
+      lang: "ru",
+      title: copy.failedTitle,
+      body: copy.failedBody,
+      token: "tok",
+      actions: [{ label: "Карта", option: "card" }],
+      moreHeading: copy.passGroupHeading,
+      moreActions: [
+        { label: copy.passCard, option: "pass" },
+        { label: copy.payApplePay, option: "pass_applepay" },
+      ],
+    });
+    const html = await res.text();
+    expect(html).toContain(`<p class="or">${copy.passGroupHeading}</p>`);
+    expect(html).toContain('name="o" value="pass"');
+    expect(html).toContain('name="o" value="pass_applepay"');
+  });
 });
 
 describe("pay page copy", () => {
   it("keeps the authored Russian text", () => {
     const ru = getPayPageCopy("ru");
     expect(ru.failedBody).toBe(
-      "К сожалению, оплата не была проведена. Так бывает, если код подтверждения платежа введён неверно, либо ваша банковская карта не поддерживает 3‑D Secure (то есть подтверждение платежей). Выберите, как вы хотите продолжить:",
+      "Банк не подтвердил платёж: неверный код подтверждения или карта не поддерживает 3‑D Secure. Деньги не списаны. Попробуйте ещё раз:",
     );
   });
 

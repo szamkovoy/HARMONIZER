@@ -6,6 +6,8 @@
  *       successful_return_url?, failure_return_url?, cancel_return_url?, paymentProvider? }
  *       -> { id, status, amountTotal, paymentUrl }. Основной способ создать счёт.
  *       paymentProvider (UNLIMINT | PAYPAL) только для EUR/USD; для RUB поле не шлём.
+ *       Apple Pay — только разовый счёт (ONE_TIME) не в RUB: v3 получает
+ *       paymentProvider UNLIMINT и paymentMethod APPLE_PAY. Откат на v2 идёт обычной картой, без способа.
  *       Цена берётся из карточки оффера, amount от клиента не передаём.
  *   - POST /api/v2/invoice  то же тело, но провайдер в paymentMethod.
  *       Запасной вызов, если v3 ответил не-2xx и это не отказ по email.
@@ -217,7 +219,11 @@ export async function resolveLavaPrice(
 }
 
 /** UNLIMINT — карта (по умолчанию для EUR/USD), PAYPAL — без 3‑D Secure карты. RUB: только карта. */
-export type LavaPaymentMethod = "UNLIMINT" | "PAYPAL";
+/**
+ * UNLIMINT (карта) и PAYPAL — провайдеры. APPLE_PAY — способ оплаты у провайдера UNLIMINT
+ * (только разовые счета EUR/USD, только /api/v3/invoice).
+ */
+export type LavaPaymentMethod = "UNLIMINT" | "PAYPAL" | "APPLE_PAY";
 
 type LavaInvoiceParams = {
   email: string;
@@ -290,7 +296,14 @@ async function createLavaInvoice(
     ...(params.cancelUrl ? { cancel_return_url: params.cancelUrl } : {}),
   };
   // Провайдер (UNLIMINT карта, PAYPAL) задаётся только для EUR/USD.
-  const provider = params.paymentMethod && params.currency !== "RUB" ? params.paymentMethod : null;
+  const chosen = params.paymentMethod && params.currency !== "RUB" ? params.paymentMethod : null;
+  const applePay = chosen === "APPLE_PAY" && params.periodicity === "ONE_TIME";
+  const provider = chosen === "APPLE_PAY" ? null : chosen;
+  const v3Method = applePay
+    ? { paymentProvider: "UNLIMINT", paymentMethod: "APPLE_PAY" }
+    : provider
+      ? { paymentProvider: provider }
+      : {};
   const post = (path: string, body: Record<string, unknown>) =>
     fetch(`${LAVA_API_BASE}${path}`, {
       method: "POST",
@@ -303,7 +316,7 @@ async function createLavaInvoice(
     });
 
   // v3 — актуальный метод Lava: провайдер в поле paymentProvider.
-  let res = await post("/api/v3/invoice", { ...common, ...(provider ? { paymentProvider: provider } : {}) });
+  let res = await post("/api/v3/invoice", { ...common, ...v3Method });
   let text = await res.text();
   if (!res.ok && !isLavaEmailRejection(text)) {
     // v2 помечен устаревшим, но ещё работает: счёт не должен сорваться из-за новой версии.
