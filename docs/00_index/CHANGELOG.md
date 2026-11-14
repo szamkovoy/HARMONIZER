@@ -1,14 +1,15 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.104
-updated: 2026-11-14
+version: 3.105
+updated: 2026-11-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-11-15 (698): Если форма ЮKassa не открылась за 15 секунд, кнопка снова активна и появляется подсказка выключить VPN: в виджете `errVpn` (только метод `ru`), в кабинете строка `.hz-payhint` (`vpnHint`, только `provider = yookassa`). Восемь языков. Docs `account_web`.
 - 2026-11-14 (697): Node-функции Vercel переехали в `dub1`, рядом с базой `eu-west-1`. Замер до и после — в `infra/history.md`. Кнопки покупки в кабинете на время счёта получают класс `hz-busy`. Docs `infra`, `deployment_and_env`.
 - 2026-11-14 (696): На кнопке виджета, пока создаётся счёт, крутится колёсико и стоит `processing`. Checkout пишет накопительный замер `[widget-checkout] timing ms`. Docs `account_web`.
 - 2026-11-14 (695): Первая попытка оплаты предлагает способ. Виджет: строки без рамок, `via` (`paypal` | `applepay`) в `POST /api/widget/:id/checkout`. Кабинет при Lava раскрывает меню под кнопкой и шлёт `method` в `POST /api/account/checkout`. Apple Pay — разовые покупки и 30 дней, не подписка. Docs `account_web`.
