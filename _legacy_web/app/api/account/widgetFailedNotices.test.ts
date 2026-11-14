@@ -8,7 +8,7 @@ const LOCALES = ["ru", "en", "de", "fr", "it", "es", "pt", "nl"] as const;
 describe("widget failed-payment letter", () => {
   it("puts the subject, the landing button and the signature in the letter", () => {
     const copy = getPayPageCopy("ru");
-    const payUrl = "https://zamkovoi.yoga/wbnr?hz_unpaid=widget-1";
+    const payUrl = "https://zamkovoi.yoga/wbnr";
     const letter = buildWidgetFailedEmail({ locale: "ru", payUrl });
 
     expect(letter.subject).toBe(copy.widgetFailedSubject);

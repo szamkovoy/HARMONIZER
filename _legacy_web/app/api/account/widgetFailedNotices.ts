@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { wrapMarketingEmailHtml } from "../_utils/emailTemplate";
 import { sendMarketingEmail } from "../_utils/marketingMail";
-import { unpaidReturnUrl } from "../widget/widgetServer";
+import { returnPageUrl } from "../widget/widgetReturn";
 import { buildPayLetterBody } from "./payLetter";
 import { getPayPageCopy } from "./payPageCopy";
 import { logPaymentEvent } from "./paymentEvents";
@@ -112,7 +112,8 @@ export async function runWidgetFailedNotices(
 
 async function noticeOne(db: SupabaseClient, contract: WidgetContractRow, now: Date): Promise<"sent" | "skipped"> {
   const to = (contract.buyer_email ?? "").trim();
-  const payUrl = contract.widget_id ? unpaidReturnUrl(contract.page_url, contract.widget_id) : null;
+  // Обычный адрес лендинга: виджет открывается как всегда, без сообщения о прошлой попытке.
+  const payUrl = contract.widget_id ? returnPageUrl(contract.page_url) : null;
   if (!to || !payUrl) {
     await markNotice(db, contract.contract_id, now);
     return "skipped";
