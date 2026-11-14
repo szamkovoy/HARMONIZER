@@ -376,6 +376,16 @@
 
     if (opts.unpaid) showError(t.errUnpaid || t.errGeneric);
 
+    // Back from the payment form: the browser restores this page as it was left,
+    // with the button still disabled. Make it usable again.
+    if (typeof window.addEventListener === "function") {
+      window.addEventListener("pageshow", function (ev) {
+        if (!ev || !ev.persisted) return;
+        button.disabled = false;
+        button.textContent = t.button;
+      });
+    }
+
     button.addEventListener("click", submit);
     [nameInput, emailInput].forEach(function (input) {
       if (!input) return;

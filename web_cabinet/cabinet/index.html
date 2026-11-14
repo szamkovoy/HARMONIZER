@@ -664,6 +664,11 @@
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible") refreshOverview();
     });
+    // Возврат кнопкой «назад» с формы оплаты: страница восстанавливается с заблокированной
+    // кнопкой «Переходим к оплате…» — перерисовываем кабинет.
+    window.addEventListener("pageshow", function (ev) {
+      if (ev && ev.persisted) refreshOverview();
+    });
 
     function gotoPayment(promise, btn) {
       promise.then(function (res) {
