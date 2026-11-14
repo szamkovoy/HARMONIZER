@@ -85,6 +85,9 @@
     #hz-cabinet .hz-btn { display:block; width:100%; padding:13px 18px; border:0; border-radius:10px; background:var(--hz-teal); color:#fff; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
     #hz-cabinet .hz-btn:hover { background:var(--hz-teal-dark); }
     #hz-cabinet .hz-btn:disabled { opacity:.6; cursor:default; }
+    #hz-cabinet .hz-busy:disabled { opacity:.9; cursor:progress; }
+    #hz-cabinet .hz-busy::before { content:""; display:inline-block; width:1em; height:1em; margin-right:.55em; vertical-align:-.15em; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:hz-busy-spin .7s linear infinite; }
+    @keyframes hz-busy-spin { to { transform:rotate(360deg); } }
     #hz-cabinet .hz-paymenu { margin-top:8px; border:1px solid var(--hz-line); border-radius:10px; overflow:hidden; background:#fff; animation:hz-paymenu .18s ease-out; }
     #hz-cabinet .hz-paymenu button { display:block; width:100%; padding:13px 16px; border:0; border-top:1px solid var(--hz-line); background:#fff; color:inherit; font-size:15px; font-weight:500; text-align:left; cursor:pointer; font-family:inherit; }
     #hz-cabinet .hz-paymenu button:first-child { border-top:0; }
@@ -690,7 +693,7 @@
         }
         throw new Error("no paymentUrl");
       }).catch(function (err) {
-        if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute("data-label") || ""; }
+        if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute("data-label") || ""; btn.classList.remove("hz-busy"); }
         if (onFail) onFail();
         var msg = err && err.message ? String(err.message) : "";
         if (msg === "lava_buyer_email_rejected" || /incorrect email to purchase/i.test(msg)) {
@@ -737,6 +740,7 @@
           var all = menu.querySelectorAll("button");
           for (var i = 0; i < all.length; i++) all[i].disabled = true;
           b.textContent = T.redirecting;
+          b.classList.add("hz-busy");
           start(item.method, b, function () {
             for (var j = 0; j < all.length; j++) all[j].disabled = false;
           });
@@ -757,7 +761,7 @@
       if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
       var extra = { kind:"subscription", tier: tier };
       if (payMenu(btn, false, function (method, item, onFail) { startCheckout(extra, method, item, onFail); })) return;
-      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
+      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; btn.classList.add("hz-busy"); }
       startCheckout(extra, "", btn);
     };
 
@@ -767,7 +771,7 @@
       var extra = { kind:"webinar" };
       if (wid) extra.webinarId = wid;
       if (payMenu(btn, true, function (method, item, onFail) { startCheckout(extra, method, item, onFail); })) return;
-      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
+      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; btn.classList.add("hz-busy"); }
       startCheckout(extra, "", btn);
     };
 
@@ -775,7 +779,7 @@
       if (purchase && purchase.mode === "link" && purchase.url) { window.location.href = purchase.url; return; }
       var extra = { kind:"book" };
       if (payMenu(btn, true, function (method, item, onFail) { startCheckout(extra, method, item, onFail); })) return;
-      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; }
+      if (btn) { btn.disabled = true; btn.textContent = T.redirecting; btn.classList.add("hz-busy"); }
       startCheckout(extra, "", btn);
     };
 
