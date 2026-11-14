@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.109
+version: 3.110
 updated: 2026-11-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,7 +9,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
-- 2026-11-15 (702): Письмо об отказе оплаты с виджета ведёт на обычный адрес лендинга (`returnPageUrl`), без `?hz_unpaid=`. Docs `account_web`.
+- 2026-11-15 (703): Письмо об отказе оплаты с виджета ведёт на обычный адрес лендинга (`returnPageUrl`), без `?hz_unpaid=`. Docs `account_web`.
+- 2026-11-15 (702): В публичном контракте `POST /pay/retry` и `/pay/failed` зафиксирована опция `rucard`; в dependencies `account_web` ↔ `marketing_email` — письмо об отказе виджета. Docs `account_web`, `marketing_email`.
 - 2026-11-15 (701): Зафиксированы бэкапы базы: ежедневный физический снимок Supabase, PITR выключен, Storage в снимок не входит, своя копия — `supabase db dump` в три файла вне репозитория. Docs `infra`.
 - 2026-11-15 (700): Отказ оплаты с виджета через 30 минут шлёт письмо на лендинг (`page_url`, `?hz_unpaid=`). На странице вариантов у русскоязычного покупателя Lava есть «Оплатить российской картой». Секрет вебхука ЮKassa убран: платёж перечитывается через API. Миграция `20261114225954`. Docs `account_web`.
 - 2026-11-15 (699): Сообщение об ошибке виджета — светлая плашка (`#fff7ed` / `#9a3412` / рамка `#fdba74`), чтобы его было видно на любом цвете карточки, включая красный фон лендинга. Docs `account_web`.
