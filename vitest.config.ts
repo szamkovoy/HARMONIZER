@@ -10,6 +10,15 @@ const sharedCore = path.join(root, "_legacy_web/shared_core");
 export default defineConfig({
   test: {
     include: ["**/*.{test,spec}.ts"],
+    // These use node:test and run via `npm run test:book` (tsx --test).
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.{idea,git,cache,output,temp}/**",
+      "modules/book/core/flattenToc.test.ts",
+      "modules/book/core/liveAnchor.test.ts",
+      "modules/book/core/tocNavigate.test.ts",
+    ],
   },
   resolve: {
     alias: [

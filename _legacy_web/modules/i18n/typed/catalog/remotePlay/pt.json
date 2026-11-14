@@ -12,7 +12,7 @@
     "closeA11y": "Fechar controle remoto",
     "idleCode": "inativo",
     "titleFallback": "Prática na TV",
-    "metaTemplate": "Controle remoto da TV · código {code}",
+    "metaTemplate": "Comando TV · código {code}",
     "description": "O vídeo está sendo reproduzido na TV. O telefone funciona apenas como controle remoto.",
     "durationUnknown": "Duração a confirmar",
     "durationMinutesTemplate": "{minutes} min",

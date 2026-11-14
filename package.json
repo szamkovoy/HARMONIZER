@@ -24,6 +24,7 @@
     "submit:ios": "npx eas-cli submit --platform ios --path dist/harmonizer-production.ipa",
     "web": "expo start --web",
     "test": "vitest run",
+    "test:book": "tsx --test modules/book/core/flattenToc.test.ts modules/book/core/liveAnchor.test.ts modules/book/core/tocNavigate.test.ts",
     "deploy:vercel": "vercel --prod --yes",
     "eas-build-post-install": "node scripts/refresh-cocoapods-appcheck-cdn.mjs && node scripts/prefetch-rn-ios-artifacts.mjs",
     "postinstall": "patch-package"
