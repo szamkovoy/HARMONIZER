@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.28
-updated: 2026-11-14
+version: 1.29
+updated: 2026-11-15
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
@@ -91,3 +91,20 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **Документ `docs/tech_stack.md`:** утверждает вторичность PWA — это согласовано с ролью `_legacy_web`, но сам layout всё ещё экспонирует manifest/icons как для installable web; противоречие только в продуктовом приоритете, не в наличии файлов.
 - **React Native Sentry:** зависимость и `sentry.client.config.ts` есть; без явного импорта в entry инициализация может не выполняться — зафиксировано в `history.md`.
 - **Dialog cache storage:** explicit Gemini context caching пока держится в in-memory TTL map внутри `gemini.ts`; между cold start / инстансами Vercel cache name не разделяется, поэтому это оптимизация best-effort, а не гарантированная распределённая кеш-инфраструктура.
+
+## 6. Бэкапы
+
+Проект Supabase `harmonizer` (`vsdmphhczmcgfrvbwodp`, `eu-west-1`) сам снимает ежедневный физический снимок базы (WAL-G, `walg_enabled`). На 2026-11-15 за последние 7 дней снимки есть и все `COMPLETED`, тип physical: 8, 9, 10, 11, 12, 13 и 14 ноября, каждый около 01:40 UTC. PITR выключен (`pitr_enabled=false`): восстановить можно только на такой суточный снимок, не на произвольную минуту. Настройки бэкапов не менялись.
+
+В этот снимок не входит Storage. Бакеты на ту же дату: `affirmation-audio` (закрытый, 30 объектов, 4 207 100 байт), `email-assets` (публичный, 18, 963 840), `post-covers` (публичный, 85, 10 701 144), `story-media` (публичный, пустой), `support-attachments` (закрытый, пустой).
+
+Своя копия базы — три файла вне репозитория, связанный проект, CLI `supabase` 2.95 (для `pg_dump` нужен запущенный Docker):
+
+```bash
+mkdir -p ~/Backups/harmonizer/2026-11-15
+supabase db dump --linked -f ~/Backups/harmonizer/2026-11-15/schema.sql
+supabase db dump --linked --data-only --use-copy -f ~/Backups/harmonizer/2026-11-15/data.sql
+supabase db dump --linked --role-only -f ~/Backups/harmonizer/2026-11-15/roles.sql
+```
+
+Эти файлы в git не класть.

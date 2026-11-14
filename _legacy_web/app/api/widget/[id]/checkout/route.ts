@@ -23,7 +23,7 @@ import {
   widgetJson,
   widgetPreflight,
 } from "../../widgetServer";
-import { widgetReturnUrl } from "../../widgetReturn";
+import { returnPageUrl, widgetReturnUrl } from "../../widgetReturn";
 
 export const runtime = "nodejs";
 
@@ -128,6 +128,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       buyer_name: name || null,
       buyer_locale: locale,
       source: "widget",
+      // Страница с виджетом: на неё ведёт кнопка письма об отказе оплаты.
+      page_url: returnPageUrl(pageUrl),
       widget_id: widget.id,
       catalog_id: catalog.id,
       tier: catalog.tier,

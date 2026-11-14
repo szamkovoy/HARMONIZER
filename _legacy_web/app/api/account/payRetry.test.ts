@@ -215,6 +215,9 @@ describe("failure page options", () => {
       "applepay",
       "paypal",
     ]);
+    expect(
+      buildOneTimeActions({ paypal: true, foreignCard: true, russianCard: true, applePay: true, copy }).map((a) => a.option),
+    ).toEqual(["card", "foreign", "rucard", "applepay", "paypal"]);
   });
 
   it("recognises Apple Pay devices", () => {
@@ -274,6 +277,25 @@ describe("failure page options", () => {
     });
   });
 
+  it("offers a Russian card after a Lava decline for a Russian-speaking buyer", () => {
+    expect(
+      buildFailedActions({
+        kind: "subscription",
+        blocks: NO_BLOCKS,
+        paypal: true,
+        foreignCard: true,
+        russianCard: true,
+        copy,
+      }).valueOf(),
+    ).toEqual([
+      { label: "Оплатить другой картой", option: "card" },
+      { label: "Оплатить картой иностранного банка", option: "foreign" },
+      { label: "Оплатить российской картой", option: "rucard" },
+      { label: "Оплатить через PayPal", option: "paypal" },
+      { label: "Оплатить 30 дней без автопродления", option: "pass" },
+    ]);
+  });
+
   it("offers a foreign-bank card after a YooKassa decline", () => {
     expect(
       buildFailedActions({ kind: "subscription", blocks: NO_BLOCKS, paypal: false, foreignCard: true, copy }),
@@ -305,6 +327,7 @@ describe("failure page options", () => {
     expect(retryChoice(token, "pass_applepay")).toEqual({ kind: "pass", paypal: false, applePay: true });
     expect(retryChoice({ kind: "pass" } as PayRetryPayload, "paypal")).toEqual({ kind: "pass", paypal: true });
     expect(retryChoice(token, "foreign")).toEqual({ kind: "subscription", paypal: false, foreign: true });
+    expect(retryChoice(token, "rucard")).toEqual({ kind: "subscription", paypal: false, russian: true });
     expect(retryChoice(token, "anything")).toBeNull();
   });
 

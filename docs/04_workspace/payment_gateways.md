@@ -13,13 +13,13 @@
 | `YOOKASSA_SHOP_ID` | shopId | Credentials магазина (не флаг маршрутизации) |
 | `YOOKASSA_SECRET_KEY` | secret | API secret (не в git) |
 | `YOOKASSA_RETURN_URL` | `https://zamkovoi.yoga/cabinet/?paid=1` | Return после оплаты |
-| `YOOKASSA_WEBHOOK_SECRET` | опц. | Доп. проверка webhook |
 
 **Не используем** (удалены из модели):
 
 - `YOOKASSA_ENABLED` — дублировал `PAYMENT_YOOKASSA_ENABLED`
 - `PAYMENT_GATEWAY_FOR_RUB` — заменён на `PAYMENT_*_REGION`
 - `YOOKASSA_RECURRING_ENABLED` — автоплатежи всегда запрашиваются для подписок (см. ниже)
+- `YOOKASSA_WEBHOOK_SECRET` — ЮKassa не подписывает уведомления. Подлинность проверяется так: телу вебхука не верим, платёж перечитывается через API магазина, и только этот ответ меняет контракт.
 
 Prod (целевой режим): оба шлюза `ENABLED=true`, Lava `REGION=INT`, ЮKassa `REGION=RU`.
 
@@ -48,6 +48,7 @@ Prod (целевой режим): оба шлюза `ENABLED=true`, Lava `REGION
 
 `https://harmonizer-ten.vercel.app/api/account/webhooks/yookassa`  
 События: `payment.succeeded`, `payment.canceled`.  
+Отдельного секрета нет. ЮKassa не подписывает уведомление, поэтому обработчик не доверяет телу: перед сменой контракта платёж заново читается `GET /v3/payments/{id}` ключом магазина. Пустое или битое тело отвечает `400`.  
 Этот URL не переносим на `harmonizer.zamkovoi.yoga`: ЮKassa вызывает его со своих серверов, не из РФ. Алиас `vercel.app` должен отдавать API, а не редирект (POST вебхука редирект ломает).
 
 В кабинете ЮKassa → HTTP-уведомления этот URL **обязан** быть включён (для **текущего** shopId). Без вебхука return `?paid=1` показывает «Спасибо», но контракт остаётся `pending`.

@@ -30,6 +30,7 @@ import { fetchYookassaPayment } from "./yookassa";
 export type PayOption =
   | "card"
   | "foreign"
+  | "rucard"
   | "paypal"
   | "applepay"
   | "pass"
@@ -204,6 +205,16 @@ function foreignCardAvailable(token: GatewayHint): boolean {
   return gateway.ok && gateway.provider === "yookassa" && isPaymentProviderEnabled("lavatop");
 }
 
+/**
+ * Счёт ушёл в Lava, а покупатель пользуется русским языком: страна могла определиться
+ * неверно, поэтому рядом предлагаем российскую карту (ЮKassa). Другим языкам её не показываем.
+ */
+function russianCardAvailable(token: GatewayHint & { locale: string }): boolean {
+  if (!token.locale.toLowerCase().startsWith("ru")) return false;
+  const gateway = resolvePaymentGateway({ country: token.country, currency: token.currency });
+  return gateway.ok && gateway.provider === "lavatop" && isPaymentProviderEnabled("yookassa");
+}
+
 function paypalAvailable(token: GatewayHint): boolean {
   if (token.currency === "RUB") return false;
   const gateway = resolvePaymentGateway({ country: token.country, currency: token.currency });
@@ -216,6 +227,7 @@ export function buildFailedActions(params: {
   blocks: Awaited<ReturnType<typeof tierCheckoutBlocks>>;
   paypal: boolean;
   foreignCard?: boolean;
+  russianCard?: boolean;
   copy: PayPageCopy;
   /** Подпись первой кнопки; по умолчанию «Оплатить другой картой». */
   retryLabel?: string;
@@ -226,6 +238,7 @@ export function buildFailedActions(params: {
   if (!blocks[params.kind]) {
     actions.push({ label: params.retryLabel ?? copy.payOtherCard, option: "card" });
     if (params.foreignCard) actions.push({ label: copy.payForeignCard, option: "foreign" });
+    if (params.russianCard) actions.push({ label: copy.payRussianCard, option: "rucard" });
     if (params.paypal) actions.push({ label: copy.payPaypal, option: "paypal" });
   }
   if (params.kind === "subscription" && !blocks.pass) {
@@ -263,11 +276,13 @@ export function isApplePayDevice(userAgent: string | null | undefined): boolean 
 export function buildOneTimeActions(params: {
   paypal: boolean;
   foreignCard: boolean;
+  russianCard?: boolean;
   applePay?: boolean;
   copy: PayPageCopy;
 }): PageAction[] {
   const actions: PageAction[] = [{ label: params.copy.payAgain, option: "card" }];
   if (params.foreignCard) actions.push({ label: params.copy.payForeignCard, option: "foreign" });
+  if (params.russianCard) actions.push({ label: params.copy.payRussianCard, option: "rucard" });
   if (params.applePay) actions.push({ label: params.copy.payApplePay, option: "applepay" });
   if (params.paypal) actions.push({ label: params.copy.payPaypal, option: "paypal" });
   return actions;
@@ -315,6 +330,7 @@ export async function renderFailedPage(
     blocks: await tierCheckoutBlocks(db, { userId: token.userId, tier: token.tier }),
     paypal: paypalAvailable(token),
     foreignCard: foreignCardAvailable(token),
+    russianCard: russianCardAvailable(token),
     copy,
     ...(view === "abandoned" ? { retryLabel: copy.payAgain } : {}),
   });
@@ -354,6 +370,7 @@ async function renderOneTimeFailedPage(
     actions: buildOneTimeActions({
       paypal: paypalAvailable(token),
       foreignCard: foreignCardAvailable(token),
+      russianCard: russianCardAvailable(token),
       // Apple Pay идёт через Lava (EUR/USD) — там же, где доступен PayPal.
       applePay: appleDevice && paypalAvailable(token),
       copy,
@@ -462,7 +479,13 @@ export async function handlePayRenewGet(req: Request): Promise<Response> {
   });
 }
 
-export type RetryChoice = { kind: PayRetryKind; paypal: boolean; foreign?: boolean; applePay?: boolean };
+export type RetryChoice = {
+  kind: PayRetryKind;
+  paypal: boolean;
+  foreign?: boolean;
+  russian?: boolean;
+  applePay?: boolean;
+};
 
 export function retryChoice(token: PayRetryPayload, option: string): RetryChoice | null {
   switch (option) {
@@ -470,6 +493,8 @@ export function retryChoice(token: PayRetryPayload, option: string): RetryChoice
       return { kind: token.kind, paypal: false };
     case "foreign":
       return { kind: token.kind, paypal: false, foreign: true };
+    case "rucard":
+      return { kind: token.kind, paypal: false, russian: true };
     case "paypal":
       return { kind: token.kind, paypal: true };
     case "pass":
@@ -505,8 +530,9 @@ export async function handlePayRetryPost(req: Request): Promise<Response> {
       tier: token.payload.tier,
       kind: choice.kind,
       // Lava, международная карта: EUR без страны → профиль INT.
-      currency: choice.foreign ? "EUR" : token.payload.currency,
-      country: choice.foreign ? null : token.payload.country,
+      // Российская карта: RUB и страна RU → ЮKassa.
+      currency: choice.foreign ? "EUR" : choice.russian ? "RUB" : token.payload.currency,
+      country: choice.foreign ? null : choice.russian ? "RU" : token.payload.country,
       paymentMethod: choice.paypal ? "PAYPAL" : choice.applePay ? "APPLE_PAY" : null,
     });
     if (out.ok) return redirect(out.paymentUrl);
@@ -559,7 +585,15 @@ class PayRetryRefused extends Error {
  * или null, если кнопка не распознана. Отказ шлюза — PayRetryRefused.
  */
 async function retryOneTime(token: OneTimeRetryPayload, option: string): Promise<string | null> {
-  if (option !== "card" && option !== "foreign" && option !== "paypal" && option !== "applepay") return null;
+  if (
+    option !== "card" &&
+    option !== "foreign" &&
+    option !== "rucard" &&
+    option !== "paypal" &&
+    option !== "applepay"
+  ) {
+    return null;
+  }
   const db = createServiceSupabase();
   const buyer = await loadBuyer(db, token.userId);
   if (typeof buyer === "string") throw new PayRetryRefused(buyer, buyer === "user_not_found" ? 404 : 409);
@@ -570,8 +604,9 @@ async function retryOneTime(token: OneTimeRetryPayload, option: string): Promise
       product: token.product,
       webinarId,
       // Lava, международная карта: EUR без страны → профиль INT.
-      currency: option === "foreign" ? "EUR" : token.currency,
-      country: option === "foreign" ? null : token.country,
+      // Российская карта: RUB и страна RU → ЮKassa.
+      currency: option === "foreign" ? "EUR" : option === "rucard" ? "RUB" : token.currency,
+      country: option === "foreign" ? null : option === "rucard" ? "RU" : token.country,
       paymentMethod: option === "paypal" ? "PAYPAL" : option === "applepay" ? "APPLE_PAY" : null,
       buyer,
     });

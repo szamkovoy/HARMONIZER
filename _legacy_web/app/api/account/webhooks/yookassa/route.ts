@@ -20,9 +20,9 @@ import { fetchYookassaPayment, type YookassaPayment } from "../../yookassa";
  * Вебхуки ЮKassa: payment.succeeded / payment.canceled / refund.succeeded.
  * URL: https://<vercel>/api/account/webhooks/yookassa
  *
- * Auth: если задан YOOKASSA_WEBHOOK_SECRET — требуем Authorization Bearer/Basic
- * или заголовок X-Yookassa-Signature с тем же секретом. Всегда перечитываем
- * платёж через API (источник правды) перед активацией.
+ * Подлинность: ЮKassa не подписывает уведомления и не шлёт своих заголовков, поэтому
+ * телу уведомления не верим — платёж всегда перечитывается через API ЮKassa
+ * (источник правды) перед любым изменением контракта.
  *
  * metadata.kind=renewal → продление; иначе первый платёж.
  */
@@ -33,27 +33,6 @@ type YookassaNotification = {
   event?: string;
   object?: YookassaPayment;
 };
-
-function authorized(req: Request): boolean {
-  const secret = process.env.YOOKASSA_WEBHOOK_SECRET?.trim();
-  if (!secret) return true;
-
-  const auth = req.headers.get("authorization")?.trim() ?? "";
-  if (auth === `Bearer ${secret}`) return true;
-  if (auth.startsWith("Basic ")) {
-    try {
-      const decoded = Buffer.from(auth.slice(6), "base64").toString("utf8");
-      if (decoded === secret || decoded === `:${secret}` || decoded.endsWith(`:${secret}`)) {
-        return true;
-      }
-    } catch {
-      // ignore
-    }
-  }
-  const sig = req.headers.get("x-yookassa-signature")?.trim();
-  if (sig && sig === secret) return true;
-  return false;
-}
 
 function parseAmount(payment: YookassaPayment): number | null {
   const raw = payment.amount?.value;
@@ -146,10 +125,6 @@ export async function POST(req: Request): Promise<Response> {
   let rawBody: unknown = null;
   let eventName = "";
   try {
-    if (!authorized(req)) {
-      return json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = (await req.json().catch(() => null)) as YookassaNotification | null;
     rawBody = body;
     const event = body?.event ?? "";
