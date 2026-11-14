@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.105
+version: 3.106
 updated: 2026-11-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-15 (699): Сообщение об ошибке виджета — светлая плашка (`#fff7ed` / `#9a3412` / рамка `#fdba74`), чтобы его было видно на любом цвете карточки, включая красный фон лендинга. Docs `account_web`.
 - 2026-11-15 (698): Если форма ЮKassa не открылась за 15 секунд, кнопка снова активна и появляется подсказка выключить VPN: в виджете `errVpn` (только метод `ru`), в кабинете строка `.hz-payhint` (`vpnHint`, только `provider = yookassa`). Восемь языков. Docs `account_web`.
 - 2026-11-14 (697): Node-функции Vercel переехали в `dub1`, рядом с базой `eu-west-1`. Замер до и после — в `infra/history.md`. Кнопки покупки в кабинете на время счёта получают класс `hz-busy`. Docs `infra`, `deployment_and_env`.
 - 2026-11-14 (696): На кнопке виджета, пока создаётся счёт, крутится колёсико и стоит `processing`. Checkout пишет накопительный замер `[widget-checkout] timing ms`. Docs `account_web`.
