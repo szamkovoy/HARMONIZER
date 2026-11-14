@@ -35,6 +35,8 @@ type CheckoutBody = {
   name?: string;
   email?: string;
   method?: string;
+  /** Международный шлюз: paypal | applepay; пусто — карта. */
+  via?: string;
   lang?: string;
   pageUrl?: string;
   /** Honeypot: real visitors never fill it. */
@@ -170,6 +172,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       currency: intOffer.currency,
       locale,
       successUrl: successUrl || thanksReturnUrl(pageUrl, widget.id),
+      // Apple Pay Lava принимает только для разовых счетов.
+      paymentMethod:
+        body.via === "paypal"
+          ? ("PAYPAL" as const)
+          : body.via === "applepay" && !isSubscription
+            ? ("APPLE_PAY" as const)
+            : null,
       failureUrl: unpaidReturnUrl(pageUrl, widget.id),
       cancelUrl: unpaidReturnUrl(pageUrl, widget.id),
     };
