@@ -11,13 +11,27 @@ import {
 } from "./dayContentCache";
 
 const locA = { lat: 59.9346462, lng: 30.2990411, timezone: "Europe/Moscow" };
+
+/** Same calendar day the home screen asks the cache for: local date in the location timezone. */
+function localForecastDate(timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+const forecastDate = localForecastDate(locA.timezone);
 /** ~80 m east — must still count as the same place (old epsilon ~11 m failed here). */
 const locNearby = { lat: 59.9346462, lng: 30.3004, timezone: "Europe/Moscow" };
 /** ~5 km east — strict miss, but today's row must stay for relaxed reads. */
 const locFar = { lat: 59.9346462, lng: 30.39, timezone: "Europe/Moscow" };
 
 const forecast = {
-  date: "2026-09-05",
+  date: forecastDate,
   importance: {
     Sun: 0,
     Moon: 0,
@@ -49,10 +63,10 @@ const forecast = {
     exactAspect: null,
   },
   transitChart: {
-    referenceTime: "2026-09-05T12:00:00Z",
+    referenceTime: `${forecastDate}T12:00:00Z`,
     planets: {} as never,
   },
-  computedAt: "2026-09-05T00:00:06.000Z",
+  computedAt: `${forecastDate}T00:00:06.000Z`,
   cacheValidUntil: "2099-01-01T00:00:00.000Z",
 };
 
@@ -63,7 +77,7 @@ describe("dayContentCache GPS jitter", () => {
       userId,
       accessMode: "premium" as const,
       accessTier: "master" as const,
-      forecastDate: "2026-09-05",
+      forecastDate,
       scopeKey: "natal:en",
     };
 
