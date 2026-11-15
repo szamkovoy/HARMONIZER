@@ -1,7 +1,7 @@
 ---
 id: 04_workspace/open_questions
 title: Open Questions
-version: 1.47
+version: 1.48
 updated: 2026-11-15
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -81,6 +81,7 @@ code_refs: []
 
 - **~~Платёжная система~~** — закрыто 2026-11-15: Lava + ЮKassa в проде (виджет, кабинет, подписки, 30 дней, вебинар, книга); открытые хвосты живут отдельными пунктами (PayPal live, курсы m1..m7, годовая периодичность), а не этим блоком.
 - **`YOOKASSA_WEBHOOK_SECRET`** — 2026-11-15: **не задавать**. ЮKassa не подписывает уведомления; подлинность — перечитывание платежа через API после вебхука.
+- **Lava «Завершите регистрацию»** — 2026-11-15: Lava шлёт покупателю письмо «Завершите регистрацию» при первом счёте на новый email; вопрос в поддержке Lava с 2026-11-15.
 - **Safari progress bar на `/cabinet/` (2026-07-20):** закрыто переходом на standalone HTML вне WP (см. `account_web/history` 2026-07-20). Если после выкладки на ISPManager полоска снова «залипает» — проверить, что URL не отдаётся темой WordPress.
 - **Карта под выбором города рождения** в `BirthPlacePicker` — по желанию, позже.
 - **~~Legacy-аккаунты Apple/Google / private relay~~** — закрыто 2026-11-15: проверено на реальном аккаунте Apple с relay-email, код приходит (решение Сергея).
@@ -287,6 +288,7 @@ code_refs: []
 
 - **Supabase Auth POST `/token` 504 (2026-07-27):** при валидном apikey password/refresh давали gateway **504** (запросы не доходили до GoTrue), GET `/user` и REST работали — похоже на [silent freeze GoTrue](https://github.com/supabase/supabase/issues/46429). Админка: логин через `POST /api/admin/login`, `sb_*` не слать в `Authorization`. Если снова 504 — Restart project в Supabase Dashboard (`pause` через MCP может упасть на backup check).
 - **~~Техдолг тестов / 3 ошибки tsc в practiceSelection.test.ts~~** — закрыто 2026-11-15: сейчас 0 ошибок `tsc` в `_legacy_web` по этому файлу (аудит-batch-1).
+- **~~tsc в корне (Expo)~~** — закрыто 2026-11-15 (audit-batch-2): `npx tsc --noEmit` в корне = 0; сняты мёртвые ветки `permission_denied` на Home и поправлены типы location single-flight / ref-after-await.
 - На момент создания скелета дополнительных записей не требовалось; новые вопросы добавлять сюда по мере миграции остальных модулей.
 
 ## onboarding

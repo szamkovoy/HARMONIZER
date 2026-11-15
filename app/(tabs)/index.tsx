@@ -51,7 +51,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -683,10 +682,6 @@ export default function HomeScreen() {
             tone="warning"
             actionLabel={strings.retryButton}
             onAction={() => void refresh({ forceRefresh: true })}
-            secondaryActionLabel={locationIssue === "permission_denied" ? strings.openSettingsButton : undefined}
-            onSecondaryAction={
-              locationIssue === "permission_denied" ? () => void Linking.openSettings() : undefined
-            }
           />
         ) : null}
         {status === "need_birth_data" ? (
@@ -717,10 +712,6 @@ export default function HomeScreen() {
             tone="warning"
             actionLabel={strings.retryButton}
             onAction={() => void refresh({ forceRefresh: true })}
-            secondaryActionLabel={locationIssue === "permission_denied" ? strings.openSettingsButton : undefined}
-            onSecondaryAction={
-              locationIssue === "permission_denied" ? () => void Linking.openSettings() : undefined
-            }
           />
         ) : null}
 

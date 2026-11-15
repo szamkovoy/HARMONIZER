@@ -218,14 +218,17 @@ export function useForegroundLocationPermission(options?: {
     let cancelled = false;
     void (async () => {
       await syncFromNativeRef.current("mount");
-      if (cancelled || prevStatusRef.current === "granted") return;
+      let statusAfterSync = prevStatusRef.current;
+      if (cancelled || statusAfterSync === "granted") return;
       const persistedAwait = await isAwaitingLocationSettingsGrant();
-      if (cancelled || prevStatusRef.current === "granted") return;
+      statusAfterSync = prevStatusRef.current;
+      if (cancelled || statusAfterSync === "granted") return;
       if (persistedAwait) {
         // D2D/backup can restore this SecureStore flag while OS permission is still
         // undetermined on a new install — only meaningful after we opened Settings.
         const fresh = await readForegroundPermission();
-        if (cancelled || prevStatusRef.current === "granted") return;
+        statusAfterSync = prevStatusRef.current;
+        if (cancelled || statusAfterSync === "granted") return;
         if (!fresh || fresh.status === "undetermined") {
           await markAwaitingLocationSettingsGrant(false);
           awaitingSettingsReturnRef.current = false;
@@ -234,7 +237,8 @@ export function useForegroundLocationPermission(options?: {
         }
         awaitingSettingsReturnRef.current = true;
         await new Promise((resolve) => setTimeout(resolve, SETTINGS_RETURN_PROMPT_DELAY_MS));
-        if (cancelled || prevStatusRef.current === "granted") return;
+        statusAfterSync = prevStatusRef.current;
+        if (cancelled || statusAfterSync === "granted") return;
         await promptAfterSettingsReturn("mount");
         return;
       }

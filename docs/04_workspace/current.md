@@ -9,6 +9,6 @@ code_refs: []
 
 ## 2026-11-15
 
-- A: письмо об отказе виджета — обычный `page_url` без `hz_unpaid` (PR #27, prod).
-- B: audit-batch-1 — типы Supabase, tsc без локационных трёх кластеров, Edge `cacheValidUntil`, ревизия `open_questions`.
-- Следом: живой тест оплаты виджета картой KZ (Сергей назовёт время) → SQL `payment_contracts` + `widgetNotices` у lava-reconcile.
+- Audit-batch-2: root `tsc` = 0; факты Android push; Lava «Завершите регистрацию» в open_questions.
+- Письмо отказа виджета — plain landing (PR #27). Audit-batch-1 смержен.
+- Ждём тест виджета картой KZ → SQL `payment_contracts` + `widgetNotices`.

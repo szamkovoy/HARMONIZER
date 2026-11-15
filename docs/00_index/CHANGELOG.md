@@ -1,14 +1,15 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.112
-updated: 2026-11-14
+version: 3.113
+updated: 2026-11-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
 
+- 2026-11-15 (706): Audit-batch-2: root `tsc` = 0 (location/Home type cleanup); в `open_questions` закрыт «tsc в корне», добавлен вопрос Lava «Завершите регистрацию». Docs `04_workspace`.
 - 2026-11-14 (705): Spec/`caching_strategy`/`dependencies` приведены к коду: Edge fallback `cacheValidUntil` = конец локального дня прогноза (`endOfForecastDateUtc`), а не `now+24h`. Docs `daily_forecast`, `astro/caching_strategy`.
 - 2026-11-15 (704): Audit-batch-1: регенерация `supabase-types`, правки root tsc (кроме трёх локационных кластеров), Edge `cacheValidUntil` = конец дня в TZ пользователя, ревизия `open_questions` / `current`. Docs `daily_forecast`, `04_workspace`.
 - 2026-11-15 (703): Письмо об отказе оплаты с виджета ведёт на обычный адрес лендинга (`returnPageUrl`), без `?hz_unpaid=`. Docs `account_web`.
