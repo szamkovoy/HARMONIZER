@@ -62,7 +62,8 @@ code_refs: []
 ## `notifications` / Android remote push (FCM, 2026-07-22)
 
 - **~~Админский push на Android не доходит~~** — закрыто 2026-07-23 (FCM V1 в EAS); уточнение 2026-07-24: gitignore `google-services.json` не попадал в EAS build → 0 android tokens. Залит EAS file-env `GOOGLE_SERVICES_JSON`; нужен rebuild + проверка `push_tokens.platform=android`. См. `notifications/history`.
-- **Android push: 83 установки Play / 1 токен (2026-11-15).** **Контекст:** `push_tokens` android=1, `last_seen_at` 2026-07-29; iOS≈50. Локальный AAB с Firebase есть; live-диагностики на устройстве не было. **Проявление:** админский push почти некому слать на Android. **Действие:** после store-сборки с телеметрией `push_registration` + `app_open.platform` смотреть `stage` в `user_event_log`; при необходимости доложить `GOOGLE_SERVICES_JSON` в EAS production file-env и перепроверить FCM V1 credentials.
+- **~~Android push: 83 установки Play / 1 токен (2026-11-15)~~** — закрыто 2026-11-16: root cause — Android API key в Google Cloud ограничен по SHA-1 без отпечатка **Google Play App Signing** → Firebase Installations 403 → FCM Registration failed на store-билде; билд не нужен после добавления SHA-1. Live: новый android-токен + Expo receipt `ok`. См. `notifications/history`.
+- **Посчитать токены Android через неделю (≈2026-11-23).** **Контекст:** после фикса SHA-1 пользователи Play начнут claim’ить токены при следующем открытии приложения. **Действие:** `select platform, count(*), max(last_seen_at) from push_tokens group by 1;` и, если к тому времени выйдет store-сборка с телеметрией `push_registration`, — распределение `stage` в `user_event_log`.
 
 ## `daily_forecast` / стартовая пауза главного экрана (наблюдение пользователя, 2026-07-20)
 
