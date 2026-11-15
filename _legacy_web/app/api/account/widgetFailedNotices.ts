@@ -23,6 +23,8 @@ type WidgetContractRow = {
   contract_id: string;
   buyer_email: string | null;
   buyer_locale: string | null;
+  buyer_name: string | null;
+  catalog_id: string | null;
   widget_id: string | null;
   page_url: string | null;
   provider: string | null;
@@ -34,6 +36,10 @@ type WidgetContractRow = {
 export function buildWidgetFailedEmail(params: {
   locale: string | null;
   payUrl: string;
+  /** Имя из формы виджета для приветствия. */
+  name?: string | null;
+  /** Название продукта из каталога для строки «Вы оплачивали: …». */
+  product?: string | null;
 }): { subject: string; html: string; text: string; lang: string } {
   const copy = getPayPageCopy(params.locale);
   const { bodyHtml, text } = buildPayLetterBody({
@@ -42,6 +48,8 @@ export function buildWidgetFailedEmail(params: {
     buttonLabel: copy.widgetFailedButton,
     buttonUrl: params.payUrl,
     buttonColor: NOTICE_BUTTON_COLOR,
+    name: params.name,
+    product: params.product,
   });
   const html = wrapMarketingEmailHtml({ bodyHtml, lang: copy.lang, footer: null });
   return { subject: copy.widgetFailedSubject, html, text, lang: copy.lang };
@@ -73,7 +81,9 @@ export async function runWidgetFailedNotices(
   const maxUpdated = new Date(now.getTime() - MIN_AGE_MS).toISOString();
   const { data, error } = await db
     .from("payment_contracts")
-    .select("contract_id,buyer_email,buyer_locale,widget_id,page_url,provider,currency,failure_reason,updated_at")
+    .select(
+      "contract_id,buyer_email,buyer_locale,buyer_name,catalog_id,widget_id,page_url,provider,currency,failure_reason,updated_at",
+    )
     .eq("status", "failed")
     .eq("source", "widget")
     .is("failed_notice_sent_at", null)
@@ -148,7 +158,12 @@ async function noticeOne(db: SupabaseClient, contract: WidgetContractRow, now: D
   }
   if (!(await markNotice(db, contract.contract_id, now))) return "skipped";
 
-  const letter = buildWidgetFailedEmail({ locale: contract.buyer_locale, payUrl });
+  const letter = buildWidgetFailedEmail({
+    locale: contract.buyer_locale,
+    payUrl,
+    name: contract.buyer_name,
+    product: await catalogTitle(db, contract.catalog_id),
+  });
   const sent = await sendMarketingEmail({
     to,
     subject: letter.subject,
@@ -171,6 +186,20 @@ async function noticeOne(db: SupabaseClient, contract: WidgetContractRow, now: D
     errorMessage: contract.failure_reason,
   });
   return "sent";
+}
+
+/**
+ * Название продукта из `payment_catalog.title` (локализованных title_i18n в таблице нет).
+ * Без названия письмо уходит без строки «Вы оплачивали: …».
+ */
+async function catalogTitle(db: SupabaseClient, catalogId: string | null): Promise<string | null> {
+  if (!catalogId) return null;
+  const { data, error } = await db.from("payment_catalog").select("title").eq("id", catalogId).maybeSingle();
+  if (error) {
+    console.error("[widget-failed-notice] catalog title", error.message ?? error);
+    return null;
+  }
+  return (data?.title as string | null | undefined) ?? null;
 }
 
 async function markNotice(db: SupabaseClient, contractId: string, now: Date): Promise<boolean> {
