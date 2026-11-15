@@ -1,7 +1,7 @@
 ---
 id: 04_workspace/open_questions
 title: Open Questions
-version: 1.48
+version: 1.49
 updated: 2026-11-15
 depends_on: [00_index/CHANGELOG]
 code_refs: []
@@ -62,6 +62,7 @@ code_refs: []
 ## `notifications` / Android remote push (FCM, 2026-07-22)
 
 - **~~Админский push на Android не доходит~~** — закрыто 2026-07-23 (FCM V1 в EAS); уточнение 2026-07-24: gitignore `google-services.json` не попадал в EAS build → 0 android tokens. Залит EAS file-env `GOOGLE_SERVICES_JSON`; нужен rebuild + проверка `push_tokens.platform=android`. См. `notifications/history`.
+- **Android push: 83 установки Play / 1 токен (2026-11-15).** **Контекст:** `push_tokens` android=1, `last_seen_at` 2026-07-29; iOS≈50. Локальный AAB с Firebase есть; live-диагностики на устройстве не было. **Проявление:** админский push почти некому слать на Android. **Действие:** после store-сборки с телеметрией `push_registration` + `app_open.platform` смотреть `stage` в `user_event_log`; при необходимости доложить `GOOGLE_SERVICES_JSON` в EAS production file-env и перепроверить FCM V1 credentials.
 
 ## `daily_forecast` / стартовая пауза главного экрана (наблюдение пользователя, 2026-07-20)
 

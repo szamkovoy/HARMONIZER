@@ -1,3 +1,6 @@
+import * as Application from "expo-application";
+import { Platform } from "react-native";
+
 import { maybeSyncUserGeoPlace } from "@/modules/location/syncUserGeoPlace";
 import { getSupabase } from "@/services/supabase";
 
@@ -9,6 +12,18 @@ import { getSupabase } from "@/services/supabase";
 const MIN_INTERVAL_MS = 30 * 60 * 1000;
 
 let lastLoggedAt = 0;
+
+function appOpenPayload(): Record<string, string> {
+  const platform =
+    Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : Platform.OS;
+  const version = Application.nativeApplicationVersion?.trim() || "";
+  const build = Application.nativeBuildVersion?.trim() || "";
+  return {
+    platform,
+    ...(version ? { version } : {}),
+    ...(build ? { build } : {}),
+  };
+}
 
 export async function logAppOpen(userId: string): Promise<void> {
   const now = Date.now();
@@ -22,7 +37,7 @@ export async function logAppOpen(userId: string): Promise<void> {
         supabase.from("user_event_log").insert({
           user_id: userId,
           kind: "app_open",
-          payload: {},
+          payload: appOpenPayload(),
         }),
         supabase.from("users").update({ last_seen_at: nowIso }).eq("id", userId),
       ]);
