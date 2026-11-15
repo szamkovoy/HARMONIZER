@@ -1,13 +1,15 @@
 ---
 id: 02_modules/notifications/history
 title: Notifications History
-version: 1.5
-updated: 2026-08-16
+version: 1.6
+updated: 2026-11-15
 depends_on: [02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708150000_notifications.sql]
 ---
 
 ## Decision Log
+
+- **2026-11-15 (Android push telemetry):** Play: ~83 installs, `push_tokens` android = 1 (last_seen 2026-07-29). Устройства/эмулятора с Google Play в этой сессии не было. Конфиг локально ок: `google-services.json` + package `com.zamkovoi.harmonizer`, AAB Nov 9 содержит Firebase Messaging, `POST_NOTIFICATIONS` в манифесте (expo-notifications). В EAS production env **нет** file-var `GOOGLE_SERVICES_JSON` (локальный prod-билд берёт файл с диска через `.easignore`). Телеметрия: `user_event_log.kind=push_registration` (`stage`: no_permission / no_project_id / token_error / claim_error / claimed) + `app_open.payload.platform`/`version`/`build`. Нужен store Android-билд после merge, затем выборка событий.
 
 - **2026-11-09 (Play Store «Открыть» → /push-message):** Build 75: запуск из Google Play «Открыть» открывал экран «Уведомление» (`/push-message`) вместо главной, хотя запуск по иконке работал нормально. Root: `PushRegistrationBridge` на каждом старте зовёт `Notifications.getLastNotificationResponseAsync()`; на Android expo-notifications хранит последний ответ в нативном кэше, который **переживает апдейт из Play Store** (Android восстанавливает backup данных приложения). После апдейта запуск из Play «Открыть» (не из пуша) возвращал stale-ответ от прошлого тапа → `router.replace("/push-message")`. `handledResponseIdRef` — `useRef`, сбрасывается на каждый новый процесс, поэтому cross-restart дедупа не было. Фикс: обработанный `request.identifier` персистится в SecureStore (`harmonizer.notifications.lastHandledResponseId`, тоже переживает апдейт); `classifyLastResponse` отличает fresh (новый id → навигация + персист) от stale (тот же id → `clearLastNotificationResponseAsync` без навигации). Тест `PushRegistrationBridge.test.ts` (4 случая). Нужен новый Android-билд.
 
