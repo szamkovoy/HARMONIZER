@@ -1,15 +1,17 @@
 ---
 id: 02_modules/notifications/history
 title: Notifications History
-version: 1.6
-updated: 2026-11-15
+version: 1.7
+updated: 2026-11-16
 depends_on: [02_modules/admin_panel/spec]
 code_refs: [supabase/migrations/20260708150000_notifications.sql]
 ---
 
 ## Decision Log
 
-- **2026-11-15 (Android push telemetry):** Play: ~83 installs, `push_tokens` android = 1 (last_seen 2026-07-29). Устройства/эмулятора с Google Play в этой сессии не было. Конфиг локально ок: `google-services.json` + package `com.zamkovoi.harmonizer`, AAB Nov 9 содержит Firebase Messaging, `POST_NOTIFICATIONS` в манифесте (expo-notifications). В EAS production env **нет** file-var `GOOGLE_SERVICES_JSON` (локальный prod-билд берёт файл с диска через `.easignore`). Телеметрия: `user_event_log.kind=push_registration` (`stage`: no_permission / no_project_id / token_error / claim_error / claimed) + `app_open.payload.platform`/`version`/`build`. Нужен store Android-билд после merge, затем выборка событий.
+- **2026-11-16 (Android push FCM 403 → SHA-1 Play):** Симптом: ~83 установки Play, в `push_tokens` android ≈ 1 (`last_seen` 2026-07-29). Причина: Android API key в Google Cloud был ограничен по SHA-1 **без** отпечатка ключа подписи Google Play App Signing → Firebase Installations отвечал **403 PERMISSION_DENIED** → `FCM Registration failed!` → `getExpoPushTokenAsync` падал → `claim_push_token` не вызывался. Найдено: `adb logcat` на Pixel 8a (Play `1.2.8` / vc 77), строки `Firebase-Installations` + `[notifications] Android Expo push token unavailable … Fetching the token failed: FCM Registration failed!`. Исправление: в ограничения ключа добавлен SHA-1 подписи Play; **новая сборка приложения не понадобилась**. После фикса cold start создал свежий `ExponentPushToken[jtFRFb…]`, `claim` обновил `last_seen`; тест Expo push (тот же канал `harmonizer_remote`, что админка) — ticket `ok`, receipt `ok`. Старый токен июля (`cQKTjC…`) — receipt `DeviceNotRegistered`, удалён из `push_tokens`. Правило: при смене ключа подписи или ограничений API key проверять **оба** SHA-1 (upload + Play App Signing). Через ~неделю — `count(*)` по `platform` и (после store-сборки с телеметрией) распределение `push_registration.stage`.
+
+- **2026-11-15 (Android push telemetry):** Play: ~83 installs, `push_tokens` android = 1 (last_seen 2026-07-29). Устройства/эмулятора с Google Play в этой сессии не было. Конфиг локально ок: `google-services.json` + package `com.zamkovoi.harmonizer`, AAB Nov 9 содержит Firebase Messaging, `POST_NOTIFICATIONS` в манифесте (expo-notifications). В EAS production env **нет** file-var `GOOGLE_SERVICES_JSON` (локальный prod-билд берёт файл с диска через `.easignore`). Телеметрия: `user_event_log.kind=push_registration` (`stage`: no_permission / no_project_id / token_error / claim_error / claimed) + `app_open.payload.platform`/`version`/`build`. Закрыто 2026-11-16 (root cause — SHA-1 Play в ограничениях ключа, не отсутствие файла в билде Play).
 
 - **2026-11-09 (Play Store «Открыть» → /push-message):** Build 75: запуск из Google Play «Открыть» открывал экран «Уведомление» (`/push-message`) вместо главной, хотя запуск по иконке работал нормально. Root: `PushRegistrationBridge` на каждом старте зовёт `Notifications.getLastNotificationResponseAsync()`; на Android expo-notifications хранит последний ответ в нативном кэше, который **переживает апдейт из Play Store** (Android восстанавливает backup данных приложения). После апдейта запуск из Play «Открыть» (не из пуша) возвращал stale-ответ от прошлого тапа → `router.replace("/push-message")`. `handledResponseIdRef` — `useRef`, сбрасывается на каждый новый процесс, поэтому cross-restart дедупа не было. Фикс: обработанный `request.identifier` персистится в SecureStore (`harmonizer.notifications.lastHandledResponseId`, тоже переживает апдейт); `classifyLastResponse` отличает fresh (новый id → навигация + персист) от stale (тот же id → `clearLastNotificationResponseAsync` без навигации). Тест `PushRegistrationBridge.test.ts` (4 случая). Нужен новый Android-билд.
 
