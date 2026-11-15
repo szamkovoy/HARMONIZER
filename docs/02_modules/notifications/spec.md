@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/spec
 title: Notifications Spec
-version: 1.10
-updated: 2026-08-16
+version: 1.11
+updated: 2026-11-15
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -50,7 +50,7 @@ code_refs:
 - **`resolveNotificationCopy`** — soft preferred → en → ru для **отображения** уже доставленных строк в inbox.
 - **`PushRegistrationBridge`** — после логина / `AppState=active` вызывает `registerPushToken` **без** системного диалога (только если уже granted); тап по push → **`router.replace("/push-message")`**. Холодный старт по тапу: `Notifications.getLastNotificationResponseAsync()` — но с cross-session dedupe: обработанный `request.identifier` персистится в SecureStore (`harmonizer.notifications.lastHandledResponseId`); если `getLastNotificationResponseAsync()` возвращает тот же id (stale — Android восстанавливает нативный кэш expo-notifications после апдейта из Play Store, и запуск из «Открыть» в Play переоткрывает stale-ответ), кэш чистится и навигации **нет**. Свежий тап (новый id) → навигация + персист. Решение вынесено в `classifyLastResponse` (тест `PushRegistrationBridge.test.ts`).
 - **`ensureNotificationPermission(reason)`** — единая политика запроса OS-разрешения (см. §3.1).
-- **`registerPushToken(userId)`** — **await** sync UI → `users.locale`, затем **`claim_push_token` RPC**; **не** вызывает `requestPermissionsAsync`.
+- **`registerPushToken(userId)`** — **await** sync UI → `users.locale`, затем **`claim_push_token` RPC**; **не** вызывает `requestPermissionsAsync`. На каждом исходе (best-effort) пишет `user_event_log.kind=push_registration` с `payload.platform` и `payload.stage` (`no_permission` | `no_project_id` | `token_error` | `claim_error` | `claimed`; опционально `message` ≤500). Не чаще одного события на stage за процесс и за UTC-день (флаг SecureStore `push.reg.<stage>.YYYY-MM-DD`).
 - **`PushMessageScreen`** / **`MyNotificationsScreen`** / Профиль — без изменений контракта inbox.
 - Точки запроса UI: Главная (`home`), колокольчик окон (`opportunity_bell`), экран вебинара при записи / уже записан (`webinar`).
 

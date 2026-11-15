@@ -1,7 +1,7 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.116
+version: 3.117
 updated: 2026-11-15
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
@@ -9,6 +9,7 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-15 (710): Spec синхронизирован с кодом: `registerPushToken` → `user_event_log.push_registration` (stages); `app_open.payload` — platform/version/build. Docs `notifications`, `admin_panel`.
 - 2026-11-15 (709): Android push: телеметрия `push_registration` + `app_open.platform`/`version`/`build`; open_questions — 83 установки / 1 токен. Docs `notifications`, `04_workspace`.
 - 2026-11-15 (708): В §3.5 `account_web/spec` зафиксирован состав писем об отказе: `buildPayLetterBody` с именем, `paidForLine` и разделителями вокруг кнопки (кабинет — `display_name` + productTier/Webinar/Book; виджет — `buyer_name` + `payment_catalog.title`).
 - 2026-11-15 (707): Письма об отказе оплаты: имя в приветствии, строка «Вы оплачивали: …», отступы вокруг кнопки; productBook = bookTitle кабинета. Docs `account_web`.

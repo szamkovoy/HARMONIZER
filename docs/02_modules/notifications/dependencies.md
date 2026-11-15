@@ -1,8 +1,8 @@
 ---
 id: 02_modules/notifications/dependencies
 title: Notifications Dependencies
-version: 1.4
-updated: 2026-08-16
+version: 1.5
+updated: 2026-11-15
 depends_on: [02_modules/admin_panel/spec, 02_modules/webinars/spec]
 code_refs:
   [
@@ -18,7 +18,7 @@ code_refs:
 - **`admin_panel`** — отправка только из `/admin/notifications` под `requireAdmin` (service role).
 - **`webinars`** — сегмент `webinar:<id>` читает `webinar_registrations`; список вебинаров для селекта — `GET /api/admin/webinars`. Клиентский `WebinarScreen` вызывает `ensureNotificationPermission("webinar")` при записи / уже записан.
 - **`subscription`** — сегмент `tier:<t>` фильтрует по сырому `users.membership_tier` (не effective tier — истёкший грант остаётся в своём тарифе до фикса данных).
-- **`infra`** — Supabase (`push_tokens`, `notifications`, `notification_deliveries`), weekly prune + minutely `notify-webinar-start` в `ensure_harmonizer_cron_jobs`, Expo Push, EAS `projectId`. Android remote: FCM.
+- **`infra`** — Supabase (`push_tokens`, `notifications`, `notification_deliveries`), weekly prune + minutely `notify-webinar-start` в `ensure_harmonizer_cron_jobs`, Expo Push, EAS `projectId`. Android remote: FCM. Клиент `registerPushToken` пишет диагностику в `user_event_log` (`kind=push_registration`).
 - **`services/localNotifications.ts`** — ленивый загрузчик `expo-notifications` (`getExpoNotificationsOrNull`), `ensureAndroidNotificationChannels` (`harmonizer_opportunity_high` / `harmonizer_remote`), общий с локальными напоминаниями.
 - **`services/androidExactAlarms.ts`** — Android 12+ exact-alarm check через `harmonizer-android-exact-alarms` (`AlarmManager.canScheduleExactAlarms()`; fallback `PermissionsAndroid.check` только для старых dev-client) + `expo-intent-launcher` `REQUEST_SCHEDULE_EXACT_ALARM`; используется из `OpportunityWindows.saveReminder`.
 - **FCM (Android remote):** локальный `google-services.json` в корне (**gitignore**, в архив EAS — через `.easignore`; шаблон `.example`) **и** EAS file-env `GOOGLE_SERVICES_JSON` (иначе cloud build без FCM); FCM V1 key в EAS credentials (`scripts/upload-fcm-to-eas.mjs`); чекер `scripts/android-fcm-setup.mjs`. Project Firebase: `harmonizer-777`.

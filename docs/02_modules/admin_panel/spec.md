@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.21
-updated: 2026-11-13
+version: 1.22
+updated: 2026-11-15
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -112,7 +112,7 @@ code_refs:
 - RPC `admin_dashboard_pulse` (v3 + `20260809160000` / `20260809220000` / `20260809223000`): KPI — пользователи **4 числа**: всего (все `users`) / с Гармонизатором (`onboarded_at`) / активны 24ч / 7д; когортная конверсия (рег / купили oracle / купили master за период); распределение тарифов «сейчас» **только среди onboarded** (CRM email-only не в Демо/Навигатор/…); series с итогами; воронки подписки oracle/master (мес. 1–7): глубина = невозвращённые `payment_settlements` на **первом** оплаченном subscription-контракте (не re-checkout); месяц k≥2 в расчёте только после `(k−1)×30d`; UI: число и **% / ширина от 1-го месяца** (монотонно не шире предыдущего шага); пока `eligible=0` — «ещё рано», не 0%; ручные гранты не входят. LLM 24ч + серия токенов; geo по новым за период. KPI «Выручка» — net Lava.top+ЮКасса за период. Верхний ряд KPI — `text-base`.
 - `GET /api/admin/dashboard?range=&grain=&currency=` → pulse + overlays net-settlements (`revenue_gateways_net` / lava / yukassa series) + alerts.
 - `GET/DELETE /api/admin/users/[id]` — карточка с `country_code`/`city`; delete через общий `wipeUserAccount` (cancel шлюзов → `buyer_email` → deleteUser); платежи сохраняются. Список платежей: имя из `users.display_name`, иначе local-part email.
-- Клиент: `app_open` → `last_seen_at` (троттлинг 30 мин); `maybeSyncUserGeoPlace` → `country_code`/`city` вызывается и при throttle события (и после GPS в онбординге).
+- Клиент: `app_open` → `last_seen_at` (троттлинг 30 мин); payload `{ platform, version?, build? }` (`Platform` + `expo-application`); `maybeSyncUserGeoPlace` → `country_code`/`city` вызывается и при throttle события (и после GPS в онбординге).
 - **Cleanup OTP-ghosts:** hourly `cleanup_unconfirmed_auth_users` (cron `35 * * * *`, в реестре `ensure_harmonizer_cron_jobs`). Удаляет только `auth.users` где `email_confirmed_at IS NULL` **и** `last_sign_in_at IS NULL` **и** `created_at < now()-1h` (TTL = жизнь OTP), без admin/payments/contracts/onboarded/last_seen. Подтверждённые аккаунты при повторном OTP **не** затрагиваются (`email_confirmed_at` остаётся). До подтверждения OTP такие аккаунты не попадают в `email_contacts` / рассылки.
 
 **Промпты (реализовано, этап 8):**

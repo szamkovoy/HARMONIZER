@@ -1,11 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.12
-updated: 2026-11-13
+version: 1.13
+updated: 2026-11-15
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-15 — `app_open` payload platform/version/build
+
+- `modules/metrics/core/appOpen.ts`: в `user_event_log` для `app_open` больше не пустой payload — `platform` и optional native `version`/`build` (диагностика установок / Android push). См. также `notifications/history` (`push_registration`).
 
 ## 2026-11-13 — Вкладка «Неуспешные» в платежах
 
