@@ -404,7 +404,7 @@ async function acquireAndPersistUserCoordinatesImpl(userId: string): Promise<Loc
  */
 export async function acquireAndPersistUserCoordinates(userId: string): Promise<LocationAcquireResult> {
   if (acquireInFlight) return acquireInFlight;
-  acquireInFlight = (async () => {
+  const run = (async (): Promise<LocationAcquireResult> => {
     try {
       return await acquireAndPersistUserCoordinatesImpl(userId);
     } catch (error) {
@@ -413,10 +413,12 @@ export async function acquireAndPersistUserCoordinates(userId: string): Promise<
         { message: error instanceof Error ? error.message : String(error) },
         "warn",
       );
-      return { ok: false, reason: "unavailable" as const };
+      return { ok: false, reason: "unavailable" };
     }
-  })().finally(() => {
-    acquireInFlight = null;
+  })();
+  acquireInFlight = run;
+  void run.finally(() => {
+    if (acquireInFlight === run) acquireInFlight = null;
   });
-  return acquireInFlight;
+  return run;
 }
