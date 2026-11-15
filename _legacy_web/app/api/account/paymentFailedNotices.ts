@@ -115,9 +115,17 @@ export function buildPaymentFailedEmail(params: {
   locale: string | null;
   tier: string;
   payUrl: string;
+  /** Имя из профиля для приветствия. */
+  name?: string | null;
 }): { subject: string; html: string; text: string; lang: string } {
   const copy = getPayPageCopy(params.locale);
   const vars = { tier: payTierName(copy, params.tier) };
+  const product =
+    params.tier === "webinar"
+      ? copy.productWebinar
+      : params.tier === "book"
+        ? copy.productBook
+        : fillPayCopy(copy.productTier, vars);
   const subjectText =
     params.tier === "webinar"
       ? copy.webinarFailedSubject
@@ -137,6 +145,8 @@ export function buildPaymentFailedEmail(params: {
     buttonLabel: copy.paymentFailedButton,
     buttonUrl: params.payUrl,
     buttonColor: NOTICE_BUTTON_COLOR,
+    name: params.name,
+    product,
   });
   const html = wrapMarketingEmailHtml({ bodyHtml, lang: copy.lang, footer: null });
   return { subject, html, text, lang: copy.lang };
@@ -252,7 +262,7 @@ async function noticeOne(
   const [userRes, recentRes] = await Promise.all([
     db
       .from("users")
-      .select("locale,membership_tier,membership_expires_at")
+      .select("locale,display_name,membership_tier,membership_expires_at")
       .eq("id", contract.userId)
       .maybeSingle(),
     stampedContractIds(db, contract.userId, now),
@@ -308,7 +318,12 @@ async function noticeOne(
         PAY_RENEW_TOKEN_TTL_MS,
       );
   const payUrl = payFailedUrl(token, contract.contractId);
-  const letter = buildPaymentFailedEmail({ locale, tier: contract.tier, payUrl });
+  const letter = buildPaymentFailedEmail({
+    locale,
+    tier: contract.tier,
+    payUrl,
+    name: (userRes.data?.display_name as string | null | undefined) ?? null,
+  });
   const sent = await sendMarketingEmail({
     to,
     subject: letter.subject,

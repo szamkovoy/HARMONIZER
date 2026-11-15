@@ -56,6 +56,12 @@ export type PayPageCopy = {
   bookFailedBody: string;
   /** Подпись под кнопкой во всех письмах об оплате: две строки. */
   letterSignature: string;
+  /** Строка после приветствия в письмах об отказе; {product} — название покупки как в платёжной форме. */
+  paidForLine: string;
+  /** Названия покупок из кабинета для paidForLine; {tier} — название тарифа. */
+  productTier: string;
+  productWebinar: string;
+  productBook: string;
   /** Письмо об отказе оплаты через виджет на лендинге; кнопка ведёт обратно на лендинг. */
   widgetFailedSubject: string;
   widgetFailedBody: string;
@@ -114,6 +120,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Здравствуйте!\n\nОплата книги не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно оплатить ещё раз или выбрать другой способ оплаты. Вводить данные заново не нужно.",
     letterSignature: "Всех благ!\nСергей Замковой",
+    paidForLine: "Вы оплачивали: {product}",
+    productTier: "Тарифный план «{tier}»",
+    productWebinar: "Участие в вебинаре",
+    productBook: "Книга «Йога — путь волшебника»",
     widgetFailedSubject: "Оплата не прошла",
     widgetFailedBody:
       "Здравствуйте!\n\nВаша оплата не прошла — так бывает, когда банк не подтверждает операцию. Деньги не списаны. По кнопке ниже можно вернуться на страницу и оплатить ещё раз или выбрать другой способ оплаты.",
@@ -170,6 +180,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Hello!\n\nYour payment for the book did not go through — this happens when the bank does not confirm the transaction. You have not been charged. Use the button below to pay again or choose another payment method. You will not need to enter your details again.",
     letterSignature: "All the best,\nSergei Zamkovoi",
+    paidForLine: "You were paying for: {product}",
+    productTier: "“{tier}” plan",
+    productWebinar: "Webinar participation",
+    productBook: "Book «Yoga: The Art of Change»",
     widgetFailedSubject: "Your payment did not go through",
     widgetFailedBody:
       "Hello!\n\nYour payment did not go through — this happens when the bank does not confirm the transaction. You have not been charged. Use the button below to return to the page and pay again or choose another payment method.",
@@ -226,6 +240,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Guten Tag!\n\nDie Zahlung für das Buch ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie erneut bezahlen oder eine andere Zahlungsart wählen. Ihre Daten müssen Sie nicht erneut eingeben.",
     letterSignature: "Alles Gute!\nSergei Zamkovoi",
+    paidForLine: "Sie haben bezahlt für: {product}",
+    productTier: "Tarifplan „{tier}“",
+    productWebinar: "Teilnahme am Webinar",
+    productBook: "Buch «Yoga: die Lebenskunst in der Veränderung»",
     widgetFailedSubject: "Ihre Zahlung ist nicht durchgegangen",
     widgetFailedBody:
       "Guten Tag!\n\nIhre Zahlung ist nicht durchgegangen — das passiert, wenn die Bank die Buchung nicht bestätigt. Es wurde kein Geld abgebucht. Über die Schaltfläche unten können Sie zur Seite zurückkehren und erneut bezahlen oder eine andere Zahlungsart wählen.",
@@ -282,6 +300,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Bonjour !\n\nLe paiement du livre n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous permet de payer à nouveau ou de choisir un autre mode de paiement. Vous n’avez pas à saisir vos données à nouveau.",
     letterSignature: "Tous mes vœux !\nSergei Zamkovoi",
+    paidForLine: "Vous payiez : {product}",
+    productTier: "Offre « {tier} »",
+    productWebinar: "Participation au webinaire",
+    productBook: "Livre «Yoga : L’Art de la Métamorphose»",
     widgetFailedSubject: "Votre paiement n’est pas passé",
     widgetFailedBody:
       "Bonjour !\n\nVotre paiement n’est pas passé — cela arrive quand la banque ne confirme pas l’opération. Aucun montant n’a été débité. Le bouton ci-dessous vous ramène sur la page pour payer à nouveau ou choisir un autre mode de paiement.",
@@ -338,6 +360,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Buongiorno!\n\nIl pagamento del libro non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi pagare di nuovo o scegliere un altro metodo di pagamento. Non devi inserire di nuovo i dati.",
     letterSignature: "I migliori auguri!\nSergei Zamkovoi",
+    paidForLine: "Stavi pagando: {product}",
+    productTier: "Piano «{tier}»",
+    productWebinar: "Partecipazione al webinar",
+    productBook: "Libro «Yoga: L’Arte del Cambiamento»",
     widgetFailedSubject: "Il pagamento non è andato a buon fine",
     widgetFailedBody:
       "Buongiorno!\n\nIl pagamento non è andato a buon fine: succede quando la banca non conferma l’operazione. Nessun importo è stato addebitato. Con il pulsante qui sotto puoi tornare alla pagina e pagare di nuovo o scegliere un altro metodo di pagamento.",
@@ -381,22 +407,26 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     reminderButton: "Ampliar el acceso",
     renewalFailedSubject: "La renovación de la suscripción no se ha completado",
     renewalFailedBody:
-      "Hola:\n\nEl cobro de la renovación no se ha realizado. Tu acceso a Harmonizer sigue disponible hasta el {date}. Para que no se interrumpa, renuévalo con otra tarjeta, con PayPal o por 30 días.",
+      "¡Hola!\n\nEl cobro de la renovación no se ha realizado. Tu acceso a Harmonizer sigue disponible hasta el {date}. Para que no se interrumpa, renuévalo con otra tarjeta, con PayPal o por 30 días.",
     renewalFailedButton: "Renovar el acceso",
     paymentFailedSubject: "El pago del nivel «{tier}» no se ha completado",
     paymentFailedBody:
-      "Hola:\n\nEl pago del nivel «{tier}» en Harmonizer no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar con otra tarjeta, con PayPal o por 30 días sin renovación automática. No hace falta volver a introducir los datos.",
+      "¡Hola!\n\nEl pago del nivel «{tier}» en Harmonizer no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar con otra tarjeta, con PayPal o por 30 días sin renovación automática. No hace falta volver a introducir los datos.",
     paymentFailedButton: "Elegir la forma de pago",
     webinarFailedSubject: "El pago del webinar no se ha completado",
     webinarFailedBody:
-      "Hola:\n\nEl pago del webinar no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
+      "¡Hola!\n\nEl pago del webinar no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
     bookFailedSubject: "El pago del libro no se ha completado",
     bookFailedBody:
-      "Hola:\n\nEl pago del libro no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
+      "¡Hola!\n\nEl pago del libro no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes pagar de nuevo o elegir otra forma de pago. No hace falta volver a introducir los datos.",
     letterSignature: "Mis mejores deseos,\nSergei Zamkovoi",
+    paidForLine: "Estabas pagando: {product}",
+    productTier: "Plan «{tier}»",
+    productWebinar: "Participación en el webinar",
+    productBook: "Libro «Yoga: El Arte del Cambio»",
     widgetFailedSubject: "El pago no se ha completado",
     widgetFailedBody:
-      "Hola:\n\nTu pago no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes volver a la página y pagar de nuevo o elegir otra forma de pago.",
+      "¡Hola!\n\nTu pago no se ha completado. Pasa cuando el banco no confirma la operación. No se ha cobrado nada. Con el botón de abajo puedes volver a la página y pagar de nuevo o elegir otra forma de pago.",
     widgetFailedButton: "Volver al pago",
   },
   pt: {
@@ -450,6 +480,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Olá!\n\nO pagamento do livro não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode pagar novamente ou escolher outra forma de pagamento. Não precisa de introduzir os dados outra vez.",
     letterSignature: "Tudo de bom!\nSergei Zamkovoi",
+    paidForLine: "Estava a pagar: {product}",
+    productTier: "Plano «{tier}»",
+    productWebinar: "Participação no webinar",
+    productBook: "Livro «Yoga: A Arte da Transformação»",
     widgetFailedSubject: "O pagamento não foi concluído",
     widgetFailedBody:
       "Olá!\n\nO seu pagamento não foi concluído — isto acontece quando o banco não confirma a operação. Não foi cobrado qualquer valor. No botão abaixo pode voltar à página e pagar novamente ou escolher outra forma de pagamento.",
@@ -506,6 +540,10 @@ const COPY: Record<AppContentLocale, PayPageCopy> = {
     bookFailedBody:
       "Hallo!\n\nDe betaling voor het boek is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je opnieuw betalen of een andere betaalwijze kiezen. Je gegevens hoef je niet opnieuw in te vullen.",
     letterSignature: "Alle goeds!\nSergei Zamkovoi",
+    paidForLine: "U betaalde voor: {product}",
+    productTier: "Abonnement ‘{tier}’",
+    productWebinar: "Deelname aan het webinar",
+    productBook: "Boek «Yoga: De Kunst van Verandering»",
     widgetFailedSubject: "Uw betaling is niet gelukt",
     widgetFailedBody:
       "Hallo!\n\nUw betaling is niet gelukt — dat gebeurt wanneer de bank de transactie niet bevestigt. Er is geen geld afgeschreven. Via de knop hieronder kun je terug naar de pagina om opnieuw te betalen of een andere betaalwijze te kiezen.",
