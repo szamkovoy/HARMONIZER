@@ -9,12 +9,21 @@ cd "$REPO_ROOT" || exit 1
 
 ERRORS=0
 
-# Список ожидаемых модулей (синхронизирован с MAP.md)
-EXPECTED_MODULES=(
-  audio bindu infra calibration astro subscription biofeedback
-  profile daily_forecast practices assistant communicator
-  webinars author_presence
+# Проверяем и все существующие пакеты, и пакеты из MAP (включая удалённые папки).
+# remote-play имеет отдельный формат вне 02_modules и сюда не входит.
+EXPECTED_MODULES=()
+while IFS= read -r module; do
+  [ -n "$module" ] && EXPECTED_MODULES+=("$module")
+done < <(
+  {
+    find docs/02_modules -mindepth 1 -maxdepth 1 -type d -exec basename {} \;
+    sed -nE 's/^\| `[^`]+`[[:space:]]*\| `02_modules\/([^/]+)\/`.*/\1/p' docs/00_index/MAP.md
+  } | sort -u
 )
+if [ "${#EXPECTED_MODULES[@]}" -eq 0 ]; then
+  echo "  ERROR: no documentation modules found"
+  ERRORS=$((ERRORS + 1))
+fi
 
 # Проверка 1: триада существует для каждого модуля
 for module in "${EXPECTED_MODULES[@]}"; do
@@ -54,15 +63,14 @@ check_frontmatter "docs/00_index/MAP.md" || ERRORS=$((ERRORS + 1))
 check_frontmatter "docs/00_index/CHANGELOG.md" || ERRORS=$((ERRORS + 1))
 check_frontmatter "docs/04_workspace/open_questions.md" || ERRORS=$((ERRORS + 1))
 
-# Проверка 3: MAP.md содержит все 14 модулей
-if [ -f docs/00_index/MAP.md ]; then
-  for module in "${EXPECTED_MODULES[@]}"; do
-    if ! grep -qE "^\| \`$module\`" docs/00_index/MAP.md; then
-      echo "  ERROR: docs/00_index/MAP.md missing row for module '$module'"
-      ERRORS=$((ERRORS + 1))
-    fi
-  done
-fi
+# Проверка 3: сохраняем обязательные базовые строки MAP, как до расширения триад.
+for module in audio bindu infra calibration astro subscription biofeedback \
+  profile daily_forecast practices assistant communicator webinars author_presence; do
+  if ! grep -qE "^\| \`$module\`" docs/00_index/MAP.md; then
+    echo "  ERROR: docs/00_index/MAP.md missing row for module '$module'"
+    ERRORS=$((ERRORS + 1))
+  fi
+done
 
 # Проверка 4: code_refs указывают на реально существующие файлы (только WARN)
 while IFS= read -r f; do

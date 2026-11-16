@@ -1,13 +1,15 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.118
+version: 3.119
 updated: 2026-11-16
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
+
+- 2026-11-16 (712): Проверен действующий GitHub docs-sync: полный цикл подтверждён логами и бот-коммитами, локальные hooks не включались. Уточнены `infra/{spec,history}.md` и `scripts/README.md`; добавлены инструкции чтения документации в `AGENTS.md`, расширены охват триггеров и проверка триад.
 
 - 2026-11-16 (711): Android push закрыт: Firebase Installations 403 из‑за SHA-1 без Play App Signing; фикс в Google Cloud (без rebuild); тест Expo receipt ok; старый токен удалён. Docs `notifications`, `open_questions`.
 - 2026-11-15 (710): Spec синхронизирован с кодом: `registerPushToken` → `user_event_log.push_registration` (stages); `app_open.payload` — platform/version/build. Docs `notifications`, `admin_panel`.

@@ -4,7 +4,7 @@ Operational scripts for the HARMONIZER repo.
 
 | Script | Purpose |
 |--------|---------|
-| `docs-sync/` | Pre-push hook that auto-updates `docs/` from code changes via cursor-agent. Install once: `bash scripts/docs-sync/install.sh`. |
+| `docs-sync/` | Auto-updates `docs/` via Cursor CLI after push to `main` in GitHub Actions (`.github/workflows/docs-sync.yml`). Local hook installation is optional and can duplicate AI usage. |
 | `i18n-sync.mjs` / `i18n-sync.sh` | Translation sync gate — keeps locale catalogs in step with the Russian source. See below. |
 | `backup-active-prompts.mjs` | Dump active `public.prompts` rows to JSON before a prompt migration. |
 | `backfill-practice-thumbnails.mjs` | One-off: backfill practice thumbnails. |

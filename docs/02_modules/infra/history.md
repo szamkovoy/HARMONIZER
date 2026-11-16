@@ -1,13 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.33
-updated: 2026-11-15
+version: 1.34
+updated: 2026-11-16
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
 
 ## Decision Log
+
+- **2026-11-16 (проверка автодокументации):** GitHub workflow активен, 10 последних запусков успешны. По логам 15 ноября подтверждён полный цикл diff → Cursor → структурная проверка → docs-коммит `b1035ceb`; 16 ноября 01:43 МСК docs-only push корректно пропущен. Локальные hooks повторно не включались. Выборочно сверены регистрация push (`push_registration`, stages/throttle) и письма об отказе оплаты (`buildPayLetterBody`, имя/покупка) — описания соответствуют коду. Проверка триад расширена со статического списка 14 модулей на все пакеты в `02_modules` и пути из MAP; триггеры дополнены Edge-функциями, серверным UI/shared/data и клиентскими конфигурациями. Добавлен `AGENTS.md` с порядком чтения и обновления документации для Codex. Полный семантический аудит не проводился; новые AI-запуски для проверки не создавались.
 
 - **2026-11-15 (бэкапы):** Ежедневные снимки Supabase — физические (WAL-G), PITR выключен. Storage в них не входит. Своя копия базы снимается `supabase db dump` тремя файлами (схема, данные, роли) в `~/Backups/harmonizer/`, вне git. Настройки бэкапов не менялись.
 

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.29
-updated: 2026-11-15
+version: 1.30
+updated: 2026-11-16
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
@@ -85,6 +85,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 Корневой `package.json` не описывает Next-скрипты: они живут в `_legacy_web/package.json` (`next dev`, `next build`, `next lint`).
 
 ## 5. Известные ограничения
+
+- **Автодокументация:** основной механизм — `.github/workflows/docs-sync.yml` после push в `main`, с Cursor CLI (`CURSOR_API_KEY`, модель `auto`), отдельным docs-коммитом и маркером `[skip-doc-sync]`. Локальные hooks опциональны; в проверенном checkout post-commit/pre-push отключены. Это не отключает GitHub Actions. Изменения только docs не вызывают агента; диапазон свыше 5000 строк пропускается, агент ограничен 300 секундами. AI-запуск расходует использование Cursor, точная стоимость зависит от тарифа и объёма работы. Структурная проверка не доказывает семантическую актуальность всех описаний. Скрипт при ряде ошибок пишет лог и возвращает 0: зелёный статус workflow сам по себе недостаточен, нужно проверять отчёт и созданный коммит. Локальный ручной запуск требует чистых docs/index: откат использует `git checkout HEAD -- docs/`, а коммит — `git add docs/`; незавершённые правки могут попасть под откат/в коммит.
 
 - **PWA vs мобильный клиент:** manifest и apple-web-app метаданные остаются в `_legacy_web`, но целевой UX — Expo; web-shell не выравнивается по функциональности с приложением.
 - **`.vercelignore`:** часть корневых деревьев намеренно не попадает в upload; любой новый импорт из «игнорируемого» пути в API сломает деплой до правки ignore-листа.

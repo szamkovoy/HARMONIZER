@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Синхронизация docs/ с изменениями кода через Cursor CLI.
-# Вызывается из pre-push hook. Может вызываться и вручную.
+# Основной запуск — GitHub Actions после push в main; локальный hook опционален.
 #
 # Контракт:
 # - На вход: переменная окружения PUSH_RANGE = "<base>..HEAD"
@@ -49,7 +49,7 @@ fi
 # ============================================================
 # 2. Условие срабатывания: есть ли в push реальные изменения в коде
 # ============================================================
-CODE_PATHS_REGEX='^(modules/|app/|services/|_legacy_web/app/api/|supabase/migrations/)'
+CODE_PATHS_REGEX='^(modules/|app/|services/|components/|constants/|plugins/|_legacy_web/(app/|modules/|shared_core/|data/)|supabase/(migrations/|functions/)|package\.json$|app\.(json|config\.ts)$)'
 CODE_FILES="$(git diff --name-only "$PUSH_RANGE" -- . | grep -E "$CODE_PATHS_REGEX" || true)"
 
 if [ -z "$CODE_FILES" ]; then
