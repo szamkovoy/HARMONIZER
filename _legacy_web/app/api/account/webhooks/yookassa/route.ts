@@ -192,12 +192,8 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const payment = await fetchYookassaPayment(objectId);
-    const contractId =
-      payment.metadata?.contractId?.trim() ||
-      body.object?.metadata?.contractId?.trim() ||
-      "";
-    const metaKind =
-      payment.metadata?.kind?.trim() || body.object?.metadata?.kind?.trim() || "";
+    const contractId = payment.metadata?.contractId?.trim() || "";
+    const metaKind = payment.metadata?.kind?.trim() || "";
 
     console.log("[yookassa-webhook]", event, {
       paymentId: payment.id,
@@ -254,7 +250,8 @@ export async function POST(req: Request): Promise<Response> {
         });
       }
 
-      await persistPaymentMethodIfAny(db, contractId, contract.user_id, payment);
+      // A late renewal must not reactivate a method revoked by cancellation.
+      if (!isRenewal) await persistPaymentMethodIfAny(db, contractId, contract.user_id, payment);
 
       if (isRenewal) {
         const result = await fulfillYookassaRenewal(db, {
@@ -262,7 +259,9 @@ export async function POST(req: Request): Promise<Response> {
           amount: parseAmount(payment),
           currency: payment.amount?.currency ?? "RUB",
           paidAt: payment.created_at ?? new Date().toISOString(),
+          periodKey: payment.metadata?.periodKey,
           logTag: "yookassa-webhook",
+          scheduleSlow: (work) => after(work),
         });
         return noteYookassa(json(result), {
           eventType: event,
@@ -295,9 +294,16 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     if (event === "payment.canceled" || payment.status === "canceled") {
+      if (payment.status !== "canceled") {
+        return noteYookassa(json({ ok: true, ignored: "notification ahead of status" }), {
+          eventType: event, raw: body, contractId, status: payment.status,
+        });
+      }
       if (isRenewal) {
         const outcome = await handleYookassaRenewalFailure(db, {
           contractId,
+          paymentId: payment.id,
+          periodKey: payment.metadata?.periodKey,
           userId: contract.user_id,
           paymentMethodId: payment.payment_method?.id ?? contract.payment_method_id,
           reason: payment.cancellation_details?.reason ?? "canceled",

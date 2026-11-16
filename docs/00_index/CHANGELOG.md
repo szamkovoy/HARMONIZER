@@ -1,13 +1,17 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.119
-updated: 2026-11-16
+version: 3.121
+updated: 2026-11-17
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
+
+- 2026-11-17 (714): Исправления продления выпущены: миграция `20261116120000` применена в production Supabase, сервер Vercel `dpl_EjwB6WnbUAFhqB22pdWMpDozMaEi` READY. Обновлены статусы в account_web, subscription, infra, open_questions и §10 аудита; 153 теста, backend tsc, локальная SQL-регрессия и production-проверки RPC прошли.
+
+- 2026-11-16 (713): Перепроверен аудит платежей по коду и рабочим данным (§9): критические первоначальные исправления уже есть, текущих зависаний и недовыданного доступа нет. Подготовлены атомарные продления, сохранение отмены/дней/более высокого доступа, дедуп отказов ЮKassa и таймауты Lava; обновлены account_web, subscription, infra, open_questions. Новая миграция и код пока локальные; внешняя сверка продлений/возвратов остаётся ограничением.
 
 - 2026-11-16 (712): Проверен действующий GitHub docs-sync: полный цикл подтверждён логами и бот-коммитами, локальные hooks не включались. Уточнены `infra/{spec,history}.md` и `scripts/README.md`; добавлены инструкции чтения документации в `AGENTS.md`, расширены охват триггеров и проверка триад.
 

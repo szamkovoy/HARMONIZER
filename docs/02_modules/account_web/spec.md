@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
-version: 1.42
-updated: 2026-11-15
+version: 1.44
+updated: 2026-11-17
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -219,6 +219,15 @@ else                                →  fail-closed
 - **Отказ оплаты с виджета**: тот же cron после кабинетных писем вызывает `runWidgetFailedNotices`. Postgres будит Vercel и по этой ветке. Кандидат: `failed`, `source=widget`, есть `buyer_email` и `page_url`, `failure_reason` задан и это не брошенная форма, `failed_notice_sent_at` пуст, `updated_at` от 30 минут до 24 часов. На один email (без учёта регистра) уходит письмо по самому свежему отказу, остальные только помечаются. Письмо не уходит, если этот же виджет уже оплачен этим email после отказа или если за сутки на адрес уже уходило `notice.payment_failed`. Кнопка — обычный `page_url` лендинга (`returnPageUrl`), без `?hz_unpaid=`. Тема, текст и кнопка — `widgetFailed*` (8 языков), язык `buyer_locale`. То же `buildPayLetterBody`: имя из `buyer_name`, покупка из `payment_catalog.title` по `catalog_id` (без title — без строки «Вы оплачивали»), подпись та же. Миграция `20261114225954` (`page_url`).
 - **Брошенная форма**: ЮKassa `expired_on_confirmation` и Lava `Cancelled by customer` — письмо покупателю не шлём. Письмо админу тоже не шлём: ЮKassa `payment.canceled` и Lava `payment.failed`. Журнал `payment_events` пишется.
 - **Возврат** 30 дней пересчитывает тариф как возврат подписки (`revokeOrRestoreMembershipAfterRefund` учитывает и такие контракты). `purchases/last` их не отдаёт, чтобы не перекрыть благодарность за вебинар или книгу.
+
+### 3.6 Безопасность продлений (2026-11-16)
+
+- `subscriptionRenewal.ts` вызывает SQL `apply_subscription_renewal(contract_id, period_end)` (`20261116120000_subscription_renewal_safety.sql`). Контракт и `users.membership_*` обновляются атомарно под блокировками строк. Статус active/cancelled сохраняется: поздняя оплата отменённой подписки даёт оплаченный период, но не включает автопродление. Период не укорачивается при повторе/старом событии; более высокий, длительный или бессрочный доступ не затирается. Для прочих статусов и one_time продление игнорируется.
+- ЮKassa: конец = `max(paidAt, metadata.periodKey) + 30 дней`, где periodKey — конец периода, за который создавалось списание, а не текущее поле контракта при повторе webhook. Старые события без periodKey используют paidAt. Cron передаёт исходный periodKey, webhook — metadata из GET платежа. Сохранённый метод поздним продлением не активируется. FX и обновление контакта в webhook выполняются после ответа.
+- Подтверждённый `canceled` ЮKassa передаётся в `record_yookassa_renewal_failure`: таблица `payment_renewal_failures` с PK payment_id предотвращает двойной учёт webhook + cron и повторной доставки; отказ предыдущего уже оплаченного периода игнорируется. Два разных отказа или revoked → cancelled, сохранённый метод inactive, причина в failure_reason. Неопределённый результат запроса/ошибка локальной выдачи доступа → журнал и алерт `yookassa.renewal.error`, без счётчика и отмены.
+- Webhook ЮKassa использует contractId/kind/periodKey и итоговый статус только из GET API; поля входящего уведомления не подменяют metadata. Первая оплата разового вебинара при повторе восстанавливает регистрацию до ответа, независимо от источника покупки.
+- Все четыре запроса Lava (каталог, создание/чтение счёта, отмена) имеют таймаут 8 секунд. Сверка пропущенных успешных продлений Lava и автоматическое сопоставление внешних возвратов пока отсутствуют (см. open_questions).
+- **Выпуск:** миграция `20261116120000` применена в рабочей Supabase 17 ноября 2026; сервер выпущен в production Vercel (`dpl_EjwB6WnbUAFhqB22pdWMpDozMaEi`, alias `harmonizer-ten.vercel.app`). Проверены доступность обоих RPC для service role и запрет для anon; рабочие платежи проверочными вызовами не изменялись.
 
 ## 4. Конфигурация
 

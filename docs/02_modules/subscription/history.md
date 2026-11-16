@@ -1,11 +1,22 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.15
-updated: 2026-11-13
+version: 1.17
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
+
+## 2026-11-17 — Выпуск исправлений продления
+
+Транзакционные продления (`20261116120000`) применены в рабочей базе, вызывающий серверный код выпущен в production Vercel (`dpl_EjwB6WnbUAFhqB22pdWMpDozMaEi`). После миграции действующие оплаченные контракты по-прежнему соответствуют выданному доступу; тестовых списаний не было.
+
+
+## 2026-11-16 — Продление сохраняет отмену и действующий доступ
+
+Продления обоих шлюзов записывают контракт и `users.membership_*` атомарно через `apply_subscription_renewal` (`20261116120000`, подготовлена локально). Оплата после отмены выдаёт период, сохраняя cancelled; более высокий/длительный/бессрочный доступ не сокращается. ЮKassa сохраняет остаток оплаченных дней при раннем списании и не считает технические сбои отказами; повтор одного отказа не отменяет подписку.
+
+
 
 ## Decision Log
 

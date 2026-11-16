@@ -1,11 +1,22 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.34
-updated: 2026-11-16
+version: 1.36
+updated: 2026-11-17
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
+
+## 2026-11-17 — Выпуск исправлений продления
+
+Применена единственная ожидающая миграция `20261116120000`; Supabase подтвердил актуальный журнал миграций. Production Vercel `dpl_EjwB6WnbUAFhqB22pdWMpDozMaEi` готов, alias `harmonizer-ten.vercel.app` назначен. Оба новых RPC доступны service role и недоступны anon; тесты выполнялись на несуществующем контракте, без изменения рабочих записей.
+
+
+## 2026-11-16 — Транзакции продления платежей
+
+Подготовлена миграция `20261116120000_subscription_renewal_safety`: RPC `apply_subscription_renewal` и `record_yookassa_renewal_failure`, таблица дедупликации `payment_renewal_failures` (RLS, доступ только service role). Проверены локально на PostgreSQL, включая откат контракта при сбое записи пользователя; на production ещё не применены.
+
+
 
 ## Decision Log
 

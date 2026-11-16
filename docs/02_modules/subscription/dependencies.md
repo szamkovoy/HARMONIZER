@@ -1,8 +1,8 @@
 ---
 id: 02_modules/subscription/dependencies
 title: Subscription Dependencies
-version: 1.7
-updated: 2026-11-06
+version: 1.9
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
   [
@@ -38,7 +38,7 @@ code_refs:
   `modules/access/ui/AccountGateDialog.tsx` / `AccountUpsellPanel.tsx` — `useTranslate()` для `tier.*` и `gate.*` (комплаенс-тексты точек гейтинга, панель главной, модалки trial/смены уровня). Новые ключи — в `modules/i18n/catalog/ru.json` + sync gate.
 
 - **`account_web`**  
-  Кнопка «Личный кабинет» в `AccountGateDialog` / `AccountUpsellPanel` вызывает `openAccountCabinet()` из `modules/account` (OTT-переход) и скрывается по kill-switch `useAccountLinksEnabled()` (`app_config.account_links_enabled`). Подхват смены уровня — `MembershipEventsBridge` (см. `02_modules/account_web/`).
+  Кнопка «Личный кабинет» в `AccountGateDialog` / `AccountUpsellPanel` вызывает `openAccountCabinet()` из `modules/account` (OTT-переход) и скрывается по kill-switch `useAccountLinksEnabled()` (`app_config.account_links_enabled`). Подхват смены уровня — `MembershipEventsBridge` (см. `02_modules/account_web/`). Продления `account_web` обновляют membership вместе с контрактом в `apply_subscription_renewal` (`20261116120000`, применена в production 2026-11-17); отмена, более высокий и длительный доступ сохраняются.
 
 ## 2. От него зависят
 

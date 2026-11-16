@@ -3,13 +3,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { fulfillYookassaRenewal, markContractCancelled } from "./fulfillPaymentContract";
+import { fulfillYookassaRenewal } from "./fulfillPaymentContract";
 import { sendPaymentAlert } from "./paymentAlerts";
 import { logPaymentEvent } from "./paymentEvents";
 import { chargeYookassaSavedMethod } from "./yookassa";
 
 const RENEW_WINDOW_MS = 36 * 60 * 60 * 1000;
-const MAX_FAILS = 2;
 
 type DueContract = {
   contract_id: string;
@@ -22,67 +21,25 @@ type DueContract = {
   renew_fail_count: number | null;
 };
 
-async function inactivatePaymentMethods(
-  db: SupabaseClient,
-  userId: string,
-  paymentMethodId?: string | null,
-): Promise<void> {
-  const nowIso = new Date().toISOString();
-  if (paymentMethodId) {
-    const { error } = await db
-      .from("yookassa_payment_methods")
-      .update({ status: "inactive", updated_at: nowIso })
-      .eq("payment_method_id", paymentMethodId);
-    if (error) throw error;
-    return;
-  }
-  const { error } = await db
-    .from("yookassa_payment_methods")
-    .update({ status: "inactive", updated_at: nowIso })
-    .eq("user_id", userId)
-    .eq("status", "active");
-  if (error) throw error;
-}
-
 export async function handleYookassaRenewalFailure(
   db: SupabaseClient,
   params: {
     contractId: string;
+    paymentId: string;
+    periodKey?: string | null;
     userId: string;
     paymentMethodId?: string | null;
     reason?: string | null;
   },
 ): Promise<{ cancelled: boolean; failCount: number }> {
-  const { data: row, error } = await db
-    .from("payment_contracts")
-    .select("renew_fail_count,payment_method_id")
-    .eq("contract_id", params.contractId)
-    .maybeSingle();
+  const { data, error } = await db.rpc("record_yookassa_renewal_failure", {
+    p_contract_id: params.contractId,
+    p_payment_id: params.paymentId,
+    p_period_key: params.periodKey ?? null,
+    p_reason: params.reason ?? "canceled",
+  });
   if (error) throw error;
-
-  const prev = Number(row?.renew_fail_count ?? 0) || 0;
-  const next = prev + 1;
-  const nowIso = new Date().toISOString();
-  const revoked =
-    (params.reason ?? "").toLowerCase().includes("permission_revoked") ||
-    (params.reason ?? "").toLowerCase().includes("revoked");
-
-  const { error: updErr } = await db
-    .from("payment_contracts")
-    .update({ renew_fail_count: next, updated_at: nowIso })
-    .eq("contract_id", params.contractId);
-  if (updErr) throw updErr;
-
-  if (revoked || next >= MAX_FAILS) {
-    await markContractCancelled(db, params.contractId);
-    await inactivatePaymentMethods(
-      db,
-      params.userId,
-      params.paymentMethodId ?? row?.payment_method_id ?? null,
-    );
-    return { cancelled: true, failCount: next };
-  }
-  return { cancelled: false, failCount: next };
+  return data as { cancelled: boolean; failCount: number };
 }
 
 export async function runYookassaRenewals(db: SupabaseClient): Promise<{
@@ -168,6 +125,7 @@ export async function runYookassaRenewals(db: SupabaseClient): Promise<{
           amount,
           currency: "RUB",
           paidAt: payment.created_at ?? nowIso,
+          periodKey,
           logTag: "yookassa-cron",
         });
         succeeded += 1;
@@ -175,6 +133,8 @@ export async function runYookassaRenewals(db: SupabaseClient): Promise<{
         const reason = payment.cancellation_details?.reason ?? payment.status;
         await handleYookassaRenewalFailure(db, {
           contractId: contract.contract_id,
+          paymentId: payment.id,
+          periodKey,
           userId: contract.user_id,
           paymentMethodId: methodId,
           reason,
@@ -188,13 +148,9 @@ export async function runYookassaRenewals(db: SupabaseClient): Promise<{
     } catch (err) {
       console.error("[yookassa-cron] charge failed", contract.contract_id, err);
       const reason = err instanceof Error ? err.message : String(err);
-      await handleYookassaRenewalFailure(db, {
-        contractId: contract.contract_id,
-        userId: contract.user_id,
-        paymentMethodId: methodId,
-        reason,
-      });
-      await noteYookassaRenewalFailure(db, contract, reason, null);
+      // Unknown outcome (network, API or local fulfillment error) is not a declined charge.
+      // Repeating with the same periodKey reuses YooKassa's idempotence key.
+      await noteYookassaRenewalFailure(db, contract, reason, null, "yookassa.renewal.error");
       failed += 1;
     }
   }
@@ -207,19 +163,20 @@ async function noteYookassaRenewalFailure(
   contract: DueContract,
   reason: string,
   raw: unknown,
+  eventType = "yookassa.renewal.failed",
 ): Promise<void> {
   await logPaymentEvent(db, {
     provider: "yookassa",
-    eventType: "yookassa.renewal.failed",
+    eventType,
     contractId: contract.contract_id,
     amount: contract.amount,
     currency: contract.currency,
-    status: "canceled",
+    status: raw == null ? "unknown" : "canceled",
     errorMessage: reason,
     raw,
   });
   await sendPaymentAlert(db, {
-    eventType: "yookassa.renewal.failed",
+    eventType,
     contractId: contract.contract_id,
     userId: contract.user_id,
     tier: contract.tier,

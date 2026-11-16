@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cancelProviderSubscription } from "./cancelActiveSubscriptions";
 import { settlePayment } from "./fx";
 import { nextPeriodEnd } from "./lava";
+import { applySubscriptionRenewal } from "./subscriptionRenewal";
 import { resolveCatalogPrice } from "./paymentCatalog";
 import { hasHigherPaidAccess, isTierPassContract, tierPassPeriodEnd, type PassTier } from "./tierPass";
 import { computeMasterBonusDays, periodEndWithBonusDays } from "./upgradeCredit";
@@ -175,6 +176,9 @@ export async function fulfillFirstPaymentSuccess(
     // Повтор после частичного первого прохода: контракт уже active, а users мог
     // не обновиться (таймаут БД). Довыдаём доступ до ответа вебхуку.
     await ensureMembershipForActiveContract(db, contract);
+    if (contract.product_kind === "one_time" && !isTierPassContract(contract)) {
+      await completeOneTimeExtras(db, contract, contract.user_id, params, false);
+    }
     const slow = async () => {
       await settleChargeSafe(db, {
         contractId,
@@ -187,7 +191,7 @@ export async function fulfillFirstPaymentSuccess(
         logTag: params.logTag,
       });
       await resubscribeSafe(db, contract, params.logTag);
-      if (contract.source === "widget" && contract.product_kind === "one_time") {
+      if (contract.product_kind === "one_time" && !isTierPassContract(contract)) {
         // Retry after a partial first run: pass and letter are idempotent.
         await completeOneTimeExtras(db, contract, contract.user_id, params);
       }
@@ -566,51 +570,36 @@ export async function fulfillYookassaRenewal(
     currency?: string | null;
     paidAt?: string | null;
     logTag?: string;
+    periodKey?: string | null;
+    scheduleSlow?: (work: () => Promise<void>) => void;
   },
 ): Promise<Record<string, unknown>> {
   const logTag = params.logTag ?? "yookassa-renewal";
   const { contract } = params;
-  if (contract.status === "cancelled") {
-    return { ok: true, skipped: "cancelled" };
-  }
-
-  const paidAt = params.paidAt ? new Date(params.paidAt) : new Date();
-  const periodEnd = nextPeriodEnd(Number.isNaN(paidAt.getTime()) ? new Date() : paidAt);
   const nowIso = new Date().toISOString();
-
-  const { error: contractError } = await db
-    .from("payment_contracts")
-    .update({
-      status: "active",
-      current_period_end: periodEnd.toISOString(),
-      renew_fail_count: 0,
-      updated_at: nowIso,
-    })
-    .eq("contract_id", contract.contract_id);
-  if (contractError) throw contractError;
-
-  await settleChargeSafe(db, {
+  const renewed = await applySubscriptionRenewal(db, {
     contractId: contract.contract_id,
-    eventType: "subscription.recurring.payment.success",
-    amount: params.amount,
-    currency: params.currency ?? "RUB",
     paidAt: params.paidAt ?? nowIso,
-    userId: contract.user_id,
-    provider: "yookassa",
-    logTag,
+    periodKey: params.periodKey,
   });
+  if (!renewed) return { ok: true, skipped: "not a renewable subscription" };
+  const slow = async () => {
+    await settleChargeSafe(db, {
+      contractId: contract.contract_id,
+      eventType: "subscription.recurring.payment.success",
+      amount: params.amount,
+      currency: params.currency ?? "RUB",
+      paidAt: params.paidAt ?? nowIso,
+      userId: contract.user_id,
+      provider: "yookassa",
+      logTag,
+    });
 
-  const { error: userError } = await db
-    .from("users")
-    .update({
-      membership_tier: contract.tier,
-      membership_expires_at: new Date(periodEnd.getTime() + RENEWAL_GRACE_MS).toISOString(),
-    })
-    .eq("id", contract.user_id);
-  if (userError) throw userError;
-
-  await resubscribeSafe(db, contract, logTag);
-  return { ok: true, renewed: contract.contract_id };
+    await resubscribeSafe(db, contract, logTag);
+  };
+  if (params.scheduleSlow) params.scheduleSlow(slow);
+  else await slow();
+  return { ok: true, renewed: contract.contract_id, subscriptionStatus: renewed.status };
 }
 
 /** Причина отказа ЮKassa: `party:reason`, напр. `issuer:3d_secure_failed`. */

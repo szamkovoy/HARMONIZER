@@ -183,6 +183,7 @@ async function fetchLavaProducts(): Promise<LavaProduct[]> {
     return productsCache.data;
   }
   const res = await fetch(`${LAVA_API_BASE}/api/v2/products?feedVisibility=ALL&limit=100`, {
+    signal: AbortSignal.timeout(8000),
     headers: { "X-Api-Key": requiredEnv("LAVATOP_API_KEY"), Accept: "application/json" },
   });
   const text = await res.text();
@@ -306,6 +307,7 @@ async function createLavaInvoice(
       : {};
   const post = (path: string, body: Record<string, unknown>) =>
     fetch(`${LAVA_API_BASE}${path}`, {
+      signal: AbortSignal.timeout(8000),
       method: "POST",
       headers: {
         "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),
@@ -342,6 +344,7 @@ export type LavaInvoiceDetails = {
 /** Source of truth when the payment.success webhook never arrives. */
 export async function getLavaInvoice(invoiceId: string): Promise<LavaInvoiceDetails | null> {
   const res = await fetch(`${LAVA_API_BASE}/api/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+    signal: AbortSignal.timeout(8000),
     headers: {
       "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),
       Accept: "application/json",
@@ -360,6 +363,7 @@ export async function cancelLavaSubscription(params: { contractId: string; email
   url.searchParams.set("contractId", params.contractId);
   url.searchParams.set("email", params.email);
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(8000),
     method: "DELETE",
     headers: {
       "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),

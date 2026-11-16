@@ -3,7 +3,8 @@ import { after } from "next/server";
 import { createServiceSupabase, errorResponse, json } from "../../../_utils/supabase";
 import { settlePayment } from "../../fx";
 import { findPaymentContract, fulfillFirstPaymentSuccess, markContractFailed } from "../../fulfillPaymentContract";
-import { cancelLavaSubscription, nextPeriodEnd } from "../../lava";
+import { cancelLavaSubscription } from "../../lava";
+import { applySubscriptionRenewal } from "../../subscriptionRenewal";
 import { sendPaymentAlert } from "../../paymentAlerts";
 import { logPaymentEvent } from "../../paymentEvents";
 import { isAbandonedFailure } from "../../paymentFailureKind";
@@ -25,12 +26,6 @@ import { resubscribeContactOnPurchase } from "../../widgetFulfillment";
 //                                          (+ failure_reason), доступ до конца грейса;
 //   subscription.cancelled                 отмена -> cancelled, доступ до конца периода.
 export const runtime = "nodejs";
-
-/**
- * Грейс к membership_expires_at поверх точного конца периода: ретраи списания
- * у Lava идут через 8 и 24 часа — не роняем доступ в этом окне.
- */
-const RENEWAL_GRACE_MS = 48 * 60 * 60 * 1000;
 
 type LavaWebhookBody = {
   eventType?: string;
@@ -248,27 +243,28 @@ async function handleRenewal(parentContractId: string, body: LavaWebhookBody): P
     return json({ ok: true, unknownContract: true });
   }
 
-  const paidAt = body.timestamp ? new Date(body.timestamp) : new Date();
-  const periodEnd = nextPeriodEnd(Number.isNaN(paidAt.getTime()) ? new Date() : paidAt);
-  const nowIso = new Date().toISOString();
-
-  const { error: contractError } = await db
-    .from("payment_contracts")
-    .update({ status: "active", current_period_end: periodEnd.toISOString(), updated_at: nowIso })
-    .eq("contract_id", contract.contract_id);
-  if (contractError) throw contractError;
-
-  const { error: userError } = await db
-    .from("users")
-    .update({
-      membership_tier: contract.tier,
-      membership_expires_at: new Date(periodEnd.getTime() + RENEWAL_GRACE_MS).toISOString(),
-    })
-    .eq("id", contract.user_id);
-  if (userError) throw userError;
+  const renewed = await applySubscriptionRenewal(db, {
+    contractId: contract.contract_id,
+    paidAt: body.timestamp ?? new Date().toISOString(),
+  });
+  if (!renewed) return json({ ok: true, ignored: "not a renewable subscription" });
 
   // Курс (внешний запрос) и рассылочный контакт — после ответа: Lava ждёт 10 секунд.
   scheduleAfterResponse(async () => {
+    if (renewed.status === "cancelled") {
+      await sendPaymentAlert(db, {
+        eventType: "subscription.renewal_after_cancel",
+        contractId: contract.contract_id,
+        userId: contract.user_id,
+        buyerEmail: body.buyer?.email ?? contract.buyer_email,
+        tier: contract.tier,
+        provider: "lavatop",
+        amount: body.amount,
+        currency: body.currency,
+        failureReason: "Late successful renewal: access granted, subscription remains cancelled",
+        raw: body,
+      });
+    }
     await settleLavaCharge(
       db,
       contract.contract_id,
@@ -332,7 +328,7 @@ async function handleRenewalFailed(parentContractId: string, body: LavaWebhookBo
 
   // users.membership_* не трогаем: доступ доживает до membership_expires_at.
   // На стороне Lava закрываем подписку явно, чтобы не было позднего списания.
-  const email = body.buyer?.email?.trim();
+  const email = body.buyer?.email?.trim() || contract.buyer_email?.trim();
   if (email) {
     scheduleAfterResponse(async () => {
       await cancelLavaSubscription({ contractId: contract.contract_id, email });
