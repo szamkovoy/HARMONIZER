@@ -1,13 +1,23 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.51
+version: 1.52
 updated: 2026-11-17
 ---
 
 ## 2026-11-18 — Переход из пустой карточки курсов
 
 `courses` использует существующие `openAccountCabinet` и `useAccountLinksEnabled` для кнопки «Личный кабинет»; протокол OTT и кабинет не изменяются. Парная зависимость добавлена в MAP/dependencies.
+
+## 2026-11-17 (ночь) — Сверка продлений Lava по ответу поддержки
+
+Повод: ответы техподдержки Lava.Top на наши пять вопросов (переписка Сергея). П.1 дал точку API для сверки продлений (P1-2 аудита и открытый пункт open_questions), П.2 подтвердил терминальность `renewal.payment.failed` (ретраи списания +8ч/+24ч, вебхук — после последней попытки, подписка у Lava закрывается сама, `subscription.cancelled` следом не приходит), П.3 подтвердил нашу схему v3 (`return_url`-поля и `paymentProvider`) / v2-fallback (`paymentMethod`), П.4 — Stripe недоступен (компенсации уже в продукте: 30 дней, PayPal, страница отказа), П.5 — строки FAILED в истории вебхуков Lava это журнал повторных доставок; вероятно, мёртвый адрес старого вебхука — удалить конфиг в ЛК Lava руками.
+
+- **`lava.ts`**: новый `getLavaSubscription(contractId)` — `GET /api/v1/subscriptions/{id}`, 404 → null, таймаут 8с. Форма ответа сверена с live-API: `subscriptionStatus` (ACTIVE/FAILED), `recurrentPayments[{datetime,status,amount,currency,fee}]` новые первыми. `GET /api/v2/invoices` для сверки не годится: query-фильтры игнорируются, дефолт 20 записей.
+- **`lavaReconcile.ts`**: `reconcileLavaSubscriptionRenewals(db)` — active-подписки Lava с истёкшим `current_period_end` (окно 30 дней; в норме SQL-lapse закрывает их на 72ч, окно шире как сетка на простой сверки). Успешный charge новее конца периода (допуск 6ч) → тот же идемпотентный `apply_subscription_renewal` (не укорачивает период, не воскрешает cancelled) + settlement (идемпотентен по `paid_at`) → `lava.reconcile.renewal.applied`. `subscriptionStatus=FAILED` → контракт cancelled (`renewal: reconcile: subscription FAILED at Lava`) + письма покупателю и админу как у вебхука (дедуп алерта по contract+event; DELETE в Lava не нужен — закрылось само). Списание ещё ретраится/не прошло → waiting. Чистые функции `lavaRenewalCandidate` / `findMissedLavaRenewal` / `lavaSubscriptionTerminallyFailed` покрыты тестами (`lavaReconcile.test.ts`, 8 новых).
+- **Cron `lava-reconcile`** вызывает сверку после первой-оплатной сверки, отдельным try/catch; результат в JSON ответа (`renewals`).
+- Проверки: 881 тест `_legacy_web` зелёные, `tsc --noEmit` чист, smoke на live-API (контракт Audrone с проваленным продлением — missed=none/terminal=true; активная подписка — waiting; симуляция потерянного успешного charge — найден). В рабочей БД кандидатов сверки сейчас нет (только чтение).
+- Не менялись: мобильный клиент, БД-схема (миграций нет), вебхук-роут. Закрыт пункт open_questions «Сверка потерянных продлений Lava и закрытие на стороне провайдера».
 
 ## 2026-11-17 (вечер) — Виджеты: три независимых пути и видимая плашка вместо молчаливой пустоты
 
