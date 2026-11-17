@@ -33,6 +33,12 @@ export function courseLessonCount(locale:string,received:number,total:number):st
  de:{one:'Lektion',other:'Lektionen'},fr:{one:'leçon',other:'leçons'},it:{one:'lezione',other:'lezioni'},
  es:{one:'lección',other:'lecciones'},pt:{one:'lição',other:'lições'},nl:{one:'les',other:'lessen'}
  };
- const form=new Intl.PluralRules(language).select(received);
+ // Hermes in the shipped RN runtime has no Intl.PluralRules. Counts are integers.
+ const n=Math.abs(Math.trunc(received));
+ let form='other';
+ if(language==='ru'){
+  const last=n%10;const lastTwo=n%100;
+  form=last===1&&lastTwo!==11?'one':last>=2&&last<=4&&(lastTwo<12||lastTwo>14)?'few':'many';
+ }else if(n===1||((language==='fr'||language==='pt')&&n===0))form='one';
  return `${received} ${words[language][form]||words[language].other}`;
 }

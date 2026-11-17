@@ -849,7 +849,6 @@ export default function DayTabRoute() {
           subtitle={plan && plan.mode !== "overdue_summary" && todaySection ? plan.dayRecommendation?.trim() : undefined}
         />
 
-        <DayCourseCards onScrollToCourse={y=>scrollRef.current?.scrollTo({y,animated:true})} />
         {loading && !plan ? <ActivityIndicator color={theme.colors.accent} /> : null}
         {error ? (
           <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.danger }]}>
@@ -1014,6 +1013,7 @@ export default function DayTabRoute() {
             ) : null}
           </>
         ) : null}
+        <DayCourseCards onScrollToCourse={y=>scrollRef.current?.scrollTo({y,animated:true})} />
       </TabScrollView>
 
       {showSubtleRefresh ? (

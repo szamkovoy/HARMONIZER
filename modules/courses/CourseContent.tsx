@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {Linking,Pressable,Text,View} from 'react-native';
+import {Linking,Pressable,StyleSheet,Text,View} from 'react-native';
 import {router,type Href} from 'expo-router';
 import {Ionicons} from '@expo/vector-icons';
 import type {CourseBlock,CourseLesson,CourseView} from '@shared/courses';
@@ -14,6 +14,7 @@ import {AppButton} from '@/modules/ui/AppButton';
 import {SurfaceCardView} from '@/modules/ui/SurfaceCardView';
 import {useTheme} from '@/modules/ui/theme';
 import {courseStrings,courseControls,courseLessonCount} from './strings';
+import {CourseRowIcon} from './CourseRowIcon';
 import {loadCourse,CourseRequestError} from './client';
 
 function Inline({text}:{text:string}){
@@ -27,7 +28,7 @@ function Inline({text}:{text:string}){
 }
 export function CourseMarkdown({text}:{text:string}){
  return <View style={{gap:12}}>{text.trim().split(/\n\s*\n/).map((paragraph,i)=>{
-  const heading=/^#{1,6} /.test(paragraph);return <AppText key={i} variant={heading?'sectionTitle':'dialogBody'}><Inline text={paragraph.replace(/^#{1,6} /,'')}/></AppText>;
+  const heading=/^#{1,6} /.test(paragraph);return <AppText key={i} variant={heading?'sectionTitle':'screenHint'}><Inline text={paragraph.replace(/^#{1,6} /,'')}/></AppText>;
  })}</View>;
 }
 function CourseVideo({block,title}:{block:Extract<CourseBlock,{type:'video'}>;title:string}){
@@ -100,13 +101,15 @@ export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fro
   {lesson?.id===selectedId?<CourseBlocks blocks={lesson.blocks} title={`${course.title} · ${lesson.title}`}/>:null}
  </>:null}
  {error||(fromCache&&!lesson)?<View style={{gap:12}}><AppText tone="muted">{error?strings.error:strings.loading}</AppText><AppButton label={strings.retry} variant="secondary" onPress={()=>{setRetry(n=>n+1);onRetry?.();}}/></View>:null}
- <Pressable accessibilityRole="button" accessibilityState={{expanded}} onPress={()=>setExpanded(v=>!v)} style={{minHeight:48,flexDirection:'row',alignItems:'center',gap:10}}>
-  <Ionicons name={expanded?'chevron-up':'chevron-down'} size={24} color={theme.colors.accent}/>
-  <AppText tone="accent" style={{flex:1}}>{strings.all} ({courseLessonCount(locale,course.lessons.length,course.totalLessons??course.lessons.length)})</AppText>
+ <View>
+ <Pressable accessibilityRole="button" accessibilityState={{expanded}} onPress={()=>setExpanded(v=>!v)} style={{minHeight:44,flexDirection:'row',alignItems:'center',gap:8}}>
+  <CourseRowIcon kind={expanded?'expanded':'collapsed'} tone="accent"/>
+  <AppText variant="screenHint" tone="accent" style={{flex:1}}>{strings.all} ({courseLessonCount(locale,course.lessons.length,course.totalLessons??course.lessons.length)})</AppText>
  </Pressable>
- {expanded?<View>{course.lessons.map((l,i)=><Pressable key={l.id} accessibilityRole="button" accessibilityState={{selected:l.id===selectedId}} onPress={()=>choose(l.id)} style={{paddingVertical:12,minHeight:48,flexDirection:'row',alignItems:'center',gap:10,borderBottomWidth:i<course.lessons.length-1?1:0,borderColor:theme.colors.surfaceBorder}}>
-  <Ionicons name="arrow-forward" size={20} color={l.id===selectedId?theme.colors.accent:theme.colors.textPrimary}/>
-  <AppText style={{flex:1}} tone={l.id===selectedId?'accent':'primary'}>{l.title}</AppText>
+ {expanded?<View>{course.lessons.map((l,i)=><Pressable key={l.id} accessibilityRole="button" accessibilityState={{selected:l.id===selectedId}} onPress={()=>choose(l.id)} style={{paddingVertical:8,minHeight:44,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:i<course.lessons.length-1?StyleSheet.hairlineWidth:0,borderColor:theme.colors.surfaceBorder}}>
+  <CourseRowIcon kind="arrow" tone={l.id===selectedId?'accent':'primary'}/>
+  <AppText variant="screenHint" style={{flex:1}} tone={l.id===selectedId?'accent':'primary'}>{l.title}</AppText>
  </Pressable>)}</View>:null}
+ </View>
  </SurfaceCardView>;
 }

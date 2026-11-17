@@ -7,6 +7,10 @@ depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_module
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/localeRebuild.ts, modules/profile/ui/LocaleRebuildModal.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
+## 2026-11-18 — Пиктограммы и шрифт списка курсов
+
+Стрелка перенесена перед названием, размер общий со списком уроков; отсутствие доступа обозначает нейтральный крестик. Убрана отдельная строка статуса. Названия — screenHint, как текст карточки книги, цвета из общей темы.
+
 ## 2026-11-18 — Курсы после первой репетиции
 
 «Мои курсы» без записей показывает пояснение и существующую кнопку личного кабинета с учётом feature flag; интерфейс использует переводы всех восьми локалей и общую тему. Разделитель есть только между курсами. Экран курса повторяет `FullScreenModalScaffold`: текущий урок/закрытый список до окончания `displayUntil`; затем открытый архив без выбранного урока. Метаданные курса восстанавливаются по auth UID, временная ошибка не стирает известные записи.

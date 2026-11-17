@@ -11,6 +11,7 @@ import {SurfaceCardView} from '@/modules/ui/SurfaceCardView';
 import {SURFACE_CARD} from '@/modules/ui/surfaceCard';
 import {useTheme} from '@/modules/ui/theme';
 import {useCourses,showsOnDay} from './CoursesProvider';
+import {CourseRowIcon} from './CourseRowIcon';
 import {CourseCurrentCard} from './CourseContent';
 import {courseStrings,courseControls} from './strings';
 function DayCard({course,fromCache,refresh,onNavigate}:{course:CourseView;fromCache:boolean;refresh:()=>Promise<void>;onNavigate:(y:number)=>void}){
@@ -21,7 +22,7 @@ export function DayCourseCards({onScrollToCourse}:{onScrollToCourse?:(y:number)=
  const {courses,refresh,fromCache}=useCourses();const y=useRef(0);
  useFocusEffect(useCallback(()=>{void refresh();},[refresh]));
  const visible=courses.filter(c=>showsOnDay(c));if(!visible.length)return null;
- return <View onLayout={e=>{y.current=e.nativeEvent.layout.y;}} style={{gap:16,marginBottom:16}}>{visible.map(c=><DayCard key={c.id} course={c} fromCache={fromCache} refresh={refresh} onNavigate={offset=>onScrollToCourse?.(y.current+offset)}/>)}</View>;
+ return <View onLayout={e=>{y.current=e.nativeEvent.layout.y;}} style={{gap:18}}>{visible.map(c=><DayCard key={c.id} course={c} fromCache={fromCache} refresh={refresh} onNavigate={offset=>onScrollToCourse?.(y.current+offset)}/>)}</View>;
 }
 export function MyCoursesCard(){
  const {courses,error,loading,refresh}=useCourses();const {locale}=useAppLocale();const {t}=useTranslate();const strings=courseStrings(locale);const controls=courseControls(locale);const theme=useTheme();
@@ -32,7 +33,7 @@ export function MyCoursesCard(){
  {!courses.length?<><AppText tone="muted" variant="screenHint">{error?strings.error:loading?strings.loading:strings.empty}</AppText>
  {!error&&!loading&&linksEnabled?<AppButton label={controls.cabinet} disabled={opening} onPress={()=>void cabinet()}/>:null}
  {cabinetError?<AppText tone="danger">{t('gate.cabinetError')}</AppText>:null}</>:null}
- {courses.length?<View>{courses.map((c,i)=><Pressable key={c.id} accessibilityRole="button" onPress={()=>router.push({pathname:'/course/[id]',params:{id:c.id}} as unknown as Href)} style={{paddingTop:i===0?0:12,paddingBottom:i===courses.length-1?0:12,borderBottomWidth:i<courses.length-1?1:0,borderColor:theme.colors.surfaceBorder}}>
- <AppText>{c.title} →</AppText><AppText variant="screenHint" tone="muted">{c.state==='available'&&Date.parse(c.accessUntil)>Date.now()?strings.available:strings.expired}</AppText></Pressable>)}</View>:null}
+ {courses.length?<View>{courses.map((c,i)=>{const available=c.state==='available'&&Date.parse(c.accessUntil)>Date.now();return <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={available?c.title:`${c.title}. ${strings.expired}`} onPress={()=>router.push({pathname:'/course/[id]',params:{id:c.id}} as unknown as Href)} style={{minHeight:44,paddingVertical:8,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:i<courses.length-1?1:0,borderColor:theme.colors.surfaceBorder}}>
+ <CourseRowIcon kind={available?'arrow':'close'}/><AppText variant="screenHint" style={{flex:1}}>{c.title}</AppText></Pressable>;})}</View>:null}
  {error?<AppButton label={strings.retry} variant="secondary" onPress={()=>void refresh()}/>:null}</SurfaceCardView>;
 }
