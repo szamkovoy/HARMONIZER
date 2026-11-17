@@ -385,3 +385,254 @@ describe("widget VPN stall hint", () => {
     expect(error?.style.display).toBe("none");
   });
 });
+function miniScriptNode(attrs: Record<string, string>, src: string) {
+  const inserted: MiniNode[] = [];
+  const script = {
+    attrs: { ...attrs },
+    src,
+    parentNode: {
+      inserted,
+      insertBefore(host: MiniNode) {
+        inserted.push(host);
+      },
+    },
+    getAttribute(name: string) {
+      return script.attrs[name] ?? null;
+    },
+    setAttribute(name: string, value: string) {
+      script.attrs[name] = value;
+    },
+  };
+  return script;
+}
+
+type FetchCall = { url: string; init?: unknown };
+
+/**
+ * Boots widget.js with a real `mount()` over a mock <script> so tests can
+ * drive the config-load path (data-api base → Supabase fallback → Vercel).
+ */
+function bootMountPage(opts: {
+  scriptAttrs: Record<string, string>;
+  scriptSrc: string;
+  fetchImpl: (url: string, init?: unknown) => Promise<unknown>;
+}) {
+  const document = {
+    currentScript: null as unknown,
+    readyState: "complete",
+    addEventListener() {},
+    querySelectorAll() {
+      return [];
+    },
+    createElement: (tag: string) => miniNode(tag),
+    createTextNode: (text: string) => {
+      const node = miniNode("#text");
+      node.textContent = String(text);
+      return node;
+    },
+  };
+  const window = {
+    history: { state: null, replaceState() {} },
+    location: { href: "https://site.ru/consult/" },
+    navigator: { language: "ru", languages: ["ru"] },
+    document,
+  };
+  const calls: FetchCall[] = [];
+  const fetch = (url: string, init?: unknown) => {
+    calls.push({ url, init });
+    return opts.fetchImpl(url, init);
+  };
+  const script = miniScriptNode(opts.scriptAttrs, opts.scriptSrc);
+  document.currentScript = script;
+  const context = createContext({
+    window,
+    document,
+    navigator: window.navigator,
+    history: window.history,
+    URL,
+    Intl,
+    setTimeout,
+    clearTimeout,
+    fetch,
+  });
+  runInContext(source, context);
+  const host = script.parentNode.inserted[0] ?? null;
+  return { window, calls, host, script };
+}
+
+async function flushMicrotasks(rounds = 8) {
+  for (let i = 0; i < rounds; i++) {
+    await Promise.resolve();
+  }
+}
+
+const WIDGET_CONFIG = {
+  id: "w1",
+  locale: "ru",
+  available: true,
+  methods: ["int"],
+  defaultMethod: "int",
+  paymentMode: "choice",
+  kind: "one_time",
+  prices: { int: { amount: 30, currency: "EUR" } },
+  texts: { methodInt: "Международная карта", button: "Оплатить" },
+  elements: [
+    { type: "method", visible: true },
+    { type: "email", visible: true },
+    { type: "button", visible: true },
+  ],
+  style: {},
+};
+
+describe("widget config fallbacks", () => {
+  it("tries data-api first and falls back to the next base when it fails", async () => {
+    const page = bootMountPage({
+      scriptAttrs: { "data-id": "w1", "data-lang": "ru", "data-api": "https://primary.test/hz" },
+      scriptSrc: "https://site.ru/hz/widget.js",
+      fetchImpl: (url) => {
+        if (url.startsWith("https://primary.test/")) return Promise.reject(new Error("down"));
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(WIDGET_CONFIG) });
+      },
+    });
+    await flushMicrotasks();
+
+    expect(page.calls.length).toBe(2);
+    expect(page.calls[0].url).toContain("https://primary.test/hz/api/widget/w1");
+    expect(page.calls[1].url).toContain("/functions/v1/hz-proxy/api/widget/w1");
+    expect(page.script.getAttribute("data-hz-mounted")).toBe("1");
+    expect(findNode(page.host as MiniNode, (node) => node.tag === "button")).toBeTruthy();
+  });
+
+  it("keeps the script origin as the primary base for legacy embeds without data-api", async () => {
+    const page = bootMountPage({
+      scriptAttrs: { "data-id": "w1", "data-lang": "ru" },
+      scriptSrc: "https://api.old/widget.js",
+      fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(WIDGET_CONFIG) }),
+    });
+    await flushMicrotasks();
+
+    expect(page.calls.length).toBe(1);
+    expect(page.calls[0].url).toContain("https://api.old/api/widget/w1");
+  });
+
+  it("shows a visible localized plate while every base is down and keeps retrying", async () => {
+    vi.useFakeTimers();
+    try {
+      const page = bootMountPage({
+        scriptAttrs: { "data-id": "w1", "data-lang": "ru", "data-api": "https://primary.test" },
+        scriptSrc: "https://site.ru/hz/widget.js",
+        fetchImpl: () => Promise.reject(new Error("all down")),
+      });
+      await flushMicrotasks();
+
+      expect(page.calls.length).toBe(3);
+      const plate = findNode(page.host as MiniNode, (node) => node.className === "hz-loadfail");
+      expect(plate?.textContent).toContain("Форма оплаты временно не загрузилась");
+      expect(plate?.textContent).toContain("sergei@zamkovoi.yoga");
+
+      vi.advanceTimersByTime(20_000);
+      await flushMicrotasks();
+
+      expect(page.calls.length).toBe(6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+function renderWithBases(
+  fetchImpl: (url: string, init?: unknown) => Promise<unknown>,
+  apiBases?: string[],
+  apiBase?: string,
+) {
+  const document = {
+    currentScript: null,
+    readyState: "complete",
+    addEventListener() {},
+    querySelectorAll() {
+      return [];
+    },
+    createElement: (tag: string) => miniNode(tag),
+    createTextNode: (text: string) => {
+      const node = miniNode("#text");
+      node.textContent = String(text);
+      return node;
+    },
+  };
+  const window = {
+    history: { state: null, replaceState() {} },
+    location: { href: "https://site.ru/landing" },
+    navigator: { language: "ru", languages: ["ru"] },
+    document,
+    addEventListener() {},
+  };
+  const calls: FetchCall[] = [];
+  const fetch = (url: string, init?: unknown) => {
+    calls.push({ url, init });
+    return fetchImpl(url, init);
+  };
+  const context = createContext({
+    window,
+    document,
+    navigator: window.navigator,
+    history: window.history,
+    URL,
+    Intl,
+    setTimeout,
+    clearTimeout,
+    fetch,
+  });
+  runInContext(source, context);
+  const host = miniNode("div");
+  (window as unknown as { HarmonizerWidget?: { render: (host: MiniNode, data: unknown, opts: unknown) => void } })
+    .HarmonizerWidget?.render(host, CHECKOUT_DATA, { preview: false, apiBases, apiBase });
+  return { window, host, calls };
+}
+
+describe("widget checkout fallbacks", () => {
+  it("moves invoice creation to the next base when the first drops the request", async () => {
+    const page = renderWithBases(
+      (url) => {
+        if (url.startsWith("https://a.test/")) return Promise.reject(new Error("down"));
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ paymentUrl: "https://pay.example/form" }) });
+      },
+      ["https://a.test", "https://b.test"],
+    );
+    pressPay(page.host);
+    await flushMicrotasks();
+
+    expect(page.window.location.href).toBe("https://pay.example/form");
+    expect(page.calls.length).toBe(2);
+    expect(page.calls[0].url).toContain("https://a.test/api/widget/w1/checkout");
+    expect(page.calls[1].url).toContain("https://b.test/api/widget/w1/checkout");
+  });
+
+  it("retries a 5xx checkout response on the next base", async () => {
+    const page = renderWithBases(
+      (url) => {
+        if (url.startsWith("https://a.test/")) return Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({}) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ paymentUrl: "https://pay.example/ok" }) });
+      },
+      ["https://a.test", "https://b.test"],
+    );
+    pressPay(page.host);
+    await flushMicrotasks();
+
+    expect(page.window.location.href).toBe("https://pay.example/ok");
+    expect(page.calls.length).toBe(2);
+  });
+
+  it("still posts to a lone apiBase when no list is given (legacy render calls)", async () => {
+    const page = renderWithBases(
+      () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ paymentUrl: "https://pay.example/legacy" }) }),
+      undefined,
+      "https://api.test",
+    );
+    pressPay(page.host);
+    await flushMicrotasks();
+
+    expect(page.window.location.href).toBe("https://pay.example/legacy");
+    expect(page.calls.length).toBe(1);
+    expect(page.calls[0].url).toContain("https://api.test/api/widget/w1/checkout");
+  });
+});
