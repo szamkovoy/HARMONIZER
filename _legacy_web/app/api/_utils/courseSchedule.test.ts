@@ -30,3 +30,12 @@ describe('course calendar and rehearsal',()=>{
   expect(html).not.toContain('<script>');expect(html).toContain('<strong>Текст</strong>');expect(html).toContain('href="https://zamkovoi.yoga/m2"');
  });
 });
+
+describe('authored email paragraph spacing',()=>{
+ it('preserves exactly the authored blank lines and single signature line break',()=>{
+  expect(courseMarkdownHtml('Здравствуйте, Сергей!\n\nТекст\n\n\nЖелаю вам плодотворных практик!\nСергей Замковой')).toBe('<p>Здравствуйте, Сергей!</p><p></p><p>Текст</p><p></p><p></p><p>Желаю вам плодотворных практик!<br>Сергей Замковой</p>');
+ });
+ it('handles Windows newlines without changing paragraph structure',()=>{
+  expect(courseMarkdownHtml('A\r\n\r\nB\r\nC')).toBe('<p>A</p><p></p><p>B<br>C</p>');
+ });
+});

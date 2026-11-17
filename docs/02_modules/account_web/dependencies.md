@@ -33,6 +33,8 @@ code_refs:
 
 ## 2. От него зависят
 
+- `courses`: `openAccountCabinet` / `useAccountLinksEnabled` для кнопки из пустой карточки «Мои курсы».
+
 - **`subscription`** — `AccountGateDialog` / `AccountUpsellPanel` вызывают `openAccountCabinet()` / `prefetchAccountCabinetOtt` и `useAccountLinksEnabled()`; gate скрывает свой Modal через `useModalDismissForBrowser` (`beforeOpen: hideAndWait`) и держит компонент смонтированным (`visible={flag}`), пока native dismiss не завершится.
 - **`profile`** — ссылки «Выйти» / «Удалить аккаунт» на `app/(tabs)/profile.tsx` (`deleteAccountRemote`).
 - **`admin_panel`** — KPI/графики **net**-выручки и `/admin/payments/stats` читают `payment_settlements` (`lavatop` / `yookassa`); ручной леджер `payments` — отдельно как гранты.

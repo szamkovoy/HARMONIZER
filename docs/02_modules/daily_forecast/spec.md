@@ -2,7 +2,7 @@
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
 version: 2.49
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -130,3 +130,8 @@ code_refs:
 - `docs/04_reference/astrology/essential_dignities.md`
 - `docs/04_reference/astrology/accidental_dignities.md`
 - `docs/04_reference/astrology/harmoniousness.md`
+
+
+## Переключение уроков на Дне
+
+Выбор из списка и стрелки меняют урок внутри карточки курса, прокручивая к её началу. Последний материал остаётся на «Дне» до `displayUntil` (три календарных дня после выдачи), затем доступен из архива в Профиле. Курсы продолжают загружаться отдельно от Home/DayPlan; их защищённый снимок метаданных и retry не меняют прогрев планировщика.

@@ -31,6 +31,7 @@ type Automation = {
 };
 
 type Step = {
+  course_lesson_id?: string|null;
   id: string;
   name?: string | null;
   position: number;
@@ -80,7 +81,7 @@ export default function AdminEmailAutomationDetailPage() {
       );
       setAutomation(data.automation);
       setName(data.automation.name);
-      setTriggerType(data.automation.trigger_type);
+      setTriggerType(data.automation?.trigger_type);
       setSteps(data.steps);
       setError(null);
     } catch (err) {
@@ -316,6 +317,7 @@ export default function AdminEmailAutomationDetailPage() {
           <h2 className="text-sm font-semibold text-zinc-800">Письма в цепочке</h2>
           <button
             type="button"
+            disabled={automation?.trigger_type === "course"}
             onClick={() => void addStep()}
             className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white"
           >
@@ -337,7 +339,7 @@ export default function AdminEmailAutomationDetailPage() {
                   href={`/admin/email/automations/${id}/steps/${s.id}`}
                   title={emailListTitle(s.name, s.subject)}
                   subtitle={[
-                    `Письмо ${index + 1} · +${s.delay_hours}ч`,
+                    automation?.trigger_type === "course" ? `Материал ${index + 1}` : `Письмо ${index + 1} · +${s.delay_hours}ч`,
                     emailListSubjectSubtitle(s.name, s.subject),
                   ]
                     .filter(Boolean)
@@ -359,7 +361,8 @@ export default function AdminEmailAutomationDetailPage() {
                   }
                   trailingActions={
                     <>
-                      <button
+                      {s.course_lesson_id?<button type="button" className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-700" onClick={e=>{e.preventDefault();e.stopPropagation();router.push(`/admin/courses/lessons/${s.course_lesson_id}`);}}>Урок</button>:null}
+                      {automation?.trigger_type !== 'course'?<><button
                         type="button"
                         title="Вверх"
                         onClick={(e) => {
@@ -391,10 +394,10 @@ export default function AdminEmailAutomationDetailPage() {
                         className="rounded border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </button></>:null}
                     </>
                   }
-                  below={
+                  below={automation?.trigger_type === 'course'?null:
                     <label className="block text-xs text-zinc-500">
                       Задержка (часов)
                       <input

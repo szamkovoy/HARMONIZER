@@ -21,7 +21,7 @@ export async function listUserCourses(db:SupabaseClient,userId:string,lessonId?:
     const current=lessonId?unlocked.find(l=>l.id===lessonId)??null:unlocked.at(-1)??null;
     const future=[...e.schedule.map((s:{opensAt:string})=>s.opensAt),e.display_until,e.access_until].filter((t:string)=>Date.parse(t)>now).sort((a:string,b:string)=>Date.parse(a)-Date.parse(b));
     return {id:e.id,slug:course.slug,title:course.title,mode:e.mode,startedAt:e.started_at,accessUntil:e.access_until,displayUntil:e.display_until,landingUrl:course.landing_url,state,current,
-      lessons:unlocked.map(({id,position,title})=>({id,position,title})),nextChangeAt:future[0]??null} as CourseView;
+      lessons:unlocked.map(({id,position,title})=>({id,position,title})),totalLessons:e.schedule.length,nextChangeAt:future[0]??null} as CourseView;
   });
 }
 

@@ -1,18 +1,20 @@
-import {useEffect,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {Linking,Pressable,Text,View} from 'react-native';
 import {router,type Href} from 'expo-router';
-import type {CourseBlock,CourseView} from '@shared/courses';
+import {Ionicons} from '@expo/vector-icons';
+import type {CourseBlock,CourseLesson,CourseView} from '@shared/courses';
 import {useAppLocale} from '@/modules/i18n';
 import {useRemotePlay} from '@/modules/remote-play';
 import {vimeoAudiotrackForLocale} from '@/modules/practices/core/vimeo';
 import {PhoneVimeoPlayer} from '@/modules/practices/ui/PhoneVimeoPlayer';
 import {PracticeKeepAwake} from '@/modules/ui/PracticeKeepAwake';
-import {useIsFocused} from '@react-navigation/native';
+import {useFocusEffect,useIsFocused} from '@react-navigation/native';
 import {AppText} from '@/modules/ui/AppText';
 import {AppButton} from '@/modules/ui/AppButton';
 import {SurfaceCardView} from '@/modules/ui/SurfaceCardView';
 import {useTheme} from '@/modules/ui/theme';
-import {courseStrings} from './strings';
+import {courseStrings,courseControls,courseLessonCount} from './strings';
+import {loadCourse,CourseRequestError} from './client';
 
 function Inline({text}:{text:string}){
  const theme=useTheme();const parts=text.split(/(\[[^\]]+\]\(https:\/\/[^\s)]+\)|https:\/\/[^\s]+|\*\*[^*]+\*\*)/g);
@@ -47,16 +49,64 @@ function CourseVideo({block,title}:{block:Extract<CourseBlock,{type:'video'}>;ti
 export function CourseBlocks({blocks,title}:{blocks:CourseBlock[];title:string}){
  return <View style={{gap:16}}>{blocks.map((block,i)=>block.type==='text'?<CourseMarkdown key={i} text={block.markdown}/>:<CourseVideo key={block.vimeoId+'-'+i} block={block} title={title}/>)}</View>;
 }
-export function CourseCurrentCard({course,onLesson}:{course:CourseView;onLesson?:(id:string)=>void}){
- const {locale}=useAppLocale();const strings=courseStrings(locale);const theme=useTheme();const [expanded,setExpanded]=useState(false);
- const open=(id:string)=>onLesson?onLesson(id):router.push({pathname:'/course/[id]',params:{id:course.id,lessonId:id}} as unknown as Href);
- if(!course.current||Date.parse(course.accessUntil)<=Date.now())return null;
- return <SurfaceCardView tone="elevated"><AppText variant="sectionTitle">{course.title}</AppText>
- <AppText variant="dialogTitle">{course.current.title}</AppText>
- <CourseBlocks blocks={course.current.blocks} title={`${course.title} · ${course.current.title}`}/>
- <Pressable accessibilityRole="button" accessibilityState={{expanded}} onPress={()=>setExpanded(v=>!v)} style={{paddingVertical:12}}>
- <AppText tone="accent">{expanded?'▾':'▸'} {expanded?strings.hide:strings.all}</AppText></Pressable>
- {expanded?<View style={{gap:8}}>{course.lessons.map(l=><Pressable key={l.id} accessibilityRole="button" onPress={()=>open(l.id)} style={{paddingVertical:10,borderBottomWidth:1,borderColor:theme.colors.surfaceBorder}}>
- <AppText tone={l.id===course.current?.id?'accent':'primary'}>{l.title} →</AppText></Pressable>)}</View>:null}
+export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fromCache=false,onNavigate,onRetry}:{
+ course:CourseView;archive?:boolean;showCourseTitle?:boolean;fromCache?:boolean;onNavigate?:()=>void;onRetry?:()=>void;
+}){
+ const {locale}=useAppLocale();const strings=courseStrings(locale);const controls=courseControls(locale);const theme=useTheme();
+ const [expanded,setExpanded]=useState(archive);
+ const [selectedId,setSelectedId]=useState<string|null>(archive?null:course.current?.id??null);
+ const [lesson,setLesson]=useState<CourseLesson|null>(archive?null:course.current);
+ const [focusVersion,setFocusVersion]=useState(0);
+ const previousCurrent=useRef(course.current?.id);
+ useEffect(()=>{if(previousCurrent.current!==course.current?.id&&!archive)setSelectedId(course.current?.id??null);previousCurrent.current=course.current?.id;},[course.current?.id,archive]);
+ const [loading,setLoading]=useState(false);const [error,setError]=useState(false);const [retry,setRetry]=useState(0);
+ const cache=useRef(new Map<string,CourseLesson>());const request=useRef(0);const latest=useRef(course);latest.current=course;
+ useEffect(()=>{if(course.current&&!fromCache)cache.current.set(course.current.id,course.current);},[course.current,fromCache]);
+ useFocusEffect(useCallback(()=>{
+  setExpanded(archive);setSelectedId(archive?null:latest.current.current?.id??null);setFocusVersion(n=>n+1);
+  return()=>{request.current++;};
+ },[course.id,archive]));
+ useEffect(()=>{
+  const version=++request.current;
+  if(!selectedId){setLesson(null);setError(false);setLoading(false);return;}
+  if(!course.lessons.some(l=>l.id===selectedId)){setSelectedId(archive?null:course.current?.id??null);return;}
+  if(selectedId===course.current?.id&&!fromCache){setLesson(course.current);setError(false);setLoading(false);return;}
+  setLesson(cache.current.get(selectedId)??null);setLoading(true);setError(false);
+  void loadCourse(course.id,selectedId).then(({course:result})=>{
+   if(request.current!==version)return;
+   if(!result.current||result.current.id!==selectedId)throw new CourseRequestError(404);
+   cache.current.set(selectedId,result.current);setLesson(result.current);
+  }).catch(err=>{
+   if(request.current!==version)return;
+   if(err instanceof CourseRequestError&&[403,404].includes(err.status)){cache.current.delete(selectedId);setLesson(null);}
+   setError(true);
+  }).finally(()=>{if(request.current===version)setLoading(false);});
+  return()=>{request.current++;};
+ },[course.id,course.current,course.lessons,selectedId,archive,fromCache,retry,focusVersion]);
+ const choose=(id:string)=>{setSelectedId(id);requestAnimationFrame(()=>onNavigate?.());};
+ const index=course.lessons.findIndex(l=>l.id===selectedId);
+ const previous=index>0?course.lessons[index-1]:null;const next=index>=0?course.lessons[index+1]:null;
+ const title=course.lessons.find(l=>l.id===selectedId)?.title;
+ if(Date.parse(course.accessUntil)<=Date.now())return null;
+ return <SurfaceCardView tone="elevated">
+ {showCourseTitle?<AppText variant="sectionTitle">{course.title}</AppText>:null}
+ {selectedId?<>
+  <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+   <AppText variant="dialogTitle" style={{flex:1}}>{title||strings.lesson}</AppText>
+   {previous?<Pressable accessibilityRole="button" accessibilityLabel={controls.previous} onPress={()=>choose(previous.id)} style={{padding:10}}><Ionicons name="chevron-back" size={26} color={theme.colors.accent}/></Pressable>:null}
+   {next?<Pressable accessibilityRole="button" accessibilityLabel={controls.next} onPress={()=>choose(next.id)} style={{padding:10}}><Ionicons name="chevron-forward" size={26} color={theme.colors.accent}/></Pressable>:null}
+  </View>
+  {loading&&!lesson?<AppText tone="muted">{strings.loading}</AppText>:null}
+  {lesson?.id===selectedId?<CourseBlocks blocks={lesson.blocks} title={`${course.title} · ${lesson.title}`}/>:null}
+ </>:null}
+ {error||(fromCache&&!lesson)?<View style={{gap:12}}><AppText tone="muted">{error?strings.error:strings.loading}</AppText><AppButton label={strings.retry} variant="secondary" onPress={()=>{setRetry(n=>n+1);onRetry?.();}}/></View>:null}
+ <Pressable accessibilityRole="button" accessibilityState={{expanded}} onPress={()=>setExpanded(v=>!v)} style={{minHeight:48,flexDirection:'row',alignItems:'center',gap:10}}>
+  <Ionicons name={expanded?'chevron-up':'chevron-down'} size={24} color={theme.colors.accent}/>
+  <AppText tone="accent" style={{flex:1}}>{strings.all} ({courseLessonCount(locale,course.lessons.length,course.totalLessons??course.lessons.length)})</AppText>
+ </Pressable>
+ {expanded?<View>{course.lessons.map((l,i)=><Pressable key={l.id} accessibilityRole="button" accessibilityState={{selected:l.id===selectedId}} onPress={()=>choose(l.id)} style={{paddingVertical:12,minHeight:48,flexDirection:'row',alignItems:'center',gap:10,borderBottomWidth:i<course.lessons.length-1?1:0,borderColor:theme.colors.surfaceBorder}}>
+  <Ionicons name="arrow-forward" size={20} color={l.id===selectedId?theme.colors.accent:theme.colors.textPrimary}/>
+  <AppText style={{flex:1}} tone={l.id===selectedId?'accent':'primary'}>{l.title}</AppText>
+ </Pressable>)}</View>:null}
  </SurfaceCardView>;
 }

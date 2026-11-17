@@ -368,6 +368,7 @@ function RootLayoutNav() {
           />
           <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="webinar/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="course/[id]" options={{ headerShown: false, presentation: "fullScreenModal" }} />
           <Stack.Screen
             name="book/[locale]"
             options={{

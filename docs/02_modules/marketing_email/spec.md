@@ -2,7 +2,7 @@
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
 version: 1.53
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -161,3 +161,8 @@ Tables as in B2 + indexes on `email_events(created_at)`, `(event_type, created_a
 - Open/click ≈ pixel/link tracking.
 - Gmail rarely emits `complained`.
 - Resend suppression list is **region-wide** (affects all domains in region).
+
+
+## Отступы и связь с уроками курса
+
+Конвертация course Markdown сохраняет каждую авторскую пустую строку явным email-safe абзацем, одиночный перевод — `<br>`. Восемь известных копий пилота исправляются миграцией `20261118010000`; последующие ручные правки защищены условием совпадения. GET автоцепочки дополняет шаг `course_lesson_id` для перехода к учебному редактору; текст письма и текст урока сохраняются независимо.

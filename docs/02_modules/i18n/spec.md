@@ -2,7 +2,7 @@
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
 version: 1.22
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -444,3 +444,8 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
   the assistant reply on the shared profile/app locale. `EXPO_PUBLIC_I18N_TEST_MODE`
   enables the opposite QA path: voice turns may auto-detect the spoken language and
   temporarily reply there, while the non-dialog UI still follows the shared locale.
+
+
+## Навигация курсов
+
+`modules/courses/strings.ts` содержит восемь локалей CTA кабинета, предыдущего/следующего урока и счётчика полученных материалов. Склонение итогового количества — `Intl.PluralRules`; учебные тексты пилота остаются авторскими RU. Палитра берётся из существующих общих токенов.

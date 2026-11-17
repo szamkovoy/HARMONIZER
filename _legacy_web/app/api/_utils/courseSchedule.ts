@@ -18,5 +18,9 @@ const escape = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').repla
 /** Small authored Markdown subset; HTML is escaped, only HTTPS links are emitted. */
 export function courseMarkdownHtml(markdown: string): string {
   const inline = (s: string) => escape(s).replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)|(?<!["(])(https:\/\/[^\s<]+)/g, (_,label,url,bare) => `<a href="${url||bare}">${label||bare}</a>`).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-  return markdown.trim().split(/\n\s*\n/).map(p => /^#{1,6} /.test(p) ? `<h3>${inline(p.replace(/^#{1,6} /,''))}</h3>` : `<p>${inline(p).replace(/\n/g,'<br>')}</p>`).join('');
+  // Explicit spacers survive the shared mail wrapper's zero paragraph margins.
+  return markdown.replace(/\r\n?/g,'\n').trim().split(/(\n[ \t]*\n(?:[ \t]*\n)*)/).map(part => {
+    if (/^\n[ \t]*\n/.test(part)) return '<p></p>'.repeat((part.match(/\n/g)?.length ?? 2)-1);
+    return /^#{1,6} /.test(part) ? `<h3>${inline(part.replace(/^#{1,6} /,''))}</h3>` : `<p>${inline(part).replace(/\n/g,'<br>')}</p>`;
+  }).join('');
 }

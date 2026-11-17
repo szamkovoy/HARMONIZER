@@ -2,10 +2,14 @@
 id: 02_modules/admin_panel/history
 title: Admin Panel History
 version: 1.14
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-18 — Просмотр и редактор урока из письма
+
+У course-шага автоцепочки есть «Урок» → `/admin/courses/lessons/:id`: сначала просмотр, затем редактор названия и упорядоченных текстовых/Vimeo-блоков (добавить, удалить, переместить). `GET/PATCH /api/admin/courses/lessons/:id` защищены `requireAdmin`; сохраняется `course_lessons`, календарь не меняется. Generic перестановка/удаление/delay в списке course-цепочки скрыты; добавление отключено. Письмо по-прежнему редактируется отдельно.
 
 ## 2026-11-17 — Интеграция пилота курсов
 

@@ -2,7 +2,7 @@
 id: 02_modules/marketing_email/history
 title: Marketing Email History
 version: 1.43
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-18 — Отступы и связь с уроками курса
+
+Конвертация course Markdown сохраняет каждую авторскую пустую строку явным email-safe абзацем, одиночный перевод — `<br>`. Восемь известных копий пилота исправляются миграцией `20261118010000`; последующие ручные правки защищены условием совпадения. GET автоцепочки дополняет шаг `course_lesson_id` для перехода к учебному редактору; текст письма и текст урока сохраняются независимо.
 
 ## 2026-11-17 — Интеграция пилота курсов
 

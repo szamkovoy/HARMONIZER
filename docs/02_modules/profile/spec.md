@@ -2,7 +2,7 @@
 id: 02_modules/profile/spec
 title: Profile Spec
 version: 1.46
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -125,3 +125,8 @@ code_refs:
 ## Справочные материалы
 
 - Модель тарифов и терминология **free/premium** в продукте: не пересказывать в этом файле — **[tier_model.md](../../04_reference/product/tier_model.md)** и контекст доступа **[subscription/spec.md](../subscription/spec.md)** (раздел «Справочные материалы» там ведёт на тот же reference).
+
+
+## Курсы после первой репетиции
+
+«Мои курсы» без записей показывает пояснение и существующую кнопку личного кабинета с учётом feature flag; интерфейс использует переводы всех восьми локалей и общую тему. Разделитель есть только между курсами. Экран курса повторяет `FullScreenModalScaffold`: текущий урок/закрытый список до окончания `displayUntil`; затем открытый архив без выбранного урока. Метаданные курса восстанавливаются по auth UID, временная ошибка не стирает известные записи.

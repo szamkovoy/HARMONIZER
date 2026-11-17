@@ -2,7 +2,7 @@
 id: 02_modules/i18n/history
 title: i18n History
 version: 1.26
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -15,6 +15,10 @@ code_refs:
     scripts/i18n-sync.mjs,
   ]
 ---
+
+## 2026-11-18 — Навигация курсов
+
+`modules/courses/strings.ts` содержит восемь локалей CTA кабинета, предыдущего/следующего урока и счётчика полученных материалов. Склонение итогового количества — `Intl.PluralRules`; учебные тексты пилота остаются авторскими RU. Палитра берётся из существующих общих токенов.
 
 ## 2026-11-17 — Интерфейс курсов
 

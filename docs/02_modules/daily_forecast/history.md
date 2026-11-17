@@ -2,7 +2,7 @@
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
 version: 2.54
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -21,6 +21,10 @@ code_refs:
     services/homeDayContentReloadRequest.ts,
   ]
 ---
+
+## 2026-11-18 — Переключение уроков на Дне
+
+Выбор из списка и стрелки меняют урок внутри карточки курса, прокручивая к её началу. Последний материал остаётся на «Дне» до `displayUntil` (три календарных дня после выдачи), затем доступен из архива в Профиле. Курсы продолжают загружаться отдельно от Home/DayPlan; их защищённый снимок метаданных и retry не меняют прогрев планировщика.
 
 ## 2026-11-17 — Интеграция пилота курсов
 

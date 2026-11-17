@@ -26,7 +26,7 @@ describe('course ownership and release boundaries',()=>{
  it('lists only owned, started grants and never returns future titles or bodies',async()=>{
   vi.useFakeTimers().setSystemTime(new Date('2026-11-17T12:00:00Z'));
   const result=await listUserCourses(database(rows()),'owner');
-  expect(result.map(c=>c.id)).toEqual(['own']);expect(result[0].current?.id).toBe('open');
+  expect(result.map(c=>c.id)).toEqual(['own']);expect(result[0].current?.id).toBe('open');expect(result[0].totalLessons).toBe(2);
   expect(JSON.stringify(result)).not.toContain('Secret');expect(result[0].nextChangeAt).toBe('2026-11-18T00:00:00Z');
  });
  it('denies a guessed grant belonging to another account and a direct future lesson',async()=>{

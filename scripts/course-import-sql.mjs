@@ -16,9 +16,9 @@ for(const lesson of course.lessons){
  const blocks=[...(course.emailHeader?[course.emailHeader]:[]),{id:`${lesson.id}-text`,type:'text',html:body,align:'left',fontFamily:'system',fontSize:'md',marginTop:0,marginBottom:0}];
  const update=process.argv.includes('--replace-emails')?'do update set subject=excluded.subject,subject_i18n=excluded.subject_i18n,html_body=excluded.html_body,html_body_i18n=excluded.html_body_i18n,blocks_i18n=excluded.blocks_i18n':'do nothing';
  lines.push(`insert into public.email_automation_steps(id,automation_id,name,position,delay_hours,subject,subject_i18n,html_body,html_body_i18n,blocks_i18n) values('${step}','${auto}',${q(lesson.title)},${lesson.position},0,${q(lesson.email.subject)},${q(JSON.stringify({ru:lesson.email.subject}))}::jsonb,${q(html)},${q(JSON.stringify({ru:html}))}::jsonb,${q(JSON.stringify({ru:blocks}))}::jsonb) on conflict(id) ${update};`);
- lines.push(`insert into public.course_lessons(id,course_slug,position,gap_days,title,blocks,email_step_id) values(${q(lesson.id)},${q(course.slug)},${lesson.position},${lesson.gapDays},${q(lesson.title)},${q(JSON.stringify(lesson.blocks))}::jsonb,'${step}') on conflict(id) do update set title=excluded.title,blocks=excluded.blocks,gap_days=excluded.gap_days;`);
+ lines.push(`insert into public.course_lessons(id,course_slug,position,gap_days,title,blocks,email_step_id) values(${q(lesson.id)},${q(course.slug)},${lesson.position},${lesson.gapDays},${q(lesson.title)},${q(JSON.stringify(lesson.blocks))}::jsonb,'${step}') on conflict(id) ${process.argv.includes('--replace-lessons')?'do update set title=excluded.title,blocks=excluded.blocks,gap_days=excluded.gap_days':'do nothing'};`);
 }
 const output=process.argv.find(a=>a.endsWith('.sql'));
 if(!output)throw new Error('Укажите путь к SQL-файлу');
 await writeFile(output,lines.join('\n')+'\n');
-console.log('Подготовлен импорт 8 уроков и писем без запуска цепочки. Существующие письма сохраняются, если не задан --replace-emails.');
+console.log('Подготовлен импорт 8 уроков и писем без запуска цепочки. Существующие письма и уроки сохраняются; замена только через --replace-emails / --replace-lessons.');

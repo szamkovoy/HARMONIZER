@@ -2,7 +2,7 @@
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
 version: 1.23
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -160,3 +160,8 @@ code_refs:
 - LLM load/top-tokens зависят от событий `dialog_turn` / `llm_prompt_size` (пишутся из communicator dialog после успешного insert хода). Пока логов мало — `meta.partial` включает `top_tokens_sparse`; карточки не притворяются нулевой истиной без оговорки.
 - Пороги алертов захардкожены в `/api/admin/dashboard` (`TOKEN_ALERT_THRESHOLD_24H=80000`, `LLM_ERROR_ALERT_THRESHOLD_24H=15`); UI настроек порогов пока нет.
 - Stories media pipeline рассчитан на короткий контент: фото до 30 МБ, raw video до **100 МБ** и до **45 секунд**. Ограничения enforced уже на upload/process-роутах, чтобы `ffmpeg` укладывался в serverless runtime.
+
+
+## Просмотр и редактор урока из письма
+
+У course-шага автоцепочки есть «Урок» → `/admin/courses/lessons/:id`: сначала просмотр, затем редактор названия и упорядоченных текстовых/Vimeo-блоков (добавить, удалить, переместить). `GET/PATCH /api/admin/courses/lessons/:id` защищены `requireAdmin`; сохраняется `course_lessons`, календарь не меняется. Generic перестановка/удаление/delay в списке course-цепочки скрыты; добавление отключено. Письмо по-прежнему редактируется отдельно.

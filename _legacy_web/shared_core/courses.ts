@@ -4,5 +4,5 @@ export type CourseView = {
  id:string; slug:string; title:string; mode:'normal'|'test'; startedAt:string;
  accessUntil:string; displayUntil:string; landingUrl:string;
  state:'available'|'expired'|'revoked'; current:CourseLesson|null;
- lessons:{id:string;position:number;title:string}[]; nextChangeAt:string|null;
+ lessons:{id:string;position:number;title:string}[]; totalLessons:number; nextChangeAt:string|null;
 };

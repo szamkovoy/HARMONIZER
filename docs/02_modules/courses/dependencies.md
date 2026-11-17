@@ -2,12 +2,14 @@
 id: 02_modules/courses/dependencies
 title: Courses Dependencies
 version: 1.1
-updated: 2026-11-17
+updated: 2026-11-18
 depends_on: [02_modules/courses/spec]
 code_refs: [modules/courses/CoursesProvider.tsx, modules/courses/CourseContent.tsx, _legacy_web/app/api/_utils/courseMailRunner.ts]
 ---
 
 ## 1. Зависит от
+
+- `account_web`: существующие `openAccountCabinet` и feature flag для CTA пустого списка курсов.
 
 - `webinars`: существующие webinar_passes/регистрации, apply_webinar_passes и sendPassWebinarInvites; источник пропуска — обычное прохождение курса.
 

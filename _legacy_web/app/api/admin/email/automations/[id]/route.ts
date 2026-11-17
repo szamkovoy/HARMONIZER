@@ -40,7 +40,12 @@ export async function GET(req: Request, ctx: Ctx) {
       .order("position", { ascending: true });
     if (stepsError) throw stepsError;
 
-    return json({ automation, steps: steps ?? [] });
+    let linkedLessons: {id:string;email_step_id:string|null}[]=[];
+    if(automation.trigger_type==='course'&&steps?.length){
+      const {data,error:lessonError}=await db.from('course_lessons').select('id,email_step_id').in('email_step_id',steps.map(s=>s.id));
+      if(lessonError)throw lessonError;linkedLessons=data??[];
+    }
+    return json({ automation, steps: (steps??[]).map(s=>({...s,course_lesson_id:linkedLessons.find(l=>l.email_step_id===s.id)?.id??null})) });
   } catch (error) {
     return errorResponse(error);
   }
