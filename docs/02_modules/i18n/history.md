@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/history
 title: i18n History
-version: 1.25
-updated: 2026-09-14
+version: 1.26
+updated: 2026-11-17
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -15,6 +15,11 @@ code_refs:
     scripts/i18n-sync.mjs,
   ]
 ---
+
+## 2026-11-17 — Интерфейс курсов
+
+Добавлены typed подписи курса для восьми локалей; учебный пилот RU и локальный fallback писем курса. Остальные exact-copy автоматизации не меняются.
+
 
 ## Decision Log
 

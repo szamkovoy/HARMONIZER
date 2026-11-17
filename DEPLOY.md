@@ -34,7 +34,23 @@ After DB restore / project move: run `select public.ensure_harmonizer_cron_jobs(
 
 Phones and browsers must not open Vercel anycast addresses. Some of them accept TCP and then stall the TLS handshake, so a page can sit for a minute and a button never becomes clickable. `vercel.com` is a different address and stays fast.
 
-`harmonizer.zamkovoi.yoga` stays the public name. Since 2026-09-25 its DNS is `A 31.31.196.134` and `AAAA 2a00:f940:2:2:1:1:0:147` (REG.RU shared hosting, Moscow, site docroot `/www/harmonizer.zamkovoi.yoga`). Shared hosting cannot `proxy_pass`, so the site runs the PHP reverse proxy in `deploy/reg-ru-harmonizer-proxy.php` (Apache + PHP 8.2). It connects to pinned Vercel addresses that complete TLS from this network (`64.29.17.1`, `216.198.79.1`, `64.29.17.195`, `216.198.79.195`) with SNI `harmonizer-ten.vercel.app`. A healthy response carries `X-Harmonizer-Proxy: reg.ru`.
+`harmonizer.zamkovoi.yoga` stays the public name. Since 2026-09-25 its DNS is `A 31.31.196.134` and `AAAA 2a00:f940:2:2:1:1:0:147` (REG.RU shared hosting, Moscow, site docroot `/www/harmonizer.zamkovoi.yoga`). Shared hosting cannot `proxy_pass`, so the site runs the PHP reverse proxy in `deploy/reg-ru-harmonizer-proxy.php` (Apache + PHP 8.2). Since 2026-11-17 it connects to eight pinned Vercel addresses (`64.29.17.{1,67,131,195}`, `216.198.79.{1,67,131,195}` — verified by DNS answers that day) with SNI `harmonizer-ten.vercel.app`, a 3-second connect timeout, and a local cache for widget-config GETs (`/api/widget/*`: fresh ≤60 s served without touching Vercel; when the first pinned IP is dead or Vercel answers 5xx, the last copy serves for up to 24 h — header `X-Hz-Widget-Cache: live|fresh|stale`). `PATH_PREFIX = 'auto'`: the same file also works inside a folder named `hz`. A healthy response carries `X-Harmonizer-Proxy: reg.ru`.
+
+### Widget folder `/hz` on zamkovoi.yoga (2026-11-17)
+
+Landing payment widgets no longer depend on the proxy for the script itself. Files on the WP host (folder `/www/zamkovoi.yoga/hz/`):
+
+- `widget.js` — a copy of `_legacy_web/public/widget.js`, served by Apache straight from disk (no PHP, no Vercel). Re-upload this copy whenever `widget.js` changes in the repo.
+- `proxy.php` — the same `deploy/reg-ru-harmonizer-proxy.php` (auto-detects the `/hz` prefix).
+- `.htaccess` — `deploy/hz/.htaccess`; routes `/hz/api/*` to `proxy.php`, never touches the WordPress site.
+
+Embed code on landing pages:
+
+```html
+<script src="https://zamkovoi.yoga/hz/widget.js" data-id="WIDGET_ID" data-lang="ru" data-api="https://zamkovoi.yoga/hz" async></script>
+```
+
+The client retries, in order: `data-api` → Supabase Edge Function `hz-proxy` (`<project-ref>.supabase.co/functions/v1/hz-proxy`, only `/api/widget/*`) → direct `harmonizer-ten.vercel.app`. When nothing answers it shows a localized "form did not load" plate and keeps retrying every 20 s. Old embeds pointing at `harmonizer.zamkovoi.yoga/widget.js` keep working; they get the improved script with the next production Vercel deploy.
 
 The certificate is Let's Encrypt, name in the panel `harmonizer.zamkovoi.yoga_le`, valid until 2026-12-24. It was issued by DNS-01, so the panel will not renew it by itself. `/.well-known/acme-challenge/` is excluded from the proxy rewrite so a later HTTP-01 renewal can land on this vhost. Renew before 24 Dec 2026.
 
@@ -90,6 +106,9 @@ Optional environment variables:
 
 ## Mobile Client
 
+**Правило работы с агентом (17.11.2026):** сборку и загрузку выполняет Сергей. Агент предлагает готовые команды и запускает сборку только по отдельному прямому поручению. Изменение кода/версии и подготовка теста сами по себе не разрешают сборку.
+
+
 ### Three lanes (side-by-side on one phone)
 
 `APP_VARIANT` (via `eas.json` → `env`) changes **display name** and **bundle / package id** so installs do not overwrite each other:
@@ -108,7 +127,7 @@ Three different numbers — do not mix them up:
 
 | What | Where | Who bumps it |
 | --- | --- | --- |
-| **Marketing** `MAJOR.MINOR.PATCH` | `expo.version` in `app.json` (+ mirrored in `package.json`) | **Manual** when shipping a meaningful release (e.g. 1.2.5 → 1.2.6). Current: **1.2.6**. |
+| **Marketing** `MAJOR.MINOR.PATCH` | `expo.version` in `app.json` (+ mirrored in `package.json`) | **Manual** when shipping a meaningful release (e.g. 1.2.5 → 1.2.6). Current: **1.3.1**. |
 | **Android `versionCode`** | `expo.android.versionCode` | **EAS autoIncrement** on every `production` / `preview` build |
 | **iOS `buildNumber`** | `expo.ios.buildNumber` | **EAS autoIncrement** on every `production` / `preview` build |
 

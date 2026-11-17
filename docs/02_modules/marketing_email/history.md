@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.42
-updated: 2026-11-13
+version: 1.43
+updated: 2026-11-17
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -26,6 +26,11 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-17 — Интеграция пилота курсов
+
+Курсы используют тип автоматизации `course`, существующий редактор шагов и историю sends. `runEmailAutomations` вызывает отдельный `runCourseEmails`; generic runner исключает `course_enrollment_id != null`. `sendMarketingEmail` принимает необязательный `idempotencyKey` (заголовок Resend и таймаут 20 с). Course runner считает абсолютный календарь, применяет RU-fallback, не использует рекламную отписку, но запрещает complained/suppressed; остальные цепочки сохраняют прежние правила. Отмена связанного enrollment SQL-триггером останавливает письма курса.
+
 
 ## 2026-11-13 — Preheader письма — начало тела, а не повтор темы
 

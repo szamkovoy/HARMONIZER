@@ -596,10 +596,11 @@ export async function enrollContactManual(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: automation } = await db
     .from("email_automations")
-    .select("id, is_active")
+    .select("id, is_active, trigger_type")
     .eq("id", automationId)
     .maybeSingle();
   if (!automation) return { ok: false, error: "Цепочка не найдена" };
+  if (automation.trigger_type === "course") return { ok: false, error: "Курс запускается из записи на курс" };
 
   const { data: contact } = await db
     .from("email_contacts")
@@ -651,6 +652,7 @@ export async function processDueAutomationSteps(
   let dueQuery = db
     .from("email_automation_enrollments")
     .select("id, automation_id, contact_id, current_position, next_step_at, status, cycle_key")
+    .is("course_enrollment_id", null)
     .eq("status", "active")
     .lte("next_step_at", nowIso)
     .order("next_step_at", { ascending: true })
@@ -939,11 +941,14 @@ async function runStage<T>(stage: string, fn: () => Promise<T>): Promise<T> {
 }
 
 export async function runEmailAutomations(db: SupabaseClient) {
+  const { runCourseEmails } = await import("./courseMailRunner");
+  const courses = await runCourseEmails(db);
   const welcome = await runStage("enroll_welcome", () => enrollAccountRegistered(db));
   const expired = await runStage("enroll_subscription_expired", () => enrollSubscriptionExpired(db));
   const inactive = await runStage("enroll_inactive", () => enrollInactive(db));
   const due = await runStage("process_due_steps", () => processDueAutomationSteps(db));
   return {
+    ...courses,
     enrolled_welcome: welcome,
     enrolled_subscription_expired: expired,
     enrolled_inactive: inactive,

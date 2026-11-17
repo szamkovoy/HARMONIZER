@@ -476,6 +476,185 @@ export type Database = {
           },
         ]
       }
+      course_enrollments: {
+        Row: {
+          access_until: string | null
+          buyer_email: string
+          claim_token: string | null
+          claim_until: string | null
+          course_slug: string
+          created_at: string
+          display_until: string | null
+          id: string
+          last_error: string | null
+          mail_failures: number
+          mail_paused: boolean
+          mail_position: number
+          mode: string
+          next_mail_at: string | null
+          schedule: Json
+          source_key: string
+          started_at: string | null
+          status: string
+          timezone: string
+          user_id: string | null
+        }
+        Insert: {
+          access_until?: string | null
+          buyer_email: string
+          claim_token?: string | null
+          claim_until?: string | null
+          course_slug: string
+          created_at?: string
+          display_until?: string | null
+          id?: string
+          last_error?: string | null
+          mail_failures?: number
+          mail_paused?: boolean
+          mail_position?: number
+          mode: string
+          next_mail_at?: string | null
+          schedule?: Json
+          source_key: string
+          started_at?: string | null
+          status?: string
+          timezone: string
+          user_id?: string | null
+        }
+        Update: {
+          access_until?: string | null
+          buyer_email?: string
+          claim_token?: string | null
+          claim_until?: string | null
+          course_slug?: string
+          created_at?: string
+          display_until?: string | null
+          id?: string
+          last_error?: string | null
+          mail_failures?: number
+          mail_paused?: boolean
+          mail_position?: number
+          mode?: string
+          next_mail_at?: string | null
+          schedule?: Json
+          source_key?: string
+          started_at?: string | null
+          status?: string
+          timezone?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_enrollments_course_slug_fkey"
+            columns: ["course_slug"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "course_enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_lessons: {
+        Row: {
+          blocks: Json
+          course_slug: string
+          email_step_id: string
+          gap_days: number
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          blocks: Json
+          course_slug: string
+          email_step_id: string
+          gap_days: number
+          id: string
+          position: number
+          title: string
+        }
+        Update: {
+          blocks?: Json
+          course_slug?: string
+          email_step_id?: string
+          gap_days?: number
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_lessons_course_slug_fkey"
+            columns: ["course_slug"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "course_lessons_email_step_id_fkey"
+            columns: ["email_step_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          access_days: number
+          active: boolean
+          automation_id: string
+          created_at: string
+          day_card_extra_days: number
+          kind: string
+          landing_url: string
+          slug: string
+          source_hash: string
+          title: string
+          webinar_extra_days: number
+        }
+        Insert: {
+          access_days: number
+          active?: boolean
+          automation_id: string
+          created_at?: string
+          day_card_extra_days?: number
+          kind: string
+          landing_url: string
+          slug: string
+          source_hash: string
+          title: string
+          webinar_extra_days?: number
+        }
+        Update: {
+          access_days?: number
+          active?: boolean
+          automation_id?: string
+          created_at?: string
+          day_card_extra_days?: number
+          kind?: string
+          landing_url?: string
+          slug?: string
+          source_hash?: string
+          title?: string
+          webinar_extra_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "email_automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_product_legacy_ids: {
         Row: {
           legacy_group_id: number
@@ -3939,7 +4118,8 @@ export type Database = {
       }
       webinar_passes: {
         Row: {
-          contract_id: string
+          contract_id: string | null
+          course_enrollment_id: string | null
           created_at: string
           credits: number
           id: string
@@ -3949,7 +4129,8 @@ export type Database = {
           valid_until: string
         }
         Insert: {
-          contract_id: string
+          contract_id?: string | null
+          course_enrollment_id?: string | null
           created_at?: string
           credits: number
           id?: string
@@ -3959,7 +4140,8 @@ export type Database = {
           valid_until: string
         }
         Update: {
-          contract_id?: string
+          contract_id?: string | null
+          course_enrollment_id?: string | null
           created_at?: string
           credits?: number
           id?: string
@@ -3975,6 +4157,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "payment_contracts"
             referencedColumns: ["contract_id"]
+          },
+          {
+            foreignKeyName: "webinar_passes_course_enrollment_id_fkey"
+            columns: ["course_enrollment_id"]
+            isOneToOne: true
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "webinar_passes_user_id_fkey"
@@ -4123,6 +4312,7 @@ export type Database = {
           },
         ]
       }
+
     }
     Views: {
       [_ in never]: never
@@ -4243,6 +4433,7 @@ export type Database = {
       }
       apply_my_webinar_passes: { Args: never; Returns: number }
       apply_webinar_passes: { Args: { p_user_id?: string }; Returns: number }
+      claim_course_mail: { Args: { p_id: string }; Returns: Json }
       claim_email_campaign_batch: {
         Args: {
           p_campaign_id: string
@@ -4265,6 +4456,7 @@ export type Database = {
         Args: { p_expo_token?: boolean; p_platform: string; p_token: string }
         Returns: undefined
       }
+      cleanup_course_test: { Args: { p_id: string }; Returns: undefined }
       cleanup_cron_job_run_details: {
         Args: { p_keep?: string }
         Returns: number
@@ -4332,6 +4524,16 @@ export type Database = {
           sent: number
           skipped: number
         }[]
+      }
+      finish_course_mail: {
+        Args: {
+          p_error: string
+          p_id: string
+          p_resend_id: string
+          p_subject: string
+          p_token: string
+        }
+        Returns: undefined
       }
       get_posts_feed: {
         Args: {
@@ -4421,6 +4623,7 @@ export type Database = {
         Returns: undefined
       }
       invoke_cleanup_expired_stories: { Args: never; Returns: number }
+      invoke_course_tests: { Args: never; Returns: number }
       invoke_email_welcome_for_user: {
         Args: { p_user_id: string }
         Returns: number
@@ -4463,6 +4666,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      prepare_course_test: {
+        Args: { p_slug: string; p_timezone: string; p_user_id: string }
+        Returns: string
+      }
       reattach_payment_ledger_for_email: {
         Args: { p_email: string; p_user_id: string }
         Returns: number
@@ -4503,6 +4710,16 @@ export type Database = {
         }
         Returns: number
       }
+      start_course_enrollment: {
+        Args: {
+          p_access_until: string
+          p_display_until: string
+          p_id: string
+          p_schedule: Json
+          p_start: string
+        }
+        Returns: undefined
+      }
       sync_email_contact_for_user: {
         Args: { p_user_id: string }
         Returns: Json
@@ -4514,6 +4731,7 @@ export type Database = {
         Args: { p_expires: string; p_tier: string }
         Returns: boolean
       }
+
     }
     Enums: {
       [_ in never]: never

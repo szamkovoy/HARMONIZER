@@ -1,11 +1,16 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.13
-updated: 2026-11-15
+version: 1.14
+updated: 2026-11-17
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-17 — Интеграция пилота курсов
+
+`POST /api/admin/courses/tests` (requireAdmin) поддерживает prepare/start/cleanup с отдельным явным подтверждением старта/очистки. Письма курса доступны в существующем редакторе; тип `course` нельзя менять на generic. Подсказка объясняет календарь курса; delay_hours отдельных шагов его не меняет. Пауза письма не приостанавливает выдачу уроков.
+
 
 ## 2026-11-15 — `app_open` payload platform/version/build
 

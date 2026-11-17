@@ -24,6 +24,7 @@ type Automation = {
 };
 
 const TRIGGER_RU: Record<string, string> = {
+  course: "Уроки курса",
   manual: "Вручную",
   account_registered: "Регистрация в Гармонизаторе (мастер пройден)",
   app_first_open: "Первый запуск (legacy)",

@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   vimeoAudiotrackForLocale,
   vimeoEmbedHtml,
   vimeoEmbedUrl,
   vimeoPhoneEmbedPageUrl,
+  vimeoPhonePlayerBootstrapScript,
   VIMEO_DEFAULT_AUDIOTRACK,
   VIMEO_EMBED_BASE_URL,
   VIMEO_PHONE_EMBED_PAGE_URL,
@@ -39,6 +40,18 @@ describe("vimeoEmbedUrl", () => {
 });
 
 describe("vimeoEmbedHtml", () => {
+  it.each([true,false])('autoplay=%s controls playback without changing practice defaults',async autoplay=>{
+    const play=vi.fn().mockResolvedValue(undefined);const postMessage=vi.fn();
+    class Player {
+      on() {} ready(){return Promise.resolve();} getDuration(){return Promise.resolve(60);}
+      getQualities(){return Promise.resolve([]);} setMuted(){return Promise.resolve();} setVolume(){return Promise.resolve();}
+      play=play;
+    }
+    const Vimeo={Player};
+    new Function('window','document','Vimeo',vimeoPhonePlayerBootstrapScript(autoplay))({Vimeo,ReactNativeWebView:{postMessage}},{getElementById:()=>({})},Vimeo);
+    await vi.waitFor(()=>expect(postMessage).toHaveBeenCalledWith(JSON.stringify({type:'ready'})));
+    if(autoplay)expect(play).toHaveBeenCalledOnce();else expect(play).not.toHaveBeenCalled();
+  });
   it("builds a full HTML document that mounts the Vimeo iframe", () => {
     const html = vimeoEmbedHtml("1111204587");
     expect(html).toContain("<!DOCTYPE html>");

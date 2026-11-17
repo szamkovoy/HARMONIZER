@@ -1,0 +1,44 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { DateTime } from 'luxon';
+import type { CourseLesson, CourseView } from '@shared/courses';
+import { buildCourseSchedule } from './courseSchedule';
+
+export async function listUserCourses(db:SupabaseClient,userId:string,lessonId?:string,enrollmentId?:string):Promise<CourseView[]> {
+  let q=db.from('course_enrollments').select('*').eq('user_id',userId).neq('status','prepared').order('created_at',{ascending:false});
+  if(enrollmentId) q=q.eq('id',enrollmentId);
+  const {data:enrollments,error}=await q; if(error) throw error;
+  if(!enrollments?.length) return [];
+  const slugs=[...new Set(enrollments.map(e=>e.course_slug))];
+  const {data:courses,error:ce}=await db.from('courses').select('*').in('slug',slugs); if(ce)throw ce;
+  const now=Date.now();
+  // Future lesson content never leaves the server, even in a direct detail request.
+  const allowed=enrollments.flatMap(e=>e.status==='active'&&Date.parse(e.access_until)>now ? e.schedule.filter((s:{opensAt:string})=>Date.parse(s.opensAt)<=now).map((s:{lessonId:string})=>s.lessonId):[]);
+  const {data:lessons,error:le}=allowed.length ? await db.from('course_lessons').select('id,course_slug,position,title,blocks').in('id',allowed) : {data:[],error:null}; if(le)throw le;
+  return enrollments.map(e=>{
+    const course=courses?.find(c=>c.slug===e.course_slug);if(!course)throw new Error('Course metadata missing');
+    const state=e.status==='revoked'?'revoked':Date.parse(e.access_until)<=now?'expired':'available';
+    const unlocked:CourseLesson[]=state==='available'?e.schedule.filter((s:{opensAt:string})=>Date.parse(s.opensAt)<=now).map((s:{lessonId:string})=>lessons?.find(l=>l.id===s.lessonId&&l.course_slug===e.course_slug)).filter(Boolean):[];
+    const current=lessonId?unlocked.find(l=>l.id===lessonId)??null:unlocked.at(-1)??null;
+    const future=[...e.schedule.map((s:{opensAt:string})=>s.opensAt),e.display_until,e.access_until].filter((t:string)=>Date.parse(t)>now).sort((a:string,b:string)=>Date.parse(a)-Date.parse(b));
+    return {id:e.id,slug:course.slug,title:course.title,mode:e.mode,startedAt:e.started_at,accessUntil:e.access_until,displayUntil:e.display_until,landingUrl:course.landing_url,state,current,
+      lessons:unlocked.map(({id,position,title})=>({id,position,title})),nextChangeAt:future[0]??null} as CourseView;
+  });
+}
+
+export async function startPreparedCourse(db:SupabaseClient,id:string) {
+ const {data:e,error}=await db.from('course_enrollments').select('*').eq('id',id).single();if(error)throw error;
+ if(e.status!=='prepared')throw new Error('Этот запуск уже начат или отменён');
+ const {data:lessons,error:le}=await db.from('course_lessons').select('id,gap_days').eq('course_slug',e.course_slug).order('position');if(le)throw le;
+ const {data:c,error:ce}=await db.from('courses').select('access_days,day_card_extra_days').eq('slug',e.course_slug).single();if(ce)throw ce;
+ const start=new Date().toISOString();
+ const schedule=buildCourseSchedule((lessons??[]).map(l=>({id:l.id,gapDays:l.gap_days})),start,e.timezone,e.mode==='test'?120:undefined);
+ if(!schedule.length)throw new Error('В курсе нет уроков');
+ const last=DateTime.fromISO(schedule.at(-1)!.opensAt).setZone(e.timezone);
+ const {error:se}=await db.rpc('start_course_enrollment',{p_id:id,p_schedule:schedule,p_start:start,p_access_until:last.plus({days:c.access_days}).toUTC().toISO(),p_display_until:last.plus({days:c.day_card_extra_days}).toUTC().toISO()});if(se)throw se;
+ let webinarInvites:{sent:number;failed:number}|undefined;
+ if(e.mode==='normal'&&e.user_id){
+  try{const {sendPassWebinarInvites}=await import('../account/webinarNotices');webinarInvites=await sendPassWebinarInvites(db,e.user_id);}
+  catch(error){console.error('[courses] webinar invite failed',error);webinarInvites={sent:0,failed:1};}
+ }
+ return {id,start,schedule,...(webinarInvites?{webinarInvites}:{})};
+}

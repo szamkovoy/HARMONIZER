@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.22
-updated: 2026-11-14
+version: 2.23
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -37,6 +37,9 @@ code_refs:
 ---
 
 ## 1. Зависит от
+
+- **`courses`** — `DayCourseCards` загружает и показывает полный текущий урок независимо от `DayPlan`. Данные и ближайший таймер выдачи принадлежат `CoursesProvider`, не суточному Home/DayPlan-кэшу. При доступе только к курсу на free планировщик и его prefetch не вызываются.
+
 
 - **`chakra` (локализованные подписи чакр)**
   - `modules/home/i18n/home.ts`, `DailyRecommendationCard.tsx` — `chakraLabelGenitive(locale, …)` в fallback-рекомендациях.

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/dependencies
 title: i18n Dependencies
-version: 1.17
-updated: 2026-09-14
+version: 1.18
+updated: 2026-11-17
 depends_on: [02_modules/i18n/spec]
 code_refs:
   [
@@ -41,6 +41,9 @@ This file lists the contracts so a change here is traceable to its blast radius.
 - `index.ts` is the only import surface (`@/modules/i18n`).
 
 ## Outbound — what i18n provides to other modules
+
+- **`courses`** — `useAppLocale`, AppContentLocale и typed интерфейс на восьми локалях; RU-контент пилота.
+
 | Consumer (module) | Uses | Contract |
 |-------------------|------|----------|
 | `app/_layout.tsx` (bootstrap) | `hydrateAppLocale(profile?.locale)` | Called in `AccessBridge` when `profile?.locale` changes; `users.locale` wins over sticky SecureStore from a previous account. Cold-start hydrate also runs from **`AuthProvider.syncProfile`** before `profileLoading` clears. |

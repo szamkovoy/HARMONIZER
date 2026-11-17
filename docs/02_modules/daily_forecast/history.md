@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.53
-updated: 2026-11-15
+version: 2.54
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -21,6 +21,11 @@ code_refs:
     services/homeDayContentReloadRequest.ts,
   ]
 ---
+
+## 2026-11-17 — Интеграция пилота курсов
+
+`DayCourseCards` загружает и показывает полный текущий урок независимо от `DayPlan`. Данные и ближайший таймер выдачи принадлежат `CoursesProvider`, не суточному Home/DayPlan-кэшу. При доступе только к курсу на free планировщик и его prefetch не вызываются.
+
 
 ## Decision Log
 

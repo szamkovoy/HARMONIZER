@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
-version: 1.20
-updated: 2026-08-27
+version: 1.21
+updated: 2026-11-17
 depends_on:
   [
     01_foundation/product_model,
@@ -60,6 +60,9 @@ code_refs:
   `PracticeCatalogScreen` монтирует **`AffirmationWidget`** в listHeader **только** для группы `breath` (Master / `FeatureKey affirmations`). `CoherenceBreathScreen` монтирует **`AffirmationBreathOverlay`** поверх дыхания; day bump через `practice-complete`. Парная запись: `docs/02_modules/affirmations/dependencies.md`.
 
 ## 2. От него зависят
+
+- **`courses`** — общий PhoneVimeoPlayer, Vimeo helpers и соответствие бонусов существующим practice ID.
+
 
 - **`audio`**  
   Дыхательный сценарий монтирует звук из practices-потока (`breath-coherence` → `CoherenceBreathScreen` → `MandalaSoundProvider`). **`PlannedCycle`** импортируется в `mandala-sound` из **`modules/breath`**. Парная запись: `docs/02_modules/audio/dependencies.md` §1 и §2.

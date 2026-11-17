@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/spec
 title: Practices Spec
-version: 1.42
-updated: 2026-08-23
+version: 1.43
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -120,6 +120,9 @@ code_refs:
   Автоматизированных E2E-тестов полного диалога в репозитории нет — это ограничение процесса QA, не отсутствие кода.
 
 ## 3. Внутренняя архитектура
+
+`PhoneVimeoPlayer` извлечён из `app/asana-practice.tsx` в `modules/practices/ui/PhoneVimeoPlayer.tsx` без изменения iOS/Android-пути плеера. Экран асаны и учебные материалы используют его совместно; доступ к уроку не открывает каталог асан. Бонусы пилота ссылаются на существующие practice ID. Плеер/`vimeoEmbedHtml` принимают необязательный autoplay (по умолчанию true, прежнее поведение практик); курс передаёт false и размонтирует плеер при потере фокуса, чтобы встроенные видео не играли одновременно/на скрытой вкладке.
+
 
 ```text
 modules/practices/

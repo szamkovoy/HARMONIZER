@@ -65,7 +65,7 @@ export function vimeoPhoneEmbedPageUrl(
 }
 
 /** Shared player bootstrap used by `vimeoEmbedHtml` and `web_cabinet/asana-embed.html`. */
-export function vimeoPhonePlayerBootstrapScript(): string {
+export function vimeoPhonePlayerBootstrapScript(autoplay = true): string {
   return [
     "(function(){",
     "  var iframe=document.getElementById('v');",
@@ -95,7 +95,7 @@ export function vimeoPhonePlayerBootstrapScript(): string {
     "      // Do not await quality before first frame — it delayed the black→poster transition.",
     "      pickQuality(p);",
     "      p.setVolume(1).catch(function(){});",
-    "      p.setMuted(false).catch(function(){});",
+    ...(autoplay ? ["      p.setMuted(false).catch(function(){});"] : ["      return; // Inline course video starts only on a user gesture."]),
     "      p.play().then(function(){send({type:'play'});}).catch(function(){",
     "        p.setMuted(true).catch(function(){});",
     "        p.play().catch(function(){});",
@@ -104,10 +104,10 @@ export function vimeoPhonePlayerBootstrapScript(): string {
     "  }",
     "  attach();",
     "})();",
-  ].join("");
+  ].join("\n");
 }
 
-export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK): string {
+export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK, autoplay = true): string {
   const src = vimeoEmbedUrl(vimeoId, audiotrack);
   return [
     "<!DOCTYPE html>",
@@ -124,7 +124,7 @@ export function vimeoEmbedHtml(vimeoId: string, audiotrack: string = VIMEO_DEFAU
     `<iframe src="${src}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; encrypted-media" allowfullscreen id="v"></iframe>`,
     '<script src="https://player.vimeo.com/api/player.js"></script>',
     "<script>",
-    vimeoPhonePlayerBootstrapScript(),
+    vimeoPhonePlayerBootstrapScript(autoplay),
     "</script>",
     "</body>",
     "</html>",

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.52
-updated: 2026-11-13
+version: 1.53
+updated: 2026-11-17
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
   [
@@ -74,6 +74,9 @@ code_refs:
 **Фаза A–D + F (сейчас):** кампании, сегменты, блочный редактор, цепочки B2+C1/C2, user card, **deliverability** + auto-suppress; **F** — уведомления list-first как рассылки (черновик/`sent_at`); списки `/admin/email` и `/admin/notifications` с `?page=&limit=50&user_id=` + infinite scroll в UI.
 
 ## 2. Публичный контракт
+
+Курсы используют тип автоматизации `course`, существующий редактор шагов и историю sends. `runEmailAutomations` вызывает отдельный `runCourseEmails`; generic runner исключает `course_enrollment_id != null`. `sendMarketingEmail` принимает необязательный `idempotencyKey` (заголовок Resend и таймаут 20 с). Course runner считает абсолютный календарь, применяет RU-fallback, не использует рекламную отписку, но запрещает complained/suppressed; остальные цепочки сохраняют прежние правила. Отмена связанного enrollment SQL-триггером останавливает письма курса.
+
 
 **Админка (`requireAdmin`):**
 

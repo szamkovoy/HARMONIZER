@@ -10,6 +10,7 @@ import { sendMarketingEmailViaSes } from "./sesMarketingSend";
 
 export type MarketingSendInput = {
   to: string;
+  idempotencyKey?: string;
   subject: string;
   html: string;
   text: string;
@@ -165,7 +166,9 @@ async function sendViaResend(
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
     },
+    ...(input.idempotencyKey ? { signal: AbortSignal.timeout(20_000) } : {}),
     body: JSON.stringify({
       from: formatFrom(fromName, fromEmail),
       to: [input.to],

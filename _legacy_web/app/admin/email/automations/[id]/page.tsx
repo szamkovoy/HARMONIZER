@@ -50,6 +50,7 @@ type Step = {
 };
 
 const TRIGGER_OPTS: { value: string; label: string }[] = [
+  { value: "course", label: "Уроки курса (календарь курса)" },
   { value: "account_registered", label: "Регистрация в Гармонизаторе (мастер пройден)" },
   { value: "subscription_expired", label: "Не продлил подписку (через 3 дня)" },
   { value: "inactive", label: "Неактивен 14 дней" },
@@ -290,6 +291,7 @@ export default function AdminEmailAutomationDetailPage() {
           <select
             className={`${inputCls} mt-1`}
             value={triggerType}
+            disabled={automation?.trigger_type === "course"}
             onChange={(e) => setTriggerType(e.target.value)}
           >
             {TRIGGER_OPTS.map((o) => (
@@ -299,14 +301,14 @@ export default function AdminEmailAutomationDetailPage() {
             ))}
           </select>
         </label>
-        <p className="text-xs text-zinc-400">
+        {automation?.trigger_type === "course" ? <p className="text-xs text-zinc-400">Письма привязаны к материалам курса. В обычном прохождении первый урок и письмо выдаются сразу, следующие уроки — в полночь, письма — с 07:00 по часовому поясу прохождения. Задержки отдельных писем в этом редакторе не меняют календарь курса. Пауза останавливает письма; открытие уроков продолжается.</p> : <p className="text-xs text-zinc-400">
           Регистрация — после конца мастера Harmonizer (не OTP). C1 — через 3 дня после
           окончания платной подписки. C2 — 14 дней без захода в приложение. Выключение —
           пауза: новые события не зачисляются. У тех, кто уже в цепочке, оставшееся
           ожидание до следующего письма замораживается и продолжается после включения.
           Включение заново не догоняет паузу для новых событий, только с этого момента.
           Delay первого письма — от срабатывания; у следующих — от предыдущего письма.
-        </p>
+        </p>}
       </section>
 
       <section className="space-y-3">

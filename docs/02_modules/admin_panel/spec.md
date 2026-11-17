@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.22
-updated: 2026-11-15
+version: 1.23
+updated: 2026-11-17
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -63,6 +63,9 @@ code_refs:
 Полный план внедрения (этапы 0–8) — в утверждённом плане «Архитектура админ-панели HARMONIZER»; спека описывает только реализованное.
 
 ## 2. Публичный контракт
+
+`POST /api/admin/courses/tests` (requireAdmin) поддерживает prepare/start/cleanup с отдельным явным подтверждением старта/очистки. Письма курса доступны в существующем редакторе; тип `course` нельзя менять на generic. Подсказка объясняет календарь курса; delay_hours отдельных шагов его не меняет. Пауза письма не приостанавливает выдачу уроков.
+
 
 **Авторизация (реализовано, этап 0):**
 

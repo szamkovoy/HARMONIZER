@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.16
-updated: 2026-09-14
+version: 1.17
+updated: 2026-11-17
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -23,6 +23,9 @@ code_refs:
 ---
 
 ## 1. Зависит от
+
+- **`courses`** — После BookProfileCard показывается `MyCoursesCard` из `modules/courses`: все начатые курсы, включая истёкшие; переход на `/course/[id]` показывает открытые материалы либо период и истечение доступа. Подготовленные тесты не видны.
+
 
 - **`infra`**  
   Supabase (`public.users`, RLS, триггер на `auth.users`), клиент `services/supabase.ts` / типы `services/supabase-types.ts`. Без валидной конфигурации проекта и миграций строка профиля не создаётся и не обновляется.
@@ -58,6 +61,9 @@ code_refs:
   Profile reports через backend routes: `life-matrix` сначала читает `profile_report_snapshots`, а при miss/version-mismatch пересобирает его из compact day-rollup слоя `daily_matrices`; `practice-by-chakra` — завершённые `practice_sessions`. Легенда чакр — **`buildChakraLegend()`** (`planetChakraLegend.ts`), без импорта клиентского `modules/home/planetChakra`.
 
 ## 2. От него зависят
+
+- **`courses`** — auth/JWT, имя, локаль и зона прохождения.
+
 
 - **`daily_forecast`**  
   `useDayContent` и главный экран читают `profile` из `useAuth()` (tz, координаты, birth fields, tier) для выбора режима контента и scope кэша; `AuthProvider.syncProfile` гидратит locale до снятия `profileLoading`. Смена birth с профиля инициирует отложенный **`blockingReload`** главного через `homeDayContentReloadRequest` (см. §1). Вкладка **`app/(tabs)/day.tsx`** дополнительно использует **`authUser.id`** для ключа **`dayPlanCache`**; **`loadDayPlan`** берёт Bearer через **`getSupabaseAccessSession`**, который **`AuthProvider`** подпитывает **`rememberSupabaseSession`**.

@@ -12,6 +12,7 @@ const TRIGGERS = new Set([
   "inactive",
   "app_first_open",
   "onboarded",
+  "course",
 ]);
 
 /** Load one automation + steps. */
@@ -62,11 +63,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     const { data: current, error: loadError } = await db
       .from("email_automations")
-      .select("id, is_active, activated_at, paused_at")
+      .select("id, is_active, activated_at, paused_at, trigger_type")
       .eq("id", id)
       .maybeSingle();
     if (loadError) throw loadError;
     if (!current) return json({ error: "Цепочка не найдена" }, { status: 404 });
+    if (body.trigger_type && body.trigger_type !== current.trigger_type && (current.trigger_type === "course" || body.trigger_type === "course")) {
+      return json({error:"Связь с курсом задаётся при импорте курса"},{status:400});
+    }
 
     const now = new Date();
     const nowIso = now.toISOString();
@@ -88,7 +92,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
           typeof current.paused_at === "string" && current.paused_at.trim()
             ? current.paused_at
             : null;
-        if (pausedAt) {
+        if (pausedAt && current.trigger_type !== "course") {
           // Shift before is_active=true so cron does not flush overdue letters.
           await shiftEnrollmentsAfterPause(db, id, pausedAt, now);
         }

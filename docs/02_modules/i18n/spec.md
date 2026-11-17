@@ -1,8 +1,8 @@
 ---
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
-version: 1.21
-updated: 2026-09-05
+version: 1.22
+updated: 2026-11-17
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -403,6 +403,9 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 ---
 
 ## 8. Support matrix & known gaps
+
+Учебный интерфейс использует typed `Record<AppContentLocale,…>` в `modules/courses/strings.ts` для восьми локалей. Авторский пилот остаётся RU; его письма выбирают точную локаль → en → ru в course runner. Поведение exact-copy остальных автоматизаций не меняется.
+
 
 - **Enabled now:** RU, EN, DE, FR, IT, ES, PT, NL (UI catalog + typed modules + server layer B + layer C dialog scaffold).
 - **Layer A (UI / typed modules):** tab labels, Profile chrome + reports, Home

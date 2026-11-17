@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.48
-updated: 2026-11-14
+version: 2.49
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -93,6 +93,9 @@ code_refs:
 - Фоновый контур: `supabase/functions/precompute-daily-forecasts/index.ts` — предрасчёт для пользователей с personal-forecast access и активностью за **5 дней** (`users.last_seen_at` или свежий `onboarded_at`). GPS не обязателен: берутся сохранённые `lat`/`lon`, иначе тот же fallback, что у Home (Москва + `users.tz`). Каждые 10 минут RPC `precompute_daily_forecast_candidates` отдаёт только пользователей с неполным кэшем текущего локального дня (первый тик после локальной полуночи — основной прогрев, остальные — автоматический retry); функция пишет базовый forecast и греет `scenario_cache` `morning_recommendation` в locale пользователя.
 
 ## 3. Внутренняя архитектура
+
+`DayCourseCards` загружает и показывает полный текущий урок независимо от `DayPlan`. Данные и ближайший таймер выдачи принадлежат `CoursesProvider`, не суточному Home/DayPlan-кэшу. При доступе только к курсу на free планировщик и его prefetch не вызываются.
+
 
 1. **Движок (чистая математика + адаптер эфемерид):** `modules/daily-engine` — `computeDailyForecast` / `computeDailyForecastFromTransits`, активация и важность через `effectiveNatalParams` (при `calibration == null` используются только `S_initial` / `H_initial` из натала), ранжирование и `chooseFinalPlanet`, опционально окна через `TransitProvider.computeWindowsOfOpportunity`. `cacheValidUntil` в основном пути: конец локального календарного дня прогноза (`endOfForecastDateUtc` в `computeDailyForecast.ts`).
 2. **Сервер:** загрузка `NatalProfile`, `CalibrationLike | null` из `user_calibrations`, чтение двух предыдущих `planet_of_the_day` из `user_daily_forecasts`, запись/чтение `user_daily_forecasts`. Для HARMONIZER v2 эта же строка теперь получает `day_target_*` из ассистента; home и profile читают её без отдельной таблицы-прокладки. Вкладка `День` берёт рекомендацию сначала по точному `forecast_date = localDate`, а если такой строки нет — из последней доступной `user_daily_forecasts` строки пользователя, чтобы planning-corrected day focus не пропадал из UI. Инвалидация строк прогноза при успешной калибровке — см. `docs/02_modules/calibration/dependencies.md` и `docs/02_modules/astro/caching_strategy.md`.

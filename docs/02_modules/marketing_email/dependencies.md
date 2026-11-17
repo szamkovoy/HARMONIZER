@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
-version: 1.19
-updated: 2026-11-15
+version: 1.20
+updated: 2026-11-17
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -38,6 +38,9 @@ code_refs:
 
 ## 1. Зависит от
 
+- **`courses`** — Курсы используют тип автоматизации `course`, существующий редактор шагов и историю sends. `runEmailAutomations` вызывает отдельный `runCourseEmails`; generic runner исключает `course_enrollment_id != null`. `sendMarketingEmail` принимает необязательный `idempotencyKey` (заголовок Resend и таймаут 20 с). Course runner считает абсолютный календарь, применяет RU-fallback, не использует рекламную отписку, но запрещает complained/suppressed; остальные цепочки сохраняют прежние правила. Отмена связанного enrollment SQL-триггером останавливает письма курса.
+
+
 - **`admin_panel`** — UI `/admin/email*`, `/admin/email/automations/*/steps/*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
 - **Resend Batch API** — `POST https://api.resend.com/emails/batch` (≤100 писем, заголовок `Idempotency-Key`, ответ `{data:[{id}]}` в порядке запроса; без `tags` — вебхуки матчатся по `resend_id`). Профиль SES — по одному письму.
 - **Supabase RPC** (service_role) — `claim_email_campaign_batch`, `finalize_email_campaign_batch`, `apply_email_campaign_delivery` (`20261006020000`; тела claim/finalize — `20261006101500` / `20261006102000`); воркер, вебхук и пиксель открытия не пишут в строку `email_campaigns` на каждое письмо (`20261016025609`, `20261016040000`). Пиксель по-прежнему обновляет `email_contacts.last_open_at`. Размер и пауза claim читаются из `email_send_pace` (`20261016161000`), ключи `warmup_plan` той же кампании перекрывают строку. После зелёной рассылки 2026-10-16 строка по умолчанию — 100 писем / 120 с (`20261016220000`). Порядок пачки — самая поздняя из открытия приложения, открытия или клика письма и импортированной активности (`20261020151508`).
@@ -49,6 +52,9 @@ code_refs:
 - **`notifications`** — user-card push через `segment=user:<id>`.
 
 ## 2. От него зависят
+
+- **`courses`** — редактор, транспорт и журнал писем; связанный course runner.
+
 
 - **`admin_panel`** — карточка пользователя читает sends / запускает цепочки.
 - **`account_web`** — единый wipe вызывает cancel enrollments из `emailAutomationRunner`. Покупка возвращает `unsubscribed` → `active` и шлёт письмо о продукте вне сегмента рассылки. Отказ оплаты (кабинет и виджет) шлёт `sendMarketingEmail` без футера отписки.

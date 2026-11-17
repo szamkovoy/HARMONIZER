@@ -1,11 +1,16 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.50
-updated: 2026-10-09
+version: 1.51
+updated: 2026-11-17
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/localeRebuild.ts, modules/profile/ui/LocaleRebuildModal.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
+
+## 2026-11-17 — Интеграция пилота курсов
+
+После BookProfileCard показывается `MyCoursesCard` из `modules/courses`: все начатые курсы, включая истёкшие; переход на `/course/[id]` показывает открытые материалы либо период и истечение доступа. Подготовленные тесты не видны.
+
 
 ## Decision Log
 

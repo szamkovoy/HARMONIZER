@@ -1,3 +1,4 @@
+import {DayCourseCards} from "@/modules/courses/CourseCards";
 import { useFocusEffect } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -506,6 +507,7 @@ export default function DayTabRoute() {
   const theme = useTheme();
   const { authUser } = useAuth();
   const { canUseFeature } = useAccess();
+  const canPlanDay = canUseFeature("day_planning");
   const { locale: appLocale } = useAppLocale();
   const dayStrings = useMemo(() => getDayStrings(appLocale), [appLocale]);
   const reportLocale = appLocale;
@@ -514,11 +516,11 @@ export default function DayTabRoute() {
   const refreshDonutVisibility = useDonutVisibilityRefresh();
   const [plan, setPlan] = useState<DayPlan | null>(() => {
     const prefetched = peekPrefetchedDayPlan();
-    return prefetched && isDayPlanCurrent(prefetched) ? prefetched : null;
+    return canPlanDay && prefetched && isDayPlanCurrent(prefetched) ? prefetched : null;
   });
   const [loading, setLoading] = useState(() => {
     const prefetched = peekPrefetchedDayPlan();
-    return !(prefetched && isDayPlanCurrent(prefetched));
+    return canPlanDay && !(prefetched && isDayPlanCurrent(prefetched));
   });
   const [error, setError] = useState<string | null>(null);
   const [assistantSession, setAssistantSession] = useState<AssistantSession | null>(null);
@@ -542,6 +544,7 @@ export default function DayTabRoute() {
   const pendingPracticePersistChainRef = useRef(Promise.resolve());
 
   const refresh = useCallback(async (options?: { showRefreshing?: boolean; force?: boolean; silent?: boolean }) => {
+    if (!canPlanDay) { setLoading(false); return; }
     // Keep the in-dialog experience stable once the day plan is on screen, but never
     // block the initial load (or recovery after a failed load) while the modal is open.
     if (assistantSessionRef.current && !options?.force && planRef.current) return;
@@ -582,12 +585,13 @@ export default function DayTabRoute() {
     } finally {
       setLoading(false);
     }
-  }, [authUser?.id, dayStrings.loadDayError, reportLocale]);
+  }, [authUser?.id, canPlanDay, dayStrings.loadDayError, reportLocale]);
 
   // Scroll to the top only when the tab actually gains focus (returning from a
   // dialog or a practice), not on every background data refresh.
   useFocusEffect(
     useCallback(() => {
+      if (!canPlanDay) { setPlan(null); setLoading(false); return; }
       if (assistantSessionRef.current && planRef.current) return;
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -654,7 +658,7 @@ export default function DayTabRoute() {
       return () => {
         unsubscribe();
       };
-    }, [authUser?.id, refresh, reportLocale]),
+    }, [authUser?.id, canPlanDay, refresh, reportLocale]),
   );
 
   useFocusEffect(
@@ -791,12 +795,13 @@ export default function DayTabRoute() {
   }, [dayStrings.loadDayError, refresh]);
 
   const prefetchDayPlan = useCallback(async () => {
+    if (!canPlanDay) return;
     try {
       setPlan(await loadDayPlan());
     } catch (loadError) {
       console.warn("[Day] Failed to prefetch day plan", loadError);
     }
-  }, []);
+  }, [canPlanDay]);
 
   const handleAssistantMessage = useCallback((message: { meta?: Record<string, unknown> }) => {
     const persistence = message.meta?.planningPersistence as {
@@ -844,6 +849,7 @@ export default function DayTabRoute() {
           subtitle={plan && plan.mode !== "overdue_summary" && todaySection ? plan.dayRecommendation?.trim() : undefined}
         />
 
+        <DayCourseCards />
         {loading && !plan ? <ActivityIndicator color={theme.colors.accent} /> : null}
         {error ? (
           <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.danger }]}>

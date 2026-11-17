@@ -60,6 +60,7 @@ type CreateBody = {
 
 const TRIGGERS = new Set([
   "manual",
+  "course",
   "account_registered",
   "subscription_expired",
   "inactive",

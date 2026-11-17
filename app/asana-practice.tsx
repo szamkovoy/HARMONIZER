@@ -1,3 +1,4 @@
+import {PhoneVimeoPlayer as PhonePlayer} from "@/modules/practices/ui/PhoneVimeoPlayer";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
@@ -337,78 +338,6 @@ export default function AsanaPracticeRoute() {
   );
 }
 
-function PhonePlayer({
-  vimeoId,
-  audiotrack,
-  loading,
-  strings,
-  onMessage,
-}: {
-  vimeoId: string | null;
-  audiotrack: string;
-  loading: boolean;
-  strings: ReturnType<typeof getAsanaScreenStrings>;
-  onMessage: (event: WebViewMessageEvent) => void;
-}) {
-  const theme = useTheme();
-  // Android prefers the hosted page; if it 404s (not uploaded yet), fall back to
-  // html+baseUrl with originWhitelist "*". iOS always uses the proven html path.
-  const [androidUseHtmlFallback, setAndroidUseHtmlFallback] = useState(false);
-
-  useEffect(() => {
-    setAndroidUseHtmlFallback(false);
-  }, [vimeoId]);
-
-  if (loading) {
-    return (
-      <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </View>
-    );
-  }
-  if (!vimeoId) {
-    return (
-      <View style={[styles.playerPlaceholder, { borderColor: theme.colors.surfaceBorder }]}>
-        <AppText variant="dialogBody" tone="muted" style={styles.centerText}>
-          {strings.phoneVideoMissing}
-        </AppText>
-      </View>
-    );
-  }
-
-  const useAndroidHtml = Platform.OS === "android" && androidUseHtmlFallback;
-  const source =
-    Platform.OS === "android" && !useAndroidHtml
-      ? { uri: vimeoPhoneEmbedPageUrl(vimeoId, audiotrack) }
-      : { html: vimeoEmbedHtml(vimeoId, audiotrack), baseUrl: VIMEO_EMBED_BASE_URL };
-
-  return (
-    <View style={[styles.webViewWrap, { backgroundColor: "#000" }]}>
-      <WebView
-        key={useAndroidHtml ? `html-${vimeoId}` : `uri-${vimeoId}`}
-        source={source}
-        style={[styles.webView, Platform.OS === "android" ? styles.webViewAndroid : null]}
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        allowsFullscreenVideo
-        nestedScrollEnabled
-        javaScriptEnabled
-        domStorageEnabled
-        mixedContentMode="always"
-        androidLayerType="hardware"
-        setSupportMultipleWindows={false}
-        // Static HTML on Android needs "*"; never set this on iOS (Safari open regression).
-        {...(useAndroidHtml ? { originWhitelist: ["*"] as const } : {})}
-        onHttpError={(event) => {
-          if (Platform.OS !== "android" || useAndroidHtml) return;
-          const status = event.nativeEvent.statusCode;
-          if (status >= 400) setAndroidUseHtmlFallback(true);
-        }}
-        onMessage={onMessage}
-      />
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   card: {
