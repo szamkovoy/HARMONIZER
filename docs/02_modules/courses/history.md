@@ -1,11 +1,15 @@
 ---
 id: 02_modules/courses/history
 title: Courses History
-version: 1.1
+version: 1.2
 updated: 2026-11-18
 depends_on: [02_modules/courses/spec]
 code_refs: [content/courses/month-health.review.md, content/courses/month-health.json, supabase/migrations/20261117160000_courses_pilot.sql, supabase/migrations/20261117160100_month_health_content.sql]
 ---
+
+## 2026-11-18 — Внедрён «Месяц наслаждений», без старта
+
+После авторской правки Сергея импортированы 7 материалов и 8 писем из `content/courses/month-pleasure.review.md` общим MD→JSON→SQL конвейером. Миграция `20261118040000` применена; тексты, порядок восьми видео, два существующих practiceId, PDF, интервалы и собственная центрированная GIF-шапка проверены в БД. Доступ — 90 дней после последнего урока, завершающее письмо через 3 дня без новой выдачи. `550e8ce7-f433-4448-8f5a-95a22fc54e2c` для sergei@zamkovoi.yoga / Europe/Moscow только prepared: без писем, email-enrollment и вебинарного пропуска. Старый пилот, его письма/уроки/прохождение и аккаунт сохранены. 31 проверка импортера/календаря/раннера/prepare API пройдена. Мобильный код не менялся, новая сборка для контента не нужна. Старт только после отдельного «запускай».
 
 ## 2026-11-18 — Завершающее письмо без учебного шага
 

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/spec
 title: Marketing Email Spec
-version: 1.53
+version: 1.54
 updated: 2026-11-18
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/profile/spec]
 code_refs:
@@ -171,3 +171,8 @@ Tables as in B2 + indexes on `email_events(created_at)`, `(event_type, created_a
 ### Завершение курса без урока
 
 Course runner после учебных писем поддерживает отдельный `completion_email_step_id/completion_mail_at` из снимка прохождения. Это обычный редактируемый шаг той же course-цепочки, но без course_lesson; общий generic runner по-прежнему не отправляет course-enrollment. Курсор, Resend idempotency key, аренда, sends/статистика/cleanup работают также для последнего письма. Его доставка не управляет показом курса/архивным доступом. Первый допустимый слот — 07:00 не раньше окончания показа последнего реального урока, в тесте — ускоренная граница.
+
+
+### Письма «Месяца наслаждений»
+
+Миграция `20261118040000` импортирует course-цепочку `course_month-pleasure` с восемью шагами: семь учебных писем и завершающее без course_lesson. Тексты взяты из утверждённого авторского Markdown; общий первый image-блок — собственная GIF 530×135 (`email-assets/courses/month-pleasure/m2_email-f006de02dc78.gif` через публичный `/email-cdn`), `align=center`. Цепочка не активирована; подготовка теста не создаёт email-enrollment и не отправляет письма.

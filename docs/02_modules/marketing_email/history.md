@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.43
+version: 1.44
 updated: 2026-11-18
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-18 — Восемь писем «Месяца наслаждений»
+
+Применён импорт `20261118040000`: семь учебных писем и отдельное завершающее в существующем редакторе. Шапка m2_email.gif размещена через прежний Blob/email CDN и зарегистрирована в email_assets, исходные байты/пропорции 530×135 проверены. Тексты и HTML сверены с авторским MD/JSON; шаги прежнего пилота не изменились. Новая цепочка не активна, тест только prepared, отправок нет.
 
 ## 2026-11-18 — Финальное письмо курса
 
