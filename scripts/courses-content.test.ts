@@ -2,6 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {URL} from 'node:url';
 import {describe,expect,it} from 'vitest';
 import {parseCourseReview} from './courses-content.mjs';
+import {generateCourseImportSql} from './course-import-sql.mjs';
 describe('approved month-health materials',()=>{
  it('preserves the authored program, ordered video blocks and both catalog bonuses',async()=>{
   const source=await readFile(new URL('../content/courses/month-health.review.md',import.meta.url),'utf8');
@@ -38,4 +39,26 @@ describe('another practicum with an independent completion letter',()=>{
 it('rejects unsupported standalone introductory mail instead of silently dropping it',async()=>{
  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
  expect(()=>parseCourseReview(source+'\n## Вводное письмо\n\n### Письмо\n\n**Тема:** Введение\n\nТекст\n')).toThrow(/вводные/);
+});
+
+describe('optional course landing page',()=>{
+ it.each(['','**Лендинг:** '])('imports a reviewed course without a landing URL (%s)',async replacement=>{
+  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
+  const course=parseCourseReview(source.replace(/^\*\*Лендинг:\*\* .*$/m,replacement));
+  expect(course.landingUrl).toBe('');
+  const sql=generateCourseImportSql(course);
+  expect(sql).toContain(`'${course.kind}','',${course.accessDays},`);
+  expect(course.lessons).toHaveLength(7);expect(course.completionEmail).toBeDefined();
+ });
+ it('accepts older JSON with the optional field omitted and retains a supplied HTTPS URL',async()=>{
+  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
+  const course=parseCourseReview(source);const {landingUrl,...withoutLanding}=course;
+  expect(generateCourseImportSql(withoutLanding)).toContain(`'${course.kind}','',${course.accessDays},`);
+  expect(generateCourseImportSql(course)).toContain(landingUrl);
+ });
+ it('still rejects a supplied invalid URL instead of silently substituting another page',async()=>{
+  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
+  expect(()=>parseCourseReview(source.replace(/^\*\*Лендинг:\*\* .*$/m,'**Лендинг:** http://example.test'))).toThrow(/HTTPS/);
+  expect(()=>generateCourseImportSql({...parseCourseReview(source),landingUrl:'not-a-url'})).toThrow();
+ });
 });

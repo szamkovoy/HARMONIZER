@@ -6,7 +6,8 @@ import {courseEmailHeaderHtml} from './courses-content.mjs';
 export const courseStableId=name=>{const b=createHash('sha256').update(name).digest().subarray(0,16);b[6]=(b[6]&15)|80;b[8]=(b[8]&63)|128;const h=b.toString('hex');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;};
 const q=s=>`'${String(s).replaceAll("'","''")}'`;
 export function generateCourseImportSql(course,{replaceEmails=false,replaceLessons=false}={}){
- if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(course.slug)||!course.title||!['practicum','intensive','course','masterclass'].includes(course.kind)||!/^https:\/\/[^\s]+$/.test(course.landingUrl))throw new Error('Проверьте метаданные курса');
+ const landingUrl=course.landingUrl??'';
+ if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(course.slug)||!course.title||!['practicum','intensive','course','masterclass'].includes(course.kind)||typeof landingUrl!=='string'||(landingUrl&&!/^https:\/\/[^\s]+$/.test(landingUrl)))throw new Error('Проверьте метаданные курса');
  for(const n of ['accessDays','dayCardExtraDays','webinarExtraDays'])if(!Number.isInteger(course[n])||course[n]<=0)throw new Error(`Проверьте ${n}`);
  if(!/^[a-f0-9]{64}$/.test(course.sourceHash))throw new Error('Нужен SHA-256 утверждённого авторского источника');
  if(!Array.isArray(course.lessons)||!course.lessons.length||course.lessons.length>500)throw new Error('Нужен непустой список учебных материалов');
@@ -15,7 +16,7 @@ export function generateCourseImportSql(course,{replaceEmails=false,replaceLesso
  const auto=courseStableId(`course:${course.slug}`);const ids=new Set();
  const lines=['-- Generated from approved author text. Starts no enrolments and sends no email.','begin;',
  `insert into public.email_automations(id,key,name,trigger_type,is_active) values('${auto}',${q('course_'+course.slug)},${q(course.title)},'course',false) on conflict(id) do nothing;`,
- `insert into public.courses(slug,title,kind,landing_url,access_days,day_card_extra_days,webinar_extra_days,automation_id,source_hash) values(${q(course.slug)},${q(course.title)},${q(course.kind)},${q(course.landingUrl)},${course.accessDays},${course.dayCardExtraDays},${course.webinarExtraDays},'${auto}',${q(course.sourceHash)}) on conflict(slug) do update set title=excluded.title,source_hash=excluded.source_hash;`];
+ `insert into public.courses(slug,title,kind,landing_url,access_days,day_card_extra_days,webinar_extra_days,automation_id,source_hash) values(${q(course.slug)},${q(course.title)},${q(course.kind)},${q(landingUrl)},${course.accessDays},${course.dayCardExtraDays},${course.webinarExtraDays},'${auto}',${q(course.sourceHash)}) on conflict(slug) do update set title=excluded.title,source_hash=excluded.source_hash;`];
  function letter(email,step,name,position,blockId){
   if(typeof email?.subject!=='string'||!email.subject.trim()||typeof email?.markdown!=='string'||!email.markdown.trim())throw new Error('Нужны тема и текст каждого письма');
   const body=courseMarkdownHtml(email.markdown.replaceAll('{first_name}','{{name}}'));

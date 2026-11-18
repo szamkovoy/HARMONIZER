@@ -52,7 +52,7 @@ export function parseCourseReview(rawSource){
  const days=name=>{const v=required(name);if(!/^\d+(?: (?:день|дня|дней))?$/.test(v)||Number(v.split(' ')[0])<=0)throw new Error(`Некорректное число дней: ${name}`);return Number(v.split(' ')[0]);};
  const title=required('Название курса');const kind=required('Тип');
  if(!['practicum','intensive','course','masterclass'].includes(kind))throw new Error('Тип: practicum, intensive, course или masterclass');
- const landingUrl=required('Лендинг');if(!/^https:\/\/[^\s]+$/.test(landingUrl))throw new Error('Лендинг должен быть HTTPS URL');
+ const landingUrl=value('Лендинг')??'';if(landingUrl&&!/^https:\/\/[^\s]+$/.test(landingUrl))throw new Error('Лендинг должен быть HTTPS URL');
  const clean=text=>text.split(/\n(?:### Источники переноса|Сверить с источником:|> \*\*Для вашей правки:)/)[0].trim();
  const email=text=>{
   const subject=text?.match(/^\*\*Тема:\*\* (.+)$/m)?.[1];
