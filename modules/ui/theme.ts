@@ -35,6 +35,8 @@ export interface TypographyTokens {
   dialogBody: TypographyToken;
   /** Подписи крупных блоков (секции). */
   sectionTitle: TypographyToken;
+  /** Подзаголовок содержимого, между секцией и основным текстом. */
+  contentTitle: TypographyToken;
   /** Текст кнопок. */
   buttonLabel: TypographyToken;
   /** Название экрана / практики. */
@@ -190,6 +192,7 @@ export const defaultTheme: Theme = {
     dialogTitle: { fontSize: 18, lineHeight: 24, fontWeight: "700" },
     dialogBody: { fontSize: 14, lineHeight: 20, fontWeight: "400" },
     sectionTitle: { fontSize: 18, lineHeight: 24, fontWeight: "600" },
+    contentTitle: { fontSize: 16, lineHeight: 22, fontWeight: "600" },
     buttonLabel: { fontSize: 15, lineHeight: 20, fontWeight: "600" },
     screenTitle: { fontSize: 22, lineHeight: 28, fontWeight: "700" },
     screenHint: { fontSize: 15, lineHeight: 22, fontWeight: "400" },

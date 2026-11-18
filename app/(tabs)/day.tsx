@@ -512,6 +512,7 @@ export default function DayTabRoute() {
   const dayStrings = useMemo(() => getDayStrings(appLocale), [appLocale]);
   const reportLocale = appLocale;
   const scrollRef = useRef<ScrollView>(null);
+  const [courseViewportHeight, setCourseViewportHeight] = useState(0);
   const donutScrollProps = useDonutScrollProps();
   const refreshDonutVisibility = useDonutVisibilityRefresh();
   const [plan, setPlan] = useState<DayPlan | null>(() => {
@@ -843,6 +844,7 @@ export default function DayTabRoute() {
           contentOptions={{ horizontalPadding: 24 }}
           keyboardShouldPersistTaps="handled"
           {...donutScrollProps}
+          onLayout={event => setCourseViewportHeight(event.nativeEvent.layout.height)}
         >
         <ScreenHeader
           title={resolveDayTabHeaderTitle(plan, dayStrings)}
@@ -1013,7 +1015,7 @@ export default function DayTabRoute() {
             ) : null}
           </>
         ) : null}
-        <DayCourseCards onScrollToCourse={y=>scrollRef.current?.scrollTo({y,animated:true})} />
+        <DayCourseCards viewportHeight={courseViewportHeight} onScrollToCourse={y=>scrollRef.current?.scrollTo({y,animated:true})} />
       </TabScrollView>
 
       {showSubtleRefresh ? (

@@ -1,7 +1,7 @@
 import React from 'react';
 // @ts-expect-error The installed test renderer ships without declarations.
 import {act,create,type ReactTestRenderer} from 'react-test-renderer';
-import {afterEach,describe,it,expect,vi} from 'vitest';
+import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
 import type {CourseView} from '@shared/courses';
 const mock=vi.hoisted(()=>({push:vi.fn(),load:vi.fn()}));
 vi.mock('react-native',()=>({StyleSheet:{hairlineWidth:0.5},View:'view',Text:'text',Pressable:'button',Linking:{openURL:vi.fn()}}));
@@ -25,6 +25,7 @@ const immediateFrame=(cb:()=>void)=>{cb();return 1;};
 vi.stubGlobal('requestAnimationFrame',immediateFrame);
 const course:CourseView={id:'grant',slug:'pilot',title:'Pilot',mode:'test',startedAt:'2026-11-01T00:00:00Z',accessUntil:'2099-01-01T00:00:00Z',displayUntil:'2098-01-01T00:00:00Z',landingUrl:'',state:'available',current:{id:'last',position:2,title:'Последний',blocks:[{type:'video',vimeoId:'22222222'}]},lessons:[{id:'first',position:1,title:'Первый длинный урок'},{id:'last',position:2,title:'Последний'}],totalLessons:2,nextChangeAt:null};
 let view:ReactTestRenderer|undefined;
+beforeEach(()=>{vi.stubGlobal('requestAnimationFrame',immediateFrame);vi.stubGlobal('cancelAnimationFrame',vi.fn());});
 afterEach(async()=>{if(view)await act(()=>view.unmount());view=undefined;vi.clearAllMocks();vi.unstubAllGlobals();});
 describe('inline course navigation and completed display window',()=>{
  it('shows the last material with a closed list until archive mode starts',async()=>{
@@ -60,4 +61,27 @@ it('renders the transition to all materials and the archive without Intl.PluralR
  await act(()=>view.update(React.createElement(CourseCurrentCard,{course:complete,archive:true})));
  expect(view.root.findAllByType('video')).toHaveLength(0);
  expect(view.root.findAll((n:any)=>typeof n.props.accessibilityState?.selected==='boolean')).toHaveLength(8);
+});
+
+
+it('keeps arrow navigation in place while the selected lesson loads',async()=>{
+ let complete!:(value:unknown)=>void;
+ mock.load.mockImplementation(()=>new Promise(resolve=>{complete=resolve;}));
+ const scroll=vi.fn();const anchor=vi.fn();
+ await act(()=>{view=create(React.createElement(CourseCurrentCard,{course,onNavigate:scroll,onBeforeLessonChange:anchor}));});
+ await act(()=>view.root.findByProps({accessibilityLabel:'Предыдущий урок'}).props.onPress());
+ expect(anchor).toHaveBeenCalledOnce();expect(scroll).not.toHaveBeenCalled();
+ await act(async()=>complete({course:{...course,current:{id:'first',title:'Первый',position:1,blocks:[{type:'video',vimeoId:'11111111'}]}}}));
+ expect(view.root.findByType('video').props.vimeoId).toBe('11111111');expect(scroll).not.toHaveBeenCalled();
+});
+
+it('scrolls from a list only after the asynchronously selected content is ready',async()=>{
+ let complete!:(value:unknown)=>void;
+ mock.load.mockImplementation(()=>new Promise(resolve=>{complete=resolve;}));
+ const scroll=vi.fn();
+ await act(()=>{view=create(React.createElement(CourseCurrentCard,{course,archive:true,onNavigate:scroll}));});
+ await act(()=>view.root.findAll((n:any)=>n.props.accessibilityState?.selected===false)[0].props.onPress());
+ expect(scroll).not.toHaveBeenCalled();
+ await act(async()=>complete({course:{...course,current:{id:'first',title:'Первый',position:1,blocks:[{type:'video',vimeoId:'11111111'}]}}}));
+ expect(scroll).toHaveBeenCalledOnce();
 });

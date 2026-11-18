@@ -28,7 +28,7 @@ function Inline({text}:{text:string}){
 }
 export function CourseMarkdown({text}:{text:string}){
  return <View style={{gap:12}}>{text.trim().split(/\n\s*\n/).map((paragraph,i)=>{
-  const heading=/^#{1,6} /.test(paragraph);return <AppText key={i} variant={heading?'sectionTitle':'screenHint'}><Inline text={paragraph.replace(/^#{1,6} /,'')}/></AppText>;
+  const heading=/^#{1,6} /.test(paragraph);return <AppText key={i} variant={heading?'contentTitle':'screenHint'}><Inline text={paragraph.replace(/^#{1,6} /,'')}/></AppText>;
  })}</View>;
 }
 function CourseVideo({block,title}:{block:Extract<CourseBlock,{type:'video'}>;title:string}){
@@ -50,8 +50,8 @@ function CourseVideo({block,title}:{block:Extract<CourseBlock,{type:'video'}>;ti
 export function CourseBlocks({blocks,title}:{blocks:CourseBlock[];title:string}){
  return <View style={{gap:16}}>{blocks.map((block,i)=>block.type==='text'?<CourseMarkdown key={i} text={block.markdown}/>:<CourseVideo key={block.vimeoId+'-'+i} block={block} title={title}/>)}</View>;
 }
-export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fromCache=false,onNavigate,onRetry}:{
- course:CourseView;archive?:boolean;showCourseTitle?:boolean;fromCache?:boolean;onNavigate?:()=>void;onRetry?:()=>void;
+export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fromCache=false,onNavigate,onBeforeLessonChange,onRetry}:{
+ course:CourseView;archive?:boolean;showCourseTitle?:boolean;fromCache?:boolean;onNavigate?:()=>void;onBeforeLessonChange?:()=>void;onRetry?:()=>void;
 }){
  const {locale}=useAppLocale();const strings=courseStrings(locale);const controls=courseControls(locale);const theme=useTheme();
  const [expanded,setExpanded]=useState(archive);
@@ -61,6 +61,7 @@ export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fro
  const previousCurrent=useRef(course.current?.id);
  useEffect(()=>{if(previousCurrent.current!==course.current?.id&&!archive)setSelectedId(course.current?.id??null);previousCurrent.current=course.current?.id;},[course.current?.id,archive]);
  const [loading,setLoading]=useState(false);const [error,setError]=useState(false);const [retry,setRetry]=useState(0);
+ const pendingScroll=useRef(false);const navigate=useRef(onNavigate);navigate.current=onNavigate;
  const cache=useRef(new Map<string,CourseLesson>());const request=useRef(0);const latest=useRef(course);latest.current=course;
  useEffect(()=>{if(course.current&&!fromCache)cache.current.set(course.current.id,course.current);},[course.current,fromCache]);
  useFocusEffect(useCallback(()=>{
@@ -84,7 +85,20 @@ export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fro
   }).finally(()=>{if(request.current===version)setLoading(false);});
   return()=>{request.current++;};
  },[course.id,course.current,course.lessons,selectedId,archive,fromCache,retry,focusVersion]);
- const choose=(id:string)=>{setSelectedId(id);requestAnimationFrame(()=>onNavigate?.());};
+ // Arrow navigation keeps the viewport. Only a selection from the list returns to the heading,
+ // after the selected content (or its error) is laid out, rather than during a short loading state.
+ useEffect(()=>{
+  if(pendingScroll.current&&!loading&&(lesson?.id===selectedId||error)){
+   const frame=requestAnimationFrame(()=>{if(pendingScroll.current){pendingScroll.current=false;navigate.current?.();}});
+   return()=>cancelAnimationFrame(frame);
+  }
+ },[selectedId,lesson,loading,error]);
+ const choose=(id:string,fromList=false)=>{
+  onBeforeLessonChange?.();
+  if(fromList&&id===selectedId)requestAnimationFrame(()=>navigate.current?.());
+  else pendingScroll.current=fromList;
+  setSelectedId(id);
+ };
  const index=course.lessons.findIndex(l=>l.id===selectedId);
  const previous=index>0?course.lessons[index-1]:null;const next=index>=0?course.lessons[index+1]:null;
  const title=course.lessons.find(l=>l.id===selectedId)?.title;
@@ -93,7 +107,7 @@ export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fro
  {showCourseTitle?<AppText variant="sectionTitle">{course.title}</AppText>:null}
  {selectedId?<>
   <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
-   <AppText variant="dialogTitle" style={{flex:1}}>{title||strings.lesson}</AppText>
+   <AppText variant="contentTitle" style={{flex:1}}>{title||strings.lesson}</AppText>
    {previous?<Pressable accessibilityRole="button" accessibilityLabel={controls.previous} onPress={()=>choose(previous.id)} style={{padding:10}}><Ionicons name="chevron-back" size={26} color={theme.colors.accent}/></Pressable>:null}
    {next?<Pressable accessibilityRole="button" accessibilityLabel={controls.next} onPress={()=>choose(next.id)} style={{padding:10}}><Ionicons name="chevron-forward" size={26} color={theme.colors.accent}/></Pressable>:null}
   </View>
@@ -102,11 +116,11 @@ export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fro
  </>:null}
  {error||(fromCache&&!lesson)?<View style={{gap:12}}><AppText tone="muted">{error?strings.error:strings.loading}</AppText><AppButton label={strings.retry} variant="secondary" onPress={()=>{setRetry(n=>n+1);onRetry?.();}}/></View>:null}
  <View>
- <Pressable accessibilityRole="button" accessibilityState={{expanded}} onPress={()=>setExpanded(v=>!v)} style={{minHeight:44,flexDirection:'row',alignItems:'center',gap:8}}>
+ <Pressable accessibilityRole="button" accessibilityState={{expanded}} onPress={()=>setExpanded(v=>!v)} style={{minHeight:44,flexDirection:'row',alignItems:'center',gap:4}}>
   <CourseRowIcon kind={expanded?'expanded':'collapsed'} tone="accent"/>
   <AppText variant="screenHint" tone="accent" style={{flex:1}}>{strings.all} ({courseLessonCount(locale,course.lessons.length,course.totalLessons??course.lessons.length)})</AppText>
  </Pressable>
- {expanded?<View>{course.lessons.map((l,i)=><Pressable key={l.id} accessibilityRole="button" accessibilityState={{selected:l.id===selectedId}} onPress={()=>choose(l.id)} style={{paddingVertical:8,minHeight:44,flexDirection:'row',alignItems:'center',gap:8,borderBottomWidth:i<course.lessons.length-1?StyleSheet.hairlineWidth:0,borderColor:theme.colors.surfaceBorder}}>
+ {expanded?<View>{course.lessons.map((l,i)=><Pressable key={l.id} accessibilityRole="button" accessibilityState={{selected:l.id===selectedId}} onPress={()=>choose(l.id,true)} style={{paddingVertical:8,minHeight:44,flexDirection:'row',alignItems:'center',gap:4,borderBottomWidth:i<course.lessons.length-1?StyleSheet.hairlineWidth:0,borderColor:theme.colors.surfaceBorder}}>
   <CourseRowIcon kind="arrow" tone={l.id===selectedId?'accent':'primary'}/>
   <AppText variant="screenHint" style={{flex:1}} tone={l.id===selectedId?'accent':'primary'}>{l.title}</AppText>
  </Pressable>)}</View>:null}
