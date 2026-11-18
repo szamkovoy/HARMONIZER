@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {DateTime} from 'luxon';
-import {buildCourseSchedule,courseMarkdownHtml} from './courseSchedule';
+import {buildCourseSchedule,courseMarkdownHtml,courseRunDates} from './courseSchedule';
 const lessons=[{id:'one',gapDays:0},{id:'two',gapDays:1},{id:'three',gapDays:1}];
 describe('course calendar and rehearsal',()=>{
  it.each([[17,1,11],[18,1,12],[21,1,12],[21,2,12],[21,3,13]])('purchase hour %i, interval %i → November %i',(hour,gap,day)=>{
@@ -38,4 +38,31 @@ describe('authored email paragraph spacing',()=>{
  it('handles Windows newlines without changing paragraph structure',()=>{
   expect(courseMarkdownHtml('A\r\n\r\nB\r\nC')).toBe('<p>A</p><p></p><p>B<br>C</p>');
  });
+});
+
+describe('completion letter without a lesson',()=>{
+ it('anchors Day, archive and morning letter to the final real lesson',()=>{
+  const schedule=buildCourseSchedule([0,2,7,3,4,3,4].map((gapDays,i)=>({id:String(i),gapDays})),'2026-11-01T12:00:00+03:00','Europe/Moscow');
+  const dates=courseRunDates(schedule,'Europe/Moscow',90,3,true);
+  expect(schedule).toHaveLength(7);expect(dates.displayUntil).toBe('2026-11-26T21:00:00.000Z');
+  expect(dates.completionMailAt).toBe('2026-11-27T04:00:00.000Z');
+  expect(dates.accessUntil).toBe('2027-02-21T21:00:00.000Z');
+ });
+ it('compresses the final test window to two minutes only for courses with a completion letter',()=>{
+  const schedule=buildCourseSchedule(lessons,'2026-11-10T21:00:00Z','Europe/Moscow',120);
+  const closing=courseRunDates(schedule,'Europe/Moscow',90,3,true,true);
+  expect(Date.parse(closing.displayUntil)-Date.parse(schedule.at(-1)!.opensAt)).toBe(120000);expect(closing.completionMailAt).toBe(closing.displayUntil);
+  const pilot=courseRunDates(schedule,'Europe/Moscow',90,3,false,true);
+  expect(pilot.completionMailAt).toBeNull();expect(Date.parse(pilot.displayUntil)-Date.parse(schedule.at(-1)!.opensAt)).toBe(3*86400000);
+ });
+ it('handles DST and never announces completion before the Day display ends',()=>{
+  const dates=courseRunDates([{lessonId:'one',opensAt:'2026-03-27T12:00:00+01:00',mailAt:'2026-03-27T12:00:00+01:00'}],'Europe/Berlin',90,3,true);
+  expect(dates.displayUntil).toBe('2026-03-30T10:00:00.000Z');expect(dates.completionMailAt).toBe('2026-03-31T05:00:00.000Z');
+ });
+});
+
+
+it('uses the same 07:00 on the completion date across a DST boundary',()=>{
+ const dates=courseRunDates([{lessonId:'last',opensAt:'2026-03-27T00:00:00+01:00',mailAt:'2026-03-27T07:00:00+01:00'}],'Europe/Berlin',90,3,true);
+ expect(dates.displayUntil).toBe('2026-03-29T22:00:00.000Z');expect(dates.completionMailAt).toBe('2026-03-30T05:00:00.000Z');
 });

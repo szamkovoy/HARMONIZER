@@ -478,6 +478,8 @@ export type Database = {
       }
       course_enrollments: {
         Row: {
+          completion_email_step_id: string | null
+          completion_mail_at: string | null
           access_until: string | null
           buyer_email: string
           claim_token: string | null
@@ -500,6 +502,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          completion_email_step_id?: string | null
+          completion_mail_at?: string | null
           access_until?: string | null
           buyer_email: string
           claim_token?: string | null
@@ -522,6 +526,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          completion_email_step_id?: string | null
+          completion_mail_at?: string | null
           access_until?: string | null
           buyer_email?: string
           claim_token?: string | null
@@ -544,6 +550,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "course_enrollments_completion_email_step_id_fkey"
+            columns: ["completion_email_step_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_steps"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "course_enrollments_course_slug_fkey"
             columns: ["course_slug"]
@@ -607,6 +620,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          completion_email_step_id: string | null
           access_days: number
           active: boolean
           automation_id: string
@@ -620,6 +634,7 @@ export type Database = {
           webinar_extra_days: number
         }
         Insert: {
+          completion_email_step_id?: string | null
           access_days: number
           active?: boolean
           automation_id: string
@@ -633,6 +648,7 @@ export type Database = {
           webinar_extra_days?: number
         }
         Update: {
+          completion_email_step_id?: string | null
           access_days?: number
           active?: boolean
           automation_id?: string
@@ -646,6 +662,13 @@ export type Database = {
           webinar_extra_days?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "courses_completion_email_step_id_fkey"
+            columns: ["completion_email_step_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_steps"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "courses_automation_id_fkey"
             columns: ["automation_id"]

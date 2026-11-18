@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DateTime } from 'luxon';
 import type { CourseLesson, CourseView } from '@shared/courses';
-import { buildCourseSchedule } from './courseSchedule';
+import { buildCourseSchedule,courseRunDates } from './courseSchedule';
 
 export async function listUserCourses(db:SupabaseClient,userId:string,lessonId?:string,enrollmentId?:string):Promise<CourseView[]> {
   let q=db.from('course_enrollments').select('*').eq('user_id',userId).neq('status','prepared').order('created_at',{ascending:false});
@@ -29,16 +28,16 @@ export async function startPreparedCourse(db:SupabaseClient,id:string) {
  const {data:e,error}=await db.from('course_enrollments').select('*').eq('id',id).single();if(error)throw error;
  if(e.status!=='prepared')throw new Error('Этот запуск уже начат или отменён');
  const {data:lessons,error:le}=await db.from('course_lessons').select('id,gap_days').eq('course_slug',e.course_slug).order('position');if(le)throw le;
- const {data:c,error:ce}=await db.from('courses').select('access_days,day_card_extra_days').eq('slug',e.course_slug).single();if(ce)throw ce;
+ const {data:c,error:ce}=await db.from('courses').select('access_days,day_card_extra_days,completion_email_step_id').eq('slug',e.course_slug).single();if(ce)throw ce;
  const start=new Date().toISOString();
  const schedule=buildCourseSchedule((lessons??[]).map(l=>({id:l.id,gapDays:l.gap_days})),start,e.timezone,e.mode==='test'?120:undefined);
  if(!schedule.length)throw new Error('В курсе нет уроков');
- const last=DateTime.fromISO(schedule.at(-1)!.opensAt).setZone(e.timezone);
- const {error:se}=await db.rpc('start_course_enrollment',{p_id:id,p_schedule:schedule,p_start:start,p_access_until:last.plus({days:c.access_days}).toUTC().toISO(),p_display_until:last.plus({days:c.day_card_extra_days}).toUTC().toISO()});if(se)throw se;
+ const dates=courseRunDates(schedule,e.timezone,c.access_days,c.day_card_extra_days,!!c.completion_email_step_id,e.mode==='test');
+ const {error:se}=await db.rpc('start_course_enrollment',{p_id:id,p_schedule:schedule,p_start:start,p_access_until:dates.accessUntil,p_display_until:dates.displayUntil});if(se)throw se;
  let webinarInvites:{sent:number;failed:number}|undefined;
  if(e.mode==='normal'&&e.user_id){
   try{const {sendPassWebinarInvites}=await import('../account/webinarNotices');webinarInvites=await sendPassWebinarInvites(db,e.user_id);}
   catch(error){console.error('[courses] webinar invite failed',error);webinarInvites={sent:0,failed:1};}
  }
- return {id,start,schedule,...(webinarInvites?{webinarInvites}:{})};
+ return {id,start,schedule,...dates,...(webinarInvites?{webinarInvites}:{})};
 }

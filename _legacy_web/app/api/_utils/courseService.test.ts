@@ -58,3 +58,13 @@ describe('course start webinar invitations',()=>{
   else{expect(invites.send).not.toHaveBeenCalled();expect(Date.parse(result.schedule[1].opensAt)-Date.parse(result.schedule[0].opensAt)).toBe(120000);}
  });
 });
+
+
+it('keeps a standalone completion letter out of the lesson count and access payload',async()=>{
+ vi.useFakeTimers().setSystemTime(new Date(grant.display_until));
+ const data=rows();data.course_enrollments=[{...grant,completion_email_step_id:'closing-step',completion_mail_at:'2026-11-21T07:00:00Z'} as typeof grant];
+ const [course]=await listUserCourses(database(data),'owner');
+ expect(course.totalLessons).toBe(2);expect(course.lessons).toHaveLength(2);expect(course.current?.id).toBe('future');
+ expect(course.state).toBe('available');expect(course.displayUntil).toBe(grant.display_until);expect(course.accessUntil).toBe(grant.access_until);
+ expect(JSON.stringify(course)).not.toContain('closing-step');expect(course.nextChangeAt).toBe(grant.access_until);
+});

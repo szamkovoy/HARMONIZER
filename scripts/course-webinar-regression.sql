@@ -20,7 +20,7 @@ declare eid uuid;tid uuid;pid uuid;schedule jsonb;
 begin
  tid:=prepare_course_test('00000000-0000-4000-8000-000000000001','month-health','Europe/Moscow');
  if exists(select 1 from webinar_passes where course_enrollment_id=tid) then raise exception 'prepared rehearsal has a pass';end if;
- select jsonb_agg(jsonb_build_object('lessonId',id,'opensAt',now()+(position-1)*interval '2 minutes','mailAt',now()+(position-1)*interval '2 minutes') order by position) into schedule from course_lessons;
+ select jsonb_agg(jsonb_build_object('lessonId',id,'opensAt',now()+(position-1)*interval '2 minutes','mailAt',now()+(position-1)*interval '2 minutes') order by position) into schedule from course_lessons where course_slug='month-health';
  perform start_course_enrollment(tid,schedule,now(),now()+interval '90 days',now()+interval '3 days');
  if exists(select 1 from webinar_passes where course_enrollment_id=tid) then raise exception 'rehearsal grants real webinar access';end if;
  perform cleanup_course_test(tid);
@@ -28,7 +28,7 @@ begin
  insert into course_enrollments(course_slug,user_id,buyer_email,source_key,timezone,mode)
  values('month-health','00000000-0000-4000-8000-000000000001','owner@example.test','normal-fixture','Europe/Moscow','normal') returning id into eid;
  -- Eight lessons, last release at D+26, webinar cutoff at D+31.
- select jsonb_agg(jsonb_build_object('lessonId',id,'opensAt',now()+case position when 1 then 0 when 2 then 2 when 3 then 9 when 4 then 12 when 5 then 16 when 6 then 19 when 7 then 23 else 26 end*interval '1 day','mailAt',now()+case position when 1 then 0 when 2 then 2 when 3 then 9 when 4 then 12 when 5 then 16 when 6 then 19 when 7 then 23 else 26 end*interval '1 day') order by position) into schedule from course_lessons;
+ select jsonb_agg(jsonb_build_object('lessonId',id,'opensAt',now()+case position when 1 then 0 when 2 then 2 when 3 then 9 when 4 then 12 when 5 then 16 when 6 then 19 when 7 then 23 else 26 end*interval '1 day','mailAt',now()+case position when 1 then 0 when 2 then 2 when 3 then 9 when 4 then 12 when 5 then 16 when 6 then 19 when 7 then 23 else 26 end*interval '1 day') order by position) into schedule from course_lessons where course_slug='month-health';
  perform start_course_enrollment(eid,schedule,now(),now()+interval '116 days',now()+interval '29 days');
  select id into pid from webinar_passes where course_enrollment_id=eid;
  if pid is null then raise exception 'normal course missing pass';end if;

@@ -12,10 +12,15 @@ export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
   let subject='';let resendId:string|null=null;let failure:string|null=null;
   try {
    if(getMarketingTransportProfile().provider!=='resend')throw new Error('Course delivery requires the configured Resend transport for idempotent sends');
-   const lessonId=e.schedule[e.mail_position]?.lessonId;
-   const {data:l,error:le}=await db.from('course_lessons').select('email_step_id').eq('id',lessonId).eq('course_slug',e.course_slug).single();if(le)throw le;
-   const {data:step,error:se}=await db.from('email_automation_steps').select('*').eq('id',l.email_step_id).single();if(se)throw se;
-   const {data:a,error:ae}=await db.from('email_automation_enrollments').select('contact_id').eq('course_enrollment_id',e.id).eq('status','active').single();if(ae)throw ae;
+   const {data:a,error:ae}=await db.from('email_automation_enrollments').select('contact_id,automation_id').eq('course_enrollment_id',e.id).eq('status','active').single();if(ae)throw ae;
+   let stepId:string;
+   if(e.mail_position<e.schedule.length){
+    const lessonId=e.schedule[e.mail_position]?.lessonId;
+    const {data:l,error:le}=await db.from('course_lessons').select('email_step_id').eq('id',lessonId).eq('course_slug',e.course_slug).single();if(le)throw le;
+    stepId=l.email_step_id;
+   }else if(e.mail_position===e.schedule.length&&e.completion_email_step_id)stepId=e.completion_email_step_id;
+   else throw new Error('Course email position is invalid');
+   const {data:step,error:se}=await db.from('email_automation_steps').select('*').eq('id',stepId).eq('automation_id',a.automation_id).single();if(se)throw se;
    const {data:contact,error:co}=await db.from('email_contacts').select('email,user_id,marketing_status,locale').eq('id',a.contact_id).single();if(co)throw co;
    if(contact.user_id!==e.user_id||contact.email.trim().toLowerCase()!==e.buyer_email.trim().toLowerCase())throw new Error('Course recipient mismatch');
    if(['complained','suppressed'].includes(contact.marketing_status))throw new Error('Delivery blocked by contact status');

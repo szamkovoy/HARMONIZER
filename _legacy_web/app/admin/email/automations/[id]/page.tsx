@@ -339,7 +339,7 @@ export default function AdminEmailAutomationDetailPage() {
                   href={`/admin/email/automations/${id}/steps/${s.id}`}
                   title={emailListTitle(s.name, s.subject)}
                   subtitle={[
-                    automation?.trigger_type === "course" ? `Материал ${index + 1}` : `Письмо ${index + 1} · +${s.delay_hours}ч`,
+                    automation?.trigger_type === "course" ? s.course_lesson_id ? `Материал ${index + 1}` : `Письмо ${index + 1} · без нового урока` : `Письмо ${index + 1} · +${s.delay_hours}ч`,
                     emailListSubjectSubtitle(s.name, s.subject),
                   ]
                     .filter(Boolean)

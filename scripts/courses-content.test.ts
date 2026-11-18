@@ -15,3 +15,27 @@ describe('approved month-health materials',()=>{
   for(const lesson of course.lessons){expect(lesson.email.markdown).not.toContain('Для вашей правки');expect(JSON.stringify(lesson.blocks)).not.toContain('Сверить с источником');}
  });
 });
+
+describe('another practicum with an independent completion letter',()=>{
+ it('extracts seven real materials and eight letters without leaking pilot IDs or gaps',async()=>{
+  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
+  const c=parseCourseReview(source);
+  expect(c.slug).toBe('fixture-completion');expect(c.lessons).toHaveLength(7);expect(c.completionEmail?.subject).toBe('Практикум завершён');
+  expect(c.lessons.map(l=>l.gapDays)).toEqual([0,2,7,3,4,3,4]);
+  expect(c.lessons[3].blocks).toEqual([{type:'text',markdown:'Текст до видео 4.'},{type:'video',vimeoId:'12345004',practiceId:'00000000-0000-4000-8000-000000000099'},{type:'text',markdown:'Текст после видео 4.'}]);
+  expect(c.completionEmail?.markdown).not.toContain('Источники');expect(c.completionEmail?.markdown).not.toContain('Урок ждёт');
+  expect(JSON.stringify(c)).not.toContain('month-health');expect(JSON.stringify(c)).not.toContain('1149520174');
+ });
+ it('requires explicit gaps and the approved three-day completion interval',async()=>{
+  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
+  expect(()=>parseCourseReview(source.replace('**Когда открывается:** через 7 дней',''))).toThrow();
+  expect(()=>parseCourseReview(source.replace('через 3 дня после последнего урока','через 5 дней после последнего урока'))).toThrow();
+  expect(()=>parseCourseReview(source.replace('**Код курса:** fixture-completion',''))).toThrow();
+ });
+});
+
+
+it('rejects unsupported standalone introductory mail instead of silently dropping it',async()=>{
+ const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
+ expect(()=>parseCourseReview(source+'\n## Вводное письмо\n\n### Письмо\n\n**Тема:** Введение\n\nТекст\n')).toThrow(/вводные/);
+});

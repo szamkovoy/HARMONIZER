@@ -14,6 +14,16 @@ export function buildCourseSchedule(lessons: {id: string; gapDays: number}[], st
   });
 }
 
+/** Only real lessons anchor access. Tests with a completion letter compress its final display window. */
+export function courseRunDates(schedule:CourseScheduleItem[],zone:string,accessDays:number,displayDays:number,hasCompletion:boolean,test=false) {
+ const last=DateTime.fromISO(schedule.at(-1)?.opensAt??'').setZone(zone);
+ if(!last.isValid||!Number.isInteger(accessDays)||accessDays<=0||!Number.isInteger(displayDays)||displayDays<=0)throw new Error('Invalid course deadlines');
+ const display=test&&hasCompletion?last.plus({seconds:120}):last.plus({days:displayDays});
+ let completion=hasCompletion?(test?display:display.startOf('day').set({hour:7})):null;
+ if(completion&&completion<display)completion=completion.plus({days:1});
+ return {accessUntil:last.plus({days:accessDays}).toUTC().toISO()!,displayUntil:display.toUTC().toISO()!,completionMailAt:completion?.toUTC().toISO()??null};
+}
+
 const escape = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 /** Small authored Markdown subset; HTML is escaped, only HTTPS links are emitted. */
 export function courseMarkdownHtml(markdown: string): string {
