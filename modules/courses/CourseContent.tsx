@@ -103,14 +103,17 @@ export function CourseCurrentCard({course,archive=false,showCourseTitle=true,fro
  const previous=index>0?course.lessons[index-1]:null;const next=index>=0?course.lessons[index+1]:null;
  const title=course.lessons.find(l=>l.id===selectedId)?.title;
  if(Date.parse(course.accessUntil)<=Date.now())return null;
- return <SurfaceCardView tone="elevated">
+ return <SurfaceCardView tone="elevated" style={showCourseTitle?undefined:{paddingTop:theme.surfaceCard.padding-4}}>
+ {showCourseTitle||selectedId?<View style={{gap:theme.surfaceCard.gap-4}}>
  {showCourseTitle?<AppText variant="sectionTitle">{course.title}</AppText>:null}
- {selectedId?<>
-  <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+ {/* Keep the title row stable before the second lesson introduces navigation buttons. */}
+ {selectedId?<View style={{minHeight:44,flexDirection:'row',alignItems:'center',gap:8}}>
    <AppText variant="contentTitle" style={{flex:1}}>{title||strings.lesson}</AppText>
-   {previous?<Pressable accessibilityRole="button" accessibilityLabel={controls.previous} onPress={()=>choose(previous.id)} style={{padding:10}}><Ionicons name="chevron-back" size={26} color={theme.colors.accent}/></Pressable>:null}
-   {next?<Pressable accessibilityRole="button" accessibilityLabel={controls.next} onPress={()=>choose(next.id)} style={{padding:10}}><Ionicons name="chevron-forward" size={26} color={theme.colors.accent}/></Pressable>:null}
-  </View>
+   {previous?<Pressable accessibilityRole="button" accessibilityLabel={controls.previous} onPress={()=>choose(previous.id)} style={{paddingHorizontal:10,paddingVertical:9}}><Ionicons name="chevron-back" size={26} color={theme.colors.accent}/></Pressable>:null}
+   {next?<Pressable accessibilityRole="button" accessibilityLabel={controls.next} onPress={()=>choose(next.id)} style={{paddingHorizontal:10,paddingVertical:9}}><Ionicons name="chevron-forward" size={26} color={theme.colors.accent}/></Pressable>:null}
+  </View>:null}
+ </View>:null}
+ {selectedId?<>
   {loading&&!lesson?<AppText tone="muted">{strings.loading}</AppText>:null}
   {lesson?.id===selectedId?<CourseBlocks blocks={lesson.blocks} title={`${course.title} · ${lesson.title}`}/>:null}
  </>:null}

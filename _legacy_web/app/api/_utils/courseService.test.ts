@@ -6,15 +6,15 @@ import {listUserCourses,startPreparedCourse} from './courseService';
 
 // In-memory query adapter applies the actual predicates supplied by the service.
 function database(rows:Record<string,Record<string,unknown>[]>){
- return {from(table:string){let result=rows[table]??[];const q={
+ return {from(table:string){let result=rows[table]??[];const orders:{key:string;ascending:boolean}[]=[];const q={
   select(){return q;},eq(key:string,value:unknown){result=result.filter(r=>r[key]===value);return q;},
   neq(key:string,value:unknown){result=result.filter(r=>r[key]!==value);return q;},
-  in(key:string,values:unknown[]){result=result.filter(r=>values.includes(r[key]));return q;},order(){return q;},
-  then(resolve:(v:unknown)=>unknown){return Promise.resolve({data:result,error:null}).then(resolve);},
+  in(key:string,values:unknown[]){result=result.filter(r=>values.includes(r[key]));return q;},order(key:string,{ascending=true}={}){orders.push({key,ascending});return q;},
+  then(resolve:(v:unknown)=>unknown){return Promise.resolve({data:[...result].sort((a,b)=>{for(const {key,ascending} of orders){const cmp=String(a[key]??'').localeCompare(String(b[key]??''));if(cmp)return ascending?cmp:-cmp;}return 0;}),error:null}).then(resolve);},
  };return q;}} as unknown as SupabaseClient;
 }
 const schedule=[{lessonId:'open',opensAt:'2026-11-16T00:00:00Z'},{lessonId:'future',opensAt:'2026-11-18T00:00:00Z'}];
-const grant={id:'own',user_id:'owner',course_slug:'pilot',status:'active',mode:'test',started_at:'2026-11-16T00:00:00Z',access_until:'2027-02-01T00:00:00Z',display_until:'2026-11-21T00:00:00Z',schedule};
+const grant={created_at:'2026-11-16T00:00:00Z',id:'own',user_id:'owner',course_slug:'pilot',status:'active',mode:'test',started_at:'2026-11-16T00:00:00Z',access_until:'2027-02-01T00:00:00Z',display_until:'2026-11-21T00:00:00Z',schedule};
 const rows=()=>({
  course_enrollments:[grant,{...grant,id:'other',user_id:'stranger'},{...grant,id:'waiting',status:'prepared'}],
  courses:[{slug:'pilot',title:'Pilot',landing_url:'https://example.test'}],
@@ -67,4 +67,17 @@ it('keeps a standalone completion letter out of the lesson count and access payl
  expect(course.totalLessons).toBe(2);expect(course.lessons).toHaveLength(2);expect(course.current?.id).toBe('future');
  expect(course.state).toBe('available');expect(course.displayUntil).toBe(grant.display_until);expect(course.accessUntil).toBe(grant.access_until);
  expect(JSON.stringify(course)).not.toContain('closing-step');expect(course.nextChangeAt).toBe(grant.access_until);
+});
+
+it('orders all history by actual purchase/start, independent of preparation and latest release',async()=>{
+ vi.useFakeTimers().setSystemTime(new Date('2026-11-20T12:00:00Z'));
+ const data=rows();
+ data.course_enrollments=[
+  {...grant,id:'earlier-start-later-prepared',started_at:'2026-11-15T00:00:00Z',created_at:'2026-11-15T00:00:00Z'},
+  {...grant,id:'later-start-earlier-prepared',started_at:'2026-11-19T00:00:00Z',created_at:'2026-11-14T00:00:00Z'},
+  {...grant,id:'expired',started_at:'2026-11-10T00:00:00Z',created_at:'2026-11-10T00:00:00Z',access_until:'2026-11-19T00:00:00Z'},
+ ];
+ const courses=await listUserCourses(database(data),'owner');
+ expect(courses.map(c=>c.id)).toEqual(['later-start-earlier-prepared','earlier-start-later-prepared','expired']);
+ expect(courses.at(-1)?.state).toBe('expired');
 });

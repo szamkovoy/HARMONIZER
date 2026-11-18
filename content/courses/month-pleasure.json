@@ -19,7 +19,7 @@
     "naturalWidth": 530,
     "naturalHeight": 135
   },
-  "sourceHash": "1d0fc78fe522dd2ff7b20416f785492174727724ed0a4b8501dd48c1a7ddf09c",
+  "sourceHash": "3cffea5f68dcdf1addeadf07695821304736cbbbb6f1aea6eeeeeac08fd4a073",
   "lessons": [
     {
       "id": "month-pleasure-01",
@@ -77,7 +77,7 @@
       "id": "month-pleasure-04",
       "position": 4,
       "gapDays": 3,
-      "title": "Урок 4",
+      "title": "Дополнительная практика",
       "blocks": [
         {
           "type": "video",

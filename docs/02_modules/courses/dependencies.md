@@ -19,7 +19,7 @@ code_refs: [modules/courses/CoursesProvider.tsx, modules/courses/CourseContent.t
 - `remote-play`: `useRemotePlay` и существующие экраны `/connect-tv`, `/tv-remote` для видео урока.
 - `i18n`: `useAppLocale`, восемь локалей интерфейса в `modules/courses/strings.ts`; учебный пилот RU.
 - `infra`: Supabase/Postgres, RLS, cron/pg_net, Vercel и существующий cron secret, Expo Router, общие UI-токены.
-- `admin_panel`: `requireAdmin` для подготовки/старта/очистки теста и существующий редактор писем.
+- `admin_panel`: `requireAdmin` для подготовки/старта/очистки теста и существующий редактор писем; отдельное сохранение названия урока PATCH {title} без записи блоков.
 
 ## 2. От него зависят
 

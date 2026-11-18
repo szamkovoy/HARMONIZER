@@ -45,14 +45,15 @@ begin
  if claim_course_mail(eid) is not null then raise exception 'Completed letter claimed twice';end if;
  if (select count(*) from email_automation_sends where step_id=step and status='sent')<>1 then raise exception 'Duplicate completion letter';end if;
  delete from course_enrollments where id=eid;
- -- Accelerated test: seven real releases, then the completion boundary two minutes later.
+ -- Accelerated test: seven real releases, then a closing letter two minutes later; Day stays for three days.
  select jsonb_agg(jsonb_build_object('lessonId',id,'opensAt',now()+(position-1)*interval '2 minutes','mailAt',now()+(position-1)*interval '2 minutes') order by position) into schedule from course_lessons where course_slug='fixture-completion';
  last_lesson:=(schedule->-1->>'opensAt')::timestamptz;
  eid:=prepare_course_test('00000000-0000-4000-8000-000000000021','fixture-completion','Europe/Moscow');
  rejected:=false;
- begin perform start_course_enrollment(eid,schedule,now(),last_lesson+interval '90 days',last_lesson+interval '3 days');exception when others then rejected:=true;end;
+ begin perform start_course_enrollment(eid,schedule,now(),last_lesson+interval '90 days',last_lesson+interval '2 minutes');exception when others then rejected:=true;end;
  if not rejected then raise exception 'Test silently accepted wrong display window';end if;
- perform start_course_enrollment(eid,schedule,now(),last_lesson+interval '90 days',last_lesson+interval '2 minutes');
+ perform start_course_enrollment(eid,schedule,now(),last_lesson+interval '90 days',last_lesson+interval '3 days');
+ if (select display_until from course_enrollments where id=eid)<>last_lesson+interval '3 days' then raise exception 'Test Day window compressed';end if;
  if (select completion_mail_at from course_enrollments where id=eid)<>last_lesson+interval '2 minutes' then raise exception 'Test closing not compressed';end if;
  if exists(select 1 from webinar_passes where course_enrollment_id=eid) then raise exception 'Test grants real webinar access';end if;
  if jsonb_array_length((select e.schedule from course_enrollments e where e.id=eid))<>7 then raise exception 'Test acquired fake lesson';end if;

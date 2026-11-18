@@ -48,12 +48,12 @@ describe('completion letter without a lesson',()=>{
   expect(dates.completionMailAt).toBe('2026-11-27T04:00:00.000Z');
   expect(dates.accessUntil).toBe('2027-02-21T21:00:00.000Z');
  });
- it('compresses the final test window to two minutes only for courses with a completion letter',()=>{
+ it('accelerates only the closing email, preserving the same three-day display with or without it',()=>{
   const schedule=buildCourseSchedule(lessons,'2026-11-10T21:00:00Z','Europe/Moscow',120);
   const closing=courseRunDates(schedule,'Europe/Moscow',90,3,true,true);
-  expect(Date.parse(closing.displayUntil)-Date.parse(schedule.at(-1)!.opensAt)).toBe(120000);expect(closing.completionMailAt).toBe(closing.displayUntil);
+  expect(Date.parse(closing.displayUntil)-Date.parse(schedule.at(-1)!.opensAt)).toBe(3*86400000);expect(Date.parse(closing.completionMailAt!)-Date.parse(schedule.at(-1)!.opensAt)).toBe(120000);
   const pilot=courseRunDates(schedule,'Europe/Moscow',90,3,false,true);
-  expect(pilot.completionMailAt).toBeNull();expect(Date.parse(pilot.displayUntil)-Date.parse(schedule.at(-1)!.opensAt)).toBe(3*86400000);
+  expect(pilot.displayUntil).toBe(closing.displayUntil);expect(pilot.accessUntil).toBe(closing.accessUntil);expect(pilot.completionMailAt).toBeNull();expect(Date.parse(pilot.displayUntil)-Date.parse(schedule.at(-1)!.opensAt)).toBe(3*86400000);
  });
  it('handles DST and never announces completion before the Day display ends',()=>{
   const dates=courseRunDates([{lessonId:'one',opensAt:'2026-03-27T12:00:00+01:00',mailAt:'2026-03-27T12:00:00+01:00'}],'Europe/Berlin',90,3,true);

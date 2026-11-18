@@ -16,7 +16,7 @@ vi.mock('@/modules/ui/PracticeKeepAwake',()=>({PracticeKeepAwake:'awake'}));
 vi.mock('@/modules/ui/AppText',()=>({AppText:'text'}));
 vi.mock('@/modules/ui/AppButton',()=>({AppButton:'action'}));
 vi.mock('@/modules/ui/SurfaceCardView',()=>({SurfaceCardView:'card'}));
-vi.mock('@/modules/ui/theme',()=>({useTheme:()=>({colors:{accent:'green',surfaceBorder:'grey',textPrimary:'black'}})}));
+vi.mock('@/modules/ui/theme',()=>({useTheme:()=>({surfaceCard:{padding:18,gap:14},colors:{accent:'green',surfaceBorder:'grey',textPrimary:'black'}})}));
 vi.mock('./client',()=>({loadCourse:mock.load,CourseRequestError:class extends Error{constructor(public status:number){super();}}}));
 vi.mock('./CourseRowIcon',()=>({CourseRowIcon:'course-icon'}));
 import {CourseCurrentCard} from './CourseContent';

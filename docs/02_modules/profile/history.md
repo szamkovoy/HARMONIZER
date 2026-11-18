@@ -7,6 +7,10 @@ depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_module
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/localeRebuild.ts, modules/profile/ui/LocaleRebuildModal.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
 
+## 2026-11-18 — Отступ заголовка и общий порядок покупок
+
+Верхний padding карточки урока из Профиля 14 pt, отдельно от gap Дня. Строка урока от 44 pt с навигацией и без неё. Все прохождения сохраняют порядок started_at DESC общего API, включая истёкшие.
+
 ## 2026-11-18 — Единые отступы и заголовки курса
 
 Стрелки списка курсов уменьшены и приближены к тексту; общий элемент используется и в списке уроков. Экран курса использует contentTitle 16/22 и новую семантику прокрутки (стрелки без scrollTo, выбор из списка после загрузки); стили одинаковы в обеих темах.

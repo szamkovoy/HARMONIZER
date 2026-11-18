@@ -8,5 +8,8 @@ describe('lesson editing',()=>{
   const result=validateCourseLesson({title:' Lesson ',blocks:[{type:'text',markdown:'A\n\nB'},{type:'video',vimeoId:'https://vimeo.com/123456789'},{type:'video',vimeoId:'987654321',practiceId:'practice'}]},old);
   expect(result).toEqual({title:'Lesson',blocks:[{type:'text',markdown:'A\n\nB'},old[0],{type:'video',vimeoId:'987654321'}]});
  });
+ it('renames a lesson without writing its content or email fields',()=>{
+  expect(validateCourseLesson({title:' Дополнительная практика ',email_step_id:'ignored',schedule:[]},[])).toEqual({title:'Дополнительная практика'});
+ });
  it.each([{title:'',blocks:[]},{title:'Lesson',blocks:[{type:'text',markdown:''}]},{title:'Lesson',blocks:[{type:'html',html:'<script>'}]}])('rejects incomplete or unsupported blocks',body=>expect(()=>validateCourseLesson(body,[])).toThrow());
 });

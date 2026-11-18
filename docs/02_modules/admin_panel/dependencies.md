@@ -20,7 +20,7 @@ code_refs:
 
 ## 1. Зависит от
 
-- **`courses`** — `POST /api/admin/courses/tests` (requireAdmin) поддерживает prepare (courseSlug)/start/cleanup с отдельным явным подтверждением старта/очистки. Письма курса доступны в существующем редакторе; тип `course` нельзя менять на generic. Подсказка объясняет календарь курса; delay_hours отдельных шагов его не меняет. Пауза письма не приостанавливает выдачу уроков.
+- **`courses`** — `POST /api/admin/courses/tests` (requireAdmin) поддерживает prepare (courseSlug)/start/cleanup с отдельным явным подтверждением старта/очистки. Название course_lessons редактируется отдельно от письма (PATCH {title} без blocks). Письма курса доступны в существующем редакторе; тип `course` нельзя менять на generic. Подсказка объясняет календарь курса; delay_hours отдельных шагов его не меняет. Пауза письма не приостанавливает выдачу уроков.
 
 
 - **`infra`** — Supabase (`user_roles`, `is_admin`, service role), Vercel-деплой `_legacy_web`, Tailwind v4, PWA-манифест. Хелперы `createServiceSupabase` / `requireUserId` / `requireAdmin` в `app/api/_utils/supabase.ts`. Пульс читает `user_event_log` (`dialog_turn`, `llm_*`, `api_error`, `app_open`, `llm_prompt_size`) и колонки `users.last_seen_at` / `country_code` / `city`.

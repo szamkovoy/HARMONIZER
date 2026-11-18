@@ -3,7 +3,7 @@ import type { CourseLesson, CourseView } from '@shared/courses';
 import { buildCourseSchedule,courseRunDates } from './courseSchedule';
 
 export async function listUserCourses(db:SupabaseClient,userId:string,lessonId?:string,enrollmentId?:string):Promise<CourseView[]> {
-  let q=db.from('course_enrollments').select('*').eq('user_id',userId).neq('status','prepared').order('created_at',{ascending:false});
+  let q=db.from('course_enrollments').select('*').eq('user_id',userId).neq('status','prepared').order('started_at',{ascending:false}).order('created_at',{ascending:false}).order('id',{ascending:false});
   if(enrollmentId) q=q.eq('id',enrollmentId);
   const {data:enrollments,error}=await q; if(error) throw error;
   if(!enrollments?.length) return [];

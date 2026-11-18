@@ -6,10 +6,11 @@ export function vimeoIdFromInput(input:string):string {
  const match=url.pathname.match(/^\/(?:video\/)?(\d{5,15})(?:\/[a-zA-Z0-9]+)?\/?$/);
  if(!match)throw new Error('Не удалось определить видео по ссылке Vimeo');return match[1];
 }
-export function validateCourseLesson(body:unknown,previous:CourseBlock[]):{title:string;blocks:CourseBlock[]} {
+export function validateCourseLesson(body:unknown,previous:CourseBlock[]):{title:string;blocks?:CourseBlock[]} {
  if(!body||typeof body!=='object')throw new Error('Не передан урок');
  const {title,blocks}=body as {title:unknown;blocks:unknown};
  if(typeof title!=='string'||!title.trim()||title.length>500)throw new Error('Название урока: от 1 до 500 символов');
+ if(!Object.hasOwn(body,'blocks'))return {title:title.trim()};
  if(!Array.isArray(blocks)||!blocks.length||blocks.length>100)throw new Error('В уроке должно быть от 1 до 100 блоков');
  const result=blocks.map((b):CourseBlock=>{
   if(b?.type==='text'&&typeof b.markdown==='string'&&b.markdown.trim()&&b.markdown.length<=100000)return {type:'text',markdown:b.markdown};
