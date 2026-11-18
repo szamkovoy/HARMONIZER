@@ -13,7 +13,10 @@ code_refs: []
 
 ## Перенос курсов / пилот и дальнейший запуск (2026-11-17)
 
+
 - **Новый визуальный проход на iPhone (18.11).** После новых скриншотов обновлены размеры 18/16/15, иконки 14/зазор 4 и поведение прокрутки. Проверены разные причины навигации/отложенная загрузка в тестах, но точная стабильность положения на устройстве проверяется Сергеем на следующем билде. Агент билд не собирает; планировщик не менялся.
+
+- **«Месяц свободы»: авторская проверка и импорт завершены (18.11).** Сергей исправил MD и поручил импорт; отдельно подтвердил 90 дней доступа после последнего урока. Использован первый урок «Месяца свободы» из авторского MD, обещания интенсивной версии исправлены автором; ошибочное назначение GetCourse остаётся только в исходнике. Применена 20261118150000, тест 23f99c53-c87a-4658-a518-77f832ae4b75 только prepared. **Запуск 18.11:** по отдельному «запускай» content-тест завершил выдачу: 7/7 уроков, 8/8 писем, error=null. **Закрыто:** Сергей подтвердил результат и поручил commit/push.
 
 Канон реализации — `docs/02_modules/courses/spec.md`, статус — `courses_migration_plan.md` §1. Авторские правки пилота приняты, JSON создан, база/сервер и клиентский учебный интерфейс реализованы. Первая репетиция sergei@zamkovoi.yoga завершена (8 писем), замечания исправлены 18.11; прежний тест очищен, повторный 36cd681c-46ad-40f3-8527-41f92bb849ba запущен 18.11 в 01:49:36 МСК по отдельному «запускай». Проверка Сергеем продолжается; ещё один повтор или очистка требуют нового запроса. Прежние вопросы о повторе видео/компактной карточке/доступности пилотных бонусов закрыты последними указаниями Сергея.
 
@@ -323,6 +326,7 @@ code_refs: []
 - ~~**Android Google Maps API key for «Проверить на карте» (2026-07-24):**~~ Закрыто 2026-07-24: ключ в `.env.local` + `eas env` (`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` → development/preview/production). Нужен **новый** `eas build --profile development --platform android` — предыдущий билд собрался без переменной, поэтому MapView падал с `API key not found`. iOS = Apple Maps, ключ не нужен.
 - **iOS system notification dialog text is not editable.** The grey body comment line under the title in iOS's notification-permission system dialog (`UNUserNotificationCenter` request) is fixed by Apple and cannot be localized or reworded from the app. Decision (2026-07-18): use the standard system dialog as-is (a custom pre-permission `Alert` was briefly added then reverted — `reminderPrePermission*` removed; simpler and more reliable). Revisit only if product later wants higher opt-in conversion via a pre-permission explainer.
 - **Historical timezone accuracy for natal chart** — audited 2026-07-18, no action needed: `localChartDateTime` (`modules/astro-core/ephemeris.ts`) converts local→UTC via Luxon + IANA zone, which resolves the historical offset. Edge cases (region changed IANA zone; DST fall-back ambiguity; platform tz-data completeness) documented in `astro/spec.md` §5.
+
 
 ## Инструменты сборки / SDK Apple (18.11.2026)
 
