@@ -11,9 +11,12 @@ export async function POST(req:Request){try{
   if(!c.user_id)return json({error:'Сначала войдите в приложение с этой почтой'},{status:400});
   const {data:u,error:ue}=await db.from('users').select('tz').eq('id',c.user_id).single();if(ue)throw ue;
   const {data:id,error:pe}=await db.rpc('prepare_course_test',{p_user_id:c.user_id,p_slug:courseSlug,p_timezone:u.tz||'Europe/Moscow'});if(pe)throw pe;
-  return json({id,status:'prepared',intervalSeconds:120,started:false});
+  return json({id,status:'prepared',testMode:'content',intervalSeconds:0,started:false});
  }
- if(body.action==='start'&&typeof body.id==='string'&&body.confirmStart===true)return json(await startPreparedCourse(db,body.id));
+ if(body.action==='start'&&typeof body.id==='string'&&body.confirmStart===true){
+  if(body.testMode!==undefined&&!['content','timed'].includes(body.testMode))return json({error:'Invalid test mode'},{status:400});
+  return json(await startPreparedCourse(db,body.id,body.testMode??'content'));
+ }
  if(body.action==='cleanup'&&typeof body.id==='string'&&body.confirmCleanup===true){
   const {error}=await db.rpc('cleanup_course_test',{p_id:body.id});if(error)throw error;
   return json({id:body.id,removed:true});

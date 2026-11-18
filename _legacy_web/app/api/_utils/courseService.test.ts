@@ -53,7 +53,7 @@ describe('course start webinar invitations',()=>{
    course_lessons:[{id:'one',gap_days:0},{id:'two',gap_days:2}],courses:{access_days:90,day_card_extra_days:3},
   };
   const rpc=vi.fn().mockResolvedValue({error:null});const db={rpc,from(table:string){const q={select(){return q;},eq(){return q;},order(){return q;},single(){return Promise.resolve({data:values[table],error:null});},then(resolve:(v:unknown)=>unknown){return Promise.resolve({data:values[table],error:null}).then(resolve);}};return q;}} as unknown as SupabaseClient;
-  const result=await startPreparedCourse(db,'grant');expect(rpc).toHaveBeenCalledOnce();
+  const result=await startPreparedCourse(db,'grant','timed');expect(rpc).toHaveBeenCalledOnce();
   if(mode==='normal'){expect(invites.send).toHaveBeenCalledWith(db,'owner');expect(result.webinarInvites?.sent).toBe(1);}
   else{expect(invites.send).not.toHaveBeenCalled();expect(Date.parse(result.schedule[1].opensAt)-Date.parse(result.schedule[0].opensAt)).toBe(120000);}
  });
@@ -80,4 +80,14 @@ it('orders all history by actual purchase/start, independent of preparation and 
  const courses=await listUserCourses(database(data),'owner');
  expect(courses.map(c=>c.id)).toEqual(['later-start-earlier-prepared','earlier-start-later-prepared','expired']);
  expect(courses.at(-1)?.state).toBe('expired');
+});
+
+it('starts a prepared test in immediate content mode by default, without real webinar invitations',async()=>{
+ invites.send.mockClear();
+ const started={id:'grant',testMode:'content',intervalSeconds:0,lessonCount:7,totalMails:8};
+ const rpc=vi.fn().mockResolvedValue({data:started,error:null});
+ const db={rpc,from(){const q={select(){return q;},eq(){return q;},single(){return Promise.resolve({data:{id:'grant',status:'prepared',mode:'test'},error:null});}};return q;}} as unknown as SupabaseClient;
+ expect(await startPreparedCourse(db,'grant')).toBe(started);
+ expect(rpc).toHaveBeenCalledExactlyOnceWith('start_course_content_test',{p_id:'grant'});
+ expect(invites.send).not.toHaveBeenCalled();
 });

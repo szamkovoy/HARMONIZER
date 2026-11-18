@@ -1,7 +1,7 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {SupabaseClient} from '@supabase/supabase-js';
 const mail=vi.hoisted(()=>({send:vi.fn()}));
-vi.mock('./marketingMail',()=>({getMarketingTransportProfile:()=>({provider:'resend'}),htmlToPlaintext:(s:string)=>s,sendMarketingEmail:mail.send}));
+vi.mock('./marketingMail',()=>({getMarketingTransportProfile:()=>({provider:'resend'}),htmlToPlaintext:(s:string)=>s,sendMarketingEmail:mail.send,sleep:async()=>{}}));
 import {runCourseEmails} from './courseMailRunner';
 const grant={id:'grant',claim_token:'lease',course_slug:'pilot',user_id:'owner',buyer_email:'owner@example.test',mail_position:0,schedule:[{lessonId:'one'}]};
 function dbFor(options:{claimed?:boolean;contact?:Record<string,unknown>;completion?:boolean}={}){
@@ -42,4 +42,49 @@ it('sends a standalone completion letter without reading or inventing a lesson',
  expect(queried).not.toContain('course_lessons');
  expect(mail.send).toHaveBeenCalledWith(expect.objectContaining({idempotencyKey:'course/grant/1'}));
  expect(finish).toHaveBeenCalledWith(expect.objectContaining({p_error:null}));
+});
+
+// Stateful adapter: finishing advances the real cursor, so order/retries can be observed.
+function immediateDb({mode='test',timed=false,completion=true,blockedAt=-1}:{mode?:string;timed?:boolean;completion?:boolean;blockedAt?:number}={}){
+ let position=0;const total=2+(completion?1:0);const finishes:Record<string,unknown>[]=[];
+ const schedule=['one','two'].map((lessonId,i)=>({lessonId,opensAt:timed?`2026-01-01T00:0${i}:00Z`:'2026-01-01T00:00:00Z',mailAt:timed?`2026-01-01T00:0${i}:00Z`:'2026-01-01T00:00:00Z'}));
+ const db={from(table:string){const filters:Record<string,unknown>={};const q={select(){return q;},eq(k:string,v:unknown){filters[k]=v;return q;},lte(){return q;},order(){return q;},limit(){return q;},
+  single(){const data=table==='course_lessons'?{email_step_id:`${filters.id}-mail`}:table==='email_automation_steps'?{subject:String(filters.id),html_body:'<p>Test</p>'}:table==='email_automation_enrollments'?{contact_id:'contact',automation_id:'automation'}:table==='email_contacts'?{email:'owner@example.test',user_id:'owner',marketing_status:'active',locale:'ru'}:{display_name:'Owner',locale:'ru'};return Promise.resolve({data,error:null});},
+  then(resolve:(r:unknown)=>unknown){return Promise.resolve({data:[{id:'grant'}],error:null}).then(resolve);}};return q;},
+  async rpc(name:string,args:Record<string,unknown>){
+   if(name==='claim_course_mail')return {data:position>=total||position===blockedAt?null:{...grant,mode,mail_position:position,schedule,completion_email_step_id:completion?'closing':null},error:null};
+   finishes.push(args);if(!args.p_error)position++;return {error:null};
+  }} as unknown as SupabaseClient;
+ return {db,finishes,position:()=>position};
+}
+describe('immediate content test delivery',()=>{
+ it.each([true,false])('sends all lesson letters and optional closing (%s) sequentially with individual keys',async completion=>{
+  const {db,position}=immediateDb({completion});const total=completion?3:2;
+  expect(await runCourseEmails(db,true)).toEqual({course_sent:total,course_failed:0});
+  expect(mail.send.mock.calls.map(([input])=>input.subject)).toEqual(completion?['one-mail','two-mail','closing']:['one-mail','two-mail']);
+  expect(mail.send.mock.calls.map(([input])=>input.idempotencyKey)).toEqual(Array.from({length:total},(_,i)=>`course/grant/${i}`));
+  expect(position()).toBe(total);
+  expect(await runCourseEmails(db,true)).toEqual({course_sent:0,course_failed:0});
+  expect(mail.send).toHaveBeenCalledTimes(total);
+ });
+ it.each([{mode:'normal'},{timed:true}])('retains a single step for ordinary or timed schedules %j',async options=>{
+  const {db,position}=immediateDb(options);expect(await runCourseEmails(db)).toEqual({course_sent:1,course_failed:0});expect(position()).toBe(1);
+ });
+ it('stops on failure, then resumes the same key before sending the remaining letters',async()=>{
+  const {db,position}=immediateDb();
+  mail.send.mockResolvedValueOnce({ok:true,resendId:'first'}).mockResolvedValueOnce({ok:false,detail:'temporary outage'});
+  expect(await runCourseEmails(db,true)).toEqual({course_sent:1,course_failed:1});expect(position()).toBe(1);
+  expect(await runCourseEmails(db,true)).toEqual({course_sent:2,course_failed:0});
+  expect(mail.send.mock.calls.map(([input])=>input.idempotencyKey)).toEqual(['course/grant/0','course/grant/1','course/grant/1','course/grant/2']);
+ });
+ it('yields when a concurrent worker owns the next send lease',async()=>{
+  const {db,position}=immediateDb({blockedAt:1});expect(await runCourseEmails(db,true)).toEqual({course_sent:1,course_failed:0});expect(position()).toBe(1);
+ });
+ it('leaves remaining mail to cron when the request time budget is reached',async()=>{
+  const clock=vi.spyOn(Date,'now').mockReturnValue(0);
+  try{
+   const {db,position}=immediateDb();mail.send.mockImplementationOnce(async()=>{clock.mockReturnValue(80_000);return {ok:true,resendId:'first'};});
+   expect(await runCourseEmails(db,true)).toEqual({course_sent:1,course_failed:0});expect(position()).toBe(1);
+  }finally{clock.mockRestore();}
+ });
 });

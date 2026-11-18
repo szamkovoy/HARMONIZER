@@ -1,14 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveExactEmailCopy } from './emailCopy';
 import { applyEmailPlaceholders,wrapMarketingEmailHtml } from './emailTemplate';
-import { getMarketingTransportProfile,htmlToPlaintext,sendMarketingEmail } from './marketingMail';
+import { getMarketingTransportProfile,htmlToPlaintext,sendMarketingEmail,sleep } from './marketingMail';
 
 export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
  let q=db.from('course_enrollments').select('id').eq('status','active').eq('mail_paused',false).lte('next_mail_at',new Date().toISOString()).order('next_mail_at').limit(30);
  if(testOnly)q=q.eq('mode','test');
  const {data:due,error}=await q;if(error)throw error;let sent=0,failed=0;
+ // Yield before the HTTP deadline; the existing cron resumes the saved cursor.
+ const deadline=Date.now()+(testOnly?80_000:20_000);
  for(const row of due??[]) {
-  const {data:e,error:claimError}=await db.rpc('claim_course_mail',{p_id:row.id});if(claimError)throw claimError;if(!e)continue;
+  let batch=0;
+  do {
+  if(Date.now()>=deadline)break;
+  const {data:e,error:claimError}=await db.rpc('claim_course_mail',{p_id:row.id});if(claimError)throw claimError;if(!e)break;
   let subject='';let resendId:string|null=null;let failure:string|null=null;
   try {
    if(getMarketingTransportProfile().provider!=='resend')throw new Error('Course delivery requires the configured Resend transport for idempotent sends');
@@ -35,6 +40,14 @@ export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
   }catch(error){failure=error instanceof Error?error.message:String(error);}
   const {error:finishError}=await db.rpc('finish_course_mail',{p_id:e.id,p_token:e.claim_token,p_subject:subject,p_resend_id:resendId,p_error:failure});if(finishError)throw finishError;
   if(failure)failed++;else sent++;
+  batch++;
+  // Only content tests release every lesson/mail at the same instant. Ordinary and
+  // timed rehearsals retain the one-letter-per-pass path and their existing dates.
+  const immediate=e.mode==='test'&&e.schedule.length>0&&e.schedule.every((item:{opensAt:string;mailAt:string})=>item.opensAt===e.schedule[0].opensAt&&item.mailAt===e.schedule[0].opensAt);
+  const total=e.schedule.length+(e.completion_email_step_id?1:0);
+  if(failure||!immediate||e.mail_position+1>=total||batch>=501||Date.now()>=deadline)break;
+  await sleep(600);
+  }while(true);
  }
  return {course_sent:sent,course_failed:failed};
 }

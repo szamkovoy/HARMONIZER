@@ -14,7 +14,7 @@ code_refs: [modules/courses/CoursesProvider.tsx, modules/courses/CourseContent.t
 - `webinars`: существующие webinar_passes/регистрации, apply_webinar_passes и sendPassWebinarInvites; источник пропуска — обычное прохождение курса.
 
 - `profile`: auth/JWT, `users` и `email_contacts` для адреса, имени, локали и зоны; provider сбрасывает данные при смене пользователя.
-- `marketing_email`: транспорт Resend, оболочка/подстановка письма, редактор `email_automation_steps`, история отправок, отдельный завершающий email_step без course_lesson. Связанные email-enrollment исключены из generic runner.
+- `marketing_email`: транспорт Resend, оболочка/подстановка письма, редактор `email_automation_steps`, история отправок, отдельный завершающий email_step без course_lesson. Связанные email-enrollment исключены из generic runner. Content-тест проходит учебные/финальный шаги подряд через тот же claim/finish, lease и ключи, с остановкой и продолжением cron.
 - `practices`: общий `PhoneVimeoPlayer`, Vimeo helpers и существующие practice ID бонусов; каталог и тарифный гейт асан не меняются.
 - `remote-play`: `useRemotePlay` и существующие экраны `/connect-tv`, `/tv-remote` для видео урока.
 - `i18n`: `useAppLocale`, восемь локалей интерфейса в `modules/courses/strings.ts`; учебный пилот RU.

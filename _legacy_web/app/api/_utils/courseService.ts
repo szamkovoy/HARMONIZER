@@ -24,9 +24,13 @@ export async function listUserCourses(db:SupabaseClient,userId:string,lessonId?:
   });
 }
 
-export async function startPreparedCourse(db:SupabaseClient,id:string) {
+export async function startPreparedCourse(db:SupabaseClient,id:string,testMode:'content'|'timed'='content') {
  const {data:e,error}=await db.from('course_enrollments').select('*').eq('id',id).single();if(error)throw error;
  if(e.status!=='prepared')throw new Error('Этот запуск уже начат или отменён');
+ if(e.mode==='test'&&testMode==='content'){
+  const {data,error:se}=await db.rpc('start_course_content_test',{p_id:id});if(se)throw se;
+  return data as {id:string;start:string;schedule:import('./courseSchedule').CourseScheduleItem[];accessUntil:string;displayUntil:string;completionMailAt:string|null;testMode:'content';intervalSeconds:0;webinarInvites?:never};
+ }
  const {data:lessons,error:le}=await db.from('course_lessons').select('id,gap_days').eq('course_slug',e.course_slug).order('position');if(le)throw le;
  const {data:c,error:ce}=await db.from('courses').select('access_days,day_card_extra_days,completion_email_step_id').eq('slug',e.course_slug).single();if(ce)throw ce;
  const start=new Date().toISOString();
