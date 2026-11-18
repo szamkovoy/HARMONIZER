@@ -34,6 +34,25 @@ export async function GET(req: Request) {
       steps = stepRows ?? [];
     }
 
+    // Course calendars use lesson day gaps, independent of generic email delays.
+    const courseIds = (automations ?? []).filter((a) => a.trigger_type === "course").map((a) => a.id);
+    const courseDays = new Map<string, Map<string, number>>();
+    if (courseIds.length) {
+      const { data: courses, error: courseError } = await db
+        .from("courses")
+        .select("automation_id, day_card_extra_days, completion_email_step_id, course_lessons(email_step_id, gap_days)")
+        .in("automation_id", courseIds);
+      if (courseError) throw courseError;
+      for (const course of courses ?? []) {
+        const days = new Map<string, number>();
+        for (const lesson of course.course_lessons ?? []) {
+          if (lesson.email_step_id) days.set(lesson.email_step_id, lesson.gap_days);
+        }
+        if (course.completion_email_step_id) days.set(course.completion_email_step_id, course.day_card_extra_days);
+        courseDays.set(course.automation_id, days);
+      }
+    }
+
     const byAuto = new Map<string, typeof steps>();
     for (const s of steps) {
       const list = byAuto.get(s.automation_id) ?? [];
@@ -44,7 +63,10 @@ export async function GET(req: Request) {
     return json({
       automations: (automations ?? []).map((a) => ({
         ...a,
-        steps: byAuto.get(a.id) ?? [],
+        steps: (byAuto.get(a.id) ?? []).map((step) => ({
+          ...step,
+          ...(a.trigger_type === "course" ? { course_delay_days: courseDays.get(a.id)?.get(step.id) ?? null } : {}),
+        })),
       })),
     });
   } catch (error) {

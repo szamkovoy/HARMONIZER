@@ -29,7 +29,7 @@ code_refs: [modules/courses/CoursesProvider.tsx, modules/courses/CourseContent.t
 - `daily_forecast`: независимый учебный блок на «Дне», без изменения DayPlan payload/кэша.
 - `subscription`: tab layout допускает курс на free, сохраняя гейт платного планировщика и других функций.
 - `marketing_email`: `runEmailAutomations` вызывает отдельный course runner; тип `course` в редакторе.
-- `admin_panel`: тестовый API курса, запрет менять тип course-цепочки на generic и пояснение независимого календаря.
+- `admin_panel`: список автоцепочек читает gap_days уроков и срок показа последнего материала для read-only course_delay_days; тестовый API курса, запрет менять тип course-цепочки на generic и пояснение независимого календаря.
 
 ## 3. Риски
 

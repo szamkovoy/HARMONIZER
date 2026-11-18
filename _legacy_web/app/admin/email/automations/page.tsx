@@ -18,6 +18,7 @@ type Automation = {
     id: string;
     position: number;
     delay_hours: number;
+    course_delay_days?: number | null;
     name?: string | null;
     subject: string;
   }[];
@@ -140,7 +141,9 @@ export default function AdminEmailAutomationsPage() {
                   <ol className="mt-3 list-decimal space-y-1 border-t border-zinc-100 pl-5 pt-3 text-sm text-zinc-600">
                     {a.steps.map((s) => (
                       <li key={s.id}>
-                        +{s.delay_hours}ч · {emailListTitle(s.name, s.subject)}
+                        {a.trigger_type === "course"
+                          ? s.course_delay_days == null ? "—" : `${s.course_delay_days}д`
+                          : `+${s.delay_hours}ч`} · {emailListTitle(s.name, s.subject)}
                       </li>
                     ))}
                   </ol>
