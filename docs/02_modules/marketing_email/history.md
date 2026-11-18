@@ -301,3 +301,8 @@ code_refs:
 2. Resend: DNS + tracking на `zamkovoi.ru`; webhook → `/api/webhooks/resend-marketing` (sent/delivered/delivery_delayed/opened/clicked/bounced/complained/failed/suppressed/suppression.added/suppression.removed).
 3. Админка: «Рассылки» → draft → Перевести → сегмент → Тест → counters; «Deliverability» для KPI и suppressions.
 4. Unsubscribe link в футере → `marketing_status=unsubscribed`; OTP yoga не затронут.
+
+
+## 2026-11-18 — Письма «Месяца любви»
+
+Машинным импортом 20261118080000 создана неактивная course_month-love с восемью письмами, последнее без учебного материала. Авторские тексты, пустые строки и центрированная PNG-шапка проверены точным сравнением HTML/blocks с JSON. Отправки не запускались.
