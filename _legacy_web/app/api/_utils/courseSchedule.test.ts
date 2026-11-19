@@ -1,7 +1,23 @@
 import {describe,it,expect} from 'vitest';
 import {DateTime} from 'luxon';
-import {buildCourseSchedule,courseMarkdownHtml,courseRunDates} from './courseSchedule';
+import {buildCourseSchedule,courseMarkdownHtml,courseRunDates,intensiveRunDates} from './courseSchedule';
 const lessons=[{id:'one',gapDays:0},{id:'two',gapDays:1},{id:'three',gapDays:1}];
+describe('intensive uses the shared calendar and closes after the last local day',()=>{
+ it.each([[17,11],[18,12]])('purchase hour %s keeps the existing second-day rule',(hour,second)=>{
+  const schedule=buildCourseSchedule(Array.from({length:30},(_,i)=>({id:String(i),gapDays:i?1:0})),`2026-11-10T${hour}:00:00+03:00`,'Europe/Moscow');
+  expect(DateTime.fromISO(schedule[1].opensAt).setZone('Europe/Moscow').day).toBe(second);
+  const dates=intensiveRunDates(schedule,'Europe/Moscow');
+  expect(Date.parse(dates.completionMailAt)-Date.parse(schedule[29].opensAt)).toBe(7*3600000);
+  expect(Date.parse(dates.accessUntil)-Date.parse(schedule[29].opensAt)).toBe(24*3600000);
+  expect(dates.displayUntil).toBe(dates.accessUntil);
+ });
+ it('closes at local midnight through DST rather than adding an assumed 24 hours',()=>{
+  const schedule=Array.from({length:30},(_,i)=>({lessonId:String(i),opensAt:'2026-03-29T00:00:00+01:00',mailAt:'2026-03-29T07:00:00+02:00'}));
+  const dates=intensiveRunDates(schedule,'Europe/Berlin');
+  expect(dates.accessUntil).toBe('2026-03-29T22:00:00.000Z');
+  expect(dates.completionMailAt).toBe('2026-03-29T05:00:00.000Z');
+ });
+});
 describe('course calendar and rehearsal',()=>{
  it.each([[17,1,11],[18,1,12],[21,1,12],[21,2,12],[21,3,13]])('purchase hour %i, interval %i → November %i',(hour,gap,day)=>{
   const result=buildCourseSchedule([{id:'one',gapDays:0},{id:'two',gapDays:gap}],`2026-11-10T${hour}:00:00+03:00`,'Europe/Moscow');

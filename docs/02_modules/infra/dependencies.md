@@ -2,7 +2,7 @@
 id: 02_modules/infra/dependencies
 title: Infra Dependencies
 version: 1.10
-updated: 2026-11-17
+updated: 2026-11-19
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
@@ -55,3 +55,5 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **RLS и миграции** — сужение политик (как в `20260429180000_rls_tighten_natal_forecasts_proposals.sql`) требует синхронного перевода всех write-путей на `service_role`; иначе API начнёт получать `42501` от PostgREST.
 - **`tunnelRoute: "/monitoring"`** — конфликт с собственным маршрутом приложения по тому же пути сломает туннель Sentry.
 - **Gemini env rename** — legacy `AI_MODEL_STANDARD_FALLBACK` / `AI_MODEL_PREMIUM_FALLBACK` удалены; если Vercel/локальное окружение не синхронизировано на единый `AI_MODEL_FALLBACK`, dialog-маршруты будут падать ещё до обращения к модели.
+
+courses: новая миграция ежедневных интенсивов, service-only RPC, прежний cron/lease и RLS. TypeScript flags поддерживают явные .ts-импорты операторских Node-команд.

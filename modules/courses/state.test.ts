@@ -13,8 +13,15 @@ describe('course display and archive',()=>{
   expect(showsOnDay(course,now)).toBe(false);expect(isCourseArchive(course,now)).toBe(true);
  });
  it('never retains lesson text or video IDs in persisted metadata',()=>{
-  const metadata=courseMetadata([course]);expect(metadata[0].current?.blocks).toEqual([]);
+  const metadata=courseMetadata([{...course,current:{...course.current!,blocksI18n:{en:[{type:'text',markdown:'PRIVATE TRANSLATION'}]}}}]);expect(metadata[0].current?.blocks).toEqual([]);
   expect(JSON.stringify(metadata)).not.toContain('PRIVATE TEXT');expect(JSON.stringify(metadata)).not.toContain('12345678');expect(course.current?.blocks).toHaveLength(2);
+  expect(JSON.stringify(metadata)).not.toContain('PRIVATE TRANSLATION');
+ });
+ it('hides yesterday’s intensive lesson after midnight even when refresh is offline',()=>{
+  const c={...course,kind:'intensive',currentUntil:'2026-11-15T21:00:00Z'};
+  expect(showsOnDay(c,Date.parse(c.currentUntil)-1)).toBe(true);
+  expect(showsOnDay(c,Date.parse(c.currentUntil))).toBe(false);
+  expect(showsOnDay({...c,reviewAllLessons:true},Date.parse(c.currentUntil))).toBe(true);
  });
  it('does not show expired or revoked access on Day',()=>{
   expect(showsOnDay({...course,state:'revoked'},Date.parse(course.startedAt))).toBe(false);

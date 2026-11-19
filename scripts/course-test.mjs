@@ -8,10 +8,11 @@ function query(sql){
  const raw=execFileSync('supabase',['db','query','--linked',sql],{encoding:'utf8',maxBuffer:2*1024*1024});
  const result=JSON.parse(raw);if(!Array.isArray(result.rows))throw new Error('Unexpected database response');return result.rows;
 }
-const [grant]=query(`select e.id,e.course_slug,e.mode,e.status,e.schedule,e.buyer_email,e.timezone,e.started_at,e.next_mail_at,e.mail_position,e.last_error,e.completion_email_step_id,e.completion_mail_at,c.access_days,c.day_card_extra_days,c.completion_email_step_id as configured_completion_email_step_id,
+const [grant]=query(`select e.id,e.course_slug,e.mode,e.status,e.schedule,e.buyer_email,e.timezone,e.started_at,e.next_mail_at,e.mail_position,e.last_error,e.completion_email_step_id,e.completion_mail_at,c.kind,c.access_days,c.day_card_extra_days,c.completion_email_step_id as configured_completion_email_step_id,
  (select jsonb_agg(jsonb_build_object('id',l.id,'gapDays',l.gap_days) order by l.position) from public.course_lessons l where l.course_slug=e.course_slug) as lessons
  from public.course_enrollments e join public.courses c on c.slug=e.course_slug where e.id=${q(id)}::uuid and e.mode='test';`);
 if(!grant)throw new Error('Test enrolment not found');
+if(grant.kind==='intensive')throw new Error('Для интенсива используйте scripts/intensive-test.mjs: два письма и отдельное завершение просмотра');
 if(action==='status'){
  const totalLessons=grant.status==='prepared'?(grant.lessons?.length??0):grant.schedule.length;
  const total=totalLessons+Number(grant.status==='prepared'?!!grant.configured_completion_email_step_id:!!grant.completion_email_step_id);

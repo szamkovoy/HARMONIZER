@@ -2,7 +2,7 @@
 id: 02_modules/admin_panel/dependencies
 title: Admin Panel Dependencies
 version: 1.5
-updated: 2026-11-17
+updated: 2026-11-19
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -46,3 +46,5 @@ code_refs:
 - **RPC `admin_search_users` / `admin_dashboard_metrics` / `admin_dashboard_pulse` / `admin_llm_metrics` / `admin_user_access_segment`** — security definer с revoke у anon/authenticated; при пересоздании функций revoke нужно повторять.
 - **Инвариант промптов:** на ключ всегда ровно одна активная версия; API запрещает прямую деактивацию активной (иначе боевой код уходит в fallback «последняя версия» с warning).
 - **Payload-контракт метрик:** `latency_ms` в `dialog_turn`; в `llm_prompt_size` предпочтительно `total_tokens` (иначе сумма ключей `*_tokens` кроме `total_tokens`). Переименование полей молча обнулит LLM-метрики пульса.
+
+courses: интенсив добавляет action=finish с confirmFinish, protected operator RPC и course_timing_label; редактирование писем остаётся общим.

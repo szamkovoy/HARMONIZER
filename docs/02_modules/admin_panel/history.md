@@ -2,10 +2,19 @@
 id: 02_modules/admin_panel/history
 title: Admin Panel History
 version: 1.14
-updated: 2026-11-18
+updated: 2026-11-19
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-19 — Управление ежедневным интенсивом
+
+В существующем списке автоцепочек интенсив имеет два редактируемых письма: «Сразу» и «День 30, 07:00»; ordinary course_delay_days и часы остальных цепочек не меняются. GET /api/admin/email/automations возвращает optional course_timing_label. Уроки/советы записывает машинный импорт; дневных email-step нет. Admin tests action=start выбирает специальный starter по kind=intensive; action=finish с confirmFinish=true выключает просмотр всех дней только у теста, после отправки обоих писем. Календарь начинается с первого дня, отправки сохраняются. Публичные клиенты эти действия выполнять не могут.
+
+
+## 2026-11-19 — Визуальное форматирование текстов урока
+
+Вместо textarea добавлен LessonTextEditor с выделением жирным/курсивом/зачёркиванием, заголовком и формой HTTPS-ссылки. Сохраняется прежний Markdown. Выделение не поглощает соседние пустые абзацы на границах WebKit; clipboard HTML не записывается как есть. Проверены реальные команды и сериализация без изменения рабочих уроков. Production-деплой `dpl_C1YsccmrRvQV1HTkAuZZbafj3C8D` опубликован на harmonizer-ten.vercel.app (READY/production); commit/push и нативная сборка не запускались.
 
 ## 2026-11-18 — Реальные дни в списке цепочек курсов
 

@@ -2,7 +2,7 @@
 id: 02_modules/i18n/spec
 title: i18n (Multilingual) Spec
 version: 1.22
-updated: 2026-11-18
+updated: 2026-11-19
 depends_on: [01_foundation/architecture, 02_modules/assistant/spec, 02_modules/communicator/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -449,3 +449,7 @@ Profile selector ── setAppLocale ──▶ localeStore (persisted)
 ## Навигация курсов
 
 `modules/courses/strings.ts` содержит восемь локалей CTA кабинета, предыдущего/следующего урока и счётчика полученных материалов. Склонение итогового количества — явные правила целых чисел для восьми локалей, без `Intl.PluralRules` (этот конструктор отсутствует в bundled Hermes); учебные тексты пилота остаются авторскими RU. Палитра берётся из существующих общих токенов.
+
+## Локализация интенсивов
+
+Интенсивы хранят title_i18n продукта и blocks_i18n урока, письма — в прежних subject/html/blocks_i18n email-step. Импорт требует все восемь локалей. Native переключает название/текст по общей useAppLocale без сетевого перевода; RU всегда использует текущие базовые title/blocks. Остальные курсы остаются с RU-контентом. Новые day labels заданы явно для восьми локалей, без Intl.PluralRules. Для контента scripts/intensive-translate.mjs использует настроенный переводчик/AI_MODEL_STANDARD и отдельный кэш абзацев; общий i18n-sync для очередного импорта не запускается.

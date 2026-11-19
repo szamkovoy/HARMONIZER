@@ -51,6 +51,7 @@ export function parseCourseReview(rawSource){
  const required=name=>{const v=value(name);if(!v)throw new Error(`Не указано поле «${name}»`);return v;};
  const days=name=>{const v=required(name);if(!/^\d+(?: (?:день|дня|дней))?$/.test(v)||Number(v.split(' ')[0])<=0)throw new Error(`Некорректное число дней: ${name}`);return Number(v.split(' ')[0]);};
  const title=required('Название курса');const kind=required('Тип');
+ if(kind==='intensive')throw new Error('Ежедневные интенсивы переносите отдельным scripts/intensive-content.mjs; этот механизм сохраняет накопительные курсы');
  if(!['practicum','intensive','course','masterclass'].includes(kind))throw new Error('Тип: practicum, intensive, course или masterclass');
  const landingUrl=value('Лендинг')??'';if(landingUrl&&!/^https:\/\/[^\s]+$/.test(landingUrl))throw new Error('Лендинг должен быть HTTPS URL');
  const clean=text=>text.split(/\n(?:### Источники переноса|Сверить с источником:|> \*\*Для вашей правки:)/)[0].trim();

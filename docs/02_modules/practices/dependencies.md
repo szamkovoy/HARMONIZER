@@ -2,7 +2,7 @@
 id: 02_modules/practices/dependencies
 title: Practices Dependencies
 version: 1.21
-updated: 2026-11-17
+updated: 2026-11-19
 depends_on:
   [
     01_foundation/product_model,
@@ -88,3 +88,5 @@ code_refs:
 - **Два источника дефолта длительности медитации** (каталог vs экран) — риск UX при смешанных входах; см. `history.md`.
 
 - **`user_practice_preferences`**: логика триггера завязана на непустой **`practice_id`**; поведение для дыхания/медитации без UUID легко забыть при изменении записи сессий.
+
+courses: интенсив переиспользует vimeoAudiotrackForLocale и PhoneVimeoPlayer (ru на RU, en иначе); остальные учебные продукты принудительно используют ru. Контракт плеера не меняется.

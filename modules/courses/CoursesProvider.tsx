@@ -1,17 +1,20 @@
-import {createContext,useCallback,useContext,useEffect,useRef,useState,type ReactNode} from 'react';
+import {createContext,useCallback,useContext,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {AppState} from 'react-native';
 import {useAuth} from '@/modules/auth';
 import type {CourseView} from '@shared/courses';
 import {loadCourses} from './client';
 import {readCourseCache,saveCourseCache} from './cache';
+import {useAppLocale} from '@/modules/i18n';
+import {localizeCourse} from './state';
 export {showsOnDay} from './state';
 
 type State={courses:CourseView[];error:boolean;loading:boolean;fromCache:boolean;refresh:()=>Promise<void>};
 const Context=createContext<State>({courses:[],error:false,loading:false,fromCache:false,refresh:async()=>{}});
 export function CoursesProvider({children}:{children:ReactNode}){
   const {authUser}=useAuth();const uid=authUser?.id;
+  const {locale}=useAppLocale();
   const [snapshot,setSnapshot]=useState<{uid:string|undefined;courses:CourseView[];fromCache:boolean}>({uid,courses:[],fromCache:false});
-  const courses=snapshot.uid===uid?snapshot.courses:[];
+  const courses=useMemo(()=>snapshot.uid===uid?snapshot.courses.map(c=>localizeCourse(c,locale)):[],[snapshot,uid,locale]);
   const [error,setError]=useState(false);const [loading,setLoading]=useState(false);
   const owner=useRef(uid);owner.current=uid;
   const freshVersion=useRef(0);

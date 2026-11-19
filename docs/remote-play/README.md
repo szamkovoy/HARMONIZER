@@ -59,3 +59,7 @@ If the iframe shows `Sorry / We're having a little trouble`, verify the exact Vi
 ## Course integration (2026-11-17)
 
 `modules/courses/CourseContent.tsx` consumes `useRemotePlay().playVimeo` and `/connect-tv` / `/tv-remote`, passing Vimeo/title/audiotrack/launchSource=course and an optional existing practiceId for bonuses. The same pairing and playback contract applies; phone playback uses shared `PhoneVimeoPlayer`. Course grants do not enable the whole practice catalog.
+
+## Учебные продукты
+
+CourseContent передаёт ту же пару Vimeo ID/audiotrack через существующий телефонный/ТВ-путь. Ежедневные интенсивы выбирают ru для RU и en для остальных локалей тем же vimeoAudiotrackForLocale, что асаны. Непереведённые накопительные курсы/практикумы принудительно передают ru независимо от языка интерфейса; контракт tv_sessions не меняется.

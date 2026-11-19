@@ -21,8 +21,30 @@ const rows=()=>({
  course_lessons:[{id:'open',course_slug:'pilot',position:1,title:'Open',blocks:[{type:'text',markdown:'Allowed text'}]},
  {id:'future',course_slug:'pilot',position:2,title:'Secret future title',blocks:[{type:'text',markdown:'Secret future body'}]}],
 });
+const intensiveRows=(review=false,mode='normal')=>({
+ ...rows(),courses:[{slug:'pilot',title:'Интенсив',kind:'intensive',title_i18n:{en:'Intensive'},landing_url:''}],
+ course_enrollments:[{...grant,mode,test_browse:review,schedule:[{lessonId:'past',opensAt:'2026-11-15T00:00:00Z'},{lessonId:'open',opensAt:'2026-11-16T00:00:00Z'},{lessonId:'future',opensAt:'2026-11-18T00:00:00Z'}]}],
+ course_lessons:[...rows().course_lessons,{id:'past',course_slug:'pilot',position:0,title:'Secret past title',blocks:[{type:'text',markdown:'Secret past body'}]}],
+});
 afterEach(()=>vi.useRealTimers());
 describe('course ownership and release boundaries',()=>{
+ it('returns only today in an intensive, excluding past/future even by direct ID',async()=>{
+  vi.useFakeTimers().setSystemTime(new Date('2026-11-17T12:00:00Z'));
+  const db=database(intensiveRows());const [course]=await listUserCourses(db,'owner');
+  expect(course.current?.id).toBe('open');expect(course.lessons.map(l=>l.id)).toEqual(['open']);
+  expect(course.currentUntil).toBe('2026-11-18T00:00:00Z');expect(JSON.stringify(course)).not.toContain('Secret');
+  for(const id of ['past','future'])expect((await listUserCourses(database(intensiveRows()),'owner',id,'own'))[0].current).toBeNull();
+ });
+ it('permits all intensive days only in an explicit test review and expires every translation',async()=>{
+  vi.useFakeTimers().setSystemTime(new Date('2026-11-17T12:00:00Z'));
+  const [review]=await listUserCourses(database(intensiveRows(true,'test')),'owner','future','own');
+  expect(review.reviewAllLessons).toBe(true);expect(review.current?.id).toBe('future');expect(review.lessons).toHaveLength(3);
+  const [ordinary]=await listUserCourses(database(intensiveRows(true,'normal')),'owner','future','own');
+  expect(ordinary.reviewAllLessons).toBe(false);expect(ordinary.current).toBeNull();
+  vi.setSystemTime(new Date(grant.access_until));
+  const [expired]=await listUserCourses(database(intensiveRows(true,'test')),'owner');
+  expect(expired.current).toBeNull();expect(expired.lessons).toEqual([]);
+ });
  it('lists only owned, started grants and never returns future titles or bodies',async()=>{
   vi.useFakeTimers().setSystemTime(new Date('2026-11-17T12:00:00Z'));
   const result=await listUserCourses(database(rows()),'owner');
@@ -89,5 +111,17 @@ it('starts a prepared test in immediate content mode by default, without real we
  const db={rpc,from(){const q={select(){return q;},eq(){return q;},single(){return Promise.resolve({data:{id:'grant',status:'prepared',mode:'test'},error:null});}};return q;}} as unknown as SupabaseClient;
  expect(await startPreparedCourse(db,'grant')).toBe(started);
  expect(rpc).toHaveBeenCalledExactlyOnceWith('start_course_content_test',{p_id:'grant'});
+ expect(invites.send).not.toHaveBeenCalled();
+});
+
+it('starts an intensive review using the existing daily calendar, two immediate mails and no real webinar invitations',async()=>{
+ vi.useFakeTimers().setSystemTime(new Date('2026-11-19T16:00:00Z'));invites.send.mockClear();
+ const tables:Record<string,unknown>={course_enrollments:{id:'grant',status:'prepared',mode:'test',course_slug:'intensive-fixture',timezone:'Europe/Moscow',courses:{kind:'intensive'}},courses:{access_days:1,day_card_extra_days:1,completion_email_step_id:'closing'},course_lessons:Array.from({length:30},(_,i)=>({id:`day-${i}`,gap_days:i?1:0}))};
+ const rpc=vi.fn().mockResolvedValue({error:null});
+ const db={rpc,from(table:string){const q={select(){return q;},eq(){return q;},order(){return q;},single(){return Promise.resolve({data:tables[table],error:null});},then(resolve:(value:unknown)=>unknown){return Promise.resolve({data:tables[table],error:null}).then(resolve);}};return q;}} as unknown as SupabaseClient;
+ const result=await startPreparedCourse(db,'grant');
+ expect(rpc).toHaveBeenCalledWith('start_intensive_enrollment',expect.objectContaining({p_review:true}));
+ expect(result.schedule[1].opensAt).toBe('2026-11-20T21:00:00.000Z');
+ expect(result.completionMailAt).toBe('2026-11-19T16:00:00.000Z');
  expect(invites.send).not.toHaveBeenCalled();
 });

@@ -19,7 +19,10 @@ export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
    if(getMarketingTransportProfile().provider!=='resend')throw new Error('Course delivery requires the configured Resend transport for idempotent sends');
    const {data:a,error:ae}=await db.from('email_automation_enrollments').select('contact_id,automation_id').eq('course_enrollment_id',e.id).eq('status','active').single();if(ae)throw ae;
    let stepId:string;
-   if(e.mail_position<e.schedule.length){
+   if(e.mail_schedule){
+    stepId=e.mail_schedule[e.mail_position]?.stepId;
+    if(!stepId)throw new Error('Intensive email position is invalid');
+   }else if(e.mail_position<e.schedule.length){
     const lessonId=e.schedule[e.mail_position]?.lessonId;
     const {data:l,error:le}=await db.from('course_lessons').select('email_step_id').eq('id',lessonId).eq('course_slug',e.course_slug).single();if(le)throw le;
     stepId=l.email_step_id;
@@ -43,8 +46,8 @@ export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
   batch++;
   // Only content tests release every lesson/mail at the same instant. Ordinary and
   // timed rehearsals retain the one-letter-per-pass path and their existing dates.
-  const immediate=e.mode==='test'&&e.schedule.length>0&&e.schedule.every((item:{opensAt:string;mailAt:string})=>item.opensAt===e.schedule[0].opensAt&&item.mailAt===e.schedule[0].opensAt);
-  const total=e.schedule.length+(e.completion_email_step_id?1:0);
+  const immediate=e.mode==='test'&&(e.mail_schedule?e.mail_schedule.every((item:{mailAt:string})=>item.mailAt===e.mail_schedule[0].mailAt):e.schedule.length>0&&e.schedule.every((item:{opensAt:string;mailAt:string})=>item.opensAt===e.schedule[0].opensAt&&item.mailAt===e.schedule[0].opensAt));
+  const total=e.mail_schedule?.length??e.schedule.length+(e.completion_email_step_id?1:0);
   if(failure||!immediate||e.mail_position+1>=total||batch>=501||Date.now()>=deadline)break;
   await sleep(600);
   }while(true);

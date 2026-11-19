@@ -45,19 +45,26 @@ it('sends a standalone completion letter without reading or inventing a lesson',
 });
 
 // Stateful adapter: finishing advances the real cursor, so order/retries can be observed.
-function immediateDb({mode='test',timed=false,completion=true,blockedAt=-1}:{mode?:string;timed?:boolean;completion?:boolean;blockedAt?:number}={}){
- let position=0;const total=2+(completion?1:0);const finishes:Record<string,unknown>[]=[];
- const schedule=['one','two'].map((lessonId,i)=>({lessonId,opensAt:timed?`2026-01-01T00:0${i}:00Z`:'2026-01-01T00:00:00Z',mailAt:timed?`2026-01-01T00:0${i}:00Z`:'2026-01-01T00:00:00Z'}));
- const db={from(table:string){const filters:Record<string,unknown>={};const q={select(){return q;},eq(k:string,v:unknown){filters[k]=v;return q;},lte(){return q;},order(){return q;},limit(){return q;},
+function immediateDb({mode='test',timed=false,completion=true,blockedAt=-1,intensive=false}:{mode?:string;timed?:boolean;completion?:boolean;blockedAt?:number;intensive?:boolean}={}){
+ let position=0;const total=intensive?2:2+(completion?1:0);const finishes:Record<string,unknown>[]=[];const queried:string[]=[];
+ const schedule=(intensive?Array.from({length:30},(_,i)=>`day-${i}`):['one','two']).map((lessonId,i)=>({lessonId,opensAt:timed?`2026-01-01T00:0${i}:00Z`:'2026-01-01T00:00:00Z',mailAt:timed?`2026-01-01T00:0${i}:00Z`:'2026-01-01T00:00:00Z'}));
+ const db={from(table:string){queried.push(table);const filters:Record<string,unknown>={};const q={select(){return q;},eq(k:string,v:unknown){filters[k]=v;return q;},lte(){return q;},order(){return q;},limit(){return q;},
   single(){const data=table==='course_lessons'?{email_step_id:`${filters.id}-mail`}:table==='email_automation_steps'?{subject:String(filters.id),html_body:'<p>Test</p>'}:table==='email_automation_enrollments'?{contact_id:'contact',automation_id:'automation'}:table==='email_contacts'?{email:'owner@example.test',user_id:'owner',marketing_status:'active',locale:'ru'}:{display_name:'Owner',locale:'ru'};return Promise.resolve({data,error:null});},
   then(resolve:(r:unknown)=>unknown){return Promise.resolve({data:[{id:'grant'}],error:null}).then(resolve);}};return q;},
   async rpc(name:string,args:Record<string,unknown>){
-   if(name==='claim_course_mail')return {data:position>=total||position===blockedAt?null:{...grant,mode,mail_position:position,schedule,completion_email_step_id:completion?'closing':null},error:null};
+   if(name==='claim_course_mail')return {data:position>=total||position===blockedAt?null:{...grant,mode,mail_position:position,schedule,completion_email_step_id:completion?'closing':null,...(intensive?{mail_schedule:[{stepId:'intro',mailAt:schedule[0].opensAt},{stepId:'closing',mailAt:schedule[0].opensAt}]}:{})},error:null};
    finishes.push(args);if(!args.p_error)position++;return {error:null};
   }} as unknown as SupabaseClient;
- return {db,finishes,position:()=>position};
+ return {db,finishes,position:()=>position,queried};
 }
 describe('immediate content test delivery',()=>{
+ it('sends only the two intensive emails for thirty lessons, without looking up daily email steps',async()=>{
+  const {db,queried,position}=immediateDb({intensive:true});
+  expect(await runCourseEmails(db,true)).toEqual({course_sent:2,course_failed:0});
+  expect(mail.send.mock.calls.map(([input])=>input.subject)).toEqual(['intro','closing']);
+  expect(queried).not.toContain('course_lessons');expect(position()).toBe(2);
+  expect(await runCourseEmails(db,true)).toEqual({course_sent:0,course_failed:0});
+ });
  it.each([true,false])('sends all lesson letters and optional closing (%s) sequentially with individual keys',async completion=>{
   const {db,position}=immediateDb({completion});const total=completion?3:2;
   expect(await runCourseEmails(db,true)).toEqual({course_sent:total,course_failed:0});

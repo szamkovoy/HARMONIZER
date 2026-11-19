@@ -2,7 +2,7 @@
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
 version: 1.17
-updated: 2026-11-17
+updated: 2026-11-19
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -91,3 +91,5 @@ code_refs:
 - **`membership_tier` / `trial_expires_at`** — расхождение с серверными дублями правил доступа (см. open questions по `subscription`).
 - **`refreshProfile` не вызван** после ручного или серверного изменения `users` — UI покажет устаревший тариф или геоданные до следующего auth-события.
 - **Race `profileLoading`:** экраны, не ждущие готовности профиля, могут один кадр отрисовать пустые поля.
+
+courses: интенсив без архива возвращает только сегодняшний урок; после последней местной полуночи — общая карточка истёкшего доступа. Название меняется с локалью приложения.

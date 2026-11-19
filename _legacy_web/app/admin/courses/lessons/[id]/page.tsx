@@ -5,6 +5,7 @@ import {useEffect,useState} from 'react';
 import type {CourseBlock} from '@shared/courses';
 import {adminFetch} from '../../../_lib/adminApi';
 import {courseMarkdownHtml} from '../../../../api/_utils/courseSchedule';
+import {LessonTextEditor} from './LessonTextEditor';
 type Lesson={id:string;title:string;blocks:CourseBlock[]};
 type Course={title:string;automation_id:string};
 const input='w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-zinc-900';
@@ -29,7 +30,7 @@ export default function CourseLessonEditor(){
  {blocks.map((b,i)=><section key={i} className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
  <div className="flex flex-wrap items-center gap-2"><strong className="mr-auto">{i+1}. {b.type==='text'?'Текст':'Видео Vimeo'}</strong>
  <button aria-label="Переместить выше" className={button} disabled={i===0||saving} onClick={()=>move(i,-1)}>↑</button><button aria-label="Переместить ниже" className={button} disabled={i===blocks.length-1||saving} onClick={()=>move(i,1)}>↓</button><button className={button} disabled={saving} onClick={()=>setBlocks(v=>v.filter((_,j)=>j!==i))}>Удалить</button></div>
- {b.type==='text'?<><textarea aria-label="Текст блока" className={`${input} min-h-52`} value={b.markdown} onChange={e=>change(i,{...b,markdown:e.target.value})}/><p className="text-xs text-zinc-500">Пустая строка разделяет абзацы. **Жирный текст**, # заголовок, [ссылка](https://…).</p></>:<label className="block space-y-2"><span>Ссылка Vimeo или ID видео</span><input className={input} value={b.vimeoId} onChange={e=>change(i,{...b,vimeoId:e.target.value})}/></label>}
+ {b.type==='text'?<LessonTextEditor value={b.markdown} onChange={markdown=>change(i,{...b,markdown})} disabled={saving}/>:<label className="block space-y-2"><span>Ссылка Vimeo или ID видео</span><input className={input} value={b.vimeoId} onChange={e=>change(i,{...b,vimeoId:e.target.value})}/></label>}
  </section>)}
  <div className="flex flex-wrap gap-2"><button className={button} disabled={saving} onClick={()=>setBlocks(v=>[...v,{type:'text',markdown:''}])}>Добавить текст</button><button className={button} disabled={saving} onClick={()=>setBlocks(v=>[...v,{type:'video',vimeoId:''}])}>Добавить видео</button></div>
  <div className="flex gap-3"><button className="rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white disabled:opacity-40" disabled={saving} onClick={()=>void save()}>{saving?'Сохраняем…':'Сохранить'}</button><button className={button} disabled={saving} onClick={()=>{setEditing(false);setTitle(lesson.title);setError('');}}>Отмена</button></div>

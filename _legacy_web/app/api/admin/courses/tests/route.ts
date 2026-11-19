@@ -1,5 +1,5 @@
 import {createServiceSupabase,errorResponse,json,requireAdmin} from '../../../_utils/supabase';
-import {startPreparedCourse} from '../../../_utils/courseService';
+import {startPreparedCourse,finishIntensiveReview} from '../../../_utils/courseService';
 export const runtime='nodejs';
 export async function POST(req:Request){try{
  await requireAdmin(req);const db=createServiceSupabase();const body=await req.json();
@@ -21,5 +21,6 @@ export async function POST(req:Request){try{
   const {error}=await db.rpc('cleanup_course_test',{p_id:body.id});if(error)throw error;
   return json({id:body.id,removed:true});
  }
+ if(body.action==='finish'&&typeof body.id==='string'&&body.confirmFinish===true)return json(await finishIntensiveReview(db,body.id));
  return json({error:'Explicit start confirmation required'},{status:400});
 }catch(e){return errorResponse(e);}}

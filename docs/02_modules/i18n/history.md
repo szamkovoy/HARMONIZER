@@ -2,7 +2,7 @@
 id: 02_modules/i18n/history
 title: i18n History
 version: 1.26
-updated: 2026-11-18
+updated: 2026-11-19
 depends_on: [02_modules/i18n/spec, 04_workspace/i18n_architecture]
 code_refs:
   [
@@ -15,6 +15,11 @@ code_refs:
     scripts/i18n-sync.mjs,
   ]
 ---
+
+## 2026-11-19 — Локализация интенсивов
+
+Интенсивы хранят title_i18n продукта и blocks_i18n урока, письма — в прежних subject/html/blocks_i18n email-step. Импорт требует все восемь локалей. Native переключает название/текст по общей useAppLocale без сетевого перевода; RU всегда использует текущие базовые title/blocks. Остальные курсы остаются с RU-контентом. Новые day labels заданы явно для восьми локалей, без Intl.PluralRules. Для контента scripts/intensive-translate.mjs использует настроенный переводчик/AI_MODEL_STANDARD и отдельный кэш абзацев; общий i18n-sync для очередного импорта не запускается.
+
 
 ## 2026-11-18 — Счётчик без Intl.PluralRules
 

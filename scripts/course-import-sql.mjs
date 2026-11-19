@@ -6,6 +6,7 @@ import {courseEmailHeaderHtml} from './courses-content.mjs';
 export const courseStableId=name=>{const b=createHash('sha256').update(name).digest().subarray(0,16);b[6]=(b[6]&15)|80;b[8]=(b[8]&63)|128;const h=b.toString('hex');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;};
 const q=s=>`'${String(s).replaceAll("'","''")}'`;
 export function generateCourseImportSql(course,{replaceEmails=false,replaceLessons=false}={}){
+ if(course.kind==='intensive')throw new Error('Для ежедневного интенсива используйте scripts/intensive-import-sql.mjs');
  const landingUrl=course.landingUrl??'';
  if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(course.slug)||!course.title||!['practicum','intensive','course','masterclass'].includes(course.kind)||typeof landingUrl!=='string'||(landingUrl&&!/^https:\/\/[^\s]+$/.test(landingUrl)))throw new Error('Проверьте метаданные курса');
  for(const n of ['accessDays','dayCardExtraDays','webinarExtraDays'])if(!Number.isInteger(course[n])||course[n]<=0)throw new Error(`Проверьте ${n}`);

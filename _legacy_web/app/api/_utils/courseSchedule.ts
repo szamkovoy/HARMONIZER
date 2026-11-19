@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon';
+import {courseInline,courseInlineHtml} from '../../../shared_core/courseInline.ts';
 
 export type CourseScheduleItem = { lessonId: string; opensAt: string; mailAt: string };
 export function buildCourseSchedule(lessons: {id: string; gapDays: number}[], start: string, zone: string, testSeconds?: number): CourseScheduleItem[] {
@@ -24,10 +25,17 @@ export function courseRunDates(schedule:CourseScheduleItem[],zone:string,accessD
  return {accessUntil:last.plus({days:accessDays}).toUTC().toISO()!,displayUntil:display.toUTC().toISO()!,completionMailAt:completion?.toUTC().toISO()??null};
 }
 
-const escape = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+/** Intensive lessons use buildCourseSchedule too; only the final access/mail boundaries differ. */
+export function intensiveRunDates(schedule:CourseScheduleItem[],zone:string){
+ const last=DateTime.fromISO(schedule.at(-1)?.opensAt??'').setZone(zone);
+ if(!last.isValid||schedule.length!==30)throw new Error('Intensive requires 30 lessons');
+ const end=last.startOf('day').plus({days:1}).toUTC().toISO()!;
+ return {accessUntil:end,displayUntil:end,completionMailAt:last.startOf('day').set({hour:7}).toUTC().toISO()!};
+}
+
 /** Small authored Markdown subset; HTML is escaped, only HTTPS links are emitted. */
 export function courseMarkdownHtml(markdown: string): string {
-  const inline = (s: string) => escape(s).replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)|(?<!["(])(https:\/\/[^\s<]+)/g, (_,label,url,bare) => `<a href="${url||bare}">${label||bare}</a>`).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  const inline = (s: string) => courseInlineHtml(courseInline(s));
   // Explicit spacers survive the shared mail wrapper's zero paragraph margins.
   return markdown.replace(/\r\n?/g,'\n').trim().split(/(\n[ \t]*\n(?:[ \t]*\n)*)/).map(part => {
     if (/^\n[ \t]*\n/.test(part)) return '<p></p>'.repeat((part.match(/\n/g)?.length ?? 2)-1);

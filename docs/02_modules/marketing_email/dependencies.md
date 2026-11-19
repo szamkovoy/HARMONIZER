@@ -2,7 +2,7 @@
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
 version: 1.20
-updated: 2026-11-17
+updated: 2026-11-19
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -66,3 +66,5 @@ code_refs:
 - Webhook без verify secret → spoofed events.
 - Compute Nano (Free): непрерывная поштучная отправка ~23 письма/мин валила проект через ~4 ч (2026-09-25, 2026-10-05: pg_cron `job startup timeout`, PostgREST timeouts, auth 504). Лечение — пачки + пауза + тормоз по латентности; темп `CAMPAIGN_BATCH_GAP_MS` не уменьшать без наблюдения за логами.
 - `email_events` без sent/delivered: если когда-нибудь понадобится история «когда именно доставлено», её нет — есть только текущий статус строки отправки.
+
+courses: optional mail_schedule выбирает два письма интенсива; старые grants с null продолжают прежние учебные шаги. Окончание тестового просмотра не сбрасывает email cursor.
