@@ -9,7 +9,9 @@
 3. Проверь относящиеся к задаче пункты `docs/04_workspace/open_questions.md`.
 4. Для UI и различий iOS/Android прочитай `docs/04_workspace/multiplatform_ui.md`.
    Используй существующие токены `modules/ui/theme.ts`.
-5. Если обнаружился ещё один затронутый модуль, прочитай его документацию до изменения кода.
+5. Для DNS / REG.RU / SSL / публичного origin `harmonizer.zamkovoi.yoga` —
+   `docs/04_workspace/reg_ru_harmonizer_ssl_guard.md` (не для остальных задач).
+6. Если обнаружился ещё один затронутый модуль, прочитай его документацию до изменения кода.
 
 После изменения API, межмодульных зависимостей, БД, состава модулей или расхождения
 с прежним описанием следуй `docs/03_rules/documentation_update_rules.md`:

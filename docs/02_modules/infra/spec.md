@@ -44,7 +44,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 - `supabase/README.md` — операционный контракт папки: структура `migrations/`, `functions/`, `seed.sql`, требования к `.env.local` для CLI, команды `link` / `db push`, cron-функции (`auto-calibrate`, `precompute-daily-forecasts`, `precompute-global-recommendations`, `cleanup-expired-proposals`, `cleanup-expired-stories`, `reconcile-expired-memberships`), правило «не править старые миграции — только новые файлы».
 - `supabase/config.toml` — локальные флаги edge-функций; для cron-style вызовов `verify_jwt = false` фиксируется и для `precompute-global-recommendations` / cleanup / reconcile memberships.
-- `DEPLOY.md` — чеклист серверного/edge-деплоя, включая список функций, секрет `CRON_SECRET` и рекомендуемые расписания.
+- `DEPLOY.md` — чеклист серверного/edge-деплоя, включая список функций, секрет `CRON_SECRET` и рекомендуемые расписания; раздел «Russia proxy» — TLS Let's Encrypt на REG.RU (HTTP-01, автопродление панели до ~2027-02-15 и далее). Операции, ломающие автопродление или прокси, — `docs/04_workspace/reg_ru_harmonizer_ssl_guard.md`.
 **PWA-остаток**
 
 - `_legacy_web/public/manifest.json` + ссылки из `layout` — ярлык/installability для web-shell; продуктовый клиент — Expo (см. `pwa.md`).

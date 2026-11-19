@@ -57,6 +57,16 @@ code_refs:
 
 `error_tracking` документируется внутри `02_modules/infra/error_tracking.md` и не считается отдельным модулем в `MAP.md`.
 
+## Где искать: SSL и DNS `harmonizer.zamkovoi.yoga` (REG.RU)
+
+Читать **только** при задачах про DNS, панель REG.RU, редиректы, Vercel-домен, откат РФ-прокси или смену публичного API-origin.
+
+| Вопрос | Канон |
+| --- | --- |
+| Срок сертификата, HTTP-01, IP, прокси | `DEPLOY.md` → «Russia proxy» |
+| Что нельзя делать без предупреждения (STOP-операции) | `docs/04_workspace/reg_ru_harmonizer_ssl_guard.md` |
+| Правило для агента при правках `deploy/*`, origin env | `.cursor/rules/reg-ru-ssl-guard.mdc` |
+
 ## Где искать: мультиплатформенный UI (iOS + Android)
 
 Сквозная тема: **единые токены темы**, палитра пользователя, safe area / keyboard, тонкие `Platform`-дельты, без регрессии iPhone.
