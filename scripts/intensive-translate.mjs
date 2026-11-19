@@ -14,6 +14,24 @@ export function validateIntensiveTranslation(source,target){
  return target;
 }
 /** Paragraph hashes shared by all seven imports avoid translating repeated email copy again. */
+const AUTHOR_SIGNATURE='Sergei Zamkovoi';
+const SIGNATURE_TAIL_RE=/\n[ \t]*(?:Sergey|Sergei|Sergueï|Serguéi|Sergej)[^\n]*Zamkov[^\n]*$/iu;
+/** After machine translation: subject brace uses titleI18n (Day tab); signature stays Latin. */
+export function polishIntensiveEmailLocales(course){
+ const tail=subject=>{const m=subject.match(/^\{[^}]+\}\s*(.+)$/s);return(m?m[1]:subject).trim();};
+ for(const field of ['introEmail','completionEmail']){
+  const ru=course[field]?.ru?.subject;
+  if(!ru)continue;
+  for(const locale of intensiveLocales.filter(l=>l!=='ru')){
+   const copy=course[field][locale];const title=course.titleI18n?.[locale]?.trim();
+   if(!copy?.subject||!title)continue;
+   const rest=tail(copy.subject)||tail(ru);
+   copy.subject=`{${title}} ${rest}`;
+   if(copy.markdown)copy.markdown=copy.markdown.replace(SIGNATURE_TAIL_RE,`\n\n${AUTHOR_SIGNATURE}`);
+  }
+ }
+ return course;
+}
 export async function translateIntensive(course,cache,translateBatch,saveCache=async()=>{}){
  const source=[course.title,course.introEmail.ru.subject,course.introEmail.ru.markdown,course.completionEmail.ru.subject,course.completionEmail.ru.markdown,...course.lessons.map(l=>l.blocks[1].markdown)];
  const unique=new Map();for(const text of source)for(const part of pieces(text))if(part&&!separators(part))unique.set(digest(part),part);
@@ -42,7 +60,7 @@ export async function translateIntensive(course,cache,translateBatch,saveCache=a
   for(const field of ['introEmail','completionEmail'])course[field][locale]={subject:translated(course[field].ru.subject),markdown:translated(course[field].ru.markdown)};
   for(const lesson of course.lessons)lesson.blocksI18n[locale]=[{...lesson.blocks[0]},{type:'text',markdown:translated(lesson.blocks[1].markdown)}];
  }
- return course;
+ return polishIntensiveEmailLocales(course);
 }
 export function createIntensiveTranslator(){
  const key=process.env.I18N_TRANSLATE_API_KEY??process.env.DEEPSEEK_API_KEY;

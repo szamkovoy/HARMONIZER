@@ -7,6 +7,30 @@ depends_on: [02_modules/courses/spec]
 code_refs: [content/courses/month-health.review.md, content/courses/month-health.json, supabase/migrations/20261117160000_courses_pilot.sql, supabase/migrations/20261117160100_month_health_content.sql]
 ---
 
+## 2026-11-19 — Импорт «Интенсив «Святость»»
+
+Из утверждённого `content/intensives/holiness.review.md` применена `20261119160000_intensive_holiness_content.sql`: 30 уроков, два email-шага, восемь локалей, PNG 600×142 на email CDN (`i7_email-dca50f88e501.png`). Советы дней 18–19 в GetCourse были одинаковыми — сохранены как в источнике. Тест `8aaaafb6-d0ae-42f3-99b1-5c93f43e42ac` только prepared; цепочка неактивна, отправок нет.
+
+## 2026-11-19 — Импорт «Интенсив «Мудрость»»
+
+Из утверждённого `content/intensives/wisdom.review.md` применена `20261119150000_intensive_wisdom_content.sql`: 30 уроков, два email-шага, восемь локалей, PNG 600×142 на email CDN (`i6_email-8e8f86688bd7.png`). Тест `6a14ed34-b033-4521-be3a-192599765bcc` только prepared; цепочка неактивна, отправок нет.
+
+## 2026-11-19 — Импорт «Интенсив «Свобода»»
+
+Из утверждённого `content/intensives/freedom.review.md` применена `20261119140000_intensive_freedom_content.sql`: 30 уроков, два email-шага, восемь локалей, PNG 600×142 на email CDN (`i5_email-2835464c8066.png`). Письмо «Практика 1» собрано со второй страницы журнала GetCourse. Тест `2393411c-15c6-4439-86d9-1fad8870fcf6` только prepared; цепочка неактивна, отправок нет.
+
+## 2026-11-19 — Импорт «Интенсив «Любовь»»
+
+Из утверждённого `content/intensives/love.review.md` (совет дня 5 — текст Сергея, в GetCourse его не было) применена `20261119130000_intensive_love_content.sql`: 30 уроков, два email-шага, восемь локалей, PNG 600×142 на email CDN. Тест `61c14af0-c88c-4ad7-9979-8ea9b60a5d00` только prepared; цепочка неактивна, отправок нет. `20261119131000` — поправлены темы писем (префикс из `titleI18n`) и подпись `Sergei Zamkovoi` на нерусских локалях; в `intensive-translate.mjs` та же полировка для будущих интенсивов.
+
+## 2026-11-19 — Импорт «Интенсив «Сила»»
+
+Из утверждённого `content/intensives/strength.review.md` применена `20261119120000_intensive_strength_content.sql`: 30 уроков, два email-шага, восемь локалей, PNG 600×142 на email CDN. Тест `a3831933-fd00-49ce-ab3f-8606cfe5f99d` только prepared; цепочка неактивна, отправок нет.
+
+## 2026-11-19 — Импорт «Интенсив «Наслаждения»»
+
+Из утверждённого `content/intensives/pleasure.review.md` применена `20261119110000_intensive_pleasure_content.sql`: 30 уроков, два email-шага, восемь локалей, PNG 599×152 на email CDN. Тест `4dc77a65-bdbb-4c38-8c04-cd46bed889e7` только prepared; цепочка неактивна, отправок нет.
+
 ## 2026-11-19 — Импорт «Интенсив «Здоровье»»
 
 Из утверждённого `content/intensives/health.review.md` готовым конвейером intense-* применена только `20261119100000_intensive_health_content.sql`: 30 уроков, два email-шага (вводное и заключительное), восемь локалей. PNG 600×142 на email CDN. Тест `f153b80f-be86-42f9-a2a2-917ba250dead` только prepared; цепочка неактивна, отправок нет.
