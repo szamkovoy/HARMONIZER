@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.44
+version: 1.45
 updated: 2026-11-21
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-21 — Кнопка урока в просмотре письма
+
+`sanitizeEmailRichHtml` больше не снимает заливку, рамку и белую подпись у ссылки с `background`. Превью админки строится из блоков и проходило эту очистку, поэтому кнопка урока была белым текстом на белом фоне. Редактор и отправленное письмо стили кнопки не чистили и показывали её.
 
 ## 2026-11-21 — Урок курса в браузере
 

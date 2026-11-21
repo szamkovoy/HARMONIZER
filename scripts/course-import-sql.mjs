@@ -19,10 +19,10 @@ export function generateCourseImportSql(course,{replaceEmails=false,replaceLesso
  const lines=['-- Generated from approved author text. Starts no enrolments and sends no email.','begin;',
  `insert into public.email_automations(id,key,name,trigger_type,is_active) values('${auto}',${q('course_'+course.slug)},${q(course.title)},'course',false) on conflict(id) do nothing;`,
  `insert into public.courses(slug,title,kind,landing_url,access_days,day_card_extra_days,webinar_extra_days,automation_id,source_hash) values(${q(course.slug)},${q(course.title)},${q(course.kind)},${q(landingUrl)},${course.accessDays},${course.dayCardExtraDays},${course.webinarExtraDays},'${auto}',${q(course.sourceHash)}) on conflict(slug) do update set title=excluded.title,source_hash=excluded.source_hash;`];
- function letter(email,step,name,position,blockId,hasLesson=true){
+ function letter(email,step,name,position,blockId,lessonId){
   if(typeof email?.subject!=='string'||!email.subject.trim()||typeof email?.markdown!=='string'||!email.markdown.trim())throw new Error('Нужны тема и текст каждого письма');
   const authorBody=courseMarkdownHtml(email.markdown.replaceAll('{first_name}','{{name}}'));
-  const body=hasLesson?prepareCourseLessonEmailHtml(authorBody):authorBody;
+  const body=lessonId?prepareCourseLessonEmailHtml(authorBody,lessonId):authorBody;
   const html=courseEmailHeaderHtml(course.emailHeader)+body;
   const blocks=[...(course.emailHeader?[course.emailHeader]:[]),{id:blockId,type:'text',html:body,align:'left',fontFamily:'system',fontSize:'md',marginTop:0,marginBottom:0}];
   const update=replaceEmails?'do update set subject=excluded.subject,subject_i18n=excluded.subject_i18n,html_body=excluded.html_body,html_body_i18n=excluded.html_body_i18n,blocks_i18n=excluded.blocks_i18n':'do nothing';
@@ -32,13 +32,13 @@ export function generateCourseImportSql(course,{replaceEmails=false,replaceLesso
   if(typeof lesson.id!=='string'||!lesson.id.startsWith(course.slug+'-')||ids.has(lesson.id)||lesson.position!==i+1||!lesson.title||!Number.isInteger(lesson.gapDays)||lesson.gapDays<(i?1:0)||(!i&&lesson.gapDays!==0))throw new Error('Проверьте ID, порядок и интервалы уроков');
   ids.add(lesson.id);
   if(!Array.isArray(lesson.blocks)||!lesson.blocks.length||lesson.blocks.some(b=>b.type==='text'?typeof b.markdown!=='string'||!b.markdown.trim():b.type!=='video'||!/^\d{5,15}$/.test(b.vimeoId)||(b.practiceId&&!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(b.practiceId))))throw new Error('Проверьте текстовые и видеоблоки');
-  const step=courseStableId(`course-mail:${lesson.id}`);letter(lesson.email,step,lesson.title,lesson.position,`${lesson.id}-text`);
+  const step=courseStableId(`course-mail:${lesson.id}`);letter(lesson.email,step,lesson.title,lesson.position,`${lesson.id}-text`,lesson.id);
   lines.push(`do $$begin if exists(select 1 from public.course_lessons where id=${q(lesson.id)} and course_slug<>${q(course.slug)}) then raise exception 'Lesson belongs to another course';end if;end$$;`);
   lines.push(`insert into public.course_lessons(id,course_slug,position,gap_days,title,blocks,email_step_id) values(${q(lesson.id)},${q(course.slug)},${lesson.position},${lesson.gapDays},${q(lesson.title)},${q(JSON.stringify(lesson.blocks))}::jsonb,'${step}') on conflict(id) ${replaceLessons?'do update set title=excluded.title,blocks=excluded.blocks,gap_days=excluded.gap_days':'do nothing'};`);
  }
  if(course.completionEmail){
   const step=courseStableId(`course-completion:${course.slug}`);
-  letter(course.completionEmail,step,'Завершение практикума',course.lessons.length+1,`${course.slug}-completion-text`,false);
+  letter(course.completionEmail,step,'Завершение практикума',course.lessons.length+1,`${course.slug}-completion-text`);
   lines.push(`do $$begin if exists(select 1 from public.courses where slug=${q(course.slug)} and (day_card_extra_days<>3 or (completion_email_step_id is not null and completion_email_step_id<>'${step}'::uuid))) then raise exception 'Completion configuration differs; review before replacing';end if;end$$;`);
   lines.push(`update public.courses set completion_email_step_id='${step}' where slug=${q(course.slug)};`);
  }

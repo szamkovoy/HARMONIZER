@@ -72,12 +72,12 @@ export function parseCourseReview(rawSource){
   const text=clean(rawLesson.replace(/^\*\*Название страницы:\*\* .+\n?/m,''));
   const blocks=[];let previous=0;
   for(const m of text.matchAll(/^\*\*(?:Второе видео|Видео):\*\*[^\n]*https:\/\/player\.vimeo\.com\/video\/(\d+)[^\n]*$/gm)){
-   const paragraph=text.slice(previous,m.index).trim();if(paragraph)blocks.push({type:'text',markdown:paragraph});
+   const paragraph=text.slice(previous,m.index).replace(/\s+$/,'');if(paragraph.trim())blocks.push({type:'text',markdown:paragraph});
    const practiceId=m[0].match(/practiceId=([0-9a-f-]{36})/i)?.[1];
    if(m[0].includes('practiceId=')&&!practiceId)throw new Error(`Проверьте practiceId в материале ${number}`);
    blocks.push({type:'video',vimeoId:m[1],...(practiceId?{practiceId}:{})});previous=m.index+m[0].length;
   }
-  const tail=text.slice(previous).trim();if(tail)blocks.push({type:'text',markdown:tail});
+  const tail=text.slice(previous).replace(/\s+$/,'');if(tail.trim())blocks.push({type:'text',markdown:tail});
   if(!blocks.length)throw new Error(`Пустой урок ${number}`);
   if(/\*\*(?:Второе видео|Видео):\*\*/.test(blocks.filter(b=>b.type==='text').map(b=>b.markdown).join('')))throw new Error(`Проверьте ссылку player.vimeo.com/video в материале ${number}`);
   return {id:`${slug}-${number}`,position:i+1,gapDays,title:lessonTitle,blocks,email:email(letter)};
