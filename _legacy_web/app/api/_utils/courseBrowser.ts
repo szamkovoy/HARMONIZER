@@ -2,7 +2,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {hasCourseAccess,courseAccessNotice} from '@shared/courseAccess';
 import {listUserCourses} from './courseService';
 import {courseMarkdownHtml} from './courseSchedule';
-import {vimeoEmbedUrl} from '../../../../modules/practices/core/vimeo';
+import {vimeoEmbedUrl} from './vimeo';
 
 /** Read-only link to one grant and one released lesson; no account data is returned. */
 export async function browserCourseLesson(db:SupabaseClient,enrollmentId:string,lessonId:string) {

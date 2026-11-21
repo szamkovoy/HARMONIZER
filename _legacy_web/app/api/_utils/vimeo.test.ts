@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { attachThumbnailToPracticeRecommendation, pickBestVimeoThumbnail } from "@legacy/app/api/_utils/vimeo";
+import {
+  attachThumbnailToPracticeRecommendation,
+  pickBestVimeoThumbnail,
+  vimeoEmbedUrl,
+} from "@legacy/app/api/_utils/vimeo";
 
 describe("pickBestVimeoThumbnail", () => {
   it("prefers the smallest thumbnail that still meets the target width", () => {
@@ -75,6 +79,14 @@ describe("attachThumbnailToPracticeRecommendation", () => {
       "[vimeo] attach thumbnail skipped",
       "123456",
       expect.stringContaining("Missing Vimeo token"),
+    );
+  });
+});
+
+describe("vimeoEmbedUrl", () => {
+  it("builds the player URL with default Russian audiotrack", () => {
+    expect(vimeoEmbedUrl("1111204587")).toBe(
+      "https://player.vimeo.com/video/1111204587?audiotrack=ru",
     );
   });
 });
