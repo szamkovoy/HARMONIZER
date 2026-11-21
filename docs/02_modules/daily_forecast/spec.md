@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/spec
 title: Daily_forecast Spec
-version: 2.49
-updated: 2026-11-18
+version: 2.50
+updated: 2026-11-22
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -109,7 +109,7 @@ code_refs:
 
 - **Режим доступа:** `subscription` / `useAccess` на главном экране задаёт, нужен ли натал и какой URL/пайплайн вызывать; `useDayContent` вычисляет `AccessMode` через общий **`accessModeFromRow`** из `modules/access/core/paidAccess.ts` (единая точка правила premium/trial, включая `membership_expires_at`; вопрос о консолидации закрыт 2026-07-08).
 - **`scopeKey` дня (в кэше):** `${natalFingerprint | "global"}:${AppLocale}` — отпечаток birth-полей + активная локаль контента (`getResponseLocale()`); для free база `"global"`, для paid — fingerprint натала через `services/dayContentScope.ts` (`birth_time` → канон `HH:MM:SS`; чтение также пробует legacy `HH:MM`). Локаль в ключе отделяет RU/EN (и будущие enabled-локали) в `dayContentCache` и monologue hydration.
-- **`recentPlanetsOfDay`:** при расчёте дня сервер собирает `[день−1, день−2]` из `user_daily_forecasts.planet_of_the_day` (`priorForecastDates` / `recentPlanetsFromHistory`). Пропуск дня обрывает серию. Если обе даты совпали с сильнейшей планетой нового дня, `chooseFinalPlanet` берёт вторую по важности. Это происходит в прогреве, до текста рекомендации: `precompute_daily_forecast_candidates` считает такой уже сохранённый день незавершённым, Edge переписывает прогноз и заново пишет утренний текст. `POST /api/astro/daily-forecast` на готовом кэше историю не читает и модель не вызывает. Пояснение — `recommendation.alternativeChoiceNote` (8 локалей); в строку прогноза пишется та же фраза на локали прогрева.
+- **`recentPlanetsOfDay`:** при расчёте дня сервер собирает `[день−1, день−2]` из `user_daily_forecasts.planet_of_the_day` (`priorForecastDates` / `recentPlanetsFromHistory`). Пропуск дня обрывает серию. Если обе даты совпали с сильнейшей планетой нового дня, `chooseFinalPlanet` берёт вторую по важности. Это происходит в прогреве, до текста рекомендации: `precompute_daily_forecast_candidates` считает такой уже сохранённый день незавершённым, Edge переписывает прогноз и заново пишет утренний текст. `POST /api/astro/daily-forecast` на готовом кэше историю не читает и модель не вызывает. Флаг остаётся в строке прогноза для прогрева и для строки математики («альтернативный выбор»), но home-payload всегда отдаёт `isAlternativeChoice: false` и пустой `alternativeReasonText`: карточка «Рекомендации» эту фразу не показывает.
 - **`precisionMode` натала:** влияет на демпфирование лунных вкладов в активации (`approximate` / `unknown`) — детали в reference, не здесь.
 - **Таймауты транспорта:** короткий cold-path **25s** (`DAILY_FORECAST_TIMEOUT_MS` / `GLOBAL_CONTENT_TIMEOUT_MS` — cache/structural). LLM-пути сведены к **`DAY_CONTENT_LLM_TIMEOUT_MS = 120s`** (`services/dayContentTimeouts.ts`): monologue, onboarding warm, `fetchDailyForecast({forceRefresh})`, global `forceRefresh`, home warm-overlay. **Смена языка на Профиле (paid):** `ensureLocaleDayContent` зовёт monologue с **`localeSwitch: true`** — сервер **не** гоняет большой morning-промпт; `pickBestMorningSource` берёт **generated** канон (предпочтительно RU), а не первый row с `sourceTexts`; если целевая локаль уже валидна — отдаёт её без перевода/overwrite; cache-miss дня тоже translate’ит из существующего source (не full-generate FR как новый канон). Нет silent retry после таймаута — Profile показывает error dialog. Structural force — только после смены натала. Free по-прежнему берёт/backfill `text_i18n` от canonical RU. Free fallback — `GLOBAL_CONTENT_DIRECT_FALLBACK_TIMEOUT_MS` (**8s**); **`DAY_PLAN_FETCH_TIMEOUT_MS` = 45s**; авто-GPS — **`LOCATION_ACQUIRE_TIMEOUT_MS`**.
 

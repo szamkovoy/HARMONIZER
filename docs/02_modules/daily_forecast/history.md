@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/history
 title: Daily_forecast History
-version: 2.54
-updated: 2026-11-18
+version: 2.55
+updated: 2026-11-22
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec]
 code_refs:
   [
@@ -44,6 +44,8 @@ Gap курс → урок 10 pt, строка от 44 pt до и после по
 
 
 ## Decision Log
+
+- **2026-11-22 (hide alternative-choice caption):** Правило третьего дня по-прежнему берёт вторую планету и пишет `is_alternative_choice` в `user_daily_forecasts`. Подпись «Сегодня предлагаем направить внимание на другую тему…» убрана с карточки «Рекомендации»: её рисовал клиент по этому флагу, и пользователи читали её как сбой. `buildClientForecastPayload` отдаёт флаг `false` и пустую причину, чтобы уже установленные сборки перестали печатать строку при следующей загрузке дня. Строка в математике дня остаётся.
 
 - **2026-11-15 (Edge fallback cacheValidUntil):** fallback в `supabase/functions/daily-forecast/index.ts` больше не ставит `now+24h`; TTL = конец календарного дня прогноза в TZ пользователя (та же формула, что `endOfForecastDateUtc` в `modules/daily-engine`). Функция задеплоена.
 

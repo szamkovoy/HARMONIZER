@@ -694,20 +694,6 @@ function bindOpportunityWindowHelpers(
   };
 }
 
-function bindRecommendation(rec: HomeStrings["recommendation"]): HomeStrings["recommendation"] {
-  const original = rec.detailParagraphs;
-  return {
-    ...rec,
-    detailParagraphs: (forecast) => {
-      const paragraphs = original(forecast);
-      if (!forecast.isAlternativeChoice || paragraphs.length < 3) return paragraphs;
-      const next = paragraphs.slice();
-      next[2] = rec.alternativeChoiceNote;
-      return next;
-    },
-  };
-}
-
 export function getHomeStrings(locale: HomeLocale): HomeStrings {
   const base = inlineBaseLocale(locale) === "en" ? en : ru;
   const merged = mergeTypedLocale("home", base, locale) as HomeStrings;
@@ -715,7 +701,6 @@ export function getHomeStrings(locale: HomeLocale): HomeStrings {
     ...merged,
     locale,
     opportunityWindows: bindOpportunityWindowHelpers(merged.opportunityWindows),
-    recommendation: bindRecommendation(merged.recommendation),
     formatTime: (value) => formatTime(value, locale),
   };
 }

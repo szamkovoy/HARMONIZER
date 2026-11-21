@@ -34,10 +34,13 @@ export function buildClientForecastPayload(
     ranked_planets: row.ranked_planets,
     planetOfTheDay: row.planet_of_the_day,
     planet_of_the_day: row.planet_of_the_day,
-    isAlternativeChoice: row.is_alternative_choice,
-    is_alternative_choice: row.is_alternative_choice,
-    alternativeReasonText: row.alternative_reason_text,
-    alternative_reason_text: row.alternative_reason_text,
+    // The streak flag stays on the DB row for precompute and the math appendix.
+    // Installed apps print a fixed caption under the recommendation whenever this
+    // is true, so the home payload never exposes it.
+    isAlternativeChoice: false,
+    is_alternative_choice: false,
+    alternativeReasonText: null,
+    alternative_reason_text: null,
     todayPlanetState: row.today_planet_state,
     today_planet_state: row.today_planet_state,
     windowsOfOpportunity: row.windows_of_opportunity,

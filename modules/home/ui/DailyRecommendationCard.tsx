@@ -81,11 +81,6 @@ export function DailyRecommendationCard({
             model: {modelUsed ?? "unknown"} · {accessMode}
           </AppText>
         ) : null}
-        {forecast.isAlternativeChoice ? (
-          <AppText variant="technicalCaption" tone="muted">
-            {t.alternativeChoiceNote}
-          </AppText>
-        ) : null}
         <AppButton label={t.readMoreButton} variant="secondary" onPress={() => setModalLevel("long")} />
         {showDiscuss && onDiscuss ? <AppButton label={t.discussButton} onPress={onDiscuss} /> : null}
       </SurfaceCardView>
