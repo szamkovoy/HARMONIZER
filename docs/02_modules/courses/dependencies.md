@@ -2,7 +2,7 @@
 id: 02_modules/courses/dependencies
 title: Courses Dependencies
 version: 1.1
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [02_modules/courses/spec]
 code_refs: [modules/courses/CoursesProvider.tsx, modules/courses/CourseContent.tsx, _legacy_web/app/api/_utils/courseMailRunner.ts]
 ---
@@ -36,3 +36,5 @@ code_refs: [modules/courses/CoursesProvider.tsx, modules/courses/CourseContent.t
 Привязка к email-шагам должна оставаться стабильной при авторской правке; delay_hours шага не задаёт календарь курса. Смена пользователя не должна показывать предыдущий снимок. Одно завершающее письмо без урока поддержано. Произвольные вводные/промежуточные письма накопительных продуктов и несколько выдач в день требуют решения до импорта; парсер не должен молча терять неподдержанное письмо. Ежедневные интенсивы с двумя письмами поддержаны отдельной веткой intensive.
 
 Ежедневный kind=intensive расширяет те же связи: marketing_email получает mail_schedule из двух шагов; i18n — title_i18n/blocks_i18n; profile — текущий день без архива; practices/remote-play — прежний ru/en selector. Новые межмодульные рёбра не добавлены.
+
+`account_web` → `courses`: новая standalone-страница cabinet/lesson.html читает только `/api/courses/browser`, использует общие доступ/notice, safe Markdown и Vimeo helper. OTT/кабинетная сессия для неё не нужны. Course runner и импортёр используют общий `courseLessonEmail` для RU-кнопки и персональной ссылки конкретного прохождения; intensives/completion не затронуты.

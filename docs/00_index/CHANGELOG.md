@@ -2,12 +2,18 @@
 id: 00_index/CHANGELOG
 title: Documentation Changelog
 version: 3.137
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
+
+- 2026-11-21: Страница урока: шапка — название курса, в карточке только урок, внизу копирайт года. Кнопка учебного письма повторяет подпись и цвет кнопки GetCourse этого урока.
+
+- 2026-11-21: Отдельная браузерная RU-страница урока в cabinet, персональная кнопка в учебных письмах, общий с Profile доступ/notice; обновлены courses/account_web/profile/marketing_email/infra, MAP и инструкция переноса.
+
+- 2026-11-20: Импорт курса «Йога и здоровье» (`yoga-health`): 18 уроков, 18 писем; миграция `20261120103000`; тест prepared `4cf132ae-53e6-4379-866f-26c03e472e37`.
 
 - 2026-11-19: Импорт «Интенсив Святость» (`intensive-holiness`): 30 уроков, 2 письма, 8 локалей; миграция `20261119160000`; тест prepared `8aaaafb6-d0ae-42f3-99b1-5c93f43e42ac`.
 

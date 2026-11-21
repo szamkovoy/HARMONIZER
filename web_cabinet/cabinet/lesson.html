@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="origin">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="theme-color" content="#f8fafc">
+  <title>Урок</title>
+  <link rel="icon" href="/cabinet/icons/favicon.ico">
+  <style>
+    /* Semantic roles from modules/ui/theme.ts, light palette. Recolor here. */
+    :root{color-scheme:light;--screen-bg:#f8fafc;--surface:#fff;--border:rgba(15,23,42,.08);--text:#0f172a;--muted:#334155;--faint:#64748b;--accent:#1f8a4c;--radius:24px;--content-width:820px}
+    *{box-sizing:border-box}body{margin:0;background:var(--screen-bg);color:var(--text);font:17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+    .page{width:min(100%,calc(var(--content-width) + 48px));margin:0 auto;padding:32px 24px max(40px,env(safe-area-inset-bottom))}
+    .brand{font-size:18px;line-height:1.35;font-weight:650;color:var(--accent);margin:0 0 28px}
+    article{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:36px;min-width:0;overflow-wrap:anywhere}
+    h1{font-size:32px;line-height:1.25;letter-spacing:-.025em;margin:0 0 28px;font-weight:650;text-wrap:balance}
+    .blocks{display:grid;gap:24px;min-width:0}.text{min-width:0}.text p{margin:0}.text p:empty{height:1em}.text h3{font-size:20px;line-height:1.4;margin:0 0 14px;font-weight:650}
+    a{color:var(--accent);text-underline-offset:3px;overflow-wrap:anywhere}.text a{word-break:break-word}
+    .video{position:relative;aspect-ratio:16/9;background:#0f172a;border-radius:16px;overflow:hidden}.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+    .video .loading{position:absolute;inset:0;pointer-events:none;color:#fff;font-size:14px;gap:12px}.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:180px;color:var(--faint);text-align:center}
+    .spinner{width:26px;height:26px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+    .notice p{margin:0 0 16px}.notice p:last-child{margin-bottom:0}.notice h1{font-size:26px;margin-bottom:20px}
+    button{font:inherit;font-size:15px;font-weight:600;color:var(--accent);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 22px;cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+    .footer{font-size:13px;color:var(--faint);text-align:center;margin:24px 0 0} [hidden]{display:none!important}
+    @keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.spinner{animation-duration:2s}}
+    @media(max-width:600px){body{font-size:16px;line-height:1.6}.page{padding:22px 14px max(28px,env(safe-area-inset-bottom))}.brand{margin:0 8px 20px;font-size:17px}article{padding:24px 18px;border-radius:20px}h1{font-size:26px;margin-bottom:24px}.text h3{font-size:18px}.video{border-radius:12px}}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="brand" id="brand"></header>
+    <main><article id="lesson" aria-busy="true"><div class="loading" role="status"><span class="spinner" aria-hidden="true"></span>Загружаем урок…</div></article></main>
+    <p class="footer">© <span id="copy-year"></span> Замковой С.Л.</p>
+  </div>
+  <noscript><p style="text-align:center">Чтобы открыть урок, включите JavaScript в браузере.</p></noscript>
+  <script>
+  (function(){
+    'use strict';
+    const API_BASE='https://harmonizer.zamkovoi.yoga';
+    const params=new URLSearchParams(location.search),enrollment=params.get('enrollment')||'',lesson=params.get('lesson')||'';
+    const root=document.getElementById('lesson'),brand=document.getElementById('brand');
+    document.getElementById('copy-year').textContent=String(new Date().getFullYear());
+    let boundary=0,timer,lastCheck=0,request;
+    const validLink=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(enrollment)&&/^[-a-zA-Z0-9_]{1,150}$/.test(lesson);
+    function el(tag,text,cls){const node=document.createElement(tag);if(text)node.textContent=text;if(cls)node.className=cls;return node;}
+    function notice(title,paragraphs,retry){root.replaceChildren();root.className='notice';root.setAttribute('aria-busy','false');root.append(el('h1',title));paragraphs.forEach(p=>root.append(el('p',p)));if(retry){const button=el('button','Повторить');button.type='button';button.onclick=load;root.append(button);}}
+    function render(data){
+      clearTimeout(timer);boundary=0;root.replaceChildren();root.className='';root.setAttribute('aria-busy','false');
+      brand.textContent=data.courseTitle||'';
+      document.title=data.lessonTitle||data.courseTitle||'Урок';
+      if(data.state!=='available'){notice(data.notice.title,[data.notice.period,data.notice.message]);return;}
+      root.append(el('h1',data.lessonTitle));
+      const blocks=el('div',null,'blocks');root.append(blocks);let videos=0;
+      data.blocks.forEach(block=>{
+        if(block.type==='text'){const text=el('div',null,'text');text.innerHTML=block.html;blocks.append(text);return;}
+        if(block.type!=='video'||!/^https:\/\/player\.vimeo\.com\/video\/\d+\?audiotrack=ru$/.test(block.src))return;
+        const box=el('div',null,'video'),frame=el('iframe'),loading=el('div',null,'loading');
+        loading.setAttribute('role','status');loading.append(el('span',null,'spinner'),el('span','Загружаем видео…'));loading.firstChild.setAttribute('aria-hidden','true');
+        frame.title=data.lessonTitle+' — видео '+(++videos);frame.allow='autoplay; fullscreen; picture-in-picture; encrypted-media';frame.allowFullscreen=true;frame.referrerPolicy='origin';frame.loading=videos===1?'eager':'lazy';
+        frame.onload=function(){loading.remove();};frame.src=block.src;box.append(frame,loading);blocks.append(box);
+      });
+      boundary=Date.parse(data.refreshAt);
+      if(Number.isFinite(boundary))timer=setTimeout(expire,Math.max(0,Math.min(boundary-Date.now()+50,2147483647)));
+    }
+    function expire(){if(Date.now()<boundary){timer=setTimeout(expire,Math.min(boundary-Date.now()+50,2147483647));return;}root.replaceChildren(el('div','Проверяем доступ…','loading'));void load();}
+    async function load(){
+      if(request)request.abort();request=new AbortController();const current=request;
+      root.setAttribute('aria-busy','true');
+      const timeout=setTimeout(()=>current.abort(),20000);
+      try{
+        const qs=new URLSearchParams({enrollment:enrollment,lesson:lesson});
+        const response=await fetch(API_BASE+'/api/courses/browser?'+qs,{cache:'no-store',credentials:'omit',signal:current.signal});
+        if(current!==request)return;
+        if(response.status===404){clearTimeout(timer);notice('Урок недоступен',['Проверьте ссылку из письма. Возможно, этот урок ещё не открыт.']);return;}
+        if(!response.ok)throw Error('load_failed');
+        const data=await response.json();if(current!==request)return;render(data);lastCheck=Date.now();
+      }catch(error){if(current!==request)return;clearTimeout(timer);notice('Не удалось загрузить урок',['Проверьте подключение к интернету и попробуйте ещё раз.'],true);}
+      finally{clearTimeout(timeout);if(current===request)request=null;}
+    }
+    document.addEventListener('visibilitychange',function(){if(validLink&&!document.hidden&&(Date.now()>=boundary||Date.now()-lastCheck>60000)&&!request)void load();});
+    if(!validLink)notice('Ссылка на урок неполная',['Откройте урок по кнопке в письме курса.']);else void load();
+  })();
+  </script>
+</body>
+</html>

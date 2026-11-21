@@ -2,7 +2,7 @@
 id: 02_modules/marketing_email/history
 title: Marketing Email History
 version: 1.44
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -26,6 +26,11 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-21 — Урок курса в браузере
+
+Course runner подставляет RU-ссылку конкретного прохождения/урока; новые шаблоны получают placeholder машинным импортом. Подпись и цвет кнопки совпадают с письмом GetCourse этого урока. Completion и intensive mail_schedule не меняются, проверочные письма не отправлялись.
+
 
 ## 2026-11-19 — Два письма ежедневного интенсива
 

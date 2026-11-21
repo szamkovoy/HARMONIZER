@@ -2,7 +2,7 @@
 id: 02_modules/infra/spec
 title: Infra Spec
 version: 1.34
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
@@ -128,3 +128,7 @@ supabase db dump --linked --role-only -f ~/Backups/harmonizer/2026-11-15/roles.s
 ## Совместимость импортёров с Node type stripping
 
 Общий courseSchedule импортирует courseInline по относительному пути с расширением .ts, чтобы прежние Node --experimental-strip-types команды импортёра работали без runtime alias resolver. Корневой и web tsconfig разрешают allowImportingTsExtensions при noEmit; пути Expo/Vercel не меняются. Новая server-only миграция интенсивов сохраняет RLS и явный revoke/grant новых операторских RPC.
+
+### Браузер урока на существующем хостинге (21.11.2026)
+
+Новый `web_cabinet/cabinet/lesson.html` выкладывается отдельно в существующий `/www/zamkovoi.yoga/cabinet/`, рядом с index.html; новые серверные папки, DNS/SSL/proxy изменения не нужны. API `/api/courses/browser` работает на существующем production Vercel за прежним публичным origin. Новых env/таблиц/миграций нет. Авторские content-файлы не нужны для деплоя API.

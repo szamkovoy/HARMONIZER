@@ -25,6 +25,7 @@ describe('course email delivery',()=>{
  it('uses the fixed recipient, author copy and stable provider key, then records success',async()=>{
   const {db,finish}=dbFor();expect(await runCourseEmails(db)).toEqual({course_sent:1,course_failed:0});
   expect(mail.send).toHaveBeenCalledWith(expect.objectContaining({to:'owner@example.test',subject:'Урок для Сергей',idempotencyKey:'course/grant/0'}));
+  expect(mail.send.mock.calls[0][0].html).toContain('https://zamkovoi.yoga/cabinet/lesson.html?enrollment=grant&amp;lesson=one');
   expect(finish).toHaveBeenCalledWith(expect.objectContaining({p_id:'grant',p_token:'lease',p_resend_id:'provider-id',p_error:null}));
  });
  it.each([{user_id:'other'},{email:'other@example.test'},{marketing_status:'complained'},{marketing_status:'suppressed'}])('blocks unsafe recipient/status %j',async contact=>{
@@ -41,6 +42,7 @@ it('sends a standalone completion letter without reading or inventing a lesson',
  expect(await runCourseEmails(db)).toEqual({course_sent:1,course_failed:0});
  expect(queried).not.toContain('course_lessons');
  expect(mail.send).toHaveBeenCalledWith(expect.objectContaining({idempotencyKey:'course/grant/1'}));
+ expect(mail.send.mock.calls[0][0].html).not.toContain('/cabinet/lesson.html');
  expect(finish).toHaveBeenCalledWith(expect.objectContaining({p_error:null}));
 });
 
@@ -62,6 +64,7 @@ describe('immediate content test delivery',()=>{
   const {db,queried,position}=immediateDb({intensive:true});
   expect(await runCourseEmails(db,true)).toEqual({course_sent:2,course_failed:0});
   expect(mail.send.mock.calls.map(([input])=>input.subject)).toEqual(['intro','closing']);
+  expect(mail.send.mock.calls.every(([input])=>!input.html.includes('/cabinet/lesson.html'))).toBe(true);
   expect(queried).not.toContain('course_lessons');expect(position()).toBe(2);
   expect(await runCourseEmails(db,true)).toEqual({course_sent:0,course_failed:0});
  });

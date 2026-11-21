@@ -6,4 +6,5 @@ export type CourseView = {
  state:'available'|'expired'|'revoked'; current:CourseLesson|null;
  lessons:{id:string;position:number;title:string}[]; totalLessons:number; nextChangeAt:string|null;
  kind?:string;titleI18n?:Record<string,string>;reviewAllLessons?:boolean;currentUntil?:string;
+ timezone?:string;
 };

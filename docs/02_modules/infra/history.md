@@ -2,10 +2,17 @@
 id: 02_modules/infra/history
 title: Infra History
 version: 1.38
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
+
+## 2026-11-21 — Урок курса в браузере
+
+Лёгкая статика lesson.html размещена в прежней cabinet и сверена по SHA-256. Сервер опубликован в production Vercel: `dpl_DQHDZz9aNhh5sbo8VcJa3xdKryAN`, READY, alias harmonizer-ten.vercel.app; рабочий API через harmonizer.zamkovoi.yoga проверен. Новых env/миграций и изменений DNS/SSL нет. Проверены 58 тестов, TypeScript web/native и UI шириной 375/1280 с Vimeo; native-билд и проверочные отправки не запускались.
+
+Повторная выкладка того же `lesson.html` (7693 байт, SHA-256 совпал с репозиторием): шапка — название курса, в карточке только урок, внизу копирайт текущего года. DNS/SSL и кабинет `index.html` не менялись.
+
 
 ## 2026-11-19 — SSL harmonizer.zamkovoi.yoga и guard-инструкция
 

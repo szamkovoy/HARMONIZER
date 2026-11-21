@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveExactEmailCopy } from './emailCopy';
 import { applyEmailPlaceholders,wrapMarketingEmailHtml } from './emailTemplate';
 import { getMarketingTransportProfile,htmlToPlaintext,sendMarketingEmail,sleep } from './marketingMail';
+import {personalizeCourseLessonEmail} from '@shared/courseLessonEmail';
 
 export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
  let q=db.from('course_enrollments').select('id').eq('status','active').eq('mail_paused',false).lte('next_mail_at',new Date().toISOString()).order('next_mail_at').limit(30);
@@ -18,12 +19,13 @@ export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
   try {
    if(getMarketingTransportProfile().provider!=='resend')throw new Error('Course delivery requires the configured Resend transport for idempotent sends');
    const {data:a,error:ae}=await db.from('email_automation_enrollments').select('contact_id,automation_id').eq('course_enrollment_id',e.id).eq('status','active').single();if(ae)throw ae;
-   let stepId:string;
+   let stepId:string;let linkedLessonId:string|undefined;
    if(e.mail_schedule){
     stepId=e.mail_schedule[e.mail_position]?.stepId;
     if(!stepId)throw new Error('Intensive email position is invalid');
    }else if(e.mail_position<e.schedule.length){
     const lessonId=e.schedule[e.mail_position]?.lessonId;
+    linkedLessonId=lessonId;
     const {data:l,error:le}=await db.from('course_lessons').select('email_step_id').eq('id',lessonId).eq('course_slug',e.course_slug).single();if(le)throw le;
     stepId=l.email_step_id;
    }else if(e.mail_position===e.schedule.length&&e.completion_email_step_id)stepId=e.completion_email_step_id;
@@ -37,7 +39,8 @@ export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
    const copy=resolveExactEmailCopy(user.locale||contact.locale,input)||resolveExactEmailCopy('en',input)||resolveExactEmailCopy('ru',input);if(!copy)throw new Error('Course email copy missing');
    const name=(user.display_name||'').replace(/[<>&"]/g,'');
    subject=applyEmailPlaceholders(copy.subject,{name});
-   const html=wrapMarketingEmailHtml({bodyHtml:applyEmailPlaceholders(copy.htmlBody,{name}),footer:null,lang:copy.locale});
+   const body=linkedLessonId&&copy.locale==='ru'?personalizeCourseLessonEmail(copy.htmlBody,e.id,linkedLessonId):copy.htmlBody;
+   const html=wrapMarketingEmailHtml({bodyHtml:applyEmailPlaceholders(body,{name}),footer:null,lang:copy.locale});
    const result=await sendMarketingEmail({to:contact.email,subject,html,text:htmlToPlaintext(html),locale:copy.locale,idempotencyKey:`course/${e.id}/${e.mail_position}`});
    if(result.ok)resendId=result.resendId;else failure=result.detail;
   }catch(error){failure=error instanceof Error?error.message:String(error);}

@@ -2,6 +2,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {courseMarkdownHtml} from '../_legacy_web/app/api/_utils/courseSchedule.ts';
 import {courseEmailHeaderHtml} from './courses-content.mjs';
+import {prepareCourseLessonEmailHtml} from '../_legacy_web/shared_core/courseLessonEmail.ts';
 
 export const courseStableId=name=>{const b=createHash('sha256').update(name).digest().subarray(0,16);b[6]=(b[6]&15)|80;b[8]=(b[8]&63)|128;const h=b.toString('hex');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;};
 const q=s=>`'${String(s).replaceAll("'","''")}'`;
@@ -18,9 +19,10 @@ export function generateCourseImportSql(course,{replaceEmails=false,replaceLesso
  const lines=['-- Generated from approved author text. Starts no enrolments and sends no email.','begin;',
  `insert into public.email_automations(id,key,name,trigger_type,is_active) values('${auto}',${q('course_'+course.slug)},${q(course.title)},'course',false) on conflict(id) do nothing;`,
  `insert into public.courses(slug,title,kind,landing_url,access_days,day_card_extra_days,webinar_extra_days,automation_id,source_hash) values(${q(course.slug)},${q(course.title)},${q(course.kind)},${q(landingUrl)},${course.accessDays},${course.dayCardExtraDays},${course.webinarExtraDays},'${auto}',${q(course.sourceHash)}) on conflict(slug) do update set title=excluded.title,source_hash=excluded.source_hash;`];
- function letter(email,step,name,position,blockId){
+ function letter(email,step,name,position,blockId,hasLesson=true){
   if(typeof email?.subject!=='string'||!email.subject.trim()||typeof email?.markdown!=='string'||!email.markdown.trim())throw new Error('Нужны тема и текст каждого письма');
-  const body=courseMarkdownHtml(email.markdown.replaceAll('{first_name}','{{name}}'));
+  const authorBody=courseMarkdownHtml(email.markdown.replaceAll('{first_name}','{{name}}'));
+  const body=hasLesson?prepareCourseLessonEmailHtml(authorBody):authorBody;
   const html=courseEmailHeaderHtml(course.emailHeader)+body;
   const blocks=[...(course.emailHeader?[course.emailHeader]:[]),{id:blockId,type:'text',html:body,align:'left',fontFamily:'system',fontSize:'md',marginTop:0,marginBottom:0}];
   const update=replaceEmails?'do update set subject=excluded.subject,subject_i18n=excluded.subject_i18n,html_body=excluded.html_body,html_body_i18n=excluded.html_body_i18n,blocks_i18n=excluded.blocks_i18n':'do nothing';
@@ -36,7 +38,7 @@ export function generateCourseImportSql(course,{replaceEmails=false,replaceLesso
  }
  if(course.completionEmail){
   const step=courseStableId(`course-completion:${course.slug}`);
-  letter(course.completionEmail,step,'Завершение практикума',course.lessons.length+1,`${course.slug}-completion-text`);
+  letter(course.completionEmail,step,'Завершение практикума',course.lessons.length+1,`${course.slug}-completion-text`,false);
   lines.push(`do $$begin if exists(select 1 from public.courses where slug=${q(course.slug)} and (day_card_extra_days<>3 or (completion_email_step_id is not null and completion_email_step_id<>'${step}'::uuid))) then raise exception 'Completion configuration differs; review before replacing';end if;end$$;`);
   lines.push(`update public.courses set completion_email_step_id='${step}' where slug=${q(course.slug)};`);
  }

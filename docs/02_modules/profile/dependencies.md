@@ -2,7 +2,7 @@
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
 version: 1.17
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -93,3 +93,5 @@ code_refs:
 - **Race `profileLoading`:** экраны, не ждущие готовности профиля, могут один кадр отрисовать пустые поля.
 
 courses: интенсив без архива возвращает только сегодняшний урок; после последней местной полуночи — общая карточка истёкшего доступа. Название меняется с локалью приложения.
+
+`courses`: общий courseAccessNotice/hasCourseAccess в shared_core обеспечивает одну точку изменения сообщения и границы с новой браузерной страницей; native modules/courses/strings.ts сохраняет прежний экспорт через реэкспорт общего словаря.

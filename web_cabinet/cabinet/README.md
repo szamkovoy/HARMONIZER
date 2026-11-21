@@ -16,3 +16,8 @@ API: `API_BASE` в `index.html` (Vercel). Оферта: `{API}/cabinet/offer/{la
 Визиты: Яндекс.Метрика `39862855` в `index.html` (async после boot).
 
 Подробнее: `docs/02_modules/account_web/`.
+
+## Урок по ссылке из письма
+
+`lesson.html` → `https://zamkovoi.yoga/cabinet/lesson.html?enrollment=<UUID>&lesson=<ID>`.
+Отдельная страница без входа, с одним уроком. Сверху название курса, в карточке только урок, внизу копирайт текущего года. Публиковать только этот файл рядом с index.html, без замены кабинета. API_BASE прежний; CORS задаётся существующим ACCOUNT_CABINET_ALLOWED_ORIGIN. Правила доступа/сообщение общие с Profile на сервере courses. CSS-палитра задаётся семантическими переменными в начале файла. Vimeo должен видеть Referer origin zamkovoi.yoga, поэтому не задавать для iframe no-referrer. Контент не вшит в HTML, а загружается из базы; будущие правки урока видны без повторной загрузки файла на хостинг.

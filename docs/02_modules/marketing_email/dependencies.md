@@ -2,7 +2,7 @@
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
 version: 1.20
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -68,3 +68,5 @@ code_refs:
 - `email_events` без sent/delivered: если когда-нибудь понадобится история «когда именно доставлено», её нет — есть только текущий статус строки отправки.
 
 courses: optional mail_schedule выбирает два письма интенсива; старые grants с null продолжают прежние учебные шаги. Окончание тестового просмотра не сбрасывает email cursor.
+
+`courses`: общий `shared_core/courseLessonEmail.ts` персонализирует браузерную RU-кнопку по уже закреплённым grant/lesson, не меняя lease/claim/finish/idempotency. Шаблон содержит placeholder, конкретный URL формируется только при учебной отправке.

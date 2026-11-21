@@ -2,7 +2,7 @@
 id: 02_modules/profile/spec
 title: Profile Spec
 version: 1.46
-updated: 2026-11-19
+updated: 2026-11-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -143,3 +143,5 @@ code_refs:
 ## Ежедневные интенсивы
 
 Общая карточка «Мои курсы» включает интенсивы: доступный интенсив открывает только текущий день, истёкший — прежнее окно с периодом и объяснением закрытого доступа, без архива. Название интенсивов локализуется общей локалью приложения. Сортировка по началу покупки/прохождения остаётся прежней.
+
+Экран `/course/[id]` использует общие `shared_core/courseAccess.ts` и `courseStrings.ts` для проверки accessUntil и notice истёкшего доступа. Тот же результат используется браузером урока. Даты форматируются в сохранённой timezone прохождения (optional поле CourseView; прежний fallback при отсутствии). Новая логика доступности или покупки в Profile не добавлена.

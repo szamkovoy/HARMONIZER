@@ -2,7 +2,7 @@
 id: 02_modules/account_web/spec
 title: Account Web (Личный кабинет) Spec
 version: 1.45
-updated: 2026-11-17
+updated: 2026-11-21
 depends_on: [02_modules/subscription/spec, 02_modules/profile/spec, 02_modules/i18n/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -246,3 +246,7 @@ else                                →  fail-closed
 ## 6. Текущее состояние и планируемое
 
 Реализовано: OTT-цепочка, kill-switch, Realtime/foreground-подхват, модалки, профили шлюзов RU/INT (Lava/ЮKassa), ЮKassa recurring (save method + daily cron + revoke на cancel/wipe), разовая оплата вебинара/книги, цены по гео. Планируется: читалка книги; курсы/интенсивы; годовая периодичность Lava; чеки 54-ФЗ.
+
+## Отдельный урок без входа (21.11.2026)
+
+В существующей папке `/www/zamkovoi.yoga/cabinet/` размещается `lesson.html` — независимая лёгкая RU-страница курса, без входа/OTT и операций кабинета. URL: `?enrollment=<course enrollment UUID>&lesson=<lesson ID>`. Через существующий API_BASE `https://harmonizer.zamkovoi.yoga` читает anonymous GET `/api/courses/browser`. Доступ и сообщение об окончании принадлежат courses и общие с Profile. Шапка — название курса, в карточке только название урока, внизу `© {текущий год} Замковой С.Л.`. Остальные экраны кабинета, платежи, DNS/SSL и прокси не меняются. Vimeo iframe получает Referer origin zamkovoi.yoga; тема настраивается переменными в одном CSS-блоке.
