@@ -18,12 +18,15 @@ type Automation = {
     id: string;
     position: number;
     delay_hours: number;
+    course_delay_days?: number | null;
+    course_timing_label?: string;
     name?: string | null;
     subject: string;
   }[];
 };
 
 const TRIGGER_RU: Record<string, string> = {
+  course: "Уроки курса",
   manual: "Вручную",
   account_registered: "Регистрация в Гармонизаторе (мастер пройден)",
   app_first_open: "Первый запуск (legacy)",
@@ -139,7 +142,9 @@ export default function AdminEmailAutomationsPage() {
                   <ol className="mt-3 list-decimal space-y-1 border-t border-zinc-100 pl-5 pt-3 text-sm text-zinc-600">
                     {a.steps.map((s) => (
                       <li key={s.id}>
-                        +{s.delay_hours}ч · {emailListTitle(s.name, s.subject)}
+                        {a.trigger_type === "course"
+                          ? s.course_timing_label ?? (s.course_delay_days == null ? "—" : `${s.course_delay_days}д`)
+                          : `+${s.delay_hours}ч`} · {emailListTitle(s.name, s.subject)}
                       </li>
                     ))}
                   </ol>

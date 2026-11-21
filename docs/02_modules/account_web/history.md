@@ -1,9 +1,42 @@
 ---
 id: 02_modules/account_web/history
 title: Account Web History
-version: 1.51
-updated: 2026-11-17
+version: 1.52
+updated: 2026-11-21
 ---
+
+## 2026-11-21 — Урок курса в браузере
+
+В существующей cabinet добавлен независимый lesson.html без авторизации, использующий courses API; платежи и OTT не изменены. Шапка — название курса, в карточке только урок, внизу копирайт текущего года.
+
+
+## 2026-11-18 — Переход из пустой карточки курсов
+
+`courses` использует существующие `openAccountCabinet` и `useAccountLinksEnabled` для кнопки «Личный кабинет»; протокол OTT и кабинет не изменяются. Парная зависимость добавлена в MAP/dependencies.
+
+## 2026-11-17 (ночь) — Сверка продлений Lava по ответу поддержки
+
+Повод: ответы техподдержки Lava.Top на наши пять вопросов (переписка Сергея). П.1 дал точку API для сверки продлений (P1-2 аудита и открытый пункт open_questions), П.2 подтвердил терминальность `renewal.payment.failed` (ретраи списания +8ч/+24ч, вебхук — после последней попытки, подписка у Lava закрывается сама, `subscription.cancelled` следом не приходит), П.3 подтвердил нашу схему v3 (`return_url`-поля и `paymentProvider`) / v2-fallback (`paymentMethod`), П.4 — Stripe недоступен (компенсации уже в продукте: 30 дней, PayPal, страница отказа), П.5 — строки FAILED в истории вебхуков Lava это журнал повторных доставок; вероятно, мёртвый адрес старого вебхука — удалить конфиг в ЛК Lava руками.
+
+- **`lava.ts`**: новый `getLavaSubscription(contractId)` — `GET /api/v1/subscriptions/{id}`, 404 → null, таймаут 8с. Форма ответа сверена с live-API: `subscriptionStatus` (ACTIVE/FAILED), `recurrentPayments[{datetime,status,amount,currency,fee}]` новые первыми. `GET /api/v2/invoices` для сверки не годится: query-фильтры игнорируются, дефолт 20 записей.
+- **`lavaReconcile.ts`**: `reconcileLavaSubscriptionRenewals(db)` — active-подписки Lava с истёкшим `current_period_end` (окно 30 дней; в норме SQL-lapse закрывает их на 72ч, окно шире как сетка на простой сверки). Успешный charge новее конца периода (допуск 6ч) → тот же идемпотентный `apply_subscription_renewal` (не укорачивает период, не воскрешает cancelled) + settlement (идемпотентен по `paid_at`) → `lava.reconcile.renewal.applied`. `subscriptionStatus=FAILED` → контракт cancelled (`renewal: reconcile: subscription FAILED at Lava`) + письма покупателю и админу как у вебхука (дедуп алерта по contract+event; DELETE в Lava не нужен — закрылось само). Списание ещё ретраится/не прошло → waiting. Чистые функции `lavaRenewalCandidate` / `findMissedLavaRenewal` / `lavaSubscriptionTerminallyFailed` покрыты тестами (`lavaReconcile.test.ts`, 8 новых).
+- **Cron `lava-reconcile`** вызывает сверку после первой-оплатной сверки, отдельным try/catch; результат в JSON ответа (`renewals`).
+- Проверки: 881 тест `_legacy_web` зелёные, `tsc --noEmit` чист, smoke на live-API (контракт Audrone с проваленным продлением — missed=none/terminal=true; активная подписка — waiting; симуляция потерянного успешного charge — найден). В рабочей БД кандидатов сверки сейчас нет (только чтение).
+- Не менялись: мобильный клиент, БД-схема (миграций нет), вебхук-роут. Закрыт пункт open_questions «Сверка потерянных продлений Lava и закрытие на стороне провайдера».
+
+## 2026-11-17 (вечер) — Виджеты: три независимых пути и видимая плашка вместо молчаливой пустоты
+
+Повод: 17.11 около 15:20–15:40 МСК формы оплаты на `zamkovoi.yoga/consult` молча пропали у всех посетителей (подтверждено в браузере Codex: теги `<script>` в DOM есть, `data-hz-mounted` нет — `widget.js` не загрузился через прокси REG.RU). Причина — единственная точка отказа: и скрипт, и API шли через PHP-прокси на shared-хостинге REG.RU и его нестабильное плечо РФ→Vercel (запиненные IP Vercel, блокируемые/дросселируемые РКН).
+
+- **Supabase Edge Function `hz-proxy`** (`supabase/functions/hz-proxy/index.ts`, задеплоена в production): публичный прокси только `/api/widget/*` → `harmonizer-ten.vercel.app`; передаёт IP посетителя как `X-Harmonizer-Client-Ip` (как REG.RU-прокси). Проверена из Амстердама: GET-конфиг 200, POST доходил, чужие пути 404. Доступность `supabase.co` из РФ не проверена — см. open_questions.
+- **`widget.js`**: атрибут `data-api` (база API; без него — origin скрипта), цепочка баз `data-api` → Supabase → прямой Vercel, сетевой сбой или 5xx переносит запрос на следующую базу (конфиг 8 с, счёт 25 с на базу). Полный отказ больше не молчалив: локализованная плашка «форма временно не загрузилась» (8 локалей зашиты в файл) + автоповтор цепочки каждые 20 с. Тесты: `widgetScript.test.ts` 17 шт. (6 новых: порядок баз, фолбэк конфига, плашка+повтор, фолбэк чекаута на сбой и 5xx, совместимость `apiBase`).
+- **PHP-прокси REG.RU** (`deploy/reg-ru-harmonizer-proxy.php`, заливается вручную на оба размещения): 8 IP Vercel вместо 4 (проверены DNS-ответами 17.11), connect-timeout 6→3 с, `PATH_PREFIX='auto'` (один файл и для корня поддомена, и для папки `/hz`), кэш конфигов виджетов (только GET `/api/widget/*`): свежие ≤60 с отдаются не трогая Vercel, при мёртвом первом IP несвежая копия отдаётся через один connect-timeout (~3 с), при 5xx Vercel — тоже; POST и прочее не кэшируются. Протестировано локально на PHP 8.5: live/fresh/stale/502/префикс/POST; `curl_close()` убран (no-op с PHP 8.0, deprecation с 8.5 портил тело ответа).
+- **Размещение `/hz` на `zamkovoi.yoga`** (`deploy/hz/.htaccess`): `widget.js` — статикой с диска хостинга (PHP не участвует), `/hz/api/*` — через `proxy.php`. Старые вставки на `harmonizer.zamkovoi.yoga` продолжают работать; обновление их `widget.js` приедет со следующим production-деплоем Vercel (рабочее дерево в тот момент содержало незакоммиченную пилотную работу — деплой не делался).
+- Кабинет и приложение не менялись: их трафик выигрывает только от расширения списка IP и кэша на поддоменном прокси.
+
+### Развертывание на хостинге (вечер, выполнено агентом через панель ISPManager по кредам REG_PANEL)
+
+По просьбе Сергея файлы залиты агентом напрямую (ISPManager API: GET-чтения и действия с `authinfo`, записи — POST из сессии панели с заголовком `CSRF-TOKEN`; «загрузка по URL» панели создаёт битые симлинки, поэтому файлы стянуты с Vercel серверным `fetcher.php` через запиненные IP). Итог на хостинге: `/www/zamkovoi.yoga/hz/` — widget.js 25 552 B (совпадает с репозиторием байт-в-байт), proxy.php 11 662 B, .htaccess 413 B; поддомен `index.php` заменён на новый прокси, бэкап `index.backup-20261117.php` (5 155 B) рядом; временные помощники удалены. Проверено снаружи: `/hz/widget.js` 200+diff ok; `/hz/api/widget/:id` 200 (`X-Hz-Widget-Cache: live`, повторный — `fresh`); поддомен: конфиг/сессия/pay-страницы/админка/checkout-honeypot все штатно; E2E на живой `/consult`: 4/4 формы. Vercel production `harmonizer-5pebvxi3z` (widget.js + `hz-hosting/*` + шаблон кода вставки в админке — новый формат). Задеплоена также пере-версия `hz-proxy` с `charset=utf-8` (Safari на iOS показывал сырой JSON кракозябрами). Доступность supabase.co из РФ подтверждена телефоном Сергея без VPN. Переиспользуемый обновлятор хостинга — `deploy/hz/update-from-vercel.php`.
 
 ## 2026-11-17 — Выпуск исправлений продления
 

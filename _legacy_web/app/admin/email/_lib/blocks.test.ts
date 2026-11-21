@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { blocksToHtml, createEmptyBlock, type EmailBlock } from "./blocks";
+import { emailTextBlockHtml, sanitizeEmailBlocks, parseBlocksI18n, blocksToHtml, createEmptyBlock, type EmailBlock } from "./blocks";
 
 describe("blocksToHtml image dimensions", () => {
   it("emits integer width/height so clients can reserve space", () => {
@@ -32,4 +32,20 @@ describe("blocksToHtml image dimensions", () => {
     expect(block.type).toBe("image");
     if (block.type === "image") expect(block.width).toBe("100%");
   });
+});
+
+describe('course email spacing through editing and saving',()=>{
+ it.each(['<p></p>','<p><br></p>','<p>&nbsp;</p>'])('renders empty paragraphs %s in the editor and survives repeated saves',empty=>{
+  const authored=`<p>Здравствуйте, {{name}}!</p>${empty}${empty}<p>Текст<br>Подпись</p>`;
+  const block={...createEmptyBlock('text'),type:'text' as const,html:authored};
+  const before=blocksToHtml([block]);
+  const editable=emailTextBlockHtml(block);
+  expect(editable.match(/height:1.55em/g)).toHaveLength(2);
+  expect(editable).toContain('Текст<br>Подпись');
+  let saved:EmailBlock[]=[{...block,html:editable}];
+  for(let i=0;i<3;i++){
+   saved=parseBlocksI18n(JSON.parse(JSON.stringify({ru:sanitizeEmailBlocks(saved)}))).ru;
+   expect(blocksToHtml(saved)).toBe(before);
+  }
+ });
 });

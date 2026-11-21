@@ -1,3 +1,4 @@
+import {MyCoursesCard} from "@/modules/courses/CourseCards";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
@@ -864,6 +865,8 @@ export default function ProfileTabRoute() {
             })();
           }}
         />
+
+        <MyCoursesCard />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceBorder }]}>
           <AppText variant="sectionTitle">{t("support.title")}</AppText>

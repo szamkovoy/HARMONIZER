@@ -31,6 +31,7 @@ type Automation = {
 };
 
 type Step = {
+  course_lesson_id?: string|null;
   id: string;
   name?: string | null;
   position: number;
@@ -50,6 +51,7 @@ type Step = {
 };
 
 const TRIGGER_OPTS: { value: string; label: string }[] = [
+  { value: "course", label: "Уроки курса (календарь курса)" },
   { value: "account_registered", label: "Регистрация в Гармонизаторе (мастер пройден)" },
   { value: "subscription_expired", label: "Не продлил подписку (через 3 дня)" },
   { value: "inactive", label: "Неактивен 14 дней" },
@@ -79,7 +81,7 @@ export default function AdminEmailAutomationDetailPage() {
       );
       setAutomation(data.automation);
       setName(data.automation.name);
-      setTriggerType(data.automation.trigger_type);
+      setTriggerType(data.automation?.trigger_type);
       setSteps(data.steps);
       setError(null);
     } catch (err) {
@@ -290,6 +292,7 @@ export default function AdminEmailAutomationDetailPage() {
           <select
             className={`${inputCls} mt-1`}
             value={triggerType}
+            disabled={automation?.trigger_type === "course"}
             onChange={(e) => setTriggerType(e.target.value)}
           >
             {TRIGGER_OPTS.map((o) => (
@@ -299,14 +302,14 @@ export default function AdminEmailAutomationDetailPage() {
             ))}
           </select>
         </label>
-        <p className="text-xs text-zinc-400">
+        {automation?.trigger_type === "course" ? <p className="text-xs text-zinc-400">Письма привязаны к материалам курса. В обычном прохождении первый урок и письмо выдаются сразу, следующие уроки — в полночь, письма — с 07:00 по часовому поясу прохождения. Задержки отдельных писем в этом редакторе не меняют календарь курса. Пауза останавливает письма; открытие уроков продолжается.</p> : <p className="text-xs text-zinc-400">
           Регистрация — после конца мастера Harmonizer (не OTP). C1 — через 3 дня после
           окончания платной подписки. C2 — 14 дней без захода в приложение. Выключение —
           пауза: новые события не зачисляются. У тех, кто уже в цепочке, оставшееся
           ожидание до следующего письма замораживается и продолжается после включения.
           Включение заново не догоняет паузу для новых событий, только с этого момента.
           Delay первого письма — от срабатывания; у следующих — от предыдущего письма.
-        </p>
+        </p>}
       </section>
 
       <section className="space-y-3">
@@ -314,6 +317,7 @@ export default function AdminEmailAutomationDetailPage() {
           <h2 className="text-sm font-semibold text-zinc-800">Письма в цепочке</h2>
           <button
             type="button"
+            disabled={automation?.trigger_type === "course"}
             onClick={() => void addStep()}
             className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white"
           >
@@ -335,7 +339,7 @@ export default function AdminEmailAutomationDetailPage() {
                   href={`/admin/email/automations/${id}/steps/${s.id}`}
                   title={emailListTitle(s.name, s.subject)}
                   subtitle={[
-                    `Письмо ${index + 1} · +${s.delay_hours}ч`,
+                    automation?.trigger_type === "course" ? s.course_lesson_id ? `Материал ${index + 1}` : `Письмо ${index + 1} · без нового урока` : `Письмо ${index + 1} · +${s.delay_hours}ч`,
                     emailListSubjectSubtitle(s.name, s.subject),
                   ]
                     .filter(Boolean)
@@ -357,7 +361,8 @@ export default function AdminEmailAutomationDetailPage() {
                   }
                   trailingActions={
                     <>
-                      <button
+                      {s.course_lesson_id?<button type="button" className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-700" onClick={e=>{e.preventDefault();e.stopPropagation();router.push(`/admin/courses/lessons/${s.course_lesson_id}`);}}>Урок</button>:null}
+                      {automation?.trigger_type !== 'course'?<><button
                         type="button"
                         title="Вверх"
                         onClick={(e) => {
@@ -389,10 +394,10 @@ export default function AdminEmailAutomationDetailPage() {
                         className="rounded border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </button></>:null}
                     </>
                   }
-                  below={
+                  below={automation?.trigger_type === 'course'?null:
                     <label className="block text-xs text-zinc-500">
                       Задержка (часов)
                       <input

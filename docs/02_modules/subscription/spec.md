@@ -1,7 +1,7 @@
 ---
 id: 02_modules/subscription/spec
 title: Subscription Spec
-version: 1.16
+version: 1.17
 updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
@@ -63,6 +63,9 @@ code_refs:
 Вход с точки зрения данных: **идентификатор пользователя не передаётся в API модуля** — используется уже загруженный объект профиля из auth/bootstrap; поля подписки читаются из строки `users` (см. `AccessBridge` в `app/_layout.tsx`).
 
 ## 3. Внутренняя архитектура
+
+Tab layout дополнительно допускает «День», когда `courses.some(showsOnDay)`: собственный активный курс с текущим материалом и неистёкшим `displayUntil`. Это отдельный учебный доступ, не новый тариф/FeatureKey; `day_planning` по-прежнему управляет планировщиком и prefetch. После конца показа free возвращается к обычной видимости вкладок.
+
 
 - **`getEffectiveAccess`** (ядро): при непустом `devOverride` возвращает выбранный тариф с `source: "dev_override"`. Иначе, если есть **активный оплаченный** тариф (`paidTierFromRow`), он и есть эффективный уровень — ещё идущее демо при этом не действует. Иначе, если `trial_expires_at` в будущем, эффективный тариф **`master`** с `source: "trial"` и подписью пробного доступа (trial даёт набор фич «Мастера», **кроме** вебинаров). Иначе базовый тариф из **`baseTierFromRow`** (`modules/access/core/paidAccess.ts`): значения `oracle` / `practitioner` / `master` из БД проходят как есть при непустом сроке (`membership_expires_at` NULL или в будущем); истёкший грант → `free`; legacy **`premium` маппится в `oracle`**; остальное — `free`.
 - **`modules/access/core/paidAccess.ts`** — единственный источник правила платного доступа по сырым полям `users` (`paidTierFromRow`, `hasActiveTrial`, `hasEffectivePremium`, `baseTierFromRow`, `accessModeFromRow`). Используется клиентом (`access.tsx`, `useDayContent`, `Communicator`) и сервером (`userModelTier.ts`, `global-content`) — vendored-копия для Vercel синхронизируется `scripts/sync-vercel-server-modules.mjs`; Edge-функция `precompute-daily-forecasts` держит зеркало (Deno bundler не резолвит `modules/`).

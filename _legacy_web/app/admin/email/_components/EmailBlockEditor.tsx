@@ -15,6 +15,8 @@ import { adminFetch } from "../../_lib/adminApi";
 import { sanitizeEmailRichHtml } from "../../../api/_utils/emailRichHtml";
 import {
   createEmptyBlock,
+  blocksToHtml,
+  emailTextBlockHtml,
   enrichImageBlockDimensions,
   FONT_FAMILY_OPTIONS,
   emailImagePreviewSrc,
@@ -303,7 +305,7 @@ function BlockPreview({ block, onOpen }: { block: EmailBlock; onOpen: () => void
         type="button"
         onClick={onOpen}
         className="w-full px-3 py-2 text-left text-sm"
-        dangerouslySetInnerHTML={{ __html: block.html || "<p><em>Пусто</em></p>" }}
+        dangerouslySetInnerHTML={{ __html: block.html ? blocksToHtml([block]) : "<p><em>Пусто</em></p>" }}
       />
     );
   }
@@ -474,7 +476,7 @@ function BlockSettingsModal({
                 }}
                 contentEditable
                 suppressContentEditableWarning
-                dangerouslySetInnerHTML={{ __html: block.html }}
+                dangerouslySetInnerHTML={{ __html: emailTextBlockHtml(block) }}
                 onPaste={(e) => {
                   e.preventDefault();
                   const raw =

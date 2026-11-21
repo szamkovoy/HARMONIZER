@@ -1,7 +1,12 @@
 /*!
  * HARMONIZER landing payment widget.
- * Embed: <script src="https://harmonizer.zamkovoi.yoga/widget.js" data-id="WIDGET_ID" data-lang="auto" async></script>
- * data-lang: ru | en | de | fr | it | es | pt | nl | auto (browser language; widget main language if no translation).
+ * Embed: <script src="https://zamkovoi.yoga/hz/widget.js" data-id="WIDGET_ID" data-lang="auto" data-api="https://zamkovoi.yoga/hz" async></script>
+ *   data-lang: ru | en | de | fr | it | es | pt | nl | auto (browser language; widget main language if no translation).
+ *   data-api: base URL of the widget API (origin, optionally with a path prefix).
+ *     Legacy embeds without data-api use the script's own origin.
+ * The config is fetched from data-api first; if that path fails the script
+ * retries independent fallbacks (Supabase edge proxy, direct Vercel) so a
+ * REG.RU → Vercel hiccup does not leave the landing page without a form.
  * Each <script> renders its own independent form right where it stands.
  * After YooKassa, the return URL has ?hz_paid=<widgetId>. That load shows
  * the thank-you text and drops the parameter, so a refresh shows the form.
@@ -77,6 +82,41 @@
   }
 
   var returnUnpaidId = consumeUnpaidReturn();
+
+  /**
+   * Independent fallback API bases, tried after data-api (or the script origin):
+   * 1) Supabase edge function — a second path that does not depend on the
+   *    REG.RU shared-hosting proxy or its throttled RU → Vercel leg;
+   * 2) direct Vercel — works everywhere except networks that block Vercel.
+   */
+  var FALLBACK_API_BASES = [
+    "https://vsdmphhczmcgfrvbwodp.supabase.co/functions/v1/hz-proxy",
+    "https://harmonizer-ten.vercel.app",
+  ];
+
+  /** Per-origin timeouts and the background retry cadence for the config. */
+  var CONFIG_TIMEOUT_MS = 8000;
+  var CHECKOUT_TIMEOUT_MS = 25000;
+  var LOAD_RETRY_MS = 20000;
+
+  /** Plate text when no API base answered at all (config unreachable). Eight locales. */
+  var LOAD_FAIL_TEXTS = {
+    ru: "Форма оплаты временно не загрузилась. Мы продолжаем пробовать — обновите страницу через минуту или напишите на sergei@zamkovoi.yoga",
+    en: "The payment form has not loaded yet. We keep retrying — refresh the page in a minute or email sergei@zamkovoi.yoga",
+    de: "Das Zahlungsformular konnte noch nicht geladen werden. Wir versuchen es weiter — aktualisieren Sie die Seite in einer Minute oder schreiben Sie an sergei@zamkovoi.yoga",
+    fr: "Le formulaire de paiement n'a pas pu se charger. Nous réessayons — actualisez la page dans une minute ou écrivez à sergei@zamkovoi.yoga",
+    it: "Il modulo di pagamento non si è caricato. Continuiamo a provare — aggiorna la pagina tra un minuto o scrivi a sergei@zamkovoi.yoga",
+    es: "El formulario de pago no se ha cargado. Seguimos intentándolo — actualiza la página en un minuto o escribe a sergei@zamkovoi.yoga",
+    pt: "O formulário de pagamento não carregou. Continuamos a tentar — atualize a página dentro de um minuto ou escreva para sergei@zamkovoi.yoga",
+    nl: "Het betaalformulier is nog niet geladen. We blijven het proberen — vernieuw de pagina over een minuut of schrijf naar sergei@zamkovoi.yoga",
+  };
+
+  var LOAD_FAIL_CSS = [
+    ":host{display:block;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;}",
+    ".hz-loadfail{background:#fff7ed;color:#9a3412;border:1px solid #fdba74;border-radius:10px;",
+    "padding:12px 14px;font-size:15px;line-height:1.45;text-align:left;}",
+  ].join("");
+
 
   function pickLocale(dataLang) {
     var raw = String(dataLang || "").trim().toLowerCase();
@@ -204,7 +244,9 @@
   /**
    * Render a widget into `host` from config data (shape of GET /api/widget/:id).
    * opts.preview — admin preview: no submit, no thank-you redirect logic.
-   * opts.apiBase — origin for checkout; opts.thanks — render the thank-you state;
+   * opts.apiBases — ordered API bases for checkout (preferred first); a lone
+   * opts.apiBase is accepted for compatibility and wrapped into a one-item list.
+   * opts.thanks — render the thank-you state;
    * opts.unpaid — show the "payment not completed" notice above the button.
    */
   function render(host, data, opts) {
@@ -394,39 +436,60 @@
           showError(t.errVpn || t.errGeneric);
         }, STALL_MS);
       }
-      fetch(opts.apiBase + "/api/widget/" + encodeURIComponent(data.id) + "/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name,
-          email: email,
-          method: state.method,
-          via: state.via || undefined,
-          lang: data.locale,
-          pageUrl: window.location.href,
-          website: honeypot.value,
-        }),
-      })
-        .then(function (res) {
-          return res.json().catch(function () {
-            return {};
-          });
-        })
-        .then(function (out) {
-          if (out && out.paymentUrl) {
-            window.location.href = out.paymentUrl;
-            return;
-          }
-          var key = (out && ERROR_TEXT[out.error]) || "errGeneric";
-          if (out && out.error === "invalid_email") emailInput.classList.add("bad");
-          if (out && out.error === "invalid_name" && nameInput) nameInput.classList.add("bad");
-          showError(t[key] || t.errGeneric);
-          setBusy(false);
-        })
-        .catch(function () {
+      // Invoice creation goes to the base that served the config first; a network
+      // error or a 5xx there silently moves to the next independent base.
+      var bases = (opts.apiBases && opts.apiBases.length)
+        ? opts.apiBases
+        : (opts.apiBase ? [opts.apiBase] : []);
+      function sendCheckout(pos) {
+        var base = bases[pos];
+        if (!base) {
           showError(t.errGeneric);
           setBusy(false);
-        });
+          return;
+        }
+        timedFetch(base + "/api/widget/" + encodeURIComponent(data.id) + "/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name,
+            email: email,
+            method: state.method,
+            via: state.via || undefined,
+            lang: data.locale,
+            pageUrl: window.location.href,
+            website: honeypot.value,
+          }),
+        }, CHECKOUT_TIMEOUT_MS)
+          .then(function (res) {
+            if (res.status >= 500 && pos + 1 < bases.length) {
+              sendCheckout(pos + 1);
+              return null;
+            }
+            return res.json().catch(function () {
+              return {};
+            }).then(function (out) {
+              if (out && out.paymentUrl) {
+                window.location.href = out.paymentUrl;
+                return;
+              }
+              var key = (out && ERROR_TEXT[out.error]) || "errGeneric";
+              if (out && out.error === "invalid_email") emailInput.classList.add("bad");
+              if (out && out.error === "invalid_name" && nameInput) nameInput.classList.add("bad");
+              showError(t[key] || t.errGeneric);
+              setBusy(false);
+            });
+          })
+          .catch(function () {
+            if (pos + 1 < bases.length) {
+              sendCheckout(pos + 1);
+              return;
+            }
+            showError(t.errGeneric);
+            setBusy(false);
+          });
+      }
+      sendCheckout(0);
     }
 
     if (opts.unpaid) showError(t.errUnpaid || t.errGeneric);
@@ -449,36 +512,146 @@
     });
   }
 
+  function normalizeBase(value) {
+    return String(value || "").trim().replace(/\/+$/, "");
+  }
+
+  /**
+   * API bases to try, in order: data-api → script origin (legacy embeds) → fallbacks.
+   * A base is an origin, optionally with a path prefix (e.g. https://site/hz).
+   */
+  function resolveApiBases(script) {
+    var bases = [];
+    function add(base) {
+      if (!base) return;
+      if (bases.indexOf(base) < 0) bases.push(base);
+    }
+    var declared = normalizeBase(script.getAttribute("data-api"));
+    if (declared) {
+      try {
+        add(new URL(declared, window.location.href).toString().replace(/\/+$/, ""));
+      } catch (e) {
+        add(declared);
+      }
+    } else {
+      try {
+        add(new URL(script.src, window.location.href).origin);
+      } catch (e) {
+        /* no usable origin; fallbacks still apply */
+      }
+    }
+    FALLBACK_API_BASES.forEach(add);
+    return bases;
+  }
+
+  /** fetch with a per-attempt timeout; plain fetch when AbortController is missing. */
+  function timedFetch(url, init, timeoutMs) {
+    if (typeof AbortController !== "function") return fetch(url, init);
+    var controller = new AbortController();
+    var timer = setTimeout(function () {
+      try {
+        controller.abort();
+      } catch (e) {
+        /* ignore */
+      }
+    }, timeoutMs);
+    var merged = { method: "GET" };
+    if (init) {
+      for (var k in init) {
+        if (!Object.prototype.hasOwnProperty.call(init, k)) continue;
+        merged[k] = init[k];
+      }
+    }
+    merged.signal = controller.signal;
+    return fetch(url, merged).then(
+      function (res) {
+        clearTimeout(timer);
+        return res;
+      },
+      function (err) {
+        clearTimeout(timer);
+        throw err;
+      },
+    );
+  }
+
+  /**
+   * GET the widget config from the first API base that answers with a payload.
+   * `done(data, base)` — base is the answer that worked, null when all failed.
+   */
+  function loadWidgetConfig(bases, id, lang, done) {
+    var index = 0;
+    function attempt() {
+      if (index >= bases.length) {
+        done(null, null);
+        return;
+      }
+      var base = bases[index];
+      var url =
+        base + "/api/widget/" + encodeURIComponent(id) +
+        "?lang=" + encodeURIComponent(lang) + "&tz=" + encodeURIComponent(timeZone());
+      timedFetch(url, null, CONFIG_TIMEOUT_MS)
+        .then(function (res) {
+          return res.ok ? res.json() : null;
+        })
+        .then(function (data) {
+          if (data && data.texts) {
+            done(data, base);
+            return;
+          }
+          index += 1;
+          attempt();
+        })
+        .catch(function () {
+          index += 1;
+          attempt();
+        });
+    }
+    attempt();
+  }
+
   function mount(script) {
     if (script.getAttribute("data-hz-mounted")) return;
     script.setAttribute("data-hz-mounted", "1");
     var id = (script.getAttribute("data-id") || "").trim();
     if (!id) return;
-    var apiBase;
-    try {
-      apiBase = new URL(script.src, window.location.href).origin;
-    } catch (e) {
-      return;
-    }
+    var bases = resolveApiBases(script);
+    if (!bases.length) return;
     var host = document.createElement("div");
     host.className = "harmonizer-widget";
     script.parentNode.insertBefore(host, script.nextSibling);
 
     var lang = pickLocale(script.getAttribute("data-lang"));
-    var url =
-      apiBase + "/api/widget/" + encodeURIComponent(id) +
-      "?lang=" + encodeURIComponent(lang) + "&tz=" + encodeURIComponent(timeZone());
-    fetch(url)
-      .then(function (res) {
-        return res.ok ? res.json() : null;
-      })
-      .then(function (data) {
-        if (!data || !data.texts) return;
-        render(host, data, { apiBase: apiBase, thanks: returnPaidId === id, unpaid: returnUnpaidId === id });
-      })
-      .catch(function () {
-        /* widget stays empty; the landing page keeps working */
+
+    function showLoadFail() {
+      var root = host.shadowRoot || host.attachShadow({ mode: "open" });
+      while (root.firstChild) root.removeChild(root.firstChild);
+      root.appendChild(el("style", { text: LOAD_FAIL_CSS }));
+      root.appendChild(el("div", { className: "hz-loadfail", text: LOAD_FAIL_TEXTS[lang] || LOAD_FAIL_TEXTS.ru }));
+    }
+
+    function start() {
+      loadWidgetConfig(bases, id, lang, function (data, base) {
+        if (!data) {
+          // Every path is down right now: say so visibly and keep retrying in
+          // the background — when a path recovers, the form appears by itself.
+          showLoadFail();
+          setTimeout(start, LOAD_RETRY_MS);
+          return;
+        }
+        // The base that answered becomes the first choice for checkout.
+        var ordered = [base].concat(bases.filter(function (b) {
+          return b !== base;
+        }));
+        render(host, data, {
+          apiBases: ordered,
+          thanks: returnPaidId === id,
+          unpaid: returnUnpaidId === id,
+        });
       });
+    }
+
+    start();
   }
 
   function mountAll() {

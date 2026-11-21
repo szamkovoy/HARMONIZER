@@ -400,6 +400,11 @@ verify_jwt = false
 [functions.send-auth-email]
 verify_jwt = false
 
+# Публичный запасной путь для виджетов лендингов (см. docs account_web §3.4).
+[functions.hz-proxy]
+verify_jwt = false
+
+
 [analytics]
 enabled = true
 port = 54327

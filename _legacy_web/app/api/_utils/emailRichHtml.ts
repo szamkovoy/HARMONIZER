@@ -14,6 +14,28 @@ const STYLE_KEEP = new Set([
   "color",
 ]);
 
+/** A filled link is a button. Paste cleanup must not turn it into white text. */
+const BUTTON_STYLE_KEEP = new Set([
+  ...STYLE_KEEP,
+  "background",
+  "background-color",
+  "border",
+  "border-style",
+  "border-color",
+  "border-width",
+  "border-radius",
+  "display",
+  "padding",
+  "font-size",
+  "font-family",
+  "line-height",
+  "mso-line-height-rule",
+]);
+
+function isButtonStyle(style: string): boolean {
+  return /(?:^|;)\s*background(?:-color)?\s*:/i.test(style);
+}
+
 function isDefaultColor(value: string): boolean {
   const v = value.trim().toLowerCase().replace(/\s+/g, "");
   return (
@@ -28,6 +50,8 @@ function isDefaultColor(value: string): boolean {
 
 /** Keep only email-useful declarations; drop Apple/Word font longhands. */
 export function sanitizeInlineStyle(style: string): string {
+  const button = isButtonStyle(style);
+  const allow = button ? BUTTON_STYLE_KEEP : STYLE_KEEP;
   const kept: string[] = [];
   for (const raw of style.split(";")) {
     const part = raw.trim();
@@ -36,10 +60,10 @@ export function sanitizeInlineStyle(style: string): string {
     if (colon < 0) continue;
     const prop = part.slice(0, colon).trim().toLowerCase();
     const val = part.slice(colon + 1).trim();
-    if (!val || !STYLE_KEEP.has(prop)) continue;
-    if (prop === "font-weight" && /^(normal|400)$/i.test(val)) continue;
-    if (prop === "font-style" && /^normal$/i.test(val)) continue;
-    if (prop === "text-decoration" && /^none$/i.test(val)) continue;
+    if (!val || !allow.has(prop)) continue;
+    if (!button && prop === "font-weight" && /^(normal|400)$/i.test(val)) continue;
+    if (!button && prop === "font-style" && /^normal$/i.test(val)) continue;
+    if (!button && prop === "text-decoration" && /^none$/i.test(val)) continue;
     if (prop === "color" && isDefaultColor(val)) continue;
     kept.push(`${prop}:${val}`);
   }

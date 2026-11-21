@@ -1,8 +1,8 @@
 ---
 id: 02_modules/webinars/dependencies
 title: Webinars Dependencies
-version: 3.1
-updated: 2026-07-14
+version: 3.2
+updated: 2026-11-17
 depends_on: [02_modules/subscription/spec, 02_modules/author_presence/spec, 02_modules/admin_panel/spec]
 code_refs:
   [
@@ -17,6 +17,8 @@ code_refs:
 
 ## 1. Зависит от
 
+- **`courses`** — альтернативный источник пропуска: активное обычное прохождение своего пользователя; окно задаёт календарь курса, отзыв синхронизируется триггером.
+
 - **`subscription`** — `webinar_community` для кнопки записи на анонс (сейчас Master); paywall/checkout — будущая точка расширения.
 - **`author_presence` (posts)** — текст письма о записи хранится как неопубликованный `posts.kind='webinar_recording'` и в ленту не попадает. Ранее опубликованная запись исчезает из ленты при следующей отправке письма.
 - **`admin_panel`** — `/admin/webinars*`, `/api/admin/webinars*`, recording upsert route.
@@ -25,6 +27,8 @@ code_refs:
 - **`marketing_email`** — приглашение и письмо о записи уходят через `sendMarketingEmail`, минуя фильтр «только active».
 
 ## 2. От него зависят
+
+- **`courses`** — существующие пропуска/регистрации и приглашения для участника курса без изменения тарифа.
 
 - **`daily_forecast` (Home)** — `UpcomingWebinarBanner` (join-окно до `starts_at+1h`).
 - **`author_presence`** — recording cards в общей ленте «Видео» (анонсы на вкладке не показываются).

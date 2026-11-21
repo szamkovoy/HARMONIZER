@@ -1,8 +1,8 @@
 ---
 id: 02_modules/daily_forecast/dependencies
 title: Daily_forecast Dependencies
-version: 2.22
-updated: 2026-11-14
+version: 2.24
+updated: 2026-11-22
 depends_on: [01_foundation/product_model, 02_modules/astro/spec, 02_modules/subscription/spec, 02_modules/astro/caching_strategy]
 code_refs:
   [
@@ -38,6 +38,9 @@ code_refs:
 
 ## 1. Зависит от
 
+- **`courses`** — `DayCourseCards` загружает и показывает полный текущий урок независимо от `DayPlan`. Данные и ближайший таймер выдачи принадлежат `CoursesProvider`, не суточному Home/DayPlan-кэшу. При доступе только к курсу на free планировщик и его prefetch не вызываются.
+
+
 - **`chakra` (локализованные подписи чакр)**
   - `modules/home/i18n/home.ts`, `DailyRecommendationCard.tsx` — `chakraLabelGenitive(locale, …)` в fallback-рекомендациях.
   - `modules/home/planetChakra.ts` — **`getPlanetChakraMap(locale)`** + JSON (номер/ключ/цвет); `shortLabel`/`chakraName` из `modules/chakra/i18n.ts`.
@@ -60,7 +63,7 @@ code_refs:
 - **`profile`**  
   - `useDayContent` через `useAuth()` берёт `tz`, `lat`/`lon`, birth-поля, tier/trial для `scopeKey` и режима доступа. Геолокация **не блокирует** загрузку дня: last GPS из профиля/`userLocationProfileCache`, иначе fallback; `acquireAndPersistUserCoordinates` в фоне. Без coords хук читает **async `loadDayContentCacheRelaxed`**; при GPS, который не совпал с ключом прогрева (онбординг писал место рождения) — тоже relaxed, без повторного LLM. Для paid-home именно `users.birth_date` решает, можно ли запускать персональный прогноз; отдельный клиентский fetch `user_natal_charts` больше не считается обязательным блокером первого рендера. **`app/(tabs)/index.tsx`** передаёт `expectedBirthFingerprint` в `fetchActiveNatalProfileCached` для UI-карты.  
   - **`app/(tabs)/day.tsx`** — **`useAuth().authUser.id`** + **`useAppLocale().locale`** для ключа **`dayPlanCache`**; bearer для `/api/day` — через **`getSupabaseAccessSession()`** (`services/supabase.ts`), который **`AuthProvider`** подпитывает **`rememberSupabaseSession`** при каждом `onAuthStateChange`.  
-  - `recentPlanetsOfDay` сервер собирает из двух предыдущих строк `user_daily_forecasts` (`loadRecentPlanets` в `daily-forecast/route.ts`, Edge `daily-forecast` и `precompute-daily-forecasts`). `user_settings.preferences` для этого больше не читается.  
+  - `recentPlanetsOfDay` сервер собирает из двух предыдущих строк `user_daily_forecasts` (`loadRecentPlanets` в `daily-forecast/route.ts`, Edge `daily-forecast` и `precompute-daily-forecasts`). `user_settings.preferences` для этого больше не читается. В ответе Home (`buildClientForecastPayload`) `isAlternativeChoice` всегда `false`: установленное приложение рисует под рекомендацией служебную фразу, если флаг истинный. В БД флаг не сбрасывается.  
   - После смены натала с **`app/(tabs)/profile.tsx`** главный экран может запросить **`refresh` с `blockingReload`** через **`consumeHomeDayContentBlockingReload`** (`services/homeDayContentReloadRequest.ts`) при фокусе таба Home.
 
 - **`subscription`**  

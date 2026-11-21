@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/spec
 title: Profile Spec
-version: 1.45
-updated: 2026-10-09
+version: 1.46
+updated: 2026-11-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -85,6 +85,9 @@ code_refs:
 
 ## 4. UI: `app/(tabs)/profile.tsx`
 
+После BookProfileCard показывается `MyCoursesCard` из `modules/courses`: все начатые курсы, включая истёкшие; переход на `/course/[id]` показывает открытые материалы либо период и истечение доступа. Подготовленные тесты не видны.
+
+
 - Карточка **«Мои данные»** (самая верхняя, оформлена как остальные `styles.card` + `surfaceElevated`): первая строка — `profile.display_name` **/ <локализованное имя тарифа>** (например «Роман / Мастер»; для trial — `profile.myData.tariffTrial` «Демо», иначе `t(\`tier.${access.tier}\`)`); вторая строка — `authUser.email` одной строкой без подписи; кнопка **«Личный кабинет»** (`gate.openCabinet` → `openAccountCabinet`, `useAccountLinksEnabled` и не `store_review_account`) — **перенесена** сюда из карточки «Текущий доступ». Под email — подпись **«Уведомления:»** (`notifications.myDataLabel`) и кликабельная цифра непрочитанных (при 0 тоже открывает inbox) → `/my-notifications`; отдельная карточка «Мои уведомления» убрана. Далее — поле **«Язык приложения:»** (`profile.language.appLabel`) + тот же `ComboBox` смены локали (probe/ensure/rebuild; отдельная карточка «Язык» убрана). Ниже — **ComboBox палитры** (`profile.palette.light` / `profile.palette.dark`) → `setThemePreference` (`modules/ui/themePreference.ts`, default **light**; не system scheme). Затем кнопка **«Личный кабинет»** (если ссылки включены и аккаунт не store-review). Под кнопкой «Личный кабинет» (или сразу под языком, если кабинет скрыт) — центрированная строка ссылок **«Выйти»** / **«Удалить аккаунт»** (`profile.account.*`): каждая открывает `AppDialog` с подтверждением; «Выйти» → `useAuth().signOut()`; «Удалить аккаунт» → `deleteAccountRemote()` (`DELETE /api/account/delete`) затем `signOut()`. Ссылки не зависят от `account_links_enabled` (требование сторов). Для `store_review_account`: ссылки видны; «Удалить» показывает `profile.account.deleteStoreReviewBlocked` без wipe (сервер всё равно 403). Далее — только для тарифов с персональным прогнозом (`canUseFeature("personal_daily_forecast")` — не для бесплатного «Навигатора», чья натальная карта не используется; демо-trial и платные показывают) — поля рождения в режиме просмотра (шрифт `dialogBody`, как имя): «Дата рождения: <DD-MM-YYYY>», «Время рождения: <HH:MM>» (секунды из `birth_time` отбрасываются), «Место рождения: <название>» (значения из `profile.birth_date`/`birth_time`/`birth_place`, пустые — `profile.myData.notSet` «не указано»), и ряд из двух кнопок одинаковой ширины (`flex:1`): **«Карта»** (`profile.myData.mapButton` → `BirthPlaceMapModal` из `modules/onboarding` с местом из `profile.birth_place` через `geoPlaceFromProfileBirthPlace`, disabled если место не задано) и **«Изменить»** (`profile.myData.editButton` → `openBirthEditor` → `NatalBirthDataModal`). i18n: `profile.myData.*` + `profile.account.*` во всех 8 локалях.
 - Карточка **«Учебное пособие»** (`BookProfileCard` из `modules/book`) — сразу после «Мои данные», над поддержкой/отчётами: «Читать…» → `resolveBookAccess`. `owned` → `/book/[locale]`; `absent` → `AccountGateDialog` (`gate.body.book`); `unavailable` без локального гранта → `book.access.unavailable` на карточке (повтор по тапу). См. `docs/02_modules/book/spec.md`.
 - Карточка **«Текущий доступ»** удалена (2026-07-29): тариф виден в «Мои данные»; редактирование натала — кнопка **«Изменить»** там же (`NatalBirthDataModal` + `createNatalProfile`, сегментный ввод, post-save ensure/warm/blockingReload — без изменений).
@@ -122,3 +125,23 @@ code_refs:
 ## Справочные материалы
 
 - Модель тарифов и терминология **free/premium** в продукте: не пересказывать в этом файле — **[tier_model.md](../../04_reference/product/tier_model.md)** и контекст доступа **[subscription/spec.md](../subscription/spec.md)** (раздел «Справочные материалы» там ведёт на тот же reference).
+
+
+## Курсы после первой репетиции
+
+«Мои курсы» без записей показывает пояснение и существующую кнопку личного кабинета с учётом feature flag; интерфейс использует переводы всех восьми локалей и общую тему. Разделитель есть только между курсами. Экран курса повторяет `FullScreenModalScaffold`: текущий урок/закрытый список до окончания `displayUntil`; затем открытый архив без выбранного урока. Метаданные курса восстанавливаются по auth UID, временная ошибка не стирает известные записи.
+
+
+Названия курсов в «Моих курсах» используют тот же `screenHint`, что описание книги. Перед названием — общий CourseRowIcon: стрелка при доступе, нейтральный крестик при отсутствии; видимая строка статуса убрана, истёкший доступ остаётся в accessibility label и на экране курса. Многострочные названия расширяют строку, разделитель только между курсами.
+
+
+Общий CourseRowIcon уменьшен до 14 pt с зазором 4 pt и левым выравниванием колонки. На экране курса название выбранного урока/внутренние подзаголовки — contentTitle 16/22, тело 15; стрелки сохраняют положение страницы, выбор из списка возвращает к верху после загрузки. Контейнер после навигации резервирует высоту viewport, чтобы короткое временное содержимое не сдвигало ScrollView.
+
+
+Курсы упорядочены по started_at DESC, затем created_at/id DESC — тот же порядок, что в «Дне»; истёкшие и завершившие показ остаются в истории. В карточке выбранного урока из Профиля верхний padding уменьшен отдельно с 18 до 14 pt; строка заголовка от 44 pt независимо от наличия стрелок.
+
+## Ежедневные интенсивы
+
+Общая карточка «Мои курсы» включает интенсивы: доступный интенсив открывает только текущий день, истёкший — прежнее окно с периодом и объяснением закрытого доступа, без архива. Название интенсивов локализуется общей локалью приложения. Сортировка по началу покупки/прохождения остаётся прежней.
+
+Экран `/course/[id]` использует общие `shared_core/courseAccess.ts` и `courseStrings.ts` для проверки accessUntil и notice истёкшего доступа. Тот же результат используется браузером урока. Даты форматируются в сохранённой timezone прохождения (optional поле CourseView; прежний fallback при отсутствии). Новая логика доступности или покупки в Profile не добавлена.

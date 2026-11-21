@@ -1,0 +1,15 @@
+---
+description: Read SSL auto-renew guard before REG.RU DNS, proxy, or harmonizer origin changes
+globs: DEPLOY.md,deploy/**,web_cabinet/**,services/communicatorConfig.ts,modules/account/core/accountLinksConfig.ts,eas.json,app.config.ts
+alwaysApply: false
+---
+
+# REG.RU SSL guard
+
+If the task touches **DNS**, **REG.RU hosting panel**, **Russia proxy**, **public API host** (`harmonizer.zamkovoi.yoga`), or files matched by this rule — **read first**:
+
+`docs/04_workspace/reg_ru_harmonizer_ssl_guard.md`
+
+Also read it when the user asks in natural language to move DNS, attach the domain to Vercel, change nameservers, add site aliases, or change redirects — even if no matched file is open yet.
+
+Before executing a **STOP** operation from that doc: warn the user explicitly; do not apply infra changes silently.

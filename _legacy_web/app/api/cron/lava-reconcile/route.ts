@@ -1,4 +1,4 @@
-import { reconcilePendingLavaPayments } from "../../account/lavaReconcile";
+import { reconcilePendingLavaPayments, reconcileLavaSubscriptionRenewals } from "../../account/lavaReconcile";
 import { runPaymentFailedNotices } from "../../account/paymentFailedNotices";
 import { runWidgetFailedNotices } from "../../account/widgetFailedNotices";
 import { createServiceSupabase, errorResponse, json } from "../../_utils/supabase";
@@ -25,6 +25,14 @@ export async function POST(req: Request) {
     const db = createServiceSupabase();
     const result = await reconcilePendingLavaPayments(db);
     console.log("[lava-reconcile]", result);
+    let renewals: unknown = null;
+    try {
+      renewals = await reconcileLavaSubscriptionRenewals(db);
+      console.log("[lava-reconcile] renewals", renewals);
+    } catch (error) {
+      console.error("[lava-reconcile] renewals", error);
+      renewals = { error: error instanceof Error ? error.message : "renewal reconcile failed" };
+    }
     let notices: unknown = null;
     try {
       notices = await runPaymentFailedNotices(db);
@@ -41,7 +49,7 @@ export async function POST(req: Request) {
       console.error("[widget-failed-notice]", error);
       widgetNotices = { error: error instanceof Error ? error.message : "notice failed" };
     }
-    return json({ ok: true, ...result, notices, widgetNotices });
+    return json({ ok: true, ...result, renewals, notices, widgetNotices });
   } catch (error) {
     return errorResponse(error);
   }

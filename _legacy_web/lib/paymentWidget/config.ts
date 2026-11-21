@@ -13,11 +13,19 @@ import {
   type WidgetSystemTexts,
 } from "./copy";
 
-/** Public origin for the embed code (REG.RU proxy; *.vercel.app is blocked in Russia). */
+/** Origin of the `/pay/*` pages and admin links (Next.js app served through the REG.RU proxy). */
 export const WIDGET_PUBLIC_ORIGIN = "https://harmonizer.zamkovoi.yoga";
 
+/**
+ * Static `widget.js` on the WP host (folder /hz, served by Apache from disk):
+ * no PHP worker and no REG.RU → Vercel leg in the script path, so the widget
+ * code loads as reliably as the landing page itself. The client resolves the
+ * API from `data-api` and retries independent fallbacks (see public/widget.js).
+ */
+export const WIDGET_SCRIPT_ORIGIN = "https://zamkovoi.yoga/hz";
+
 export function widgetEmbedCode(widgetId: string, lang: string): string {
-  return `<script src="${WIDGET_PUBLIC_ORIGIN}/widget.js" data-id="${widgetId}" data-lang="${lang}" async></script>`;
+  return `<script src="${WIDGET_SCRIPT_ORIGIN}/widget.js" data-id="${widgetId}" data-lang="${lang}" data-api="${WIDGET_SCRIPT_ORIGIN}" async></script>`;
 }
 
 export const WIDGET_ELEMENT_TYPES = [

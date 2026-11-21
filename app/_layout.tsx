@@ -1,4 +1,5 @@
 import "react-native-gesture-handler";
+import {CoursesProvider} from "@/modules/courses/CoursesProvider";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   DarkTheme,
@@ -120,13 +121,13 @@ export default function RootLayout() {
             <AuthProvider>
               <AppStartupProvider onSplashReady={dismissEarlyCover}>
                 <RemotePlayProvider>
-                  <AccessBridge>
+                  <AccessBridge><CoursesProvider>
                     {earlyCoverVisible ? <NativeSplashBridge /> : null}
                     <PushRegistrationBridge />
                     <StorySessionBootstrap />
                     <MembershipEventsBridge />
                     <RootLayoutNav />
-                  </AccessBridge>
+                  </CoursesProvider></AccessBridge>
                 </RemotePlayProvider>
               </AppStartupProvider>
             </AuthProvider>
@@ -367,6 +368,7 @@ function RootLayoutNav() {
           />
           <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="webinar/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="course/[id]" options={{ headerShown: false, presentation: "fullScreenModal" }} />
           <Stack.Screen
             name="book/[locale]"
             options={{

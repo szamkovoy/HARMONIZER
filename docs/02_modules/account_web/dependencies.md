@@ -1,8 +1,8 @@
 ---
 id: 02_modules/account_web/dependencies
 title: Account Web Dependencies
-version: 1.20
-updated: 2026-11-17
+version: 1.21
+updated: 2026-11-21
 depends_on: [02_modules/account_web/spec]
 code_refs:
   [
@@ -26,11 +26,14 @@ code_refs:
 - **`marketing_email`** — письма о конце оплаченных 30 дней, об отказе продления, об отказе первой оплаты из кабинета (тариф, 30 дней, вебинар, книга) и об отказе оплаты с виджета (`runWidgetFailedNotices`) уходят через `sendMarketingEmail` / `wrapMarketingEmailHtml` без футера отписки (письмо о покупке). `wipeUserAccount` отменяет активные `email_automation_enrollments` через `cancelActiveEmailAutomationsForUser` (`emailAutomationRunner`), чтобы рассылки не шли после удаления аккаунта.
 - **`location`** — `resolveBillingGeo`: приоритет `users.country_code` (только GPS/Nominatim; не обнуляется при позднем отказе в гео), иначе эфемерный `GET /api/geo/ip-country` (VPN egress = страна VPN; **не** пишется в `users.country_code`). Таймаут 800 мс без sticky EUR/IP в SecureStore. Сервер: Vercel `x-vercel-ip-country`, fallback **ipwho.is**.
 - **`webinars`** — разовая оплата вебинара (ONE_TIME) через Lava или ЮKassa: вебхук успеха upsert `webinar_registrations`; `MembershipEventsBridge` детектит one_time `kind=webinar` через `GET /api/account/purchases/last` после визита в кабинет с **любым** ctx и показывает модалку `gate.webinarPaid.*`; `WebinarScreen` повторно проверяет `isRegistered` в foreground; кнопки «Отменить запись» нет.
-- **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v3/invoice` (провайдер в `paymentProvider`; Apple Pay у разового счёта EUR/USD — `paymentProvider: UNLIMINT` и `paymentMethod: APPLE_PAY`, на v2 способ не уходит; при не-2xx, кроме отказа по email, повтор `POST /api/v2/invoice` с `paymentMethod`; для тарифа — `successful_return_url` / `failure_return_url` / `cancel_return_url`, PayPal только EUR/USD), `GET /api/v1/invoices/{id}` (один-два раза, только если pending-счёт висит 10–22 минуты), `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions`, вебхуки `/api/account/webhooks/lava`. Маппинг — `payment_offers`. Используется при `PAYMENT_LAVATOP_ENABLED` + `REGION=INT` (или country-match). См. `lava_integration.md`, `docs/04_workspace/payment_gateways.md`.
+- **Lava.top (внешний)** — `gate.lava.top`: `POST /api/v3/invoice` (провайдер в `paymentProvider`; Apple Pay у разового счёта EUR/USD — `paymentProvider: UNLIMINT` и `paymentMethod: APPLE_PAY`, на v2 способ не уходит; при не-2xx, кроме отказа по email, повтор `POST /api/v2/invoice` с `paymentMethod`; для тарифа — `successful_return_url` / `failure_return_url` / `cancel_return_url` (поддерживаются только v3), PayPal только EUR/USD), `GET /api/v1/invoices/{id}` (один-два раза, только если pending-счёт висит 10–22 минуты), `GET /api/v1/subscriptions/{id}` (статус подписки + фактические списания; сверка продлений с 2026-11-17), `GET /api/v2/products` (цены, кэш 10 мин), `DELETE /api/v1/subscriptions`, вебхуки `/api/account/webhooks/lava`. Маппинг — `payment_offers`. Используется при `PAYMENT_LAVATOP_ENABLED` + `REGION=INT` (или country-match). См. `lava_integration.md`, `docs/04_workspace/payment_gateways.md`.
 - **ЮKassa (внешний)** — `api.yookassa.ru/v3`: create payment (redirect; подписки с `save_payment_method`, 403 → retry без save; тариф возвращается на `/pay/return`, статус читаем GET payment), charge saved method, GET payment, POST refund (админка); уведомления на `/api/account/webhooks/yookassa` (+ `refund.succeeded`). Цены RUB — `payment_catalog`. Выбор — `resolvePaymentGateway({ country })` (`PAYMENT_YOOKASSA_ENABLED` + `REGION`). Cron `/api/cron/yookassa-renewals`. Cancel/wipe → methods `inactive`. Fee 2.5% (`YANDEX_GATEWAY_FEE_RATE`). Ops: `docs/04_workspace/payment_gateways.md`.
+- **Supabase Edge Function `hz-proxy` (2026-11-17)** — публичный запасной путь виджетов лендингов: `https://<project-ref>.supabase.co/functions/v1/hz-proxy/api/widget/*` → `harmonizer-ten.vercel.app` (только `/api/widget/*`, метод/тело/заголовки насквозь, IP посетителя как `X-Harmonizer-Client-Ip`). `widget.js` обращается к нему автоматически, когда основная база (`data-api`, обычно `https://zamkovoi.yoga/hz`) не ответила. Изменения функций — `supabase functions deploy hz-proxy` (CLI v2; в v3 сначала миграция `config.toml` с `[inbucket]` на `[local_smtp]`).
 - **FX-источники (внешние, settlement)** — Т-Банк `GET https://api.tinkoff.ru/v1/currency_rates` (категория `DebitCardsOperations`); ЦБ через `https://www.cbr-xml-daily.ru/daily_json.js`. Цепочка T-Bank → CBR; суточный кэш `fx_daily_quotes` (дата по Москве); при сбое Т-Банка в этот день — только ЦБ до завтра. Результаты — `payment_settlements` + net-колонки на `payment_contracts`.
 
 ## 2. От него зависят
+
+- `courses`: `openAccountCabinet` / `useAccountLinksEnabled` для кнопки из пустой карточки «Мои курсы».
 
 - **`subscription`** — `AccountGateDialog` / `AccountUpsellPanel` вызывают `openAccountCabinet()` / `prefetchAccountCabinetOtt` и `useAccountLinksEnabled()`; gate скрывает свой Modal через `useModalDismissForBrowser` (`beforeOpen: hideAndWait`) и держит компонент смонтированным (`visible={flag}`), пока native dismiss не завершится.
 - **`profile`** — ссылки «Выйти» / «Удалить аккаунт» на `app/(tabs)/profile.tsx` (`deleteAccountRemote`).
@@ -50,3 +53,5 @@ code_refs:
 - **Вебхуки Lava** — 2xx останавливает ретраи: «неизвестный контракт» → 200; транзиентные ошибки БД — 5xx. Смена `LAVATOP_WEBHOOK_SECRET` — одновременно в ЛК Lava и Vercel.
 - **Страницы `/pay/*`** — живут на `harmonizer.zamkovoi.yoga` (REG.RU-прокси; 303 и urlencoded-формы проходят). Токен подписан `ACCOUNT_CABINET_SECRET`: ротация секрета гасит ссылки «Оплата не удалась» (24 ч) и из писем о продлении (10 дней) — человек попадёт на «Ссылка устарела» → кабинет. Разовые продукты Lava «30 дней» — `payment_offers` `oracle_30d` / `master_30d`; цены в Lava задаются вручную в карточках.
 - **Вебхуки ЮKassa** — секрета нет: ЮKassa не подписывает тело и не шлёт своих заголовков. Перед любым изменением контракта платёж перечитывается `GET /v3/payments/{id}`. URL уведомлений в кабинете ЮKassa должен совпадать с production Vercel origin.
+
+- **`courses`** — `cabinet/lesson.html` использует read-only `/api/courses/browser` без кабинетной сессии; сервер проверяет конкретное прохождение/урок и возвращает общую с Profile notice при окончании доступа. Самостоятельных правил сроков и копии текстов на странице нет.

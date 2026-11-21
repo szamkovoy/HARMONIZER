@@ -1,11 +1,48 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.36
-updated: 2026-11-17
+version: 1.38
+updated: 2026-11-21
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
+
+## 2026-11-21 — Урок курса в браузере
+
+Лёгкая статика lesson.html размещена в прежней cabinet и сверена по SHA-256. Сервер опубликован в production Vercel: `dpl_DQHDZz9aNhh5sbo8VcJa3xdKryAN`, READY, alias harmonizer-ten.vercel.app; рабочий API через harmonizer.zamkovoi.yoga проверен. Новых env/миграций и изменений DNS/SSL нет. Проверены 58 тестов, TypeScript web/native и UI шириной 375/1280 с Vimeo; native-билд и проверочные отправки не запускались.
+
+Повторная выкладка того же `lesson.html` (7693 байт, SHA-256 совпал с репозиторием): шапка — название курса, в карточке только урок, внизу копирайт текущего года. DNS/SSL и кабинет `index.html` не менялись.
+
+
+## 2026-11-19 — SSL harmonizer.zamkovoi.yoga и guard-инструкция
+
+REG.RU перевыпустил Let's Encrypt по HTTP-01 (тикет support, server147): действует до **2027-02-15**, имена apex + `www`, автопродление панели при сохранении DNS/IP и исключения `/.well-known/acme-challenge/` из PHP-прокси. Обновлены `DEPLOY.md`, `open_questions.md`, `MAP.md`; добавлены `docs/04_workspace/reg_ru_harmonizer_ssl_guard.md` (STOP-операции для агента) и `.cursor/rules/reg-ru-ssl-guard.mdc` + п.5 в `.cursorrules` / `AGENTS.md`.
+
+## 2026-11-19 — Совместимость импортёров с Node type stripping
+
+Общий courseSchedule импортирует courseInline по относительному пути с расширением .ts, чтобы прежние Node --experimental-strip-types команды импортёра работали без runtime alias resolver. Корневой и web tsconfig разрешают allowImportingTsExtensions при noEmit; пути Expo/Vercel не меняются. Новая server-only миграция интенсивов сохраняет RLS и явный revoke/grant новых операторских RPC.
+
+
+## 2026-11-18 — Промежуточный заголовок и предупреждение SDK
+
+По согласию Сергея добавлен общий contentTitle 16/22 без нового семейства шрифтов. Проверены Xcode/Info.plist готового IPA и официальные сроки Apple: SDK 26.4 удовлетворяет текущему минимуму, SDK 27 требуется с апреля 2027. Обновление инструментов не выполнялось, задача будущей совместимости записана в open_questions.
+
+## 2026-11-17 — Версия 1.3.1 и запрет самостоятельных сборок
+
+Общий marketing version поднят до 1.3.1 в app.json, package.json и корневой записи lockfile. Текущие buildNumber 37/versionCode 77 сохранены, следующий счётчик поднимет EAS при сборке Сергеем. Инструкция о сборке только по прямому поручению добавлена в AGENTS.md, Cursor rule и DEPLOY.md. Новые IPA/AAB в этой задаче не собирались. В production применена миграция вебинарного пропуска курса `20261117180000`; подготовленный тест не запущен.
+
+
+## 2026-11-17 (вечер) — REG.RU-прокси: 8 IP, кэш конфигов виджетов, размещение /hz
+
+Повод — молчаливое пропадание форм оплаты на `zamkovoi.yoga/consult` около 15:20–15:40 МСК (плечо REG.RU→Vercel; `widget.js` и API шли только через него). `deploy/reg-ru-harmonizer-proxy.php`: 8 запиненных IP Vercel (`64.29.17.{1,67,131,195}`, `216.198.79.{1,67,131,195}`, проверены DNS 17.11), connect-timeout 6→3 с, `PATH_PREFIX='auto'` (один файл в корне поддомена и в `/www/zamkovoi.yoga/hz/`), кэш только GET `/api/widget/*` (fresh ≤60 с — без похода в Vercel; первый мёртвый IP или 5xx — отдача последней копии ≤24 ч за один connect-timeout; POST не кэшируются), `curl_close()` убран (deprecation в PHP 8.5 портил тело). Протестировано локально на PHP 8.5 по всем веткам: live/fresh/stale/502/префикс/POST. `.htaccess` для `/hz` — `deploy/hz/.htaccess`. Запасной путь виджетов — Supabase Edge Function `hz-proxy` (см. `account_web`); `config.toml`: `[functions.hz-proxy] verify_jwt = false`. Supabase CLI v3 требует замены `[inbucket]` → `[local_smtp]` в `config.toml` — деплой функций пока CLI v2.
+
+## 2026-11-17 — Интеграция пилота курсов
+
+Миграции `20261117160000`/`20261117160100` добавляют изолированные course grants и неактивный контент пилота. `course_tests_due_every_minute` делает SQL precheck и вызывает защищённый `/api/cron/course-tests` через pg_net только при наступившем активном тесте; использует существующий `precompute_global_cron_secret`. Prepared-тест не создаёт HTTP/писем. Обычный course runner включён в существующий cron автоматизаций.
+
+
+
+Обе course-миграции применены в production, локальный/remote журнал совпадает. Vercel `dpl_8cMbGWUJtkK5bo8umVrwhxiVj4sM` READY и aliased; новые маршруты без авторизации возвращают 401. iOS 1.2.8 (37) собрана локально, отправка в TestFlight в работе. Тест Сергея только prepared, отправок нет; не считать UAT завершённым.
 
 ## 2026-11-17 — Выпуск исправлений продления
 
@@ -177,3 +214,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **Не датировано (док ↔ продукт):** `docs/tech_stack.md` заявляет, что PWA/manifest не являются целевой платформой, при этом `_legacy_web/app/layout.tsx` продолжает отдавать `manifest`, иконки и `appleWebApp`. Это осознанный остаточный web-shell для API и опциональной установки страницы, а не противоречие в коде — приоритет продукта на стороне Expo.
 
 - **Не датировано:** `.vercelignore` исключает `/supabase` из upload при деплое из корня; операции с миграциями выполняются через Supabase CLI локально/в CI, а не через артефакт Vercel — это снижает размер билда и отделяет жизненный цикл БД от Next bundle.
+
+
+## 2026-11-17 — Ручная доставка IPA по указанию Сергея
+
+Автоматическая отправка 1.2.8 (37) остановлена по прямому указанию Сергея: очередь EAS отменена, локальный Transporter завершил неудачную попытку, активных загрузок нет. IPA готов в `dist/harmonizer-production.ipa`; Сергей загружает его сам. Шапка всех восьми писем добавлена применённой миграцией `20261117170000`; публичный CDN отдаёт оригинальные байты PNG, тест остаётся prepared без email-enrollment.

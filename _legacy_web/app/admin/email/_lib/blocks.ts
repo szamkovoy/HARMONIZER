@@ -154,6 +154,14 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+/** The same explicit paragraph spacing in the editor, preview and delivered email. */
+export function emailTextBlockHtml(block: Extract<EmailBlock, {type: "text" | "heading"}>): string {
+  return normalizeEmailBodyHtml(block.html || "", {
+    fontSize: SIZE_CSS[block.fontSize ?? (block.type === "heading" ? "xl" : "md")],
+    fontFamily: FONT_CSS[block.fontFamily ?? "system"],
+  });
+}
+
 function blockToHtml(block: EmailBlock): string {
   const mt = block.marginTop ?? 0;
   const mb = block.marginBottom ?? 0;
@@ -164,10 +172,7 @@ function blockToHtml(block: EmailBlock): string {
     const family = FONT_CSS[block.fontFamily ?? "system"];
     const size = SIZE_CSS[block.fontSize ?? (block.type === "heading" ? "xl" : "md")];
     const weight = block.type === "heading" ? "font-weight:700;" : "";
-    const inner = normalizeEmailBodyHtml(block.html || "", {
-      fontSize: size,
-      fontFamily: family,
-    });
+    const inner = emailTextBlockHtml(block);
     return `<div style="${pad}font-family:${family};font-size:${size};line-height:1.55;${weight}">${inner}</div>`;
   }
 

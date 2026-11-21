@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.32
-updated: 2026-11-17
+version: 1.34
+updated: 2026-11-21
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
@@ -44,7 +44,7 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 
 - `supabase/README.md` — операционный контракт папки: структура `migrations/`, `functions/`, `seed.sql`, требования к `.env.local` для CLI, команды `link` / `db push`, cron-функции (`auto-calibrate`, `precompute-daily-forecasts`, `precompute-global-recommendations`, `cleanup-expired-proposals`, `cleanup-expired-stories`, `reconcile-expired-memberships`), правило «не править старые миграции — только новые файлы».
 - `supabase/config.toml` — локальные флаги edge-функций; для cron-style вызовов `verify_jwt = false` фиксируется и для `precompute-global-recommendations` / cleanup / reconcile memberships.
-- `DEPLOY.md` — чеклист серверного/edge-деплоя, включая список функций, секрет `CRON_SECRET` и рекомендуемые расписания.
+- `DEPLOY.md` — чеклист серверного/edge-деплоя, включая список функций, секрет `CRON_SECRET` и рекомендуемые расписания; раздел «Russia proxy» — TLS Let's Encrypt на REG.RU (HTTP-01, автопродление панели до ~2027-02-15 и далее). Операции, ломающие автопродление или прокси, — `docs/04_workspace/reg_ru_harmonizer_ssl_guard.md`.
 **PWA-остаток**
 
 - `_legacy_web/public/manifest.json` + ссылки из `layout` — ярлык/installability для web-shell; продуктовый клиент — Expo (см. `pwa.md`).
@@ -64,6 +64,11 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - **Cron-контур free/paid day content:** free — `precompute-global-recommendations`; paid — `precompute-daily-forecasts` (оба через `pg_cron` + Vault `precompute_global_cron_secret` = Edge `CRON_SECRET`). Runbook в `DEPLOY.md` / `supabase/README.md` не заменяет миграции. Для LLM в cron/precompute-контуре: primary-модель до 3 попыток с паузой 60s, затем один `AI_MODEL_FALLBACK`.
 
 ## 4. Конфигурация и параметры
+
+Маркетинговая версия клиента — 1.3.1 для обеих платформ. По прямому правилу Сергея агент не запускает сборку/публикацию мобильного приложения без отдельного поручения; обычно предлагает команды Сергею. Счётчики iOS/Android раздельные и увеличиваются EAS. Привязка вебинаров курса добавлена миграцией `20261117180000`, prepared-тест не активируется.
+
+Миграции `20261117160000`/`20261117160100` добавляют изолированные course grants и неактивный контент пилота. `course_tests_due_every_minute` делает SQL precheck и вызывает защищённый `/api/cron/course-tests` через pg_net только при наступившем активном тесте; использует существующий `precompute_global_cron_secret`. Prepared-тест не создаёт HTTP/писем. Обычный course runner включён в существующий cron автоматизаций.
+
 
 Платежи: применённая в production 2026-11-17 миграция `20261116120000_subscription_renewal_safety.sql` добавляет service-role RPC `apply_subscription_renewal` (атомарное продление контракта и membership) / `record_yookassa_renewal_failure` и таблицу `payment_renewal_failures` с RLS (PK payment_id, дедуп cron + webhook). Серверный код выпущен после миграции: Vercel `dpl_EjwB6WnbUAFhqB22pdWMpDozMaEi` (production). После выпуска проверены service-role доступ и запрет anon к обоим RPC.
 
@@ -112,3 +117,18 @@ supabase db dump --linked --role-only -f ~/Backups/harmonizer/2026-11-15/roles.s
 ```
 
 Эти файлы в git не класть.
+
+
+### Подзаголовки содержимого и SDK сборки (18.11.2026)
+
+В TypographyTokens общего modules/ui/theme.ts добавлен `contentTitle` 16/22, weight 600, по явному согласованию Сергея. Это промежуточная роль между sectionTitle 18/24 и screenHint 15/22, с тем же системным семейством и обеими палитрами; остальные токены не менялись.
+
+Проверенные локальные инструменты: Xcode 26.4 (17E192), SDK текущего production IPA 1.3.1 (40) — iphoneos26.4. Предупреждение Transporter 90725 соответствует будущему минимуму SDK 27 / Xcode 27 с апреля 2027 ([Apple](https://developer.apple.com/app-store/submitting/)); действующий минимум SDK 26 / Xcode 26 применяется с 28.04.2026 ([Apple](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)). Срочная смена SDK для текущей загрузки не нужна; переход и совместимость нативных зависимостей нужно проверить до нового срока. Точная причина появления предупреждения именно в последней загрузке не установлена. Сборки/загрузки агент не запускал.
+
+## Совместимость импортёров с Node type stripping
+
+Общий courseSchedule импортирует courseInline по относительному пути с расширением .ts, чтобы прежние Node --experimental-strip-types команды импортёра работали без runtime alias resolver. Корневой и web tsconfig разрешают allowImportingTsExtensions при noEmit; пути Expo/Vercel не меняются. Новая server-only миграция интенсивов сохраняет RLS и явный revoke/grant новых операторских RPC.
+
+### Браузер урока на существующем хостинге (21.11.2026)
+
+Новый `web_cabinet/cabinet/lesson.html` выкладывается отдельно в существующий `/www/zamkovoi.yoga/cabinet/`, рядом с index.html; новые серверные папки, DNS/SSL/proxy изменения не нужны. API `/api/courses/browser` работает на существующем production Vercel за прежним публичным origin. Новых env/таблиц/миграций нет. Авторские content-файлы не нужны для деплоя API.

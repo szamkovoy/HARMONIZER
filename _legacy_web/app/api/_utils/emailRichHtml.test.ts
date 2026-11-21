@@ -33,6 +33,20 @@ describe("sanitizeEmailRichHtml", () => {
     expect(out.length).toBeLessThan(input.length);
   });
 
+  it("keeps a filled lesson button instead of leaving white text", () => {
+    const button =
+      '<p style="text-align:center"><a href="{{course_lesson_url}}" target="_blank" style="border-style:solid;border-color:#EC543F;border-width:6px 20px;display:inline-block;border-radius:4px;font-size:18px;font-family:Helvetica,Arial,sans-serif;font-weight:normal;color:#ffffff;text-decoration:none;background:#EC543F;mso-line-height-rule:exactly">Перейти к уроку</a></p>';
+    const out = sanitizeEmailRichHtml(button);
+    expect(out).toContain("background:#EC543F");
+    expect(out).toContain("color:#ffffff");
+    expect(out).toContain("border-color:#EC543F");
+    expect(out).toContain("border-width:6px 20px");
+    expect(out).toContain("display:inline-block");
+    expect(out).toContain("text-decoration:none");
+    expect(out).toContain("text-align:center");
+    expect(out).toContain(">Перейти к уроку</a>");
+  });
+
   it("keeps anchor href", () => {
     const out = sanitizeEmailRichHtml(
       '<p><a href="https://example.com" class="x" style="font-family: Arial; color: #0f3d2e">link</a></p>',

@@ -1,3 +1,4 @@
+import {useCourses,showsOnDay} from "@/modules/courses/CoursesProvider";
 import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
 
@@ -20,14 +21,16 @@ export default function TabLayout() {
   const { authUser } = useAuth();
   const { locale } = useAppLocale();
   const { canUseFeature } = useAccess();
-  const canOpenDay = canUseFeature("day_planning");
+  const canPlanDay = canUseFeature("day_planning");
+  const {courses} = useCourses();
+  const canOpenDay = canPlanDay || courses.some(c=>showsOnDay(c));
   const tabBarStyle = useCompactTabBarStyle(theme.colors);
 
   // Do not wait for Home forecast ready — Day tab can be opened first on Android.
   useEffect(() => {
-    if (!canOpenDay || !authUser?.id) return;
+    if (!canPlanDay || !authUser?.id) return;
     ensureDayPlanPrefetch({ userId: authUser.id, locale, reason: "tabs_mount" });
-  }, [authUser?.id, canOpenDay, locale]);
+  }, [authUser?.id, canPlanDay, locale]);
 
   // Android Custom Tabs: warm browser process so «Личный кабинет» opens without a black flash.
   useEffect(() => {

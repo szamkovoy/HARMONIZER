@@ -358,6 +358,57 @@ export async function getLavaInvoice(invoiceId: string): Promise<LavaInvoiceDeta
   return data;
 }
 
+export type LavaRecurrentPayment = {
+  id: string;
+  datetime?: string | null;
+  status?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  fee?: number | null;
+};
+
+/** GET /api/v1/subscriptions/{id}: статус подписки и история фактических списаний. */
+export type LavaSubscriptionDetails = {
+  id: string;
+  /** Статус первого инвойса (COMPLETED / FAILED / …). */
+  status?: string | null;
+  /** Статус подписки: ACTIVE | FAILED | … (значение после отмены пользователем не задокументировано). */
+  subscriptionStatus?: string | null;
+  datetime?: string | null;
+  cancelledAt?: string | null;
+  terminatedAt?: string | null;
+  buyer?: { email?: string | null } | null;
+  receipt?: { amount?: number; currency?: string } | null;
+  /** Фактические рекуррентные списания, новые первыми (подтверждено на live-API 2026-11-17). */
+  recurrentPayments?: LavaRecurrentPayment[] | null;
+};
+
+/**
+ * Статус подписки Lava по id первого инвойса (наш contract_id, он же
+ * parentContractId вебхуков): subscriptionStatus (ACTIVE/FAILED) и список
+ * фактических списаний recurrentPayments с datetime/status/amount/currency.
+ * Источник сверки продлений, чей вебхук не дошёл (ответ поддержки Lava
+ * 2026-11-17). 404 → null.
+ */
+export async function getLavaSubscription(contractId: string): Promise<LavaSubscriptionDetails | null> {
+  const res = await fetch(
+    `${LAVA_API_BASE}/api/v1/subscriptions/${encodeURIComponent(contractId)}`,
+    {
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        "X-Api-Key": requiredEnv("LAVATOP_API_KEY"),
+        Accept: "application/json",
+      },
+    },
+  );
+  if (res.status === 404) return null;
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Lava subscription HTTP ${res.status}: ${text.slice(0, 300)}`);
+  const data = JSON.parse(text) as LavaSubscriptionDetails;
+  if (!data.id) throw new Error("Lava subscription: response has no id");
+  return data;
+}
+
 export async function cancelLavaSubscription(params: { contractId: string; email: string }): Promise<void> {
   const url = new URL(`${LAVA_API_BASE}/api/v1/subscriptions`);
   url.searchParams.set("contractId", params.contractId);

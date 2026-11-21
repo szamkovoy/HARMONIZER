@@ -1,11 +1,41 @@
 ---
 id: 02_modules/profile/history
 title: Profile History
-version: 1.50
-updated: 2026-10-09
+version: 1.51
+updated: 2026-11-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec]
 code_refs: [modules/auth/AuthProvider.tsx, modules/auth/bootstrapRecoverSession.ts, app/onboarding.tsx, app/(tabs)/profile.tsx, modules/profile/core/localeRebuild.ts, modules/profile/ui/LocaleRebuildModal.tsx, modules/profile/core/periodPresets.ts, modules/profile/core/rangeTrendChart.ts, modules/profile/i18n/profile.ts, modules/profile/ui/PeriodSelector.tsx, modules/profile/ui/ProfileEmptyState.tsx, modules/profile/ui/ProfileReportCard.tsx, modules/profile/ui/ProfileReports.tsx, modules/profile/ui/RangeTrendChart.tsx, services/profileReports.ts, modules/home/ui/NatalBirthDataModal.tsx, modules/onboarding/birthDateFormat.ts, modules/onboarding/MaskedTextInput.tsx, services/homeDayContentReloadRequest.ts, services/localeDayContentEnsure.ts]
 ---
+
+## 2026-11-21 — Урок курса в браузере
+
+Проверка и текст истёкшего доступа курса вынесены в общий helper браузера и native. Даты периода используют зону прохождения; сборка приложения агентом не запускалась.
+
+
+## 2026-11-19 — Интенсивы в общей истории курсов
+
+Дневной продукт использует существующую карточку истории и окно истёкшего доступа; накопительный архив не открывается. Название следует общей локали, сортировка не меняется.
+
+## 2026-11-18 — Отступ заголовка и общий порядок покупок
+
+Верхний padding карточки урока из Профиля 14 pt, отдельно от gap Дня. Строка урока от 44 pt с навигацией и без неё. Все прохождения сохраняют порядок started_at DESC общего API, включая истёкшие.
+
+## 2026-11-18 — Единые отступы и заголовки курса
+
+Стрелки списка курсов уменьшены и приближены к тексту; общий элемент используется и в списке уроков. Экран курса использует contentTitle 16/22 и новую семантику прокрутки (стрелки без scrollTo, выбор из списка после загрузки); стили одинаковы в обеих темах.
+
+## 2026-11-18 — Пиктограммы и шрифт списка курсов
+
+Стрелка перенесена перед названием, размер общий со списком уроков; отсутствие доступа обозначает нейтральный крестик. Убрана отдельная строка статуса. Названия — screenHint, как текст карточки книги, цвета из общей темы.
+
+## 2026-11-18 — Курсы после первой репетиции
+
+«Мои курсы» без записей показывает пояснение и существующую кнопку личного кабинета с учётом feature flag; интерфейс использует переводы всех восьми локалей и общую тему. Разделитель есть только между курсами. Экран курса повторяет `FullScreenModalScaffold`: текущий урок/закрытый список до окончания `displayUntil`; затем открытый архив без выбранного урока. Метаданные курса восстанавливаются по auth UID, временная ошибка не стирает известные записи.
+
+## 2026-11-17 — Интеграция пилота курсов
+
+После BookProfileCard показывается `MyCoursesCard` из `modules/courses`: все начатые курсы, включая истёкшие; переход на `/course/[id]` показывает открытые материалы либо период и истечение доступа. Подготовленные тесты не видны.
+
 
 ## Decision Log
 

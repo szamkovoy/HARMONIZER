@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/dependencies
 title: Marketing Email Dependencies
-version: 1.19
-updated: 2026-11-15
+version: 1.20
+updated: 2026-11-21
 depends_on: [02_modules/admin_panel/spec, 02_modules/infra/spec, 02_modules/account_web/spec]
 code_refs:
   [
@@ -38,6 +38,9 @@ code_refs:
 
 ## 1. Зависит от
 
+- **`courses`** — Список автоцепочек читает интервалы уроков и срок завершения через nullable course_delay_days (дни, только отображение). Курсы используют тип автоматизации `course`, существующий редактор шагов и историю sends, включая отдельное завершающее письмо без учебного материала. `runEmailAutomations` вызывает отдельный `runCourseEmails` (content-тесты проходят очередь последовательно с прежними lease/ключами, normal/timed — по одному шагу); generic runner исключает `course_enrollment_id != null`. `sendMarketingEmail` принимает необязательный `idempotencyKey` (заголовок Resend и таймаут 20 с). Course runner считает абсолютный календарь, применяет RU-fallback, не использует рекламную отписку, но запрещает complained/suppressed; остальные цепочки сохраняют прежние правила. Отмена связанного enrollment SQL-триггером останавливает письма курса.
+
+
 - **`admin_panel`** — UI `/admin/email*`, `/admin/email/automations/*/steps/*`, `/admin/email/deliverability`, `/admin/users/[id]` messaging, `requireAdmin`, translate API.
 - **Resend Batch API** — `POST https://api.resend.com/emails/batch` (≤100 писем, заголовок `Idempotency-Key`, ответ `{data:[{id}]}` в порядке запроса; без `tags` — вебхуки матчатся по `resend_id`). Профиль SES — по одному письму.
 - **Supabase RPC** (service_role) — `claim_email_campaign_batch`, `finalize_email_campaign_batch`, `apply_email_campaign_delivery` (`20261006020000`; тела claim/finalize — `20261006101500` / `20261006102000`); воркер, вебхук и пиксель открытия не пишут в строку `email_campaigns` на каждое письмо (`20261016025609`, `20261016040000`). Пиксель по-прежнему обновляет `email_contacts.last_open_at`. Размер и пауза claim читаются из `email_send_pace` (`20261016161000`), ключи `warmup_plan` той же кампании перекрывают строку. После зелёной рассылки 2026-10-16 строка по умолчанию — 100 писем / 120 с (`20261016220000`). Порядок пачки — самая поздняя из открытия приложения, открытия или клика письма и импортированной активности (`20261020151508`).
@@ -50,6 +53,9 @@ code_refs:
 
 ## 2. От него зависят
 
+- **`courses`** — редактор, транспорт и журнал писем; связанный course runner.
+
+
 - **`admin_panel`** — карточка пользователя читает sends / запускает цепочки.
 - **`account_web`** — единый wipe вызывает cancel enrollments из `emailAutomationRunner`. Покупка возвращает `unsubscribed` → `active` и шлёт письмо о продукте вне сегмента рассылки. Отказ оплаты (кабинет и виджет) шлёт `sendMarketingEmail` без футера отписки.
 - **`webinars`** — приглашение и письмо о записи (`webinarNotices.ts`) используют тот же транспорт и футер.
@@ -60,3 +66,7 @@ code_refs:
 - Webhook без verify secret → spoofed events.
 - Compute Nano (Free): непрерывная поштучная отправка ~23 письма/мин валила проект через ~4 ч (2026-09-25, 2026-10-05: pg_cron `job startup timeout`, PostgREST timeouts, auth 504). Лечение — пачки + пауза + тормоз по латентности; темп `CAMPAIGN_BATCH_GAP_MS` не уменьшать без наблюдения за логами.
 - `email_events` без sent/delivered: если когда-нибудь понадобится история «когда именно доставлено», её нет — есть только текущий статус строки отправки.
+
+courses: optional mail_schedule выбирает два письма интенсива; старые grants с null продолжают прежние учебные шаги. Окончание тестового просмотра не сбрасывает email cursor.
+
+`courses`: общий `shared_core/courseLessonEmail.ts` персонализирует браузерную RU-кнопку по уже закреплённым grant/lesson, не меняя lease/claim/finish/idempotency. Шаблон содержит placeholder, конкретный URL формируется только при учебной отправке.

@@ -1,7 +1,7 @@
 ---
 id: 02_modules/subscription/dependencies
 title: Subscription Dependencies
-version: 1.9
+version: 1.10
 updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/i18n/spec, 04_reference/product/tier_model]
 code_refs:
@@ -25,6 +25,9 @@ code_refs:
 ---
 
 ## 1. Зависит от
+
+- **`courses`** — Tab layout дополнительно допускает «День», когда `courses.some(showsOnDay)`: собственный активный курс с текущим материалом и неистёкшим `displayUntil`. Это отдельный учебный доступ, не новый тариф/FeatureKey; `day_planning` по-прежнему управляет планировщиком и prefetch. После конца показа free возвращается к обычной видимости вкладок.
+
 
 - **`infra`**  
   Схема Postgres (`users.membership_tier`, `trial_expires_at`, `membership_expires_at`, `app_first_open_at`, индексы) — `supabase/migrations/20260501193000_free_tier_global_content.sql` + `20260708010000_admin_panel_tier_foundation.sql` + `20260714210000_trial_one_day.sql` + `20260924010000_trial_on_first_sign_in.sql` (+ `20260924013000_trial_write_flag_reset.sql`).  

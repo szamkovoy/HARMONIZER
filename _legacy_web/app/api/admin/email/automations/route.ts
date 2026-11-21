@@ -34,6 +34,30 @@ export async function GET(req: Request) {
       steps = stepRows ?? [];
     }
 
+    // Course calendars use lesson day gaps, independent of generic email delays.
+    const courseIds = (automations ?? []).filter((a) => a.trigger_type === "course").map((a) => a.id);
+    const courseDays = new Map<string, Map<string, number>>();
+    const intensiveTiming = new Map<string, Map<string, string>>();
+    if (courseIds.length) {
+      const { data: courses, error: courseError } = await db
+        .from("courses")
+        .select("automation_id, kind, intro_email_step_id, day_card_extra_days, completion_email_step_id, course_lessons(email_step_id, gap_days)")
+        .in("automation_id", courseIds);
+      if (courseError) throw courseError;
+      for (const course of courses ?? []) {
+        const days = new Map<string, number>();
+        for (const lesson of course.course_lessons ?? []) {
+          if (lesson.email_step_id) days.set(lesson.email_step_id, lesson.gap_days);
+        }
+        if (course.completion_email_step_id&&course.kind!=='intensive') days.set(course.completion_email_step_id, course.day_card_extra_days);
+        if (course.kind==='intensive'&&course.intro_email_step_id) days.set(course.intro_email_step_id,0);
+        courseDays.set(course.automation_id, days);
+        if(course.kind==='intensive')intensiveTiming.set(course.automation_id,new Map([
+          [course.intro_email_step_id,'Сразу'],[course.completion_email_step_id,'День 30, 07:00'],
+        ].filter((entry):entry is [string,string]=>!!entry[0])));
+      }
+    }
+
     const byAuto = new Map<string, typeof steps>();
     for (const s of steps) {
       const list = byAuto.get(s.automation_id) ?? [];
@@ -44,7 +68,11 @@ export async function GET(req: Request) {
     return json({
       automations: (automations ?? []).map((a) => ({
         ...a,
-        steps: byAuto.get(a.id) ?? [],
+        steps: (byAuto.get(a.id) ?? []).map((step) => ({
+          ...step,
+          ...(a.trigger_type === "course" ? { course_delay_days: courseDays.get(a.id)?.get(step.id) ?? null } : {}),
+          ...(intensiveTiming.get(a.id)?.has(step.id)?{course_timing_label:intensiveTiming.get(a.id)!.get(step.id)}:{}),
+        })),
       })),
     });
   } catch (error) {
@@ -60,6 +88,7 @@ type CreateBody = {
 
 const TRIGGERS = new Set([
   "manual",
+  "course",
   "account_registered",
   "subscription_expired",
   "inactive",

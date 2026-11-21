@@ -1,0 +1,9 @@
+# HARMONIZER landing widgets — folder /hz on zamkovoi.yoga.
+# Static files (widget.js) are served by Apache from this folder directly;
+# API calls under /hz/api/ go to the PHP reverse proxy (proxy.php), which
+# forwards them to Vercel. This .htaccess only affects the /hz/ folder and
+# never the WordPress site.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^api/(.*)$ proxy.php [L]
+</IfModule>

@@ -1,11 +1,16 @@
 ---
 id: 02_modules/subscription/history
 title: Subscription History
-version: 1.17
+version: 1.18
 updated: 2026-11-17
 depends_on: [01_foundation/product_model, 04_reference/product/tier_model]
 code_refs: [supabase/migrations/20260501193000_free_tier_global_content.sql, modules/access/core/access.tsx, modules/home/useDayContent.ts]
 ---
+
+## 2026-11-17 — Интеграция пилота курсов
+
+Tab layout дополнительно допускает «День», когда `courses.some(showsOnDay)`: собственный активный курс с текущим материалом и неистёкшим `displayUntil`. Это отдельный учебный доступ, не новый тариф/FeatureKey; `day_planning` по-прежнему управляет планировщиком и prefetch. После конца показа free возвращается к обычной видимости вкладок.
+
 
 ## 2026-11-17 — Выпуск исправлений продления
 

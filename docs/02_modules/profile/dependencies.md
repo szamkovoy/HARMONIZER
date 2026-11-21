@@ -1,8 +1,8 @@
 ---
 id: 02_modules/profile/dependencies
 title: Profile Dependencies
-version: 1.16
-updated: 2026-09-14
+version: 1.17
+updated: 2026-11-21
 depends_on: [01_foundation/architecture, 02_modules/subscription/spec, 02_modules/astro/spec, 02_modules/infra/spec]
 code_refs:
   [
@@ -23,6 +23,9 @@ code_refs:
 ---
 
 ## 1. Зависит от
+
+- **`courses`** — После BookProfileCard показывается `MyCoursesCard` из `modules/courses`: все начатые курсы, включая истёкшие; переход на `/course/[id]` показывает открытые материалы либо период и истечение доступа. Подготовленные тесты не видны.
+
 
 - **`infra`**  
   Supabase (`public.users`, RLS, триггер на `auth.users`), клиент `services/supabase.ts` / типы `services/supabase-types.ts`. Без валидной конфигурации проекта и миграций строка профиля не создаётся и не обновляется.
@@ -59,6 +62,9 @@ code_refs:
 
 ## 2. От него зависят
 
+- **`courses`** — auth/JWT, имя, локаль и зона прохождения.
+
+
 - **`daily_forecast`**  
   `useDayContent` и главный экран читают `profile` из `useAuth()` (tz, координаты, birth fields, tier) для выбора режима контента и scope кэша; `AuthProvider.syncProfile` гидратит locale до снятия `profileLoading`. Смена birth с профиля инициирует отложенный **`blockingReload`** главного через `homeDayContentReloadRequest` (см. §1). Вкладка **`app/(tabs)/day.tsx`** дополнительно использует **`authUser.id`** для ключа **`dayPlanCache`**; **`loadDayPlan`** берёт Bearer через **`getSupabaseAccessSession`**, который **`AuthProvider`** подпитывает **`rememberSupabaseSession`**.
 
@@ -85,3 +91,7 @@ code_refs:
 - **`membership_tier` / `trial_expires_at`** — расхождение с серверными дублями правил доступа (см. open questions по `subscription`).
 - **`refreshProfile` не вызван** после ручного или серверного изменения `users` — UI покажет устаревший тариф или геоданные до следующего auth-события.
 - **Race `profileLoading`:** экраны, не ждущие готовности профиля, могут один кадр отрисовать пустые поля.
+
+courses: интенсив без архива возвращает только сегодняшний урок; после последней местной полуночи — общая карточка истёкшего доступа. Название меняется с локалью приложения.
+
+`courses`: общий courseAccessNotice/hasCourseAccess в shared_core обеспечивает одну точку изменения сообщения и границы с новой браузерной страницей; native modules/courses/strings.ts сохраняет прежний экспорт через реэкспорт общего словаря.

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/practices/history
 title: Practices History
-version: 1.72
-updated: 2026-08-27
+version: 1.73
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/biofeedback/spec, 02_modules/audio/spec, 02_modules/bindu/spec]
 code_refs:
   [
@@ -14,6 +14,14 @@ code_refs:
     supabase/migrations/20260429051600_calibration_dialogue_orchestrator.sql,
   ]
 ---
+
+## 2026-11-17 — Интеграция пилота курсов
+
+`PhoneVimeoPlayer` извлечён из `app/asana-practice.tsx` в `modules/practices/ui/PhoneVimeoPlayer.tsx` без изменения iOS/Android-пути плеера. Экран асаны и учебные материалы используют его совместно; доступ к уроку не открывает каталог асан. Бонусы пилота ссылаются на существующие practice ID.
+
+
+
+В inline-course добавлен autoplay=false и размонтирование при потере фокуса. Исполняемый тест bootstrap выявил прежнюю ошибку склейки JavaScript через пустую строку: `//` поглощал хвост скрипта. Склейка заменена на переводы строк; проверены обе ветки запуска (обычная практика / ручной запуск урока).
 
 ## Decision Log
 

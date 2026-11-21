@@ -1,0 +1,59 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveExactEmailCopy } from './emailCopy';
+import { applyEmailPlaceholders,wrapMarketingEmailHtml } from './emailTemplate';
+import { getMarketingTransportProfile,htmlToPlaintext,sendMarketingEmail,sleep } from './marketingMail';
+import {personalizeCourseLessonEmail} from '@shared/courseLessonEmail';
+
+export async function runCourseEmails(db:SupabaseClient,testOnly=false) {
+ let q=db.from('course_enrollments').select('id').eq('status','active').eq('mail_paused',false).lte('next_mail_at',new Date().toISOString()).order('next_mail_at').limit(30);
+ if(testOnly)q=q.eq('mode','test');
+ const {data:due,error}=await q;if(error)throw error;let sent=0,failed=0;
+ // Yield before the HTTP deadline; the existing cron resumes the saved cursor.
+ const deadline=Date.now()+(testOnly?80_000:20_000);
+ for(const row of due??[]) {
+  let batch=0;
+  do {
+  if(Date.now()>=deadline)break;
+  const {data:e,error:claimError}=await db.rpc('claim_course_mail',{p_id:row.id});if(claimError)throw claimError;if(!e)break;
+  let subject='';let resendId:string|null=null;let failure:string|null=null;
+  try {
+   if(getMarketingTransportProfile().provider!=='resend')throw new Error('Course delivery requires the configured Resend transport for idempotent sends');
+   const {data:a,error:ae}=await db.from('email_automation_enrollments').select('contact_id,automation_id').eq('course_enrollment_id',e.id).eq('status','active').single();if(ae)throw ae;
+   let stepId:string;let linkedLessonId:string|undefined;
+   if(e.mail_schedule){
+    stepId=e.mail_schedule[e.mail_position]?.stepId;
+    if(!stepId)throw new Error('Intensive email position is invalid');
+   }else if(e.mail_position<e.schedule.length){
+    const lessonId=e.schedule[e.mail_position]?.lessonId;
+    linkedLessonId=lessonId;
+    const {data:l,error:le}=await db.from('course_lessons').select('email_step_id').eq('id',lessonId).eq('course_slug',e.course_slug).single();if(le)throw le;
+    stepId=l.email_step_id;
+   }else if(e.mail_position===e.schedule.length&&e.completion_email_step_id)stepId=e.completion_email_step_id;
+   else throw new Error('Course email position is invalid');
+   const {data:step,error:se}=await db.from('email_automation_steps').select('*').eq('id',stepId).eq('automation_id',a.automation_id).single();if(se)throw se;
+   const {data:contact,error:co}=await db.from('email_contacts').select('email,user_id,marketing_status,locale').eq('id',a.contact_id).single();if(co)throw co;
+   if(contact.user_id!==e.user_id||contact.email.trim().toLowerCase()!==e.buyer_email.trim().toLowerCase())throw new Error('Course recipient mismatch');
+   if(['complained','suppressed'].includes(contact.marketing_status))throw new Error('Delivery blocked by contact status');
+   const {data:user,error:ue}=await db.from('users').select('display_name,locale').eq('id',e.user_id).single();if(ue)throw ue;
+   const input={subject:step.subject,htmlBody:step.html_body,subjectI18n:step.subject_i18n,htmlBodyI18n:step.html_body_i18n};
+   const copy=resolveExactEmailCopy(user.locale||contact.locale,input)||resolveExactEmailCopy('en',input)||resolveExactEmailCopy('ru',input);if(!copy)throw new Error('Course email copy missing');
+   const name=(user.display_name||'').replace(/[<>&"]/g,'');
+   subject=applyEmailPlaceholders(copy.subject,{name});
+   const body=linkedLessonId&&copy.locale==='ru'?personalizeCourseLessonEmail(copy.htmlBody,e.id,linkedLessonId):copy.htmlBody;
+   const html=wrapMarketingEmailHtml({bodyHtml:applyEmailPlaceholders(body,{name}),footer:null,lang:copy.locale});
+   const result=await sendMarketingEmail({to:contact.email,subject,html,text:htmlToPlaintext(html),locale:copy.locale,idempotencyKey:`course/${e.id}/${e.mail_position}`});
+   if(result.ok)resendId=result.resendId;else failure=result.detail;
+  }catch(error){failure=error instanceof Error?error.message:String(error);}
+  const {error:finishError}=await db.rpc('finish_course_mail',{p_id:e.id,p_token:e.claim_token,p_subject:subject,p_resend_id:resendId,p_error:failure});if(finishError)throw finishError;
+  if(failure)failed++;else sent++;
+  batch++;
+  // Only content tests release every lesson/mail at the same instant. Ordinary and
+  // timed rehearsals retain the one-letter-per-pass path and their existing dates.
+  const immediate=e.mode==='test'&&(e.mail_schedule?e.mail_schedule.every((item:{mailAt:string})=>item.mailAt===e.mail_schedule[0].mailAt):e.schedule.length>0&&e.schedule.every((item:{opensAt:string;mailAt:string})=>item.opensAt===e.schedule[0].opensAt&&item.mailAt===e.schedule[0].opensAt));
+  const total=e.mail_schedule?.length??e.schedule.length+(e.completion_email_step_id?1:0);
+  if(failure||!immediate||e.mail_position+1>=total||batch>=501||Date.now()>=deadline)break;
+  await sleep(600);
+  }while(true);
+ }
+ return {course_sent:sent,course_failed:failed};
+}

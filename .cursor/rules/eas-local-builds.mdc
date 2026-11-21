@@ -3,7 +3,11 @@ description: Prefer local EAS builds — never burn Expo cloud quota by default
 alwaysApply: true
 ---
 
-# EAS builds — local first (HARMONIZER Mac)
+# EAS builds — only when explicitly requested
+
+**User instruction, 2026-11-17:** Do not build or upload by default. Suggest that Sergey run the command himself. Editing code/version or preparing a test does not authorize a build. The commands below apply only after an explicit request to build; otherwise show them to Sergey.
+
+## Local first (HARMONIZER Mac)
 
 The Expo Free plan has a small monthly cloud build quota (≈30). Cloud queues are often hours long. This Mac is set up for **local** builds — use them by default.
 

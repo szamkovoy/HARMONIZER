@@ -52,4 +52,29 @@ describe("buildClientForecastPayload", () => {
     expect(payload.contentPhase).toBe("base_ready");
     expect(payload.recommendationShortText).toBeUndefined();
   });
+
+  it("does not tell the app to print the alternative-choice caption", () => {
+    const row = {
+      forecast_date: "2026-11-21",
+      importance: { Mars: 0.4, Mercury: 0.8 },
+      activation: { Mars: 0.4, Mercury: 0.8 },
+      ranked_planets: ["Mars", "Mercury"],
+      planet_of_the_day: "Mars",
+      is_alternative_choice: true,
+      alternative_reason_text:
+        "Сегодня предлагаем направить внимание на другую тему. Это разнообразит ваши усилия по гармонизации.",
+      today_planet_state: { todayTone: "harmonic", naturalHarmoniousness: 0.2 },
+      windows_of_opportunity: {},
+      transit_chart: { planets: {} },
+      computed_at: "2026-11-20T21:00:00.000Z",
+      cache_valid_until: "2026-11-21T21:00:00.000Z",
+    };
+
+    const payload = buildClientForecastPayload(row, null);
+    expect(payload.isAlternativeChoice).toBe(false);
+    expect(payload.is_alternative_choice).toBe(false);
+    expect(payload.alternativeReasonText).toBeNull();
+    expect(payload.alternative_reason_text).toBeNull();
+    expect(payload.planetOfTheDay).toBe("Mars");
+  });
 });

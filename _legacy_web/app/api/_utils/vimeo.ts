@@ -1,6 +1,16 @@
 import { readPracticeVideoThumbnailFromParams } from "@shared/practiceVideo";
 import type { PracticeRecommendation, PracticeVideoThumbnail } from "@shared/recommendation";
 
+const VIMEO_PLAYER_BASE = "https://player.vimeo.com/video";
+const VIMEO_DEFAULT_AUDIOTRACK = "ru";
+
+/** Canonical iframe src for course browser embeds (audiotrack query must stay minimal). */
+export function vimeoEmbedUrl(vimeoId: string, audiotrack: string = VIMEO_DEFAULT_AUDIOTRACK): string {
+  const trimmedId = vimeoId.trim();
+  const track = (audiotrack ?? VIMEO_DEFAULT_AUDIOTRACK).trim() || VIMEO_DEFAULT_AUDIOTRACK;
+  return `${VIMEO_PLAYER_BASE}/${encodeURIComponent(trimmedId)}?audiotrack=${encodeURIComponent(track)}`;
+}
+
 const VIMEO_API_BASE = "https://api.vimeo.com";
 const VIMEO_ACCEPT = "application/vnd.vimeo.*+json;version=3.4";
 const VIMEO_REVALIDATE_SEC = 60 * 60 * 24;

@@ -1,8 +1,8 @@
 ---
 id: 02_modules/webinars/spec
 title: Webinars Spec
-version: 3.6
-updated: 2026-09-14
+version: 3.7
+updated: 2026-11-17
 depends_on: [01_foundation/product_model, 02_modules/subscription/spec, 02_modules/author_presence/spec, 02_modules/admin_panel/spec, 02_modules/i18n/spec]
 code_refs:
   [
@@ -51,6 +51,8 @@ code_refs:
 - Вопросы анонса — `created_at` ascending (свежие внизу), как в приложении.
 
 ### Данные
+
+- **Пропуск курса** (`20261117180000`): в `webinar_passes` ровно один источник — contract_id или course_enrollment_id. Курс создаёт пропуск при старте обычного прохождения, окно до последнего настоящего учебного урока + настроенные дни (отдельное завершающее письмо его не продлевает), 1 000 000 кредитов. RPC сначала использует курс, затем отдельные платные пропуска. Отзыв/удаление курса удаляет только регистрации его пропуска; prepared/test не создают реального доступа. Приглашения и записи используют существующий механизм писем; course starter отправляет приглашение на уже опубликованный анонс.
 
 - `webinars`: + `cover_url`, `title_i18n`, `description_i18n`, `cover_url_i18n`, `translations_updated_at`; `is_published` = анонс; `recording_url` deprecated; **`start_notified_at`** — после авто-пуша старта (Edge `notify-webinar-start`, см. `notifications`).
 - **Авто-пуш старта:** minutely cron → записавшимся с `join_url`, текст на `users.locale` («вебинар начинается» + ссылка). Не вручную из админки. SQL-инвокер `invoke_notify_webinar_start` (с `20260914010000`) сам проверяет окно due (`is_published`, `start_notified_at is null`, `join_url`, `starts_at ∈ [now−15m, now+30s]`) и зовёт Edge только когда есть что уведомлять; окно должно совпадать с `CATCH_UP`/`LOOKAHEAD` в `supabase/functions/notify-webinar-start`.
