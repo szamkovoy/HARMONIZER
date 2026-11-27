@@ -1,13 +1,15 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.142
-updated: 2026-11-27
+version: 3.143
+updated: 2026-11-28
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
+
+- 2026-11-28: Сергей подтвердил быструю загрузку картинок после перехода на прямой Supabase Storage и сообщил о проведённой рассылке. Ручная приёмка записана в `marketing_email/history.md`, вопрос картинок закрыт; прежняя недоступность REG.RU выделена отдельно в `open_questions.md`.
 
 - 2026-11-27: Production `dpl_6PwnQE8pEUTStTMUXYP5CkvXYeJA` / `harmonizer-ten.vercel.app` публикует прямые Storage URL картинок письма (снимок `56955c47`). Письма не отправлялись; Яндекс.Почта ждёт ручной проверки Сергея. Docs `marketing_email`, `infra`.
 

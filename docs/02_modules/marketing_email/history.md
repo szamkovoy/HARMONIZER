@@ -1,8 +1,8 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.52
-updated: 2026-11-27
+version: 1.53
+updated: 2026-11-28
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
   [
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-28 — Сергей подтвердил загрузку картинок и провёл рассылку
+
+После выпуска прямых Supabase Storage URL Сергей сообщил, что всё проверил: изображения теперь загружаются быстро, рассылка уже проведена. Это ручная приёмка по его сообщению, не автоматическая проверка почтового клиента агентом. Соответствующий вопрос marketing_email закрыт; прежняя недоступность REG.RU из среды диагностики оставлена отдельным вопросом infra. Код и deployment не менялись.
 
 ## 2026-11-27 — Публикация прямой выдачи картинок
 
