@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.49
+version: 1.50
 updated: 2026-11-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-27 — Проверка production-просмотра и публичного хоста
+
+Деплой `dpl_Hp9AdWsbyZyMDfxJAkf3nBC4bcjf` на `harmonizer-ten.vercel.app` собран из чистого HEAD `9bcc6b6e`. В авторизованном браузере кампания `60ada7a4-7241-4629-b40e-110742cd455b`: обе картинки naturalWidth=1000, высоты 371 и 558. «Сохранить и выйти» закрыло редактор; после перезагрузки обе complete=true, 1000×371 и 1000×558. С этой машины `curl -4 --max-time 10` к `/admin/login` и к JPEG обложки одинаково обрывается: таймаут, 0 байт, 31.31.196.134, без HTTP. `curl -6` к логину: immediate fail `2a00:f940:2:2:1:1:0:147`, «No route to host», 2 мс. Панель `:1500` не ответила, журнал хостинга не получен. Прокси не менялся.
 
 ## 2026-11-27 — Предпросмотр использует origin открытой админки
 

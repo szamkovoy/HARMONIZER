@@ -1,11 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.15
+version: 1.16
 updated: 2026-11-27
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-27 — Production-просмотр картинок письма
+
+На `harmonizer-ten.vercel.app` (`dpl_Hp9AdWsbyZyMDfxJAkf3nBC4bcjf`) в авторизованном браузере кампания `60ada7a4-7241-4629-b40e-110742cd455b`: две картинки 1000×371 и 1000×558. «Сохранить и выйти» закрыл редактор; после перезагрузки обе снова complete=true с теми же размерами. Публичный хост с этой машины не доходит до HTTP ни для `/admin/login`, ни для JPEG; подробности — marketing_email.
 
 ## 2026-11-27 — Единый путь картинки в редакторе и просмотре письма
 
