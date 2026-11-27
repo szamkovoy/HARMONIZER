@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.50
+version: 1.51
 updated: 2026-11-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-27 — Картинки для получателя обходят REG.RU
+
+Сергей проверил новое тестовое письмо в Яндекс.Почте: после примерно 30 с обе картинки битые, хотя Apple Mail их загружает с задержкой. Успех preview/Apple Mail недостаточен для разрешения массовой отправки. `POST /api/admin/email/assets` пишет исходные байты в существующий Supabase Storage bucket `email-assets` (3 МБ, JPEG/PNG/WebP/GIF, cache-control год) и возвращает прямой публичный URL. В `emailFirstPartyTracking.ts` удалена автоматическая замена Storage URL на `/api/email/asset`, иначе отправка вновь шла бы через REG.RU. Старые Blob/CDN маршруты не удалены; прочие письма/цепочки не мигрируются. 46 тестов upload/подготовки отправки/preview/HTML прошли, включая сохранение исходных байтов и прямого image src в полном `prepareTrackedMarketingEmailHtml`; TypeScript без ошибок. Черновик `60ada7a4-7241-4629-b40e-110742cd455b` остаётся `draft`. Шапка `1791128151677-96qmed.jpg`: 62802 байт, SHA-256 `e757bc5b6506f47f0d4c47b8965369f61f8f427adbf023a74b69ce2d7aee58cf`, объект `campaigns/20261127-repair-header-e757bc5b6506.jpg`, три публичных GET 200 за 1.251/0.595/0.659 с. Актуальная обложка Сергея `1795793695852-xfncf6.jpg` побайтно совпала с уже лежащим объектом: 137826 байт, SHA-256 `62245593125c9e273d807e218652eac7f4c850a47441ddbcd110ec5288e14a50`, `campaigns/20261127-repair-cover-62245593125c.jpg`; повторная загрузка второй файл не создала, публичные GET 200 за 1.094/0.946/0.842 с. Прежний отсутствующий `dlf3yu` в черновик не возвращался. `updated_at` после CAS — `2026-11-27T16:19:28.067+00:00`. Проверка нового письма в Яндекс.Почте после публикации пока ожидается; массовую отправку до неё не запускать.
 
 ## 2026-11-27 — Проверка production-просмотра и публичного хоста
 

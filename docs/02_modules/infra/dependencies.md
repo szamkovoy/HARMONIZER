@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/dependencies
 title: Infra Dependencies
-version: 1.10
-updated: 2026-11-19
+version: 1.11
+updated: 2026-11-27
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md]
 ---
@@ -28,6 +28,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
   Stories media pipeline в `_legacy_web` опирается на `sharp`, `ffmpeg-static` и `ffprobe-static`; значит, server runtime и bundling должны уметь притянуть native image lib + ffmpeg binaries.
 
 ## 2. От него зависят
+
+- **`marketing_email`** — существующие таблицы рассылок и публичный Storage bucket `email-assets`. Новая загрузка использует service-role Storage upload и прямой public URL; отправка сохраняет этот URL, не маршрутизируя его через REG.RU. Старые Blob/CDN URL остаются совместимыми.
 
 - **`courses`** — Supabase, RLS, cron/pg_net и Vercel; отдельные таблицы/миграции пилота.
 

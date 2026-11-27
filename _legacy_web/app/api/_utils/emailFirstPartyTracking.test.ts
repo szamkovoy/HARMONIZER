@@ -4,6 +4,7 @@ import {
   emailOpenTrackingDisabled,
   injectFirstPartyEmailTracking,
   parseEmailTrackToken,
+  prepareTrackedMarketingEmailHtml,
   rewriteEmailAssetUrlsForCache,
   safeClickRedirectUrl,
   signEmailTrackToken,
@@ -48,15 +49,32 @@ describe("injectFirstPartyEmailTracking", () => {
     }
   });
 
-  it("rewrites supabase email-assets through cacheable proxy", () => {
+  it("keeps direct Storage URLs out of the REG.RU asset proxy", () => {
     const src =
       "https://vsdmphhczmcgfrvbwodp.supabase.co/storage/v1/object/public/email-assets/campaigns/x.png";
     const out = rewriteEmailAssetUrlsForCache(
       `<img src="${src}" />`,
       "https://harmonizer-ten.vercel.app",
     );
-    expect(out).toContain("/api/email/asset?u=");
-    expect(out).toContain(encodeURIComponent(src));
+    expect(out).toBe(`<img src="${src}" />`);
+    expect(out).not.toContain("/api/email/asset");
+  });
+
+  it("preserves the direct image URL through the complete send preparation", async () => {
+    const src = "https://vsdmphhczmcgfrvbwodp.supabase.co/storage/v1/object/public/email-assets/campaigns/cover.jpg";
+    const out = await prepareTrackedMarketingEmailHtml({
+      bodyHtml: `<img src="${src}" width="520" height="290" alt="Посмотрите видео" /><a href="https://youtu.be/video">Видео</a>`,
+      trackId: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(out).toContain(`src="${src}"`);
+    expect(out).not.toContain("/api/email/asset");
+    expect(out).not.toContain("/email-cdn/");
+    expect(out).toContain("/api/email/track/click");
+  });
+
+  it("does not change existing legacy asset-proxy URLs", () => {
+    const html = '<img src="https://harmonizer.zamkovoi.yoga/api/email/asset?u=legacy" />';
+    expect(rewriteEmailAssetUrlsForCache(html, "https://harmonizer.zamkovoi.yoga")).toBe(html);
   });
 
   it("points Blob files at the public /email-cdn path", () => {

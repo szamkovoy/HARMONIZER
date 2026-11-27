@@ -1,11 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.39
+version: 1.40
 updated: 2026-11-27
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
+
+## 2026-11-27 — Прямая выдача новых картинок писем
+
+Upload писем использует существующий публичный Storage bucket `email-assets` и прежние Supabase credentials. Прямые Storage URL сохраняются при подготовке отправки; правило, заворачивавшее их в REG.RU `/api/email/asset`, удалено. Старые Blob/CDN и asset-proxy маршруты совместимы; глобальная миграция старых писем не выполнялась. Содержимое файлов не преобразуется. DNS, SSL, публичный API origin, RLS и bucket settings не менялись. Успех в админке/Apple Mail не считается проверкой Яндекс.Почты; новая проверка после выпуска обязательна.
 
 ## 2026-11-27 — Картинки `/email-cdn` без CSP Blob
 

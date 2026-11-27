@@ -9,6 +9,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-27: Новые картинки письма загружаются без пережатия в существующий Supabase Storage `email-assets`; отправка сохраняет прямой URL вместо переписывания на REG.RU `/api/email/asset`. Черновик `60ada7a4-7241-4629-b40e-110742cd455b` переведён на эти URL: шапка 62802 байт, актуальная обложка `xfncf6` 137826 байт с тем же SHA. 46 проверок прошли; Яндекс.Почта ещё не подтверждена, массовую отправку не запускать. Docs `marketing_email`, `infra`, `DEPLOY`, `open_questions`.
+
 - 2026-11-27: Production-просмотр письма на `dpl_Hp9AdWsbyZyMDfxJAkf3nBC4bcjf` / `harmonizer-ten.vercel.app` подтверждён: обе картинки 1000×371 и 1000×558 после сохранения и перезагрузки. Публичный хост с этой машины не отвечает ни на `/admin/login`, ни на JPEG; журнал REG.RU недоступен. Docs `marketing_email`, `admin_panel`, `open_questions`.
 
 - 2026-11-27: Предпросмотр картинок писем использует email CDN origin открытой админки (iframe, редактор, legacy HTML и размеры); сохранённые/отправляемые URL и исходные файлы не меняются. Публичный JPEG по `curl --max-time 20` обрывается без ответа (0 байт), Vercel-аналог — HTTP 200, 137826 байт; вопрос доставки остаётся открытым. Docs `marketing_email`, `admin_panel`, `open_questions`.

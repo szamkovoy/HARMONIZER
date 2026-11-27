@@ -18,7 +18,7 @@ function allowedSupabaseHost(): string | null {
 
 /**
  * Legacy proxy for letters already sent with a Supabase email-assets URL.
- * New uploads use a public Vercel Blob URL and do not come through here.
+ * New uploads use a direct public Storage URL and do not come through here.
  */
 export async function GET(req: Request) {
   const raw = new URL(req.url).searchParams.get("u")?.trim() ?? "";

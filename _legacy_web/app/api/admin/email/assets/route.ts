@@ -1,7 +1,6 @@
-import { put } from "@vercel/blob";
+import { randomUUID } from "node:crypto";
 
 import { imageFromUploadBody } from "../../../_utils/emailImageUpload";
-import { getEmailPublicBaseUrl } from "../../../_utils/marketingMail";
 import { createServiceSupabase, errorResponse, json, requireAdmin } from "../../../_utils/supabase";
 
 export const runtime = "nodejs";
@@ -9,12 +8,7 @@ export const maxDuration = 60;
 
 const YEAR_SECONDS = 31_536_000;
 const MAX_BYTES = 3 * 1024 * 1024;
-
-/** Public letter URL. The blob host itself does not open in Russia. */
-function publicEmailImageUrl(blobUrl: string): string {
-  const path = blobUrl.replace(/^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i, "");
-  return `${getEmailPublicBaseUrl()}/email-cdn/${path}`;
-}
+const BUCKET = "email-assets";
 
 function extForMime(mime: string): string {
   if (mime.includes("png")) return "png";
@@ -50,15 +44,13 @@ async function readImageUpload(req: Request): Promise<{ bytes: Buffer; mime: str
 }
 
 /**
- * New letter images go to Vercel Blob (public CDN). The HTML keeps that URL.
- * `/api/email/asset` stays only for letters already sent with a Supabase URL.
+ * Store the author's original bytes in the existing public Storage bucket.
+ * The direct URL lets mail clients load images without the REG.RU → Vercel hop.
+ * Existing Blob/CDN and legacy /api/email/asset URLs remain available separately.
  */
 export async function POST(req: Request) {
   try {
     await requireAdmin(req);
-    if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-      return json({ error: "BLOB_READ_WRITE_TOKEN не задан" }, { status: 500 });
-    }
 
     const { bytes, mime } = await readImageUpload(req);
     if (bytes.length === 0) {
@@ -67,21 +59,22 @@ export async function POST(req: Request) {
     if (bytes.length > MAX_BYTES) {
       return json({ error: "Максимум 3 МБ" }, { status: 400 });
     }
-    if (!mime.startsWith("image/")) {
-      return json({ error: "Только изображения" }, { status: 400 });
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mime)) {
+      return json({ error: "Поддерживаются JPEG, PNG, WebP и GIF" }, { status: 400 });
     }
 
     const ext = extForMime(mime);
-    const path = `email-assets/campaigns/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const blob = await put(path, bytes, {
-      access: "public",
-      contentType: mime,
-      cacheControlMaxAge: YEAR_SECONDS,
-      addRandomSuffix: false,
-    });
-
-    const publicUrl = publicEmailImageUrl(blob.url);
+    const path = `campaigns/${Date.now()}-${randomUUID()}.${ext}`;
     const db = createServiceSupabase();
+    const bucket = db.storage.from(BUCKET);
+    const { error: uploadError } = await bucket.upload(path, bytes, {
+      contentType: mime,
+      cacheControl: String(YEAR_SECONDS),
+      upsert: false,
+    });
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = bucket.getPublicUrl(path);
     const { error: insertError } = await db.from("email_assets").insert({
       path,
       public_url: publicUrl,

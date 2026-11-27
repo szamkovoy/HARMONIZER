@@ -87,7 +87,7 @@ Required Vercel environment variables:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key for JWT validation.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key for backend writes and protected reads.
 - `CRON_SECRET` - shared secret required by scheduled functions and by `POST /api/ai/global-content/warm`.
-- `BLOB_READ_WRITE_TOKEN` - read-write token of the public Blob store `harmonizer-email` (fra1). Required by `POST /api/admin/email/assets`. Connected to Production, Preview, and Development. New letter images are served from this CDN; `/api/email/asset` remains for letters already sent.
+- New letter images: `POST /api/admin/email/assets` uses the existing public Supabase Storage bucket `email-assets` through the existing service-role client; no additional secret is required. The response contains a direct public Storage URL, preserved by send preparation. Files are uploaded unchanged (3 MB; JPEG/PNG/WebP/GIF; cache-control one year). Historical Vercel Blob `/email-cdn` and `/api/email/asset` URLs remain supported; existing `BLOB_READ_WRITE_TOKEN` configuration is not removed by this change.
 - `DISABLE_EMAIL_OPEN_TRACKING=false` - new letters include the open-tracking image. Click redirects stay either way. Set to `true` to omit the pixel again, then deploy once. The switch in code is `emailOpenTrackingDisabled()` in `_legacy_web/app/api/_utils/emailFirstPartyTracking.ts`.
 - `GEMINI_API_KEY` - Gemini key for calibration extraction, orchestrator, responder, and recommendation text.
 - `AI_MODEL_STANDARD` - concrete Gemini model for `standard` prompt/scenario tier.

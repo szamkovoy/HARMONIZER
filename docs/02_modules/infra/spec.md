@@ -1,8 +1,8 @@
 ---
 id: 02_modules/infra/spec
 title: Infra Spec
-version: 1.34
-updated: 2026-11-21
+version: 1.35
+updated: 2026-11-27
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/app/api/_utils/supabase.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, eas.json, app.json, scripts/after-store-build.mjs, scripts/prefetch-rn-ios-artifacts.mjs, DEPLOY.md, sentry.client.config.ts, supabase/README.md, supabase/functions/_shared/supabase.ts, supabase/functions/reconcile-expired-memberships/index.ts, supabase/migrations/20260710023000_reconcile_expired_memberships.sql, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260914010000_cron_invokers_hardening.sql, supabase/migrations/20260914011000_function_grants_hardening.sql, supabase/migrations/20260914012000_welcome_candidates_stable.sql, plugins/with-ios-xcode26-archive.js, patches/react-native+0.81.5.patch]
 ---
@@ -41,6 +41,8 @@ code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/
 - `.vercelignore` — исключает из CLI-upload корня тяжёлые деревья (`/android`, `/ios`, `/app`, большая часть `/modules/*`, `/docs`, `/supabase` и т.д.), оставляя для сервера доступ к `_legacy_web` и явно к `modules/practices/**` для общих импортов API.
 
 **Supabase**
+
+- Картинки `marketing_email` загружаются без преобразования в существующий публичный Storage bucket `email-assets` (3 МБ, JPEG/PNG/WebP/GIF, cache-control год). Новый upload endpoint и отправка используют прямой Storage URL; REG.RU и Vercel не участвуют в скачивании новых файлов получателем. Исторические `/email-cdn` и `/api/email/asset` остаются совместимыми, без автоматической миграции старых писем. Новых env/миграций и изменений DNS/SSL нет.
 
 - `supabase/README.md` — операционный контракт папки: структура `migrations/`, `functions/`, `seed.sql`, требования к `.env.local` для CLI, команды `link` / `db push`, cron-функции (`auto-calibrate`, `precompute-daily-forecasts`, `precompute-global-recommendations`, `cleanup-expired-proposals`, `cleanup-expired-stories`, `reconcile-expired-memberships`), правило «не править старые миграции — только новые файлы».
 - `supabase/config.toml` — локальные флаги edge-функций; для cron-style вызовов `verify_jwt = false` фиксируется и для `precompute-global-recommendations` / cleanup / reconcile memberships.
