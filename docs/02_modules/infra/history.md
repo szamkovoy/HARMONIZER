@@ -1,11 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.40
+version: 1.41
 updated: 2026-11-27
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
+
+## 2026-11-27 — Публикация прямой выдачи картинок писем
+
+Production `dpl_6PwnQE8pEUTStTMUXYP5CkvXYeJA`, alias `harmonizer-ten.vercel.app`, снимок `56955c47`. Письма не отправлялись. Подтверждение Яндекс.Почты ещё впереди.
 
 ## 2026-11-27 — Прямая выдача новых картинок писем
 

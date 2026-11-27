@@ -9,6 +9,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-27: Production `dpl_6PwnQE8pEUTStTMUXYP5CkvXYeJA` / `harmonizer-ten.vercel.app` публикует прямые Storage URL картинок письма (снимок `56955c47`). Письма не отправлялись; Яндекс.Почта ждёт ручной проверки Сергея. Docs `marketing_email`, `infra`.
+
 - 2026-11-27: Новые картинки письма загружаются без пережатия в существующий Supabase Storage `email-assets`; отправка сохраняет прямой URL вместо переписывания на REG.RU `/api/email/asset`. Черновик `60ada7a4-7241-4629-b40e-110742cd455b` переведён на эти URL: шапка 62802 байт, актуальная обложка `xfncf6` 137826 байт с тем же SHA. 46 проверок прошли; Яндекс.Почта ещё не подтверждена, массовую отправку не запускать. Docs `marketing_email`, `infra`, `DEPLOY`, `open_questions`.
 
 - 2026-11-27: Production-просмотр письма на `dpl_Hp9AdWsbyZyMDfxJAkf3nBC4bcjf` / `harmonizer-ten.vercel.app` подтверждён: обе картинки 1000×371 и 1000×558 после сохранения и перезагрузки. Публичный хост с этой машины не отвечает ни на `/admin/login`, ни на JPEG; журнал REG.RU недоступен. Docs `marketing_email`, `admin_panel`, `open_questions`.

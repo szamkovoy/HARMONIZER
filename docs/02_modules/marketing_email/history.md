@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.51
+version: 1.52
 updated: 2026-11-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-27 — Публикация прямой выдачи картинок
+
+`dpl_6PwnQE8pEUTStTMUXYP5CkvXYeJA` на `harmonizer-ten.vercel.app` собран из чистого HEAD `56955c47`. `/admin/login` отдаёт этот deployment. Письма не отправлялись. Яндекс.Почта остаётся ручной проверкой Сергея; до неё массовую отправку не запускать.
 
 ## 2026-11-27 — Картинки для получателя обходят REG.RU
 
