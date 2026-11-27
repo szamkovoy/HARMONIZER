@@ -1,13 +1,19 @@
 ---
 id: 00_index/CHANGELOG
 title: Documentation Changelog
-version: 3.139
-updated: 2026-11-22
+version: 3.142
+updated: 2026-11-27
 depends_on: [docs/_proposal]
 code_refs: [docs/_proposal.md]
 ---
 
 ## Changelog
+
+- 2026-11-27: Картинка рассылки была целой, но в просмотре рисовалась битой: прокси отдавал `Content-Security-Policy` от Blob. Для `/email-cdn` заголовок снимается и ставится `Content-Length`. Docs `marketing_email`, `infra`.
+
+- 2026-11-27: Загрузка картинки рассылки больше не пережимает файл. Автор сам задаёт ширину и вес; `fitEmailImage` удалён. Docs `marketing_email`.
+
+- 2026-11-27: Картинка рассылки видна в форме и пропадает в письме: прогрессивный JPEG ~115 КБ не рисуется, шапка (обычный JPEG ~60 КБ) рисуется. `fitEmailImage` сохраняет обычный JPEG до 56 КБ, холст показывает выбранный файл сразу. Docs `marketing_email`.
 
 - 2026-11-22: Home больше не показывает под рекомендацией фразу про «другую тему». Смена планеты на третий день остаётся; `buildClientForecastPayload` не отдаёт клиенту `isAlternativeChoice`. Спека: `docs/02_modules/daily_forecast/`.
 

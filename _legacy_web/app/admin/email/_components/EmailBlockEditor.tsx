@@ -55,6 +55,7 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
   const localSubjectRef = useRef(localSubject);
   const localBlocksRef = useRef(localBlocks);
   localSubjectRef.current = localSubject;
@@ -67,6 +68,16 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [editIndex, onClose]);
+
+  const holdPreview = useCallback((blockId: string, file: File) => {
+    const url = URL.createObjectURL(file);
+    setLocalPreviews((prev) => {
+      const old = prev[blockId];
+      if (old) URL.revokeObjectURL(old);
+      return { ...prev, [blockId]: url };
+    });
+    return url;
+  }, []);
 
   const updateBlock = useCallback((index: number, patch: Partial<EmailBlock>) => {
     setLocalBlocks((prev) =>
@@ -212,7 +223,11 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
                     <Trash2 size={14} />
                   </IconBtn>
                 </div>
-                <BlockPreview block={block} onOpen={() => setEditIndex(index)} />
+                <BlockPreview
+                  block={block}
+                  localSrc={block.type === "image" ? localPreviews[block.id] : undefined}
+                  onOpen={() => setEditIndex(index)}
+                />
               </div>
               <InsertBar onInsert={(type) => insertAt(index + 1, type)} />
             </div>
@@ -237,6 +252,7 @@ export function EmailBlockEditor({ localeLabel, subject, blocks, onSave, onClose
         <BlockSettingsModal
           block={editing}
           onChange={(patch) => updateBlock(editIndex, patch)}
+          onHoldPreview={(file) => holdPreview(editing.id, file)}
           onClose={() => setEditIndex(null)}
         />
       ) : null}
@@ -298,7 +314,20 @@ function InsertBar({ onInsert }: { onInsert: (type: EmailBlock["type"]) => void 
   );
 }
 
-function BlockPreview({ block, onOpen }: { block: EmailBlock; onOpen: () => void }) {
+function BlockPreview({
+  block,
+  localSrc,
+  onOpen,
+}: {
+  block: EmailBlock;
+  localSrc?: string;
+  onOpen: () => void;
+}) {
+  const [imageBroken, setImageBroken] = useState(false);
+  useEffect(() => {
+    setImageBroken(false);
+  }, [block.type === "image" ? block.src : ""]);
+
   if (block.type === "heading" || block.type === "text") {
     return (
       <button
@@ -323,16 +352,21 @@ function BlockPreview({ block, onOpen }: { block: EmailBlock; onOpen: () => void
   }
   return (
     <button type="button" onClick={onOpen} className="w-full px-3 py-3 text-center">
-      {block.src ? (
+      {(localSrc || (block.src && !imageBroken)) ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={emailImagePreviewSrc(block.src)}
+          src={localSrc || emailImagePreviewSrc(block.src)}
           alt={block.alt || ""}
           className="mx-auto max-h-48 max-w-full object-contain"
+          onError={() => {
+            if (!localSrc) setImageBroken(true);
+          }}
         />
       ) : (
         <span className="text-xs text-zinc-400">
-          Изображение — нажмите, чтобы загрузить
+          {block.src
+            ? "Картинка не открылась — нажмите и загрузите файл ещё раз"
+            : "Изображение — нажмите, чтобы загрузить"}
         </span>
       )}
     </button>
@@ -342,18 +376,30 @@ function BlockPreview({ block, onOpen }: { block: EmailBlock; onOpen: () => void
 function BlockSettingsModal({
   block,
   onChange,
+  onHoldPreview,
   onClose,
 }: {
   block: EmailBlock;
   onChange: (patch: Partial<EmailBlock>) => void;
+  onHoldPreview: (file: File) => string;
   onClose: () => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [remoteBroken, setRemoteBroken] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setRemoteBroken(false);
+  }, [block.type === "image" ? block.src : ""]);
 
   async function uploadFile(file: File) {
     setUploading(true);
     setUploadError(null);
+    setRemoteBroken(false);
+    const objectUrl = onHoldPreview(file);
+    setLocalPreview(objectUrl);
     try {
       // Raw image body, not multipart. The REG.RU proxy strips the multipart
       // boundary, and Vercel then throws "no boundary found in multipart body".
@@ -367,7 +413,6 @@ function BlockSettingsModal({
       if (data.public_url) {
         let naturalWidth: number | undefined;
         let naturalHeight: number | undefined;
-        const objectUrl = URL.createObjectURL(file);
         try {
           const fromFile = await loadImageNaturalSize(objectUrl);
           naturalWidth = fromFile.width;
@@ -380,8 +425,6 @@ function BlockSettingsModal({
           } catch {
             /* send path still probes dimensions */
           }
-        } finally {
-          URL.revokeObjectURL(objectUrl);
         }
         onChange({
           src: data.public_url,
@@ -503,28 +546,48 @@ function BlockSettingsModal({
 
           {block.type === "image" && (
             <>
-              {block.src ? (
+              {localPreview || (block.src && !remoteBroken) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={emailImagePreviewSrc(block.src)}
+                  src={localPreview || emailImagePreviewSrc(block.src)}
                   alt={block.alt}
                   className="mx-auto max-h-40 object-contain"
+                  onError={() => {
+                    if (!localPreview) setRemoteBroken(true);
+                  }}
                 />
+              ) : block.src ? (
+                <p className="text-sm text-zinc-500">
+                  Эта картинка не открывается из письма. Выберите файл ещё раз — она сохранится в размере, который видно в рассылке.
+                </p>
               ) : null}
-              <label className="block text-xs text-zinc-500">
-                Файл {uploading ? "(загрузка…)" : ""}
+              <div className="block text-xs text-zinc-500">
+                Изображение {uploading ? "(загрузка…)" : ""}
                 <input
+                  ref={fileRef}
                   type="file"
                   accept="image/*"
-                  className="mt-1 block w-full text-sm"
+                  className="hidden"
                   disabled={uploading}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) void uploadFile(f);
                     e.target.value = "";
+                    if (f) void uploadFile(f);
                   }}
                 />
-              </label>
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileRef.current?.click()}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  {uploading
+                    ? "Загрузка…"
+                    : block.src
+                      ? "Заменить изображение"
+                      : "Выбрать изображение"}
+                </button>
+              </div>
               {uploadError ? (
                 <p className="text-sm text-rose-600">{uploadError}</p>
               ) : null}

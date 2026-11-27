@@ -1,11 +1,15 @@
 ---
 id: 02_modules/infra/history
 title: Infra History
-version: 1.38
-updated: 2026-11-21
+version: 1.39
+updated: 2026-11-27
 depends_on: [01_foundation/repository_structure, 01_foundation/tech_stack]
 code_refs: [_legacy_web/app/layout.tsx, _legacy_web/next.config.ts, _legacy_web/instrumentation.ts, _legacy_web/sentry.server.config.ts, _legacy_web/app/api/_utils/monitoring.ts, _legacy_web/public/manifest.json, _legacy_web/package.json, .vercelignore, package.json, sentry.client.config.ts, supabase/README.md, supabase/migrations/20260721010000_ensure_harmonizer_cron_watchdog.sql, supabase/migrations/20260724190000_cleanup_stale_notification_deliveries.sql]
 ---
+
+## 2026-11-27 — Картинки `/email-cdn` без CSP Blob
+
+`deploy/reg-ru-harmonizer-proxy.php` для `/email-cdn` не пересылает `Content-Security-Policy` и отдаёт тело с `Content-Length`. Иначе браузер рисует битую картинку, хотя файл целый. DNS и `/.well-known/` не менялись. На хостинге заменён `index.php`.
 
 ## 2026-11-21 — Урок курса в браузере
 

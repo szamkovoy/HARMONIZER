@@ -247,7 +247,15 @@ foreach (UPSTREAM_IPS as $ip) {
 
     $statusSent = false;
     $upstreamContentType = '';
-    curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $headerLine) use (&$statusSent, &$upstreamContentType) {
+    // Letter images come from Blob via /email-cdn. Blob sends
+    // Content-Security-Policy: default-src 'none'. A browser that applies
+    // that header to the image response paints a broken icon. The header
+    // photo is already cached, so only a newly uploaded picture breaks.
+    // Hold the body and send Content-Length so a short stream is not stored
+    // as a complete JPEG.
+    $holdImage = strpos($uri, '/email-cdn/') === 0;
+    $heldImage = '';
+    curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $headerLine) use (&$statusSent, &$upstreamContentType, $holdImage) {
         $line = trim($headerLine);
         if ($line === '') {
             return strlen($headerLine);
@@ -270,6 +278,9 @@ foreach (UPSTREAM_IPS as $ip) {
         if (isset($GLOBALS['hz_hop'][$lower]) || $lower === 'content-length') {
             return strlen($headerLine);
         }
+        if ($holdImage && $lower === 'content-security-policy') {
+            return strlen($headerLine);
+        }
         if ($lower === 'content-type') {
             $upstreamContentType = $value;
         }
@@ -288,6 +299,11 @@ foreach (UPSTREAM_IPS as $ip) {
     if ($buffer !== null) {
         curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use (&$buffer) {
             $buffer .= $chunk;
+            return strlen($chunk);
+        });
+    } elseif ($holdImage) {
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use (&$heldImage) {
+            $heldImage .= $chunk;
             return strlen($chunk);
         });
     } else {
@@ -318,6 +334,10 @@ foreach (UPSTREAM_IPS as $ip) {
                 }
             }
             echo $buffer;
+        }
+        if ($holdImage) {
+            header('Content-Length: ' . strlen($heldImage));
+            echo $heldImage;
         }
         exit;
     }
