@@ -13,6 +13,7 @@ import {
 
 import { adminFetch } from "../../_lib/adminApi";
 import { sanitizeEmailRichHtml } from "../../../api/_utils/emailRichHtml";
+import { emailImagePreviewHtml } from "../_lib/imagePreview";
 import {
   createEmptyBlock,
   blocksToHtml,
@@ -334,7 +335,7 @@ function BlockPreview({
         type="button"
         onClick={onOpen}
         className="w-full px-3 py-2 text-left text-sm"
-        dangerouslySetInnerHTML={{ __html: block.html ? blocksToHtml([block]) : "<p><em>Пусто</em></p>" }}
+        dangerouslySetInnerHTML={{ __html: block.html ? emailImagePreviewHtml(blocksToHtml([block])) : "<p><em>Пусто</em></p>" }}
       />
     );
   }
@@ -558,7 +559,7 @@ function BlockSettingsModal({
                 />
               ) : block.src ? (
                 <p className="text-sm text-zinc-500">
-                  Эта картинка не открывается из письма. Выберите файл ещё раз — она сохранится в размере, который видно в рассылке.
+                  Не удалось загрузить предпросмотр. Проверьте соединение и попробуйте открыть редактор снова.
                 </p>
               ) : null}
               <div className="block text-xs text-zinc-500">

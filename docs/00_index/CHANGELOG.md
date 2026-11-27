@@ -9,6 +9,8 @@ code_refs: [docs/_proposal.md]
 
 ## Changelog
 
+- 2026-11-27: Предпросмотр картинок писем использует email CDN origin открытой админки (iframe, редактор, legacy HTML и размеры); сохранённые/отправляемые URL и исходные файлы не меняются. Публичный JPEG по `curl --max-time 20` обрывается без ответа (0 байт), Vercel-аналог — HTTP 200, 137826 байт; вопрос доставки остаётся открытым. Docs `marketing_email`, `admin_panel`, `open_questions`.
+
 - 2026-11-27: Картинка рассылки была целой, но в просмотре рисовалась битой: прокси отдавал `Content-Security-Policy` от Blob. Для `/email-cdn` заголовок снимается и ставится `Content-Length`. Docs `marketing_email`, `infra`.
 
 - 2026-11-27: Загрузка картинки рассылки больше не пережимает файл. Автор сам задаёт ширину и вес; `fitEmailImage` удалён. Docs `marketing_email`.

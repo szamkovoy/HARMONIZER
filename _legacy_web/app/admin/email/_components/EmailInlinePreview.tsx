@@ -6,6 +6,7 @@ import {
   MARKETING_EMAIL_MAX_WIDTH_PX,
   wrapMarketingEmailHtml,
 } from "../../../api/_utils/emailTemplate";
+import { emailImagePreviewHtml } from "../_lib/imagePreview";
 
 /**
  * Preview uses the same HTML document as Resend send (wrap + normalize),
@@ -31,10 +32,10 @@ export function EmailInlinePreview({
     const body =
       bodyHtml.trim() ||
       '<p style="margin:0;padding:0;color:#9ca3af;font-style:italic;">Пустое письмо — нажмите «Редактировать»</p>';
-    const html = wrapMarketingEmailHtml({
+    const html = emailImagePreviewHtml(wrapMarketingEmailHtml({
       bodyHtml: body,
       unsubscribeUrl: "#unsubscribe",
-    });
+    }));
     // Keep document height = content (not 100% of a tall iframe).
     return html.replace(
       "</head>",

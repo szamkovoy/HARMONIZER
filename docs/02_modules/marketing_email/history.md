@@ -1,7 +1,7 @@
 ---
 id: 02_modules/marketing_email/history
 title: Marketing Email History
-version: 1.48
+version: 1.49
 updated: 2026-11-27
 depends_on: [02_modules/marketing_email/spec]
 code_refs:
@@ -26,6 +26,10 @@ code_refs:
     supabase/migrations/20261021132659_email_campaign_send_status_backfill.sql,
   ]
 ---
+
+## 2026-11-27 — Предпросмотр использует origin открытой админки
+
+Повторная диагностика кампании `60ada7a4-7241-4629-b40e-110742cd455b`: обложка через Vercel открывается (1000×558), через публичный REG.RU URL запрос заканчивается `ERR_TIMED_OUT` через 30 с, 0 байт/без HTTP-ответа. Утверждение предыдущей записи об устранении сбоя снятием CSP не подтверждено этим наблюдением. `imagePreview.ts` переводит только image src известных email-CDN URL в относительные адреса для iframe, редактора и natural-size probe; сохранение/отправка продолжают использовать исходные абсолютные URL. Исходные байты, качество и размеры не меняются. 29 тестов preview/upload/template/rich HTML прошли. Повторный `curl --max-time 20` того же JPEG: публичный хост оборвался без HTTP-ответа (0 байт, 20 с), Vercel ответил 200 и 137826 байт за 0.69 с. Доступность публичного origin остаётся в open_questions; инфраструктура не менялась.
 
 ## 2026-11-27 — Картинка письма открывается в просмотре
 

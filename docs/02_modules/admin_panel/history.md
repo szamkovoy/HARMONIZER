@@ -1,11 +1,15 @@
 ---
 id: 02_modules/admin_panel/history
 title: Admin Panel History
-version: 1.14
-updated: 2026-11-19
+version: 1.15
+updated: 2026-11-27
 depends_on: [02_modules/subscription/spec]
 code_refs: [supabase/migrations/20260708010000_admin_panel_tier_foundation.sql]
 ---
+
+## 2026-11-27 — Единый путь картинки в редакторе и просмотре письма
+
+Iframe просмотра после сохранения, изображения и legacy rich HTML редактора, а также natural-size probe используют email CDN текущего origin админки. Прежний код оставлял абсолютный REG.RU URL, недоступный в проверенном соединении, тогда как локальный файл в редакторе был виден. Сохранённые адреса и отправляемые письма не меняются; подробности — marketing_email.
 
 ## 2026-11-19 — Управление ежедневным интенсивом
 

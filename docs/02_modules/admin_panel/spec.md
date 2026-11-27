@@ -1,8 +1,8 @@
 ---
 id: 02_modules/admin_panel/spec
 title: Admin Panel Spec
-version: 1.23
-updated: 2026-11-19
+version: 1.24
+updated: 2026-11-27
 depends_on: [02_modules/subscription/spec, 02_modules/infra/spec, 02_modules/author_presence/spec]
 code_refs:
   [
@@ -143,6 +143,8 @@ code_refs:
 - Стили — Tailwind v4 без конфига (v4 через `@import "tailwindcss"`), иконки lucide-react. RN UI-kit (`modules/ui/`) на веб не переносится; заимствуются только цветовые токены.
 - Формат дат админки централизован в `app/admin/_lib/adminDates.ts`: везде `ДД.ММ.ГГГГ` и `ДД.ММ.ГГГГ ЧЧ:ММ`; сохранение срока оплаты из date-input добавляет текущее локальное время браузера, а не `23:59`.
 - Stories upload flow стал двухшаговым: browser signed-upload только складывает raw media в `story-media/tmp/stories/*`, а финальная запись в `stories` создаётся лишь после `process`-роута. Это снижает вес клиентского контракта и держит crop/transcode/poster/thumb generation полностью на сервере.
+
+Предпросмотр и редактор писем используют относительный `/email-cdn/` для известных публичных URL картинок; сохранение и отправка сохраняют абсолютные адреса. Контракт и ограничения — `marketing_email/spec.md`, «Предпросмотр картинок в админке».
 
 ## 4. Конфигурация
 

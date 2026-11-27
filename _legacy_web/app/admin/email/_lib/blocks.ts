@@ -1,6 +1,9 @@
 import { MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX } from "../../../api/_utils/emailChrome";
 import { normalizeEmailBodyHtml } from "../../../api/_utils/emailTemplate";
 import { sanitizeEmailRichHtml } from "../../../api/_utils/emailRichHtml";
+import { emailImagePreviewSrc } from "./imagePreview";
+
+export { emailImagePreviewSrc } from "./imagePreview";
 
 export type BlockAlign = "left" | "center" | "right";
 /** Web-safe stacks only — email clients ignore arbitrary fonts. */
@@ -13,14 +16,6 @@ export type BlockFontFamily =
 export type BlockFontSize = "sm" | "md" | "lg" | "xl";
 
 const CONTENT_INNER_WIDTH_PX = MARKETING_EMAIL_CONTENT_INNER_WIDTH_PX;
-
-/** Same file as the Blob URL, via the yoga host. The blob host does not open in Russia. */
-export function emailImagePreviewSrc(src: string): string {
-  return src.replace(
-    /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i,
-    "/email-cdn/",
-  );
-}
 
 const FONT_CSS: Record<BlockFontFamily, string> = {
   // Arial first: Yandex Mail app does not resolve `system-ui` and shrinks body text.
@@ -229,7 +224,7 @@ export function loadImageNaturalSize(
     img.onload = () =>
       resolve({ width: img.naturalWidth, height: img.naturalHeight });
     img.onerror = () => reject(new Error("Не удалось прочитать размер изображения"));
-    img.src = src;
+    img.src = emailImagePreviewSrc(src);
   });
 }
 
