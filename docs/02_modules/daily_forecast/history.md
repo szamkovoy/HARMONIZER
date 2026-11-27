@@ -9,6 +9,8 @@ code_refs:
     modules/daily-engine/computeDailyForecast.ts,
     modules/daily-engine/planetDiurnalCurve.ts,
     modules/home/ui/OpportunityWindows.tsx,
+    modules/home/ui/opportunityChartMarkerLabels.ts,
+    modules/home/ui/opportunityChartMarkerLabels.test.ts,
     modules/home/i18n/home.ts,
     modules/home/useDayContent.ts,
     app/(tabs)/day.tsx,
@@ -44,6 +46,8 @@ Gap курс → урок 10 pt, строка от 44 pt до и после по
 
 
 ## Decision Log
+
+- **2026-11-22 (marker time label layout):** Подписи времени под точками графика в `OpportunityWindows` снова проходят через `layoutMarkerTimeLabelCenters` (`modules/home/ui/opportunityChartMarkerLabels.ts`): одиночные метки clamp к краям chartWrap; близкие кластеры разводятся с минимальным зазором (~6 px) и центрируются как группа между соответствующими точками. Точки на кривой не сдвигаются. Регрессия `opportunityChartMarkerLabels.test.ts`.
 
 - **2026-11-22 (hide alternative-choice caption):** Правило третьего дня по-прежнему берёт вторую планету и пишет `is_alternative_choice` в `user_daily_forecasts`. Подпись «Сегодня предлагаем направить внимание на другую тему…» убрана с карточки «Рекомендации»: её рисовал клиент по этому флагу, и пользователи читали её как сбой. `buildClientForecastPayload` отдаёт флаг `false` и пустую причину, чтобы уже установленные сборки перестали печатать строку при следующей загрузке дня. Строка в математике дня остаётся.
 

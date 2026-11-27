@@ -43,6 +43,11 @@ import {
   OPPORTUNITY_REMINDERS_CHANNEL_ID,
 } from "@/services/localNotifications";
 import { loadOpportunityWindowsExplanation } from "@/services/opportunityWindowsExplanation";
+import {
+  estimateMarkerTimeLabelHalfWidthPx,
+  layoutMarkerTimeLabelCenters,
+  type ChartMarkerLabelSlot,
+} from "@/modules/home/ui/opportunityChartMarkerLabels";
 
 type Windows = DailyForecast["windowsOfOpportunity"];
 
@@ -568,6 +573,29 @@ export function OpportunityWindows({
     return map;
   }, [displayItems, chartTimezone]);
 
+  const chartMarkerLabelSlots = useMemo((): ChartMarkerLabelSlot[] => {
+    const slots: ChartMarkerLabelSlot[] = [];
+    for (const item of activeItems) {
+      const frac = timeToDayFraction(item.time, chartTimezone);
+      if (!frac) continue;
+      const timeLabel = item.time ? strings.formatTime(item.time) : "";
+      slots.push({
+        key: item.key,
+        x: frac.x,
+        halfWidthPx: estimateMarkerTimeLabelHalfWidthPx(
+          timeLabel,
+          markerLabelWidths[item.key],
+        ),
+      });
+    }
+    return slots;
+  }, [activeItems, chartTimezone, markerLabelWidths, strings]);
+
+  const chartMarkerLabelXByKey = useMemo(
+    () => layoutMarkerTimeLabelCenters(chartWidth, chartMarkerLabelSlots),
+    [chartWidth, chartMarkerLabelSlots],
+  );
+
   const onChartLayout = useCallback((event: LayoutChangeEvent) => {
     setChartWidth(event.nativeEvent.layout.width);
   }, []);
@@ -588,10 +616,18 @@ export function OpportunityWindows({
         .map((item) => {
           const frac = timeToDayFraction(item.time, chartTimezone);
           if (!frac) return null;
+          const timeLabel = item.time ? strings.formatTime(item.time) : "";
+          const labelHalfWidthPx = estimateMarkerTimeLabelHalfWidthPx(
+            timeLabel,
+            markerLabelWidths[item.key],
+          );
+          const labelX = chartMarkerLabelXByKey.get(item.key) ?? frac.x;
           return {
             ...item,
             ...frac,
             y: skyY(frac.x),
+            labelX,
+            labelHalfWidthPx,
           };
         })
         .filter(
@@ -599,9 +635,11 @@ export function OpportunityWindows({
             x: number;
             y: number;
             past: boolean;
+            labelX: number;
+            labelHalfWidthPx: number;
           } => Boolean(item),
         ),
-    [activeItems, chartTimezone, skyY],
+    [activeItems, chartMarkerLabelXByKey, chartTimezone, markerLabelWidths, skyY, strings],
   );
 
   const nowBadgeBodyHalfPx = (nowBadgeLayoutW > 0 ? nowBadgeLayoutW : NOW_BADGE_FALLBACK_W) / 2;
@@ -854,9 +892,6 @@ export function OpportunityWindows({
           </Svg>
         ) : null}
         {chartPoints.map((point) => {
-          const timeLabel = point.time ? strings.formatTime(point.time) : "";
-          const estimatedWidth = Math.max(28, 18 + timeLabel.length * 6);
-          const labelWidth = markerLabelWidths[point.key] ?? estimatedWidth;
           return (
             <Fragment key={point.key}>
               <Pressable
@@ -897,8 +932,8 @@ export function OpportunityWindows({
                 style={[
                   styles.markerTimeLabel,
                   {
-                    left: `${point.x * 100}%`,
-                    marginLeft: labelWidth > 0 ? -labelWidth / 2 : 0,
+                    left: `${point.labelX * 100}%`,
+                    marginLeft: -point.labelHalfWidthPx,
                     opacity: point.past && !enabledReminders[point.key] ? 0.45 : 1,
                   },
                 ]}

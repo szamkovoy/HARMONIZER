@@ -36,6 +36,24 @@ describe('another practicum with an independent completion letter',()=>{
 });
 
 
+describe('letter images',()=>{
+ it('keeps one text block when a letter has no inline image',async()=>{
+  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
+  const sql=generateCourseImportSql(parseCourseReview(source));
+  expect(sql.match(/"type":"image"/g)).toHaveLength(8);
+  expect(sql).not.toContain('email_assets');
+ });
+ it('stores an inline letter image as its own block between the surrounding text',()=>{
+  const src='https://harmonizer.zamkovoi.yoga/email-cdn/email-assets/courses/fixture-image/letter.jpg';
+  const course={version:1,slug:'fixture-image',kind:'course',title:'Картинка',landingUrl:'',accessDays:90,dayCardExtraDays:3,webinarExtraDays:5,sourceHash:'a'.repeat(64),lessons:[{id:'fixture-image-01',position:1,gapDays:0,title:'День 1',blocks:[{type:'text',markdown:'Текст урока'}],email:{subject:'Тема',markdown:`До картинки\n\n![картинка письма](${src})\n\nНажмите кнопку ниже, чтобы открыть первый урок в браузере, или посмотрите его в Гармонизаторе на вкладке «День».\n\nПосле картинки`}}]};
+  const sql=generateCourseImportSql(course);
+  expect(sql).toContain('"type":"image"');expect(sql).toContain(src);expect(sql).not.toContain('![');
+  expect(sql).toContain('email-assets/courses/fixture-image/letter.jpg');
+  expect(sql.indexOf('До картинки')).toBeLessThan(sql.indexOf(src));
+  expect(sql.indexOf(src)).toBeLessThan(sql.indexOf('После картинки'));
+ });
+});
+
 it('rejects unsupported standalone introductory mail instead of silently dropping it',async()=>{
  const source=await readFile(new URL('./fixtures/course-completion.review.md',import.meta.url),'utf8');
  expect(()=>parseCourseReview(source+'\n## Вводное письмо\n\n### Письмо\n\n**Тема:** Введение\n\nТекст\n')).toThrow(/вводные/);

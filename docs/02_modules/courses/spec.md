@@ -2,7 +2,7 @@
 id: 02_modules/courses/spec
 title: Courses
 version: 1.2
-updated: 2026-11-21
+updated: 2026-11-24
 depends_on: [02_modules/profile/spec, 02_modules/marketing_email/spec, 02_modules/practices/spec, 02_modules/infra/spec, 02_modules/i18n/spec, 02_modules/admin_panel/spec]
 code_refs: [modules/courses/CoursesProvider.tsx, modules/courses/CourseContent.tsx, modules/courses/CourseCards.tsx, "app/course/[id].tsx", _legacy_web/shared_core/courses.ts, _legacy_web/app/api/_utils/courseService.ts, _legacy_web/app/api/_utils/courseSchedule.ts, _legacy_web/app/api/_utils/courseMailRunner.ts, supabase/migrations/20261117160000_courses_pilot.sql, supabase/migrations/20261117160100_month_health_content.sql]
 ---
@@ -51,7 +51,7 @@ Free получает вкладку «День» на время отображ
 
 ## 5. Письма и импорт
 
-Общая картинка писем задаётся `emailHeader` в JSON курса (источник — строка «Шапка писем» авторского Markdown). Пилот использует предоставленную Сергеем PNG 600×232, размещённую через существующий email CDN: первый image-блок с `align=center`, ширина по колонке письма, исходные пропорции. Добавление шапки не меняет учебные тексты и расписание.
+Общая картинка писем задаётся `emailHeader` в JSON курса (источник — строка «Шапка писем» авторского Markdown). Пилот использует предоставленную Сергеем PNG 600×232, размещённую через существующий email CDN: первый image-блок с `align=center`, ширина по колонке письма, исходные пропорции. Добавление шапки не меняет учебные тексты и расписание. Строка письма `![подпись](https://…)` становится отдельным image-блоком между окружающим текстом, и в `html_body`, и в `blocks_i18n`. Письмо без такой строки остаётся одним текстовым блоком под шапкой.
 
 Письма хранятся в существующих `email_automation_steps`/`blocks_i18n`; редактируются обычной админкой. RU-пилот использует exact локаль → en → ru, отдельно от поведения других автоматизаций. Это письма о купленном материале без рекламного футера; complained/suppressed запрещают отправку. Несовпадение адреса/пользователя останавливает её.
 
@@ -152,6 +152,19 @@ API starter по умолчанию использует content; CLI `scripts/c
 
 Курс `yoga-femininity` (`kind=course`) импортирован 22.11.2026 из утверждённого `content/courses/yoga-femininity.{review.md,json}`; воронка GetCourse 22474. Применена только `20261122041000_yoga_femininity_content.sql`; dry-run — одна миграция. 13 уроков, 13 парных писем (завершающего письма без урока нет); интервалы `[0,2,2,2,3,4,3,4,3,4,3,4,3]`, последняя выдача D37. Доступ 90 дней после последнего урока, показ на «Дне» 3 дня, вебинар +5 дней. Лендинг пустой. Шапка JPG 1000×371 в `content/courses/assets/yoga-femininity-email.jpg`, SHA `e757bc5b6506`; email CDN `email-assets/courses/yoga-femininity/yoga-femininity_email-e757bc5b6506.jpg`. Кнопки писем: «Перейти к уроку» / урок 4 «Ваша ссылка на урок», `#24bd96` (`LESSON_BUTTONS` + импорт с lessonId). Тест `0c91db88-6f52-462c-acc0-7127bf467e77` для sergei@zamkovoi.yoga только prepared. Для продакшен-отправки нужен deploy Vercel с обновлённым `courseLessonEmail.ts`.
 
+
+## «Осуществи мечту» — импорт 23.11.2026
+
+Курс `make-dream` («Осуществи мечту», `kind=course`) импортирован 23.11.2026 из авторской программы `content/courses/make-dream.{review.md,json}`; воронка GetCourse 62550. Применена только `20261123060000_make_dream_content.sql`; dry-run показал одну эту миграцию. 37 уроков, 37 парных писем, 63 Vimeo; интервалы `[0,1×36]`, последняя выдача D36 при покупке до 18:00. Пауза перед первым уроком — 0 минут: урок и письмо сразу. Второй урок при интервале 1 день использует действующее правило `buildCourseSchedule`: до 18:00 — ближайшая полночь, с 18:00 — следующая полночь; письмо в 07:00; дальше по одному дню от предыдущего урока. Доступ 90 дней после последнего урока (в письмах срок не назван; взят как у остальных курсов йоги), показ 3 дня, вебинар +5 дней. Лендинг `https://zamkovoi.yoga/yoga3`. Шапка PNG 600×294, email CDN `email-assets/courses/make-dream/make-dream_email-e47ce2922380.png`, align=center. В каждом письме отдельная картинка урока — image-блок на прежнем месте, 37 файлов на том же CDN. Кнопки: урок 1 «Перейти к урокам первого дня», уроки 6–7 «Перейти к стратагеме», остальные «Перейти к уроку», `#F89C26`. Тест `98269b61-7a97-4f61-a529-aefb3139b1b3` для sergei@zamkovoi.yoga / Europe/Moscow только prepared. Мобильный код не менялся, билд не нужен. Запуск — отдельное «запускай»; commit/push не выполнялись.
+
+## «Тантра — мистерия взаимоотношений» — импорт 23.11.2026
+
+Практикум `tantra-mystery` импортирован 23.11.2026 из утверждённого Сергеем `content/courses/tantra-mystery.{review.md,json}`; воронка GetCourse 24610. Применена только `20261123050000_tantra_mystery_content.sql`; dry-run — одна миграция. 12 уроков, 12 парных писем (завершающего письма без урока нет); интервалы `[0,2,2,3,2,2,3,2,2,3,2,2]`, последняя выдача D25. Доступ 90 дней после последнего урока (три месяца из письма 1), показ на «Дне» 3 дня, вебинар +5 дней. Лендинг `https://zamkovoi.yoga/tantra12`. Шапка JPG 1000×371 в `content/courses/assets/tantra-mystery-email.jpg`, SHA `e757bc5b6506` (байтово совпадает с шапкой yoga-femininity); email CDN `email-assets/courses/tantra-mystery/tantra-mystery_email-e757bc5b6506.jpg`, align=center. Кнопки писем: «Перейти к уроку», `#24bd96` (`LESSON_BUTTONS` + импорт с lessonId). Тест `ffd592fb-1322-4bfb-881f-fcfcdd277a3a` для sergei@zamkovoi.yoga / Europe/Moscow только prepared: 12 уроков в цепочке, 0 отправок, started_at/next_mail_at/last_error NULL. Для продакшен-отправки писем с правильной подписью кнопки нужен deploy Vercel с обновлённым `courseLessonEmail.ts`. Мобильный код не менялся, билд не нужен. Запуск — отдельное «запускай»; commit/push не выполнялись.
+
+
+## «Планета любви» — импорт 24.11.2026
+
+Курс `planet-love` (`kind=course`) импортирован 24.11.2026 из авторской программы `content/courses/planet-love.{review.md,json}`; воронка GetCourse 76024. Применена только `20261124011000_planet_love_content.sql`; dry-run показал одну эту миграцию. 19 уроков, 19 парных писем (завершающего письма без урока нет), 19 Vimeo. Интервалы `[0,1,2,1,3,1,2,1,3,1,2,1,3,1,2,1,1,6,3]`, последняя выдача D35 при покупке до 18:00. Между уроком 16 и уроком 17 — дополнительный урок «Как научиться медитировать» (пауза 1 день), затем урок 17 через 6 дней и урок 18 через 3 дня. Первый урок и письмо — сразу. Доступ 90 дней после последнего урока (в воронке и письмах срок не назван; взят как у остальных курсов йоги), показ 3 дня, вебинар +5 дней. Лендинг пустой. Шапка PNG 600×382, email CDN `email-assets/courses/planet-love/planet-love_email-c7abdf2b52eb.png`, align=center. Фотография внутри письма остаётся image-блоком; строка из пробела вокруг неё пишется как `<p>&nbsp;</p>`. Кнопки: уроки 1–18 «Перейти к уроку», урок 18 в программе (позиция 19) «Перейти к практике...», `#199c68`. Тест `45e5ea58-e940-4e86-a3bc-26c28046cdea` для sergei@zamkovoi.yoga / Europe/Moscow только prepared. Мобильный код не менялся, билд не нужен. Запуск — отдельное «запускай»; commit/push не выполнялись.
 
 ### Завершение проверки практикумов, 18.11.2026
 

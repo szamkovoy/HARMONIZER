@@ -294,6 +294,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // After expo-splash-screen: no Android 12 mini-icon; full-bleed windowBackground
       // + immediate SplashScreenManager.hide() so large splash shows without JS wait.
       "./plugins/with-android-splash-hide-icon.js",
+      // After every other manifest mod: portrait stays locked, but Play must
+      // not treat android.hardware.screen.portrait as required hardware.
+      "./plugins/with-android-optional-screen-portrait.js",
     ],
   };
 };

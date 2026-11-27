@@ -101,9 +101,15 @@ export function parseCourseReview(rawSource){
 /** Centered existing 504px email column; retain the supplied image's own ratio. */
 export function courseEmailHeaderHtml(header){
  if(!header)return '';
- const attr=s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
- const height=header.naturalWidth>0&&header.naturalHeight>0?` height="${Math.round(504*header.naturalHeight/header.naturalWidth)}"`:'';
- return `<div style="margin:0px 0 24px;text-align:center;"><img src="${attr(header.src)}" alt="${attr(header.alt)}" width="504"${height} style="width:100%;max-width:100%;height:auto;display:inline-block;border:0;" /></div>`;
+ return courseEmailImageHtml({...header,marginBottom:header.marginBottom??24});
+}
+/** Same centered column image the letter editor emits for an image block. */
+export function courseEmailImageHtml(image){
+ if(!image?.src)return '';
+ const attr=s=>String(s??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
+ const height=image.naturalWidth>0&&image.naturalHeight>0?` height="${Math.round(504*image.naturalHeight/image.naturalWidth)}"`:'';
+ const mt=image.marginTop??0;const mb=image.marginBottom??0;
+ return `<div style="margin:${mt}px 0 ${mb}px;text-align:center;"><img src="${attr(image.src)}" alt="${attr(image.alt||'')}" width="504"${height} style="width:100%;max-width:100%;height:auto;display:inline-block;border:0;" /></div>`;
 }
 
 if (process.argv[1]?.endsWith('/courses-content.mjs')) {
